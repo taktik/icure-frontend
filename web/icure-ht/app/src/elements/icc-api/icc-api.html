@@ -322,6 +322,80 @@
             return d1 === null || d2 === null || d1 === undefined || d2 === undefined || this.moment(d1).isBefore(this.moment(d2));
         }
 
+        migrateClassifications() {
+
+            Promise.all([this.user().getCurrentUser(), this.getCurrentParentHcp()])
+            .then( (res) => {
+
+                const user = res[0]
+                const hcp = res[1]
+
+                this.getRowsUsingPagination(
+                    (key, docId) => this.patient().listPatientsByHcPartyWithUser(user, hcp, null, key || null, docId || null, 1000, null).then(pl => {
+
+                        console.log(pl)
+
+                        const returnObj = {
+                            rows: pl.rows,
+                            nextKey: pl.nextKeyPair && JSON.stringify(pl.nextKeyPair.startKey),
+                            nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                            done: !pl.nextKeyPair
+                        }
+
+                        return returnObj
+                    })
+                ).then(allPatients => {
+
+                    const accumulator = [];
+
+                    _.chunk(allPatients, 1000).reduce((lastChunk, chunk) => {
+
+                        return lastChunk.then(result => {
+
+                            return Promise.all(
+                                chunk.map(pat => {
+                                    return this.classification().findBy(hcp, pat)
+                                        .then(res => res.length ? { class: res, patient: pat } : null)
+                                })
+                            )
+                                .then(res => {
+
+                                    return result.concat(res.filter(el => el))
+
+                                })
+                                .catch(err => {
+                                    console.warn(err)
+                                })
+
+                        })
+
+                    }, Promise.resolve([])).then(result => {
+                        console.log(result)
+                    })
+
+                })
+            })
+            
+
+                
+        }
+
+        getCurrentParentHcp( promise = null) {
+
+            if(!promise) return this.getCurrentParentHcp(this.hcparty().getCurrentHealthcareParty())
+
+            console.log(promise)
+
+            return promise.then( (hcp) => {
+
+                if(hcp.parentId) return this.getCurrentParentHcp( this.hcparty().getHealthcareParty(hcp.parentId) )
+
+                return Promise.resolve(hcp.id)
+
+            })
+
+        }
+
         moment(epochOrLongCalendar) {
             if (!epochOrLongCalendar && epochOrLongCalendar !== 0) {
                 return null;
