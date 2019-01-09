@@ -27,6 +27,8 @@
     import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
     import {IccClassificationXApi} from 'icc-api/dist/icc-x-api/icc-classification-x-api'
 
+    import classificationMigrationJSON from '../../ressources//migration/classification-migration.json'
+
     class IccApi extends Polymer.Element {
         static get is() {
             return 'icc-api'
@@ -329,36 +331,68 @@
 
         migrateClassifications() {
 
-            Promise.all([this.user().getCurrentUser(), this.getCurrentParentHcp()])
-            .then( (res) => {
+            this.saveToCache(
+                "classificationTemplates" , 
+                Promise.all([this.user().getCurrentUser(), this.getCurrentParentHcp()])
+                .then( (res) => {
 
-                const user = res[0]
-                const hcp = res[1]
+                    const user = res[0]
+                    const hcp = res[1]
 
-                this.classificationtemplate()
-                
-                // this.getRowsUsingPagination((key, docId) => {
-                    
-                //     return this.patient().listPatientsByHcPartyWithUser(user, hcp, null, key || null, docId || null, 1000, null)
-                //     .then( patients => {
+                    return this.getRowsUsingPagination((key, docId) => {
 
-                //         patients.rows.map( pat => {
-                //             console.log(pat.secretForeignKeys)
-                //         })
+                        return this.classificationtemplate().listClassificationTemplates(key || null, docId || null, 100).then( cts => {
+                            return {
+                                rows: cts.rows,
+                                nextKey: cts.nextKeyPair && JSON.stringify(cts.nextKeyPair.startKey),
+                                nextDocId: cts.nextKeyPair && cts.nextKeyPair.startKeyDocId,
+                                done: !cts.nextKeyPair
+                            }
+                        })
 
-                //         return {
-                //             rows: patients.rows.map(id => ({ id })),
-                //             nextKey: patients.nextKeyPair && JSON.stringify(patients.nextKeyPair.startKey),
-                //             nextDocId: patients.nextKeyPair && patients.nextKeyPair.startKeyDocId,
-                //             done: !patients.nextKeyPair
-                //         }
+                    }).then( allCTs => {
 
-                //     })
-                // })
-                
-            })
-            
+                        const cm = classificationMigrationJSON
+                        
+                        const ctsByCTIDs = {}
+                        allCTs.map( ct => {
+                            const relatedHEData = cm.filter( cmelement => cmelement.Archimède ).map( cmelement => {
 
+                                const ESepicure = cmelement['Elément de soin Epicure'].includes(ct.label)
+                                const sESepicure = cmelement['Sous-élément de soins Epicure'].includes(ct.label)
+
+                                return  Object.assign(cmelement, {es: ESepicure ? 1 : 0, ses: sESepicure ? 1 : 0})
+                                
+                            })
+                            .filter( cme => cme.es || cme.ses)
+                            // .sort( (a,b) => {
+                            //     const sorting = ( 2*a.es - a.ses) + ( 2*b.es - b.ses)
+                            //     return sorting
+                            // })
+
+                            console.log(relatedHEData)
+
+                            return ct
+                        })
+                        .forEach( ct => {
+
+                            ctsByCTIDs[ct.id] = {
+                                id: ct.id,
+                                label: ct.label || null,
+                                parentId: ct.parentId || null,
+                                codes: ct.codes || [],
+                                tags: ct.tags || []
+                            } 
+
+                        })
+
+                        return ctsByCTIDs
+
+                        //now create the Health Elements
+
+                    })
+                })   
+            )
                 
         }
 
@@ -416,8 +450,17 @@
             return hcp && hcp.lastName + " " + (hcp.firstName && hcp.firstName.length && hcp.firstName.substr(0, 1) + ".") || usr && usr.login || "N/A";
         }
 
+        saveToCache(key, promise) {
+            const cache = this.cache || (this.cache = {})
+            let cachePlace = cache[key]
+
+            if(cachePlace) console.warn("Assigning a new promise to an exsisting one in the cache")
+
+            cache[key] = promise
+        }
+
         cacheRowsUsingPagination(key, paginator) {
-            const cache = this.cache || ((this.cache = {}))
+            const cache = this.cache || (this.cache = {})
             const promise = cache[key]
             if (promise) { return promise }
 
