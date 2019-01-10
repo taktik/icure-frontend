@@ -354,31 +354,46 @@
 
                         const cm = classificationMigrationJSON
                         
-                        const ctsByCTIDs = {}
-                        allCTs.map( ct => {
-                            const relatedHEData = cm.filter( cmelement => cmelement.Archimède ).map( cmelement => {
+                        const ctsByCtIDs = {}
 
-                                const ESepicure = cmelement['Elément de soin Epicure'].includes(ct.label)
-                                const sESepicure = cmelement['Sous-élément de soins Epicure'].includes(ct.label)
+                        this.listCTLabelTree(allCTs).map( ct => {
+                            const relatedHEData = cm.map( cmelement => {
+                                
+                                const labeltree = ct.lableTree.split('|')
+                                const ESepicure = cmelement['Elément de soin Epicure'] === labeltree[0]
+                                const sESepicure = cmelement['Sous-élément de soins Epicure'] === labeltree[1]
 
                                 return  Object.assign(cmelement, {es: ESepicure ? 1 : 0, ses: sESepicure ? 1 : 0})
                                 
                             })
-                            .filter( cme => cme.es || cme.ses)
+                            .filter( cme => (cme.es && cme.ses) )
                             // .sort( (a,b) => {
                             //     const sorting = ( 2*a.es - a.ses) + ( 2*b.es - b.ses)
                             //     return sorting
                             // })
 
-                            console.log(relatedHEData)
-
-                            return ct
+                            return {classificationTemplate: ct, migrationData: relatedHEData}
                         })
-                        .forEach( ct => {
+                        .filter( ctsData => {
+                            return (ctsData.migrationData.length >= 1)
+                        })
+                        .forEach( migrationArray => {
 
-                            ctsByCTIDs[ct.id] = {
+                            const ct = migrationArray.classificationTemplate
+                            const data = migrationArray.migrationData[0]
+
+                            console.log(data)
+
+                            ctsByCtIDs[ct.id] = {
                                 id: ct.id,
                                 label: ct.label || null,
+                                healthElement: {
+                                    codes: [
+                                        data["Code ES"]
+                                    ],
+                                    desc: data["Elément de soin"],
+                                    action: data["Démarche"]
+                                },
                                 parentId: ct.parentId || null,
                                 codes: ct.codes || [],
                                 tags: ct.tags || []
@@ -386,7 +401,9 @@
 
                         })
 
-                        return ctsByCTIDs
+                        // console.log(ctsByCtIDs)
+
+                        return ctsByCtIDs
 
                         //now create the Health Elements
 
@@ -396,6 +413,41 @@
                 
         }
 
+        listCTLabelTree( ctArray ) {
+
+            const objectFromArray = {}
+            ctArray.forEach( ct => {
+                objectFromArray[ct.id] = ct
+            })
+
+            const recurse = (x, labels) => {
+
+                labels.push(x.label)
+
+                const parent = objectFromArray[x.parentId]
+
+                if (parent && x.parentId) return recurse(parent, labels)
+
+                return labels
+
+            }
+
+            return ctArray.map( ct => {
+
+                const labelArray = []
+
+                if( ct.parentId ) return {classificationTemplate: ct ,labels: recurse( ct, labelArray )}
+                return { classificationTemplate: ct, labels: [ct.label] }
+
+            })
+            .map( ct => { 
+                ct.classificationTemplate.lableTree = ct.labels.reverse().join('|') 
+                return ct.classificationTemplate
+            })
+            .sort( (a, b) => a.lableTree < b.lableTree ? -1 : 1 )
+
+        }
+ 
         getCurrentParentHcp( promise = null) {
 
             if(!promise) return this.getCurrentParentHcp(this.hcparty().getCurrentHealthcareParty())
