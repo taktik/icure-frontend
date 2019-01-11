@@ -2974,6 +2974,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             refreshPatient() {
+
                 const patient = this.patient
 
                 const currentlySelectedContactsIds = (this.selectedContactIds || []).map(id => id && id.substr(4) /* format is ctc_... see DOM */)
@@ -3000,29 +3001,46 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                             //We link to the corresponding Health Element or we create it
                             //Add the Health Elements to the allHes array 
-
                             if(template) {
                                 
-                                //we try to find corresponding codes
-                                const codesConcat = template.healthElement.codes.map( c => c._id ).join(' ')
+                                //we try to find corresponding codes between the Health Element Data and the existing health Element
+                                const codesConcat = template.healthElement ? template.healthElement.codes.map( c => c._id ).join(' ') : ""
+                                const existingHE = allHes.filter(he => {
+                                    let isCorrespondingHE = false
 
+                                    if (template.healthElement.descr == he.descr) isCorrespondingHE = true
 
-                                const existingHE = []
-                                existingHE.concat(
-                                    allHes.filter( he =>{ 
+                                    if (he.codes.length) {
+                                        const foundCode = he.codes.filter(c => codesConcat.includes(c._id))
+                                        isCorrespondingHE = foundCode.length ? true : false
+                                    }
 
-                                        console.log(template.healthElement.desc,he.descr)
+                                    return isCorrespondingHE
+                                })
 
-                                        if( template.healthElement.desc == he.descr ) return true
+                                //if we didn't find any we create a new Health Element
+                                if(!existingHE.length) {
 
-                                        if( he.codes.length ) {
-                                            console.log(codesConcat,he.codes)
-                                            const foundCode = he.codes.filter( c => codesConcat.includes(c._id))
-                                            return foundCode.length
-                                        }  
-                                        return false
+                                    this.api.helement().newInstance(this.user,patient,template.healthElement).then( res => {
+
+                                        //Now we assign the healthelementID in the subContact where it was linked to the reference classification
+                                        const contactsChanged = ctcs.filter( ctc => {
+                                            let isLinked = false
+                                            ctc.subContacts.map( sctc => {
+                                                if(sctc.classificationId && sctc.classificationId == classification.id) {
+                                                    sctc.healthElementId = res.healthElementId
+                                                    isLinked = true
+                                                }
+                                            })
+                                            return isLinked
+                                        })
+
+                                        console.log(contactsChanged)
+                                        console.log(res)
+
                                     })
-                                )
+
+                                }
 
                             }
 
