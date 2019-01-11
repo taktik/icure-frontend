@@ -357,61 +357,56 @@
                         const ctsByCtIDs = {}
 
                         this.listCTLabelTree(allCTs).map( ct => {
-                            const relatedHEData = cm.map( cmelement => {
-                                
-                                const labeltree = ct.lableTree.split('|')
-                                const ESepicure = cmelement.epicureHE === labeltree[0]
-                                const sESepicure = cmelement.epicureSubHE === labeltree[1]
 
-                                return  Object.assign(cmelement, {es: ESepicure ? 1 : 0, ses: sESepicure ? 1 : 0})
-                                
-                            })
-                            .filter( cme => (cme.es && cme.ses) )
-                            // .sort( (a,b) => {
-                            //     const sorting = ( 2*a.es - a.ses) + ( 2*b.es - b.ses)
-                            //     return sorting
-                            // })
+                            const relatedHEData = this.getHEMigrationDataFromLabel(ct.lableTree)
 
-                            return {classificationTemplate: ct, migrationData: relatedHEData}
+                            const hedata = relatedHEData.length == 1 ? relatedHEData[0] : null
+                            return {classificationTemplate: ct, migrationData: hedata}
                         })
-                        .filter( ctsData => {
-                            return (ctsData.migrationData.length >= 1)
-                        })
-                        .forEach( migrationArray => {
+                        .filter( migration => migration.migrationData )
+                        .forEach( migration => {
 
-                            const ct = migrationArray.classificationTemplate
-                            const data = migrationArray.migrationData[0]
+                            const ct = migration.classificationTemplate
+                            const data = migration.migrationData
+
+                            const codes = []
+
+                            if(data["ICPC"])
+                                codes.push({
+                                    type: 'ICPC',
+                                    code: data["ICPC"],
+                                    version: 2,
+                                    _id: `ICPC|${data["ICPC"]}|2`
+                                })
+
+                            if(data["BE-THESAURUS"]) 
+                                codes.push({
+                                    type: 'BE-THESAURUS',
+                                    code: data["BE-THESAURUS"],
+                                    version: "3.1.0",
+                                    _id: `BE-THESAURUS|${data["BE-THESAURUS"]}|3.1.0`
+                                })
+
+                            const actionPlans = []
+
+                            if( data["actionCode"] && data["plansOfAction"] ) 
+                                actionPlans.push({
+                                    descr: data["plansOfAction"],
+                                        code: data["actionCode"],
+                                            tags: [],
+                                                _id: this.crypto().randomUuid()
+                                })
+
 
                             ctsByCtIDs[ct.id] = {
                                 id: ct.id,
                                 label: ct.label || null,
                                 healthElement: {
-                                    codes: [
-                                        {
-                                            type: 'ICPC',
-                                            code: data["ICPC"],
-                                            version: 2,
-                                            _id: `ICPC|${data["ICPC"]}|2`
-                                        },
-                                        {
-                                            type: 'BE-THESAURUS',
-                                            code: data["BE-THESAURUS"],
-                                            version: "3.1.0",
-                                            _id: `BE-THESAURUS|${data["BE-THESAURUS"]}|3.1.0`
-                                        }
-                                    ],
+                                    codes: codes,
                                     desc: data["HEDesc"],
-                                    plansOfAction: [
-                                        {
-                                            descr: data["plansOfAction"],
-                                            code: data["actionCode"] ,
-                                            tags: [],
-                                            _id: this.crypto().randomUuid()
-                                        }
-                                    ]
+                                    plansOfAction: actionPlans
                                 },
                                 parentId: ct.parentId || null,
-                                codes: ct.codes || [],
                                 tags: ct.tags || []
                             } 
 
@@ -425,6 +420,27 @@
                 })   
             )
                 
+        }
+
+        getHEMigrationDataFromLabel( label ) {
+
+            const labeltree = label.split('|')
+
+            return classificationMigrationJSON.filter(cmelement => {
+
+                const ESepicure = cmelement.epicureHE === labeltree[0]
+                const sESepicure = cmelement.epicureSubHE === labeltree[1]
+
+                if (ESepicure) {
+                    if (labeltree[1]) return sESepicure
+                    return true
+                }
+
+                if (labeltree.length == 1) return cmelement.epicureSubHE === labeltree[0] || cmelement.plansOfAction === labeltree[0]
+                return false
+
+            })
+
         }
 
         listCTLabelTree( ctArray ) {
@@ -455,6 +471,7 @@
 
             })
             .map( ct => { 
+
                 ct.classificationTemplate.lableTree = ct.labels.reverse().join('|') 
                 return ct.classificationTemplate
             })
