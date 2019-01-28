@@ -3158,161 +3158,159 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     ['healtcarehelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'allergy'].includes(c.code)
                             }) && !idServicesInHes.includes(s.id)
                         })
-                            .then(hesAsServices => {
+                        .then(hesAsServices => {
 
-                                const svcHes = hesAsServices.map(svc => this._makeHeFromSvc(svc))
+                            const svcHes = hesAsServices.map(svc => this._makeHeFromSvc(svc))
 
-                                const combinedHes = _.sortBy(_.concat(svcHes, hes.filter(it => it.descr && !it.descr.startsWith('Etat g') && !it.descr.startsWith('Algemeen t') && it.descr !== 'INBOX')), sorter)
-                                const combinedHesWithHistory = _.sortBy(_.concat(svcHes, allHes.filter(it => it.descr && !it.descr.startsWith('Etat g') && !it.descr.startsWith('Algemeen t') && it.descr !== 'INBOX')), sorter)
+                            const combinedHes = _.sortBy(_.concat(svcHes, hes.filter(it => it.descr && !it.descr.startsWith('Etat g') && !it.descr.startsWith('Algemeen t') && it.descr !== 'INBOX')), sorter)
+                            const combinedHesWithHistory = _.sortBy(_.concat(svcHes, allHes.filter(it => it.descr && !it.descr.startsWith('Etat g') && !it.descr.startsWith('Algemeen t') && it.descr !== 'INBOX')), sorter)
 
-                                combinedHes.forEach(e => {
-                                    e.selectedItems = []
+                            combinedHes.forEach(e => {
+                                e.selectedItems = []
+                            })
+
+                            this.api.code().icpcChapters(_.compact(combinedHesWithHistory.map(he => he.codes.find(c => c.type === 'ICPC' || c.type === 'ICPC2'))).map(x => x.code)).then(codes => {
+                                codes.forEach(cc => {
+                                    cc.healthElements = _.sortBy(combinedHesWithHistory.filter(he => {
+                                        let heIcpc = he.codes.find(c => c.type === 'ICPC' || c.type === 'ICPC2')
+                                        return he.healthElementId && heIcpc && cc.subCodes.includes(heIcpc.code)
+                                    }), sorter)
+                                    cc.healthElements.forEach(he => he.colour = cc.descr.colour)
                                 })
+                                this.set('healthTopics', _.sortBy(codes.filter(ht => ht.healthElements.length > 1), it => this.api.contact().localize(it, this.language)))
 
-                                this.api.code().icpcChapters(_.compact(combinedHesWithHistory.map(he => he.codes.find(c => c.type === 'ICPC' || c.type === 'ICPC2'))).map(x => x.code)).then(codes => {
-                                    codes.forEach(cc => {
-                                        cc.healthElements = _.sortBy(combinedHesWithHistory.filter(he => {
-                                            let heIcpc = he.codes.find(c => c.type === 'ICPC' || c.type === 'ICPC2')
-                                            return he.healthElementId && heIcpc && cc.subCodes.includes(heIcpc.code)
-                                        }), sorter)
-                                        cc.healthElements.forEach(he => he.colour = cc.descr.colour)
-                                    })
-                                    this.set('healthTopics', _.sortBy(codes.filter(ht => ht.healthElements.length > 1), it => this.api.contact().localize(it, this.language)))
+                                this.set('healthElements', combinedHesWithHistory)
 
-                                    this.set('healthElements', combinedHesWithHistory)
+                                this.set('activeHealthElements', combinedHes.filter(it => (!it.closingDate || (it.closingDate && this.api.moment(it.closingDate).isSameOrAfter(today))) && (it.status & 1) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement' || c.code === 'diagnosis'))))
+                                this.set('inactiveHealthElements', combinedHes.filter(it => (it.closingDate && this.api.moment(it.closingDate).isBefore(today) || (it.status & 1) === 1) && (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement' || c.code === 'diagnosis'))))
+                                this.set('archivedHealthElements', combinedHes.filter(it => (it.status & 3) === 3))
+                                this.set('allergies', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => (c.type === 'CD-ITEM' || c.type === 'CD-ITEM-EXT-CHARACTERIZATION') && (c.code === 'allergy' || c.code === 'adr'))))
+                                this.set('risks', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'risk' || c.code === 'socialrisk'))))
+                                this.set('familyrisks', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'familyrisk')))
+                                this.set('surgicalHealthElements', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'surgery')))
 
-                                    this.set('activeHealthElements', combinedHes.filter(it => (!it.closingDate || (it.closingDate && this.api.moment(it.closingDate).isSameOrAfter(today))) && (it.status & 1) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement' || c.code === 'diagnosis'))))
-                                    this.set('inactiveHealthElements', combinedHes.filter(it => (it.closingDate && this.api.moment(it.closingDate).isBefore(today) || (it.status & 1) === 1) && (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement' || c.code === 'diagnosis'))))
-                                    this.set('archivedHealthElements', combinedHes.filter(it => (it.status & 3) === 3))
-                                    this.set('allergies', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => (c.type === 'CD-ITEM' || c.type === 'CD-ITEM-EXT-CHARACTERIZATION') && (c.code === 'allergy' || c.code === 'adr'))))
-                                    this.set('risks', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'risk' || c.code === 'socialrisk'))))
-                                    this.set('familyrisks', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'familyrisk')))
-                                    this.set('surgicalHealthElements', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'surgery')))
-
-                                    this.activeHealthElements.length && (this.root.querySelector('#cb_ahelb').opened = true)
-                                    this.inactiveHealthElements.length && (this.root.querySelector('#cb_ihelb').opened = true)
-                                    this.allergies.length && (this.root.querySelector('#cb_alhelb').opened = true)
-                                    this.risks.length && (this.root.querySelector('#cb_rhelb').opened = true)
+                                this.activeHealthElements.length && (this.root.querySelector('#cb_ahelb').opened = true)
+                                this.inactiveHealthElements.length && (this.root.querySelector('#cb_ihelb').opened = true)
+                                this.allergies.length && (this.root.querySelector('#cb_alhelb').opened = true)
+                                this.risks.length && (this.root.querySelector('#cb_rhelb').opened = true)
 
 
-                                    this.set('selectedHealthcareElements', (this.selectedHealthcareElements || []).filter(he => this.activeHealthElements.concat(this.inactiveHealthElements).concat(this.archivedHealthElements).concat(this.allergies).concat(this.risks).concat(this.familyrisks).concat(this.surgicalHealthElements).includes(he)))
-                                })
+                                this.set('selectedHealthcareElements', (this.selectedHealthcareElements || []).filter(he => this.activeHealthElements.concat(this.inactiveHealthElements).concat(this.archivedHealthElements).concat(this.allergies).concat(this.risks).concat(this.familyrisks).concat(this.surgicalHealthElements).includes(he)))
+                            })
 
-                                const unclosedContact = ctcs.find(c => !c.closingDate)
-                                const allContacts = unclosedContact ? ctcs.concat([unclosedContact]) : ctcs
+                            const unclosedContact = ctcs.find(c => !c.closingDate)
+                            const allContacts = unclosedContact ? ctcs.concat([unclosedContact]) : ctcs
 
-                                const templateKeys = descrPattern.match(/\{.+?\}/g).map(s => s.substring(1, s.length - 1)).reduce((acc, s) => {
-                                    acc[s] = true
+                            const templateKeys = descrPattern.match(/\{.+?\}/g).map(s => s.substring(1, s.length - 1)).reduce((acc, s) => {
+                                acc[s] = true
+                                return acc
+                            }, {})
+
+                            //console.log("Before scan ctcs "+(+new Date() - start))
+                            allContacts.forEach(ctc => {
+                                ctc.healthElements = _.uniq(ctc.subContacts.map(sc => sc.planOfActionId && combinedHesWithHistory.find(he => he.plansOfAction.find(poa => poa.id === sc.planOfActionId)) || sc.healthElementId && combinedHesWithHistory.find(he => he.id === sc.healthElementId)).map(he => he && he.healthElementId)).filter(id => !!id).map(id => hesByHeId[id][0])
+                                ctc.userDescr = this.api.template(descrPattern, ctc.services.filter(s => templateKeys[s.label] && !s.endOfLife).reduce((acc, v) => {
+                                    acc[v.label] = !acc[v.label] ? this.shortServiceDescription(v, this.language) : acc[v.label] + "," + this.shortServiceDescription(v, this.language)
                                     return acc
-                                }, {})
-
-                                //console.log("Before scan ctcs "+(+new Date() - start))
-                                allContacts.forEach(ctc => {
-                                    ctc.healthElements = _.uniq(ctc.subContacts.map(sc => sc.planOfActionId && combinedHesWithHistory.find(he => he.plansOfAction.find(poa => poa.id === sc.planOfActionId)) || sc.healthElementId && combinedHesWithHistory.find(he => he.id === sc.healthElementId)).map(he => he && he.healthElementId)).filter(id => !!id).map(id => hesByHeId[id][0])
-                                    ctc.userDescr = this.api.template(descrPattern, ctc.services.filter(s => templateKeys[s.label] && !s.endOfLife).reduce((acc, v) => {
-                                        acc[v.label] = !acc[v.label] ? this.shortServiceDescription(v, this.language) : acc[v.label] + "," + this.shortServiceDescription(v, this.language)
-                                        return acc
-                                    }, {}))
-                                    if (!ctc.userDescr || ctc.userDescr.length < 3) {
-                                        ctc.userDescr = ctc.descr
+                                }, {}))
+                                if (!ctc.userDescr || ctc.userDescr.length < 3) {
+                                    ctc.userDescr = ctc.descr
+                                }
+                                ctc.services.forEach(s => {
+                                    if (!s.label) {
+                                        s.label = ((s.tags.find(t => t.type === 'SOAP') || {}).code || 'Other').replace(/ *: *$/, '')
                                     }
-                                    ctc.services.forEach(s => {
-                                        if (!s.label) {
-                                            s.label = ((s.tags.find(t => t.type === 'SOAP') || {}).code || 'Other').replace(/ *: *$/, '')
-                                        }
-                                    })
                                 })
+                            })
 
-                                //console.log("After scan ctcs "+(+new Date() - start))
+                            //console.log("After scan ctcs "+(+new Date() - start))
 
-                                ;(unclosedContact && (
-                                        this.api.moment(unclosedContact.openingDate).isBefore(moment().subtract(1, 'days')) ?
-                                            this.api.contact()
-                                                .modifyContactWithUser(this.user, Object.assign(unclosedContact, {closingDate: parseInt(moment().format('YYYYMMDDHHmmss'))}))
-                                                .then(c => this.api.contact().newInstance(this.user, patient, {
-                                                        descr: this.localize('contact_of_the_day', 'Contact of the day', this.language),
-                                                        userDescr: this.localize('contact_of_the_day', 'Contact of the day', this.language)
-                                                    })
-                                                )
-                                            : Promise.resolve(unclosedContact)) ||
+                            (unclosedContact &&  (this.api.moment(unclosedContact.openingDate).isBefore(moment().subtract(1, 'days')) ?
+                                this.api.contact()
+                                .modifyContactWithUser(this.user, Object.assign(unclosedContact, {closingDate: parseInt(moment().format('YYYYMMDDHHmmss'))}))
+                                .then(c => this.api.contact().newInstance(this.user, patient, {
+                                        descr: this.localize('contact_of_the_day', 'Contact of the day', this.language),
+                                        userDescr: this.localize('contact_of_the_day', 'Contact of the day', this.language)
+                                })) :
+                                Promise.resolve(unclosedContact)) ||
                                     this.api.contact().newInstance(this.user, patient, {
                                         descr: this.localize('contact_of_the_day', 'Contact of the day', this.language),
                                         userDescr: this.localize('contact_of_the_day', 'Contact of the day', this.language)
-                                    })
-                                )
-                                    .then(newCtc => {
-                                        const thisYear = moment().year()
+                                })
+                            )
+                            .then(newCtc => {
+                                const thisYear = moment().year()
 
-                                        this.set('contacts', Object.values(ctcs.reduce((acc, it) => {
-                                            const prev = acc[it.groupId || it.id]
-                                            if (prev) {
-                                                const target = (it.created || it.modified) > (prev.created || prev.modified) ? it : prev
-                                                const source = (it.created || it.modified) > (prev.created || prev.modified) ? prev : it
+                                this.set('contacts', Object.values(ctcs.reduce((acc, it) => {
+                                    const prev = acc[it.groupId || it.id]
+                                    if (prev) {
+                                        const target = (it.created || it.modified) > (prev.created || prev.modified) ? it : prev
+                                        const source = (it.created || it.modified) > (prev.created || prev.modified) ? prev : it
 
-                                                acc[it.groupId || it.id] = target
+                                        acc[it.groupId || it.id] = target
 
-                                                target.subContacts = (target.subContacts || []).concat(source.subContacts)
-                                                target.services = (target.services || []).concat(source.services)
-                                            } else {
-                                                acc[it.groupId || it.id] = it
+                                        target.subContacts = (target.subContacts || []).concat(source.subContacts)
+                                        target.services = (target.services || []).concat(source.services)
+                                    } else {
+                                        acc[it.groupId || it.id] = it
+                                    }
+                                    return acc
+                                }, {})))
+
+                                this.set('currentContact', newCtc)
+                                const formIds = {}
+                                this.hiddenSubContactsId = _.reduce(ctcs, (acc, ctc) => {
+                                    ctc.subContacts.forEach(sc => {
+                                        if (sc.formId && formIds[sc.formId]) {
+                                            if (!sc.id) {
+                                                sc.id = this.api.crypto().randomUuid()
                                             }
-                                            return acc
-                                        }, {})))
-
-                                        this.set('currentContact', newCtc)
-                                        const formIds = {}
-                                        this.hiddenSubContactsId = _.reduce(ctcs, (acc, ctc) => {
-                                            ctc.subContacts.forEach(sc => {
-                                                if (sc.formId && formIds[sc.formId]) {
-                                                    if (!sc.id) {
-                                                        sc.id = this.api.crypto().randomUuid()
-                                                    }
-                                                    acc[sc.id] = 1
-                                                } else if (sc.formId) {
-                                                    formIds[sc.formId] = true
-                                                }
-                                            })
-                                            return acc
-                                        }, {})
-                                        this.set('contactYears', _.sortBy(_.values(_.reduce(this.contacts, (acc, ctc) => {
-                                            if (ctc.subContacts && ctc.subContacts.filter(sc => !this.hiddenSubContactsId[sc.id]).length ||
-                                                ctc.services.some(s => !ctc.subContacts.some(sc => sc.services.some(scs => scs.idService === s.id)) && _.values(s.content).find(this.contentHasData.bind(this)))) {
-                                                let year = parseInt((ctc.openingDate || 2000).toString().substr(0, 4))
-                                                const contacts = (acc[year] || (acc[year] = {
-                                                    year: year,
-                                                    contacts: []
-                                                })).contacts
-                                                if (!contacts.includes(ctc)) {
-                                                    contacts.push(ctc)
-                                                }
-                                            }
-                                            return acc
-                                        }, _.fromPairs([[thisYear, {year: thisYear, contacts: [newCtc]}]]))).map(x => {
-                                            x.contacts = _.sortBy(x.contacts, sorter)
-                                            return x
-                                        }), x => -x.year))
-                                        this.filterEvents()
-
-                                        console.log("After ctcs years" + (+new Date() - start))
-
-                                        if (currentlySelectedContactsIds.some(cId => !ctcs.some(c => c.id === cId))) {
-                                            this.set('selectedContactIds', _.compact(ctcs.filter(c => currentlySelectedContactsIds.includes(c.id)).map(c => `ctc_${c.id}`)))
-                                        } else {
-                                            this.set('selectedContactIds', ['ctc_' + newCtc.id])
+                                            acc[sc.id] = 1
+                                        } else if (sc.formId) {
+                                            formIds[sc.formId] = true
                                         }
-
-                                        setTimeout(() =>
-                                            this.selectedContactIds.forEach(cDomId => {
-                                                const pm = this.root.querySelector(`#${cDomId}`)
-                                                if (pm) {
-                                                    pm.setAttribute("aria-selected", "true")
-                                                    pm.classList.add('iron-selected')
-                                                }
-                                            }), 0)
                                     })
-                            }) // icc contact then end
+                                    return acc
+                                }, {})
+                                this.set('contactYears', _.sortBy(_.values(_.reduce(this.contacts, (acc, ctc) => {
+                                    if (ctc.subContacts && ctc.subContacts.filter(sc => !this.hiddenSubContactsId[sc.id]).length ||
+                                        ctc.services.some(s => !ctc.subContacts.some(sc => sc.services.some(scs => scs.idService === s.id)) && _.values(s.content).find(this.contentHasData.bind(this)))) {
+                                        let year = parseInt((ctc.openingDate || 2000).toString().substr(0, 4))
+                                        const contacts = (acc[year] || (acc[year] = {
+                                            year: year,
+                                            contacts: []
+                                        })).contacts
+                                        if (!contacts.includes(ctc)) {
+                                            contacts.push(ctc)
+                                        }
+                                    }
+                                    return acc
+                                }, _.fromPairs([[thisYear, {year: thisYear, contacts: [newCtc]}]]))).map(x => {
+                                    x.contacts = _.sortBy(x.contacts, sorter)
+                                    return x
+                                }), x => -x.year))
+                                this.filterEvents()
 
-                        //console.log("Before filter svcs "+(+new Date() - start))
+                                console.log("After ctcs years" + (+new Date() - start))
+
+                                if (currentlySelectedContactsIds.some(cId => !ctcs.some(c => c.id === cId))) {
+                                    this.set('selectedContactIds', _.compact(ctcs.filter(c => currentlySelectedContactsIds.includes(c.id)).map(c => `ctc_${c.id}`)))
+                                } else {
+                                    this.set('selectedContactIds', ['ctc_' + newCtc.id])
+                                }
+
+                                setTimeout(() =>
+                                    this.selectedContactIds.forEach(cDomId => {
+                                        const pm = this.root.querySelector(`#${cDomId}`)
+                                        if (pm) {
+                                            pm.setAttribute("aria-selected", "true")
+                                            pm.classList.add('iron-selected')
+                                        }
+                                    })
+                                , 0)
+                            })
+                        });// icc contact then end
+
                         const oneWeekAgo = moment().subtract(7)
                         this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && c.code === 'medication' && !_.values(s.content).some(c => c && c.medicationValue && c.medicationValue.endMoment && this.api.moment(c.medicationValue.endMoment).isBefore(oneWeekAgo)))).then(medications => {
                             this.set('medications', _.sortBy(medications.map(m => Object.assign(m, {colour: `ATC--${((m.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0, 1)}`})), sorter))
