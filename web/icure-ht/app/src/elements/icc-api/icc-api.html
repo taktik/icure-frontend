@@ -96,6 +96,7 @@
             this.accesslogicc = new api.iccAccesslogApi(this.host, this.headers)
             this.authicc = new api.iccAuthApi(this.host, this.headers)
             this.bemikronoicc = new api.iccBemikronoApi(this.host, this.headers)
+            this.onlineBeMikronoicc = new api.iccBemikronoApi("https://backend.svc.icure.cloud/rest/v1", this.headers)
             this.beresultexporticc = new api.iccBeresultexportApi(this.host, this.headers)
             this.beresultimporticc = new api.iccBeresultimportApi(this.host, this.headers)
             this.doctemplateicc = new api.iccDoctemplateApi(this.host, this.headers)
@@ -107,6 +108,9 @@
             this.tarificationicc = new api.iccTarificationApi(this.host, this.headers)
             this.entityreficc = new api.iccEntityrefApi(this.host, this.headers)
             this.classificationtemplateicc = new api.iccClassificationTemplateApi(this.host, this.headers)
+
+            this.calendaritemicc = new api.iccCalendarItemApi(this.host, this.headers)
+            this.calendaritemtypeicc = new api.iccCalendarItemTypeApi(this.host, this.headers)
 
             this.usericc = new IccUserXApi(this.host, this.headers)
 
@@ -191,6 +195,10 @@
 
         bemikrono() {
             return this.bemikronoicc
+        }
+
+        onlinebemikrono(){
+            return this.onlineBeMikronoicc
         }
 
         beprimoto() {
@@ -311,6 +319,14 @@
 
         fhc() {
             return this.$['fhc-api'];
+        }
+
+        calendaritem(){
+            return this.calendaritemicc
+        }
+
+        calendaritemtype(){
+            return this.calendaritemtypeicc
         }
 
         localize(e, lng) {
@@ -634,15 +650,31 @@
 
         pdfReport(html, options = {}) {
             const optionsString = _.toPairs(options).map(([k,v]) => `${k}=${v}`).join('&')
-            // Antoine IP => http://quadbeat:9222/pdf
-            return fetch(`https://report.icure.cloud/pdf${optionsString && optionsString.length ? `?${optionsString}` : ''}`, {
-                method: "POST",
-                mode: "cors", // no-cors, cors, *same-origin
-                credentials: "same-origin", // include, same-origin, *omit
-                headers: {"Content-Type": "text/html; charset=utf-8",},
-                redirect: "follow",
-                body: html,
-            }).then(response => response.arrayBuffer())
+
+
+            const paperSize = options.paperWidth === 105 ? 'presc' : options.paperHeight === 210 ? 'a5' : 'a4'
+            const printersPrefs = JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
+            const printerName = printersPrefs[paperSize] && (printersPrefs[paperSize].bw && printersPrefs[paperSize].bw.length ? printersPrefs[paperSize].bw : printersPrefs[paperSize].color && printersPrefs[paperSize].color.length ? printersPrefs[paperSize].color : null) || null
+
+            return (printerName ? Promise.resolve(printerName) : this.printers().then( printers => printers.find(p => p.isDefault)).then(p => p && p.name)).then( printerName => {
+                return this.isElectronAvailable().then(electron =>
+                    fetch(`${electron && printerName ? 'http://127.0.0.1:16042/print/'+encodeURIComponent(printerName):'https://report.icure.cloud/pdf'}${optionsString && optionsString.length ? `?${optionsString}` : ''}`, {
+                        method: "POST",
+                        mode: "cors", // no-cors, cors, *same-origin
+                        credentials: "same-origin", // include, same-origin, *omit
+                        headers: {"Content-Type": "text/html; charset=utf-8",},
+                        redirect: "follow",
+                        body: html,
+                    }).then(response => response.arrayBuffer())
+                )
+            })
+        }
+
+        printers() {
+            return this.isElectronAvailable().then(electron =>
+                electron && fetch('http://127.0.0.1:16042/printers', { method: "GET" })
+                    .then(response => response.json()) || []
+            )
         }
 
         loadBicData() {
@@ -781,13 +813,13 @@
             if( !_.trim(encryptOrDecryptMethod) || !_.trim(hcpId) || !documentObject || !rawFileContent || typeof this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()] !== "function" ) return Promise.resolve(rawFileContent);
             return this.crypto().decryptAndImportAesHcPartyKeysInDelegations(hcpId, documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length ? documentObject.encryptionKeys : documentObject.delegations).then(decryptedAndImportedAesHcPartyKeys => {
                 let collatedAesKeys = {}; decryptedAndImportedAesHcPartyKeys.map(k => collatedAesKeys[k.delegatorId] = k.key);
-                return this.crypto().decryptDelegationsSFKs((documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length? documentObject.encryptionKeys: documentObject.delegations)[hcpId], collatedAesKeys, documentObject.id).then(enckeys => {
+                return this.crypto().decryptKeyInDelegationLikes((documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length? documentObject.encryptionKeys: documentObject.delegations)[hcpId], collatedAesKeys, documentObject.id).then(enckeys => {
                     return new Promise((resolve) => { this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()](_.get( _.head(decryptedAndImportedAesHcPartyKeys), "key", undefined ), rawFileContent).then(encryptedDecryptedFileContent => resolve(encryptedDecryptedFileContent)) })
                 })
             })
 
         }
-        
+
         findJsonObjectPathByPropNameAndPropValue( inputData, propName, propValue ) {
           this.variablesPath = []; this.propName = propName; this.propValue = propValue;
           this.browseObject(inputData);
@@ -824,6 +856,23 @@
             return inputContent;
         }
 
+        formatInamiNumber(inputContent) {
+            // Split with hyphens (1,6,2,3) unless already has some or is empty
+            return inputContent.indexOf("-")>-1 || !_.trim(inputContent) ? inputContent : _.trim([inputContent.slice(0,1),inputContent.slice(1,6),inputContent.slice(6,8),inputContent.slice(8,11)].join("-"));
+        }
+
+        formatSsinNumber(inputContent) {
+            inputContent = _.trim(inputContent).replace(/[^0-9]+/g, '')
+            return _.trim([inputContent.slice(0,2),inputContent.slice(2,4),inputContent.slice(4,6)].join(".")) + "-" + _.trim([inputContent.slice(6,9),inputContent.slice(9,11)].join("."));
+        }
+
+        isElectronAvailable() {
+            return fetch(`http://127.0.0.1:16042/ok`, {
+                method: "GET"
+            })
+                .then(() => true)
+                .catch(() => false)
+        }
     }
 
     customElements.define(IccApi.is, IccApi)
