@@ -3014,12 +3014,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             migrateClassifications(allClassifications, allHealthElements, allContacts) {
 
+                console.log(allHealthElements)
+
                 return this.api.cache.classificationTemplates.then(res => {
 
                     const migrationPromises = allClassifications.reduce((templates, classification) => {
                         //we find the corresponding Classification Template
                         if ((classification.templateId || classification.label) && !classification.healthElementId) {
-                            if (classification.label && !classification.templateId && !res[classification.templateId]) {
+                            if (classification.label && !classification.templateId) {
                                 const temp = this.api.getHEMigrationDataFromLabel(classification.label);
                                 if(temp) templates.push({ template: temp, classification })
                             } else if (classification.templateId && res[classification.templateId]) {
@@ -3029,6 +3031,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return templates
                     }, [])
                     .map(({ template, classification }) => {
+                        template.healthElement.openingDate = classification.openingDate || null;
+                        template.healthElement.status = 3;
+                        template.healthElement.tags = [
+                            {
+                                code: "healthcareelement",
+                                id: "CD-ITEM|healthcareelement|1",
+                                type: "CD-ITEM",
+                                version: "1"
+                            }
+                        ]
+
                         //We link to the corresponding Health Element or we create it
                         //we try to find corresponding codes between the Health Element Data and the existing health Element
                         const codesConcat = template.healthElement ? template.healthElement.codes.map(c => c._id).join(' ') : ""
@@ -3113,6 +3126,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             refreshPatient() {
 
+                console.error('-----------------------------------------------------------')
+
                 const patient = this.patient
 
                 const start = +new Date()
@@ -3128,10 +3143,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 ]).then(([ allHes, allClass, ctcs]) => {
 
                     this.migrateClassifications(allClass, allHes, ctcs).then(resObject => {
-                        console.log(resObject)
 
                         allHes = allHes.concat(resObject.hes)
-                        ctcs = ctcs.map(ctc => {
+                        ctcs = (ctcs || []).map(ctc => {
                             return resObject.ctcs.find(c => c.id === ctc.id) || ctc
                         })
 
