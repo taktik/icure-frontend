@@ -242,6 +242,30 @@
                 display: initial;
             }
 
+            .spinner-compounds {
+                height: 42px;
+                width: 42px;
+            }
+
+            ht-spinner {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                z-index: 150;
+                transform: translate(-50%,-50%);
+                height: 42px;
+				width: 42px;
+            }
+
+            #compound-loading {
+                position: absolute;
+                left: auto;
+                right: 12px;
+                top: 0;
+                transform: translate(0,0);
+                margin-top: 10px;
+            }
+
             @media screen and (max-width: 936px) {
                 paper-dialog#medication-selection {
                     position: fixed;
@@ -348,7 +372,8 @@
                     </template>
                     <template is="dom-if" if="[[_isCompoundPrescription(medicationType)]]">
                         <div style="margin-top: 12px; position: relative;">
-                            <vaadin-combo-box filtered-items="[[compoundListItems]]" item-label-path="descr" item-value-path="id" id="procedures-list" on-filter-changed="_compoundFilterChanged" on-value-changed="_compoundChanged" label="[[localize('compound_name','Compound name',language)]]" filter="{{compoundFilterString}}" value="{{compound}}" readonly="[[readonly]]"></vaadin-combo-box>
+                            <ht-spinner active="[[isLoadingCompounds]]" id="compound-loading"></ht-spinner>
+                            <vaadin-combo-box disabled="[[isLoadingCompounds]]" filtered-items="[[compoundListItems]]" item-label-path="descr" item-value-path="id" id="procedures-list" on-filter-changed="_compoundFilterChanged" on-value-changed="_compoundChanged" label="[[localize('compound_name','Compound name',language)]]" filter="{{compoundFilterString}}" value="{{compound}}" readonly="[[readonly]]"></vaadin-combo-box>
                             <paper-icon-button id="[[_id(item)]]" class="add-btn add-btn--compound" icon="icons:add" on-tap="_addCompound"></paper-icon-button>
                             <paper-input-container>
                                 <label slot="label">[[localize('medication-compound','Compound Prescription',language)]]</label>
@@ -467,6 +492,10 @@
                         type: Boolean,
                         value: false
                     },
+                    isLoadingCompounds: {
+                        type: Boolean,
+                        value: false
+                    },
                     medications: {
                         type: Array,
                         value: () => []
@@ -484,6 +513,10 @@
                         value: () => ({
                             medicationValue: null
                         })
+                    },
+                    cachedCompoundList: {
+                        type: Array,
+                        value: () => []
                     },
                     isPrescription: {
                         type: Boolean,
@@ -517,6 +550,17 @@
                     const letter = ((m && m.codes && m.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0,1)
                     m.atcCat = letter
                 })
+
+                this.set("isLoadingCompounds",true);
+
+                this.api.entitytemplate().findAllEntityTemplates('org.taktik.icure.entities.embed.Medication',"",true).then(res => {
+                    this.set("isLoadingCompounds",false);
+                    this.cachedCompoundList = res
+                    this._compoundFilterChanged()
+                }).catch(() => this.set("isLoadingCompounds", false))
+
+                this.cachedCompoundList = ['loading']
+                this._compoundFilterChanged()
 
                 this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
             }
@@ -953,22 +997,24 @@
             }
 
             _compoundFilterChanged(e) {
-                const searchString = e.detail.value || ''
+                const searchString = e && e.detail && e.detail.value && e.detail.value.toLowerCase() || ''
 
-                this.compoundSearchString = searchString;
-                if (!searchString || searchString.length < 2) {
-                    console.log("Cancelling empty search");
-                    this.set('compoundListItems', []);
-                    return;
-                }
+                // this.compoundSearchString = searchString;
+                // if (!searchString || searchString.length < 2) {
+                //     console.log("Cancelling empty search");
+                //     this.set('compoundListItems', []);
+                //     return;
+                // }
 
-                this.api.entitytemplate().findAllEntityTemplates('org.taktik.icure.entities.embed.Medication',searchString,true).then(res => {
-                    if (searchString !== this.compoundSearchString) {
-                        console.log("Cancelling obsolete search");
-                        this.set('compoundListItems', []);
-                    }
-                    this.set('compoundListItems', res);
-                })
+                // this.api.entitytemplate().findAllEntityTemplates('org.taktik.icure.entities.embed.Medication',searchString,true).then(res => {
+                //     if (searchString !== this.compoundSearchString) {
+                //         console.log("Cancelling obsolete search");
+                //         this.set('compoundListItems', []);
+                //     }
+                //     this.set('compoundListItems', res);
+                // })
+
+                this.set('compoundListItems', searchString && this.cachedCompoundList.filter(comp => comp.descr.toLowerCase().includes(searchString) || (comp.entity && comp.entity.length && comp.entity.map(e => e.compoundPrescription && e.compoundPrescription.toLowerCase()).includes(searchString))) || this.cachedCompoundList )
             }
 
             _compoundChanged(e) {
