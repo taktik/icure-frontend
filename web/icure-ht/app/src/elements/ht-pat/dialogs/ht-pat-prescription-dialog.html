@@ -12,6 +12,7 @@
 				padding-top: 16px;
 			}
 
+
             .endline {
 				display: flex;
 				flex-direction: row;
@@ -51,7 +52,7 @@
             }
 
             .prescription-progress-bar {
-				width: calc( 100% - 40px );
+				width: calc( 100% - 80px );
 			}
 
             .warning {
@@ -142,11 +143,57 @@
                 cursor: initial;
                 box-shadow: none;
             }
+
+            #loading {
+                padding: 10px
+            }
+
+            .presc-dialog .buttons{
+                padding-bottom: 16px;
+            }
+            .presc-dialog .error-message{
+                padding-bottom: 16px;
+            }
         </style>
 
         <paper-dialog id="loading">
-            <h2>[[localize('loa_pre','Sending prescription...',language)]]</h2>
+            <h2>[[localize('sending_prescription','Sending prescription...',language)]]</h2>
             <paper-progress class="prescription-progress-bar" indeterminate></paper-progress>
+        </paper-dialog>
+
+        <paper-dialog id="confirmNoRecipe" class="presc-dialog">
+            <h2 class="modal-title">[[localize('send_recipe_fail','Sending to Recipe failed',language)]]</h2>
+            <div class="error-message">
+                [[_printError]]
+            </div>
+            <div class="error-message-details">
+                [[_printErrorDetails]]
+            </div>
+
+            <div class="endline">
+                <div class="buttons">
+                    <paper-button class="modal-button modal-button--cancel" on-tap="" dialog-dismiss>[[localize('can', "Annuler", language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--cancel" on-tap="_printPrescriptionNoRecipe" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumnsCache)]]">[[localize('print_no_recipe', "Imprimer sans recipe", language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--save" dialog-dismiss autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumnsCache)]]">[[localize('try_again','Réessayer',language)]]</paper-button>
+                </div>
+            </div>
+        </paper-dialog>
+
+        <paper-dialog id="confirmRevoke" class="presc-dialog">
+            <h2 class="modal-title">[[localize('revoke_recipe_fail','Revoke RID failed',language)]]</h2>
+            <div class="error-message">
+                [[_printError]]
+            </div>
+            <div class="error-message-details">
+                [[_printErrorDetails]]
+            </div>
+
+            <div class="endline">
+                <div class="buttons">
+                    <paper-button class="modal-button modal-button--cancel" on-tap="" dialog-dismiss>[[localize('can', "Annuler", language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--save" dialog-dismiss autofocus on-tap="_revokeTryAgainCallback">[[localize('try_again','Réessayer',language)]]</paper-button>
+                </div>
+            </div>
         </paper-dialog>
 
         <paper-dialog id="dialog">
@@ -323,6 +370,18 @@
                         type: Number,
                         value: 0
                     },
+                    _printError: {
+                        type: String,
+                        value: ""
+                    },
+                    _printErrorDetails: {
+                        type: String,
+                        value: ""
+                    },
+                    _revokeTryAgainCallback: {
+                        type: Function,
+                        value: function(){}
+                    },
                     _drugsToBePrescribedCache: {
                         type: Array,
                         value: function () {
@@ -396,7 +455,7 @@
                 if(item.rid) {
                     return item.rid
                 } else {
-                    if(item.drugIds) {
+                    if(item.drugs) {
                         return this.localize('paper', 'Papier', this.language)
                     } else {
                         return ""
@@ -404,8 +463,8 @@
                 }
             }
 
-            _revokeRID(e) {
-                const rid = e.target.dataset.rid
+            _revokeRID(e, givenRid) {
+                const rid = givenRid || e.target.dataset.rid
                 if(rid) {
                     if (this.patient.ssin && this.api.tokenId) { // if ehealth connected
                         this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
@@ -414,38 +473,47 @@
                                     console.log("delete rid: ", isDeleted)
                                     if(isDeleted) {
                                         this._markDrugsAsNotSent( this.ridSentList.find(ridgroup => ridgroup.rid == rid).drugs )
+                                    } else {
+                                        throw "Server say not deleted"
                                     }
                                 })
                                 .catch(error => {
                                     console.log("error:", error)
+                                    this.set('_printError', this.localize("error_send_recipe", "Error while sending to Recipe:", this.language))
+                                    this.set('_printErrorDetails', error)
+                                    this.set('_revokeTryAgainCallback', () => this._revokeRID(null, rid))
+
+                                    this.$.loading.close();
+                                    setTimeout(() => this.$.confirmRevoke.open(),10) // dialog doesn't open a second time without setTimeout
                                 })
                         )
                     } else {
                         console.log("no ehealth")
+                        this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
+                        this.set('_printErrorDetails', "")
+                        this.set('_revokeTryAgainCallback', () => this._revokeRID(null, rid))
+                        this.$.loading.close();
+                        setTimeout(() => this.$.confirmRevoke.open(),10) // dialog doesn't open a second time without setTimeout
                     }
                 } else {
                     // not a recipe
                     console.log("not a recipe")
-                    this._markDrugsAsNotSent(this.ridSentList.find(group=> !group.rid).drugs)
+                    const papergroup = this.ridSentList.find(group=> !group.rid)
+                    if(papergroup) {
+                        this._markDrugsAsNotSent(papergroup.drugs)
+                    } {
+                        console.log("no paper prescription to revoke")
+                    }
                 }
             }
 
             _viewRID(e) {
-                const rid = e.target.dataset.rid
-                if(rid) {
-                    const ridDrugs = this.ridSentList.find(group=> group.rid === rid).drugs
-                    const splitCols = [{rid: rid, drugIds: ridDrugs.map(d => d.id)}]
-                    const element = this.root.querySelector("#barCode");
-                    const toPrint = this._formatPrescriptionsBody(splitCols,ridDrugs,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
-                    this._pdfReport(ridDrugs,toPrint,this.selectedFormat)
-                } else {
-                    const ridDrugs = this.ridSentList.find(group=> !group.rid).drugs
-                    const splitCols = [{rid: null, drugIds: ridDrugs.map(d => d.id)}]
-                    const element = this.root.querySelector("#barCode");
-                    const toPrint = this._formatPrescriptionsBody(splitCols,ridDrugs,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
-                    this._pdfReport(ridDrugs,toPrint,this.selectedFormat)
-
-                }
+                const rid = e.target.dataset.rid // if rid is null, norecipe is printed
+                const ridDrugs = this.ridSentList.find(group=> group.rid === rid).drugs
+                const splitCols = [{rid: rid, drugIds: ridDrugs.map(d => d.id)}]
+                const element = this.root.querySelector("#barCode");
+                const toPrint = this._formatPrescriptionsBody(splitCols,ridDrugs,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
+                this._pdfReport(ridDrugs,toPrint,this.selectedFormat)
             }
 
             debugRefresh() {
@@ -573,6 +641,7 @@
                     console.log("nothing to print")
                     return
                 }
+                this.$.confirmNoRecipe.close()
 				this.$.loading.open();
 				const splitColumns = this._splitColumns().filter(c => c && c.drugIds && c.drugIds.length > 0)
                 const drugsToBePrescribed = this._drugsSelectedAndToBePrescribed();
@@ -599,25 +668,51 @@
                             )
                         )
                     )
+                        .catch(error=>{
+                            this.set('_printError', this.localize("error_send_recipe", "Error while sending to Recipe:", this.language))
+                            this.set('_printErrorDetails', error)
+
+                            this.$.loading.close();
+                            setTimeout(() => this.$.confirmNoRecipe.open(),10) // dialog doesn't open a second time without setTimeout
+                            throw error
+                        })
                         .then(()=>{
                             this._markDrugsAsSent(drugsToBePrescribed)
                         })
-                        .finally(()=>{
+                        .then(()=>{
                             toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
                             this._pdfReport(drugsToBePrescribed,toPrint,this.selectedFormat)
                             this.$.loading.close();
                         })
+                        .catch(error=>{
+                            console.log("Recipe sent but error when trying to print or mark drugs as sent: ", error)
+                        })
                 } else {
                     console.log("no recip-e")
-                    toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
-                    this._pdfReport(drugsToBePrescribed,toPrint,this.selectedFormat)
-                        .then(()=>{
-                            // debug: commented to disable marking as sent when not sent as recipe
-                            //this._markDrugsAsSent(drugsToBePrescribed)
-                            this.$.loading.close();
-                        })
+                    this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
+                    this.set('_printErrorDetails', "")
+                    this.$.loading.close();
+                    setTimeout(() => this.$.confirmNoRecipe.open(),10) // dialog doesn't open a second time without setTimeout
                 }
 			} // print end
+
+            _printPrescriptionNoRecipe(e) {
+                if(!this._printEnabled()) {
+                    console.log("nothing to print")
+                    return
+                }
+                const splitColumns = this._splitColumns().filter(c => c && c.drugIds && c.drugIds.length > 0)
+                const drugsToBePrescribed = this._drugsSelectedAndToBePrescribed();
+                const element = this.root.querySelector("#barCode");
+                let toPrint = undefined
+                this.set('selectedFormat', (this.patient.ssin && this.api.tokenId) ? this.selectedFormat : 'presc')
+
+                toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
+                this._pdfReport(drugsToBePrescribed,toPrint,this.selectedFormat)
+                    .then(()=>{
+                        this._markDrugsAsSent(drugsToBePrescribed)
+                    })
+            }
 
             _formatPrescriptionsBody(splitColumns,drugsToBePrescribed,patient,hcp,deliveryDate,element) {
                 // console.log('_formatPrescriptionsBody, hello hcp is : ',hcp)
@@ -1069,14 +1164,6 @@
                         cb.checked = this._drugOnPrescription(svc, colidx)
                     }
                 })
-                /*
-                setTimeout(
-                    () => {
-
-                    },
-                    5000
-                )
-                */
             }
 
 			_setDrugOnPrescription(e) {
