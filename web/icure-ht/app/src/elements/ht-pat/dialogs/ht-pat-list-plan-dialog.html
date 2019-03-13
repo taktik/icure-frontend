@@ -7,39 +7,40 @@
 
 <link rel="import" href="../../../../bower_components/iron-resizable-behavior/iron-resizable-behavior.html">
 
+<link rel="import" href="../../../dialog-style.html">
+
 
 <dom-module id="ht-pat-list-plan-dialog">
     <template>
-        <style>
-            #dialog{
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
+        <style include="dialog-style">
+            #dialog {
                 min-height: 480px;
                 min-width: 800px;
-                height: 60vh !important;
-                position: fixed !important;
-                top: 50% !important;
-                left: 50% !important;
-                transform: translate(-50%,-50%);
             }
+
             h2 {
                 min-height: 44px;
             }
-            h3.err {
-                text-align: center;
-                margin-top: 10%;
+
+            .err {
+                display: flex;
+                flex-flow: row wrap;
+                justify-content: center;
+                align-items: center;
+                font-weight: 700;
                 color: var(--app-error-color);
+                margin-top: calc(200px - 48px);
             }
 
-            .view {
-                margin-top: 0;
-                flex-grow: 1;
-                overflow-y: auto;
-                overflow-x: hidden;
-                border-top: 1px solid var(--app-background-color-dark);
-                border-bottom: 1px solid var(--app-background-color-dark);
+            paper-item {
+                font-size: 14px;
+                border: 1px solid var(--app-background-color);
             }
+
+            paper-item:hover {
+                background-color: var(--app-background-color);
+            }
+
             .buttons {
                 height: 56px;
                 display: flex;
@@ -62,10 +63,40 @@
                 width: 5%;
             }
 
-            .modal-button--cancel {
-                background: transparent;
-                color: black;
-                border: 1px solid var(--app-background-color-dark);
+            .status {
+                border-radius: 20px;
+                padding: 1px 12px 1px 8px;
+                font-size: 14px;
+                display: block;
+                width: auto;
+                max-width: fit-content;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                overflow: hidden;
+            }
+
+            .status--orangeStatus{
+                background: #fcdf354d;
+            }
+            .status--greenStatus{
+                background: #07f8804d;
+            }
+            .status--redStatus{
+                background: #ff4d4d4d;
+            }
+
+            .statusIcon {
+                height: 8px;
+                width: 8px;
+            }
+            .statusIcon--orangeStatus {
+                color: var(--app-status-color-pending);
+            }
+            .statusIcon--greenStatus {
+                color: var(--app-status-color-ok);
+            }
+            .statusIcon--redStatus {
+                color: var(--app-status-color-nok);
             }
 
             @media screen and (max-width: 936px) {
@@ -85,17 +116,17 @@
         </style>
 
         <paper-dialog id="dialog" opened="{{opened}}">
-            <h2>[[localize('plan_of_act','Action plan',language)]]</h2>
-            <div class="view">
+            <h2 class="modal-title">[[localize('plan_of_act','Action plan',language)]]</h2>
+            <div class="content">
                 <paper-listbox id="services-list" class="" selected="{{selected}}">
                     <template is="dom-if" if="[[!services.length]]">
-                        <h3 class="err"><iron-icon icon="warning"></iron-icon> [[localize('no_action_plan','No action plans',language)]] !</h3>
+                        <paper-item class="err"><iron-icon icon="warning"></iron-icon> [[localize('no_action_plan','No action plans',language)]] !</paper-item>
                     </template>
                     <template is="dom-repeat" items="[[services]]">
                         <paper-item class="">
                             <div class="col-lg-1">[[_formatDate(item.valueDate)]]</div>
                             <div class="col-lg-2">[[_getContent(item)]]</div>
-                            <div class="col-lg-3">[[_getStatut(item)]]</div>
+                            <div class="col-lg-3"><span class$="status [[_getStatusClass(item)]]"><iron-icon icon="vaadin:circle" class$="statusIcon [[_getIconStatusClass(item)]]"></iron-icon>&nbsp;[[_getStatus(item)]]</span></div>
                             <div class="col-lg-4">
                                 <paper-icon-button id="bt-[[item.id]]" class="" icon="zoom-in" on-tap="showAction" data-item$="[[item.id]]"></paper-icon-button>
                                 <paper-tooltip position="left" for="bt-[[item.id]]">[[localize('show_det','Show details',language)]]</paper-tooltip>
@@ -105,7 +136,7 @@
                 </paper-listbox>
             </div>
             <div class="buttons">
-                <paper-button class="modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="modal-button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
     </template>
@@ -232,8 +263,34 @@
                 return this.api.moment(date).format("DD/MM/YYYY")
             }
 
-            _getStatut(svc){
+            _getStatus(svc){
                 return this.comboStatus.find(statut => statut.id===_.get( svc.tags.find(tag => tag.type==="CD-LIFECYCLE"), "code", "" )) ? this.comboStatus.find(statut => statut.id===_.get(svc.tags.find(tag => tag.type==="CD-LIFECYCLE"), "code", "" ) ).label[this.language] : _.get( svc.tags.find(tag => tag.type==="CD-LIFECYCLE"), "code", "" )
+            }
+
+            _getStatusClass(svc){
+                let status = this._getStatus(svc)
+                return  (this.comboStatus.find(e => e.label[this.language] === status).id === "aborted")  ? "status--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "error")  ? "status--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "refused")  ? "status--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "cancelled")  ? "status--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "pending")  ? "status--orangeStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "planned")  ? "status--orangeStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "proposed")  ? "status--orangeStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "completed")  ? "status--greenStatus" : 
+                        ""
+            }
+
+            _getIconStatusClass(svc){
+                let status = this._getStatus(svc)
+                return  (this.comboStatus.find(e => e.label[this.language] === status).id === "aborted")  ? "statusIcon--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "error")  ? "statusIcon--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "refused")  ? "statusIcon--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "cancelled")  ? "statusIcon--redStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "pending")  ? "statusIcon--orangeStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "planned")  ? "statusIcon--orangeStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "proposed")  ? "statusIcon--orangeStatus" : 
+                        (this.comboStatus.find(e => e.label[this.language] === status).id === "completed")  ? "statusIcon--greenStatus" : 
+                        ""
             }
 
             showAction(e){
