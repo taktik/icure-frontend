@@ -211,11 +211,11 @@
                         <paper-tooltip for="assign-ico-attach" position="left">[[localize('assign_to_pat','Assign to a patient',language)]]</paper-tooltip>
                     </template>
                 </template>
-                <template is="dom-if" if="[[!_unknownMimeType(document.mainUti, document.otherUtis.*, dataUrl)]]">
+                <template is="dom-if" if="[[!_unknownMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                     <template is="dom-if" if="[[!documentId]]">
                         <ht-spinner class="center" active></ht-spinner>
                     </template>
-                    <template is="dom-if" if="[[_imageMimeType(document.mainUti, document.otherUtis.*, dataUrl)]]">
+                    <template is="dom-if" if="[[_imageMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                         <span class="title">[[_title(document.name, title)]]</span>
                         <template is="dom-if" if="[[isLoading]]"><ht-spinner active></ht-spinner></template>
                         <div class="pointers-line">
@@ -234,12 +234,12 @@
                             <img src$="[[dataUrl]]">
                         </div>
                     </template>
-                    <template is="dom-if" if="[[_pdfMimeType(document.mainUti, document.otherUtis.*, dataUrl)]]">
+                    <template is="dom-if" if="[[_pdfMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                         <span class="title">[[_title(document.name, title)]]</span>
                         <template is="dom-if" if="[[isLoading]]"><ht-spinner active></ht-spinner></template>
                         <pdf-element src="[[dataUrl]]" elevation="5" downloadable fit-width fit-height enable-text-selection></pdf-element>
                     </template>
-                    <template is="dom-if" if="[[_xmlMimeType(document.mainUti, document.otherUtis.*, dataUrl)]]">
+                    <template is="dom-if" if="[[_xmlMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                         <span>[[_title(document.name, title)]]</span>
                         <div class="pointers-line">
                             <template is="dom-if" if="[[downloadable]]">
@@ -281,7 +281,7 @@
                         </div>
                     </template>
                 </template>
-                <template is="dom-if" if="[[_unknownMimeType(document.mainUti, document.otherUtis.*, dataUrl)]]">
+                <template is="dom-if" if="[[_unknownMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                     <span>[[_title(document.name, title)]]</span>
                     <template is="dom-if" if="[[isLoading]]"><ht-spinner active></ht-spinner></template>
                     <div class="pointers-line">
@@ -400,9 +400,11 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 value: null
 			},
 			dataUrl: {
-				type: String,
-				value: null
+				type: String
 			},
+            data: {
+                type: Object
+            },
 			title: {
 				type: String,
 				value: null
@@ -435,7 +437,7 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	}
 
     static get observers() {
-        return ['_documentIdChanged(documentId, api, user)','_dataUrlChanged(dataUrl)']
+        return ['_documentIdChanged(documentId, api, user)','_dataUrlChanged(dataUrl)','_dataChanged(data)']
     }
 
     constructor() {
@@ -525,12 +527,12 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
         }
     }
 
-	_imageMimeType(uti, utis, dataUrl) {
-		return dataUrl && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m && (m.startsWith('image/') || m === 'public/jpeg'));
+	_imageMimeType(uti, utis, dataUrl, data) {
+		return (data || dataUrl) && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m && (m.startsWith('image/') || m === 'public/jpeg'));
 	}
 
-	_pdfMimeType(uti, utis, dataUrl) {
-		return dataUrl && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m === 'application/pdf');
+	_pdfMimeType(uti, utis, dataUrl, data) {
+		return (data || dataUrl) && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m === 'application/pdf');
 	}
 
     _xmlMimeType(uti, utis) {
@@ -541,11 +543,43 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
         return !isLabOrProtocol && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m === 'text/plain');
     }
 
-    _unknownMimeType(uti, utis, dataUrl) {
-        return (!this._imageMimeType(uti, utis, dataUrl) && !this._pdfMimeType(uti, utis, dataUrl) && !this._xmlMimeType(uti, utis) && !this._plainMimeType(uti, utis))
+    _unknownMimeType(uti, utis, dataUrl, data) {
+        return (!this._imageMimeType(uti, utis, dataUrl, data) && !this._pdfMimeType(uti, utis, dataUrl, data) && !this._xmlMimeType(uti, utis) && !this._plainMimeType(uti, utis))
     }
 
     _dataUrlChanged(dataUrl) {
+        if (dataUrl && dataUrl.length) {
+            this.api.crypto()
+                .extractKeysFromDelegationsForHcpHierarchy(
+                    this.user.healthcarePartyId,
+                    this.document.id,
+                    _.size(this.document.encryptionKeys) ? this.document.encryptionKeys : this.document.delegations
+                )
+                .then(({extractedKeys: enckeys}) => {
+                    this.api.beresultimport().canHandle(this.document.id, enckeys.join(',')).then(isResult => {
+                        if (isResult) {
+                            this.set('isLabOrProtocol', true)
+                            this.api.beresultimport().getInfos(this.document.id, true, this.language || 'fr', enckeys.join(','))
+                                .then(res => {
+                                    this.set('labOrProtocolContent', res)
+                                })
+                        } else {
+                            this.set('isLabOrProtocol', false)
+                            this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'})
+                                .then(response => response.text()))
+                                .then(text => {
+                                    this.set('attachmentContent', text)
+                                })
+
+                        }
+                    })
+                })
+        } else {
+            this.set('isLabOrProtocol', false)
+        }
+    }
+
+    _dataChanged(data) {
         if (dataUrl && dataUrl.length) {
             this.api.crypto()
                 .extractKeysFromDelegationsForHcpHierarchy(
