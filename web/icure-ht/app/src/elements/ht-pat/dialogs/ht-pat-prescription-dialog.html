@@ -179,7 +179,7 @@
             </div>
         </paper-dialog>
 
-        <paper-dialog id="confirmRevoke" class="presc-dialog">
+        <paper-dialog id="tryAgainRevoke" class="presc-dialog">
             <h2 class="modal-title">[[localize('revoke_recipe_fail','Revoke RID failed',language)]]</h2>
             <div class="error-message">
                 [[_printError]]
@@ -196,6 +196,23 @@
             </div>
         </paper-dialog>
 
+        <paper-dialog id="confirmRevoke" class="presc-dialog">
+            <h2 class="modal-title">[[localize('confirm','Confirmer',language)]]</h2>
+            <div class="error-message">
+                [[_printError]]
+            </div>
+            <div class="error-message-details">
+                [[_printErrorDetails]]
+            </div>
+
+            <div class="endline">
+                <div class="buttons">
+                    <paper-button class="modal-button modal-button--cancel" on-tap="" dialog-dismiss>[[localize('can', "Annuler", language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--save" dialog-dismiss autofocus on-tap="_revokeTryAgainCallback">[[localize('revoke','Révoquer',language)]]</paper-button>
+                </div>
+            </div>
+        </paper-dialog>
+
         <paper-dialog id="dialog">
 
             <paper-tabs selected="{{prescriptionTab}}" attr-for-selected="name">
@@ -203,14 +220,22 @@
                     <span class="names-nomobile">[[localize('prescription_sent','Prescriptions envoyées',language)]]</span>
                 </paper-tab>
                 <paper-tab name="toSend">
-                    <span class="names-nomobile">[[localize('prescription_to_send','Prescriptions a envoyer',language)]]</span>
+                    <span class="names-nomobile">[[localize('prescription_to_send','Prescriptions à envoyer',language)]]</span>
                 </paper-tab>
             </paper-tabs>
             <template is="dom-if" if="[[_isSentView(prescriptionTab)]]">
                 <vaadin-grid id="sent-entities-list" class="material" overflow="bottom" items="[[ridSentListExtended]]">
                     <vaadin-grid-column width="80px">
                         <template class="header">
-                            <vaadin-grid-sorter path="description">[[localize('RID',"Numéro d'envoi Recipe",language)]]</vaadin-grid-sorter>
+                            <div path="description">[[localize('date',"Date",language)]]</div>
+                        </template>
+                        <template>
+                            <div class="cell frozen">[[_getRidDate(item)]]</div>
+                        </template>
+                    </vaadin-grid-column>
+                    <vaadin-grid-column width="80px">
+                        <template class="header">
+                            <div path="description">[[localize('RID',"Numéro d'envoi Recipe",language)]]</dibv>
                         </template>
                         <template>
                             <div class="cell frozen">[[_getRidLabel(item)]]</div>
@@ -218,10 +243,14 @@
                     </vaadin-grid-column>
                     <vaadin-grid-column width="100px">
                         <template class="header">
-                            <vaadin-grid-sorter path="description">[[localize('dru_des','Drug descr.',language)]]</vaadin-grid-sorter>
+                            <div path="description">[[localize('dru_des','Drug descr.',language)]]</div>
                         </template>
                         <template>
-                            <div class="cell frozen">[[item.drugDescription]]</div>
+                            <div class="cell frozen">[[item.drugDescription]]
+                                <template is="dom-if" if="[[_drugIsType(item, 'local')]]">
+                                    [[localize('recipe_not_found_remote', '(Non trouvé sur serveur recipe)', language)]]
+                                </template>
+                            </div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column width="200px">
@@ -236,7 +265,7 @@
                         <template class="header">
                         </template>
                         <template>
-                            <template is="dom-if" if="[[item.drugs]]">
+                            <template is="dom-if" if="[[!_drugIsType(item, 'drug')]]">
                                 <paper-button class="action-btn" data-rid$="[[item.rid]]" on-tap="_revokeRIDHandler">
                                     [[localize('revoke','Revoquer',language)]]
                                 </paper-button>
@@ -247,7 +276,7 @@
                         <template class="header">
                         </template>
                         <template>
-                            <template is="dom-if" if="[[item.drugs]]">
+                            <template is="dom-if" if="[[_canPrint(item)]]">
                                 <paper-button class="action-btn" data-rid$="[[item.rid]]" on-tap="_printRID">
                                     [[localize('pri','Imprimer',language)]]
                                 </paper-button>
@@ -464,46 +493,67 @@
                 }
             }
 
+            _getRidDate(item) {
+                if(item.creationDate) {
+                    return moment(item.creationDate).format("DD-MM-YYYY")
+                } else {
+                    if(item.drugs) {
+                        return moment().format("DD-MM-YYYY")
+                    } else {
+                        return ""
+                    }
+                }
+            }
+
             _revokeRIDHandler(e) {
                 const rid = e.target.dataset.rid
-                this._revokeRID(rid)
+                this.set('_printError', this.localize("confirm_revoke_recipe", "Etes-vous sur de vouloir revoquer le prescription recipe suivante ?", this.language))
+                this.set('_printErrorDetails', rid)
+                this.set('_revokeTryAgainCallback', () => this._revokeRID(rid))
+
+                this.$.loading.close();
+                setTimeout(() => this.$.confirmRevoke.open(),10) // dialog doesn't open a second time without setTimeout
             }
 
             _revokeRID(rid) {
                 if(rid) {
                     if (this.patient.ssin && this.api.tokenId) { // if ehealth connected
-                        this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                            this.api.fhc().Recipecontroller().revokePrescriptionUsingDELETE(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.api.credentials.ehpassword, rid, "no reason specified")
-                                .then(isDeleted => {
-                                    console.log("delete rid: ", isDeleted)
-                                    if(isDeleted) {
-                                        const group = this.ridSentList.find(group=> group.rid === rid)
-                                        if(group) {
-                                            this._markDrugsAsNotSent(group.drugs)
-                                        } {
-                                            console.log("no prescription found to revoke")
+                        const group = this.ridSentList.find(group=> group.rid === rid)
+                        if(group.itemType === 'local') { // not found on remote, just mark them as revoked locally
+                            this._markDrugsAsNotSent(group.drugs)
+                        } else {
+                            this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                                this.api.fhc().Recipecontroller().revokePrescriptionUsingDELETE(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.api.credentials.ehpassword, rid, "no reason specified")
+                                    .then(isDeleted => {
+                                        console.log("delete rid: ", isDeleted)
+                                        if(isDeleted) {
+                                            if(group) {
+                                                this._markDrugsAsNotSent(group.drugs)
+                                            } else {
+                                                console.log("not found or no drugs in contact to mark as revoked")
+                                            }
+                                        } else {
+                                            throw "Server say not deleted"
                                         }
-                                    } else {
-                                        throw "Server say not deleted"
-                                    }
-                                })
-                                .catch(error => {
-                                    console.log("error:", error)
-                                    this.set('_printError', this.localize("error_revoke_recipe", "Error while revoking Recipe:", this.language))
-                                    this.set('_printErrorDetails', error)
-                                    this.set('_revokeTryAgainCallback', () => this._revokeRID(rid))
+                                    })
+                                    .catch(error => {
+                                        console.log("error:", error)
+                                        this.set('_printError', this.localize("error_revoke_recipe", "Error while revoking Recipe:", this.language))
+                                        this.set('_printErrorDetails', error)
+                                        this.set('_revokeTryAgainCallback', () => this._revokeRID(rid))
 
-                                    this.$.loading.close();
-                                    setTimeout(() => this.$.confirmRevoke.open(),10) // dialog doesn't open a second time without setTimeout
-                                })
-                        )
+                                        this.$.loading.close();
+                                        setTimeout(() => this.$.tryAgainRevoke.open(),10) // dialog doesn't open a second time without setTimeout
+                                    })
+                            )
+                        }
                     } else {
                         console.log("no ehealth")
                         this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
                         this.set('_printErrorDetails', "")
                         this.set('_revokeTryAgainCallback', () => this._revokeRID(rid))
                         this.$.loading.close();
-                        setTimeout(() => this.$.confirmRevoke.open(),10) // dialog doesn't open a second time without setTimeout
+                        setTimeout(() => this.$.confirmNoRecipe.open(),10) // dialog doesn't open a second time without setTimeout
                     }
                 } else {
                     // not a recipe
@@ -511,7 +561,7 @@
                     const papergroup = this.ridSentList.find(group=> !group.rid)
                     if(papergroup) {
                         this._markDrugsAsNotSent(papergroup.drugs)
-                    } {
+                    } else {
                         console.log("no paper prescription to revoke")
                     }
                 }
@@ -536,46 +586,83 @@
                 this.set('ridSentListExtended', []) // ugly hack to refresh
             }
 
+            _drugIsType(item, itemType) {
+                return item.itemType === itemType
+            }
+
+            _canPrint(item) {
+                return item.drugs && item.drugs.length > 0
+            }
+
             _fetchRidSentList() {
                 //console.log("_fetchRidSentList()")
 
                 // local RIDs
-                let groupObj = _.groupBy(this._drugsAlreadyPrescribed(), svc => this.api.contact().medicationValue(svc, this.language).prescriptionRID)
-                let groups = Object.keys(groupObj).map(key => {
+                const groupObj = _.groupBy(this._drugsAlreadyPrescribed(), svc => this.api.contact().medicationValue(svc, this.language).prescriptionRID)
+                const local_presclist = Object.keys(groupObj).map(key => {
                     return {
                         "drugs": groupObj[key],
+                        "itemType": "local",
                         "rid": this.api.contact().medicationValue(groupObj[key][0], this.language).prescriptionRID
                     }
                 })
-                this.set('ridSentList', groups)
-                this.set('ridSentListExtended', _.flattenDeep(groups.map(g => {
-                    return [
-                        g,
-                        g.drugs.map(d=> {
-                           return {
-                               drugPosology: this._drugPosology(d),
-                               drugDescription: this._drugDescription(d),
-                           }
-                        })
-                    ]
-                })))
 
-                // TODO: make union of server rid and local rid for recipe sent outside of medical house
-                /*
+                const extend_list = list => {
+                    var ridlist = []
+                    console.log("before", list)
+                    ridlist = list.length > 0 ? list : local_presclist
+                    console.log("after", ridlist)
+
+                    this.set('ridSentList', ridlist)
+                    this.set('ridSentListExtended', _.flattenDeep(ridlist.map(g => {
+                        return [
+                            g,
+                            g.drugs ? g.drugs.map(d=> {
+                                return {
+                                    itemType: "drug",
+                                    drugPosology: this._drugPosology(d),
+                                    drugDescription: this._drugDescription(d),
+                                }
+                            }) : []
+                        ]
+                    })))
+
+                }
+
+                let endlist = []
                 if (this.patient.ssin && this.api.tokenId) { // if ehealth connected
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.fhc().Recipecontroller().listOpenPrescriptionsUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.api.credentials.ehpassword)
+                        this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.patient.ssin, this.api.credentials.ehpassword)
                             .then(presclist => {
+                                presclist = presclist.reverse()
+                                console.log("presclist", presclist)
                                 if(presclist.length > 0) {
-                                    this.set('ridSentListExtended', _.concat(this.ridSentListExtended, {rid:"RECIPE"}, presclist))
+                                    presclist.forEach(remote_item => {
+                                            const found = local_presclist.find(local_item => local_item.rid === remote_item.rid)
+                                            if(found) {
+                                                found.itemType = "remote" // if itemType === 'local' then the RID was not found on remote
+                                                endlist.push(found)
+                                            } else {
+                                                remote_item.drugs = [] // no drug list received from recipe
+                                                remote_item.itemType = "remote"
+                                                endlist.push(remote_item)
+                                            }
+                                    })
+                                    endlist = _.concat(local_presclist.filter(item => item.itemType === 'local'), endlist)
                                 }
                             })
-                    )
+                            .then(() => {
+                                extend_list(endlist)
+                            })
+                    ).catch(error => {
+                        console.log(error)
+                        extend_list([])
+                    })
+                } else {
+                    extend_list([])
                 }
-                */
 
                 //console.log("_fetchRidSentList(): ridSentListExtended",this.ridSentListExtended )
-                return this.ridSentListExtended
             }
 
 
