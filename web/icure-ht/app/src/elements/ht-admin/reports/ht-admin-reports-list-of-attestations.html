@@ -147,23 +147,23 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             <div class="flex">
                 <div class="form flex col">
                     <div class="flex full-width">
-                        <vaadin-date-picker id="date-picker" label="De" value="{{dateFrom}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
-                        <vaadin-date-picker id="date-picker" label="A" value="{{dateTo}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                        <vaadin-date-picker id="date-picker" label="[[localize('from2', 'Du', language)]]" value="{{dateFrom}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                        <vaadin-date-picker id="date-picker" label="[[localize('to2', 'Au', language)]]" value="{{dateTo}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
                     </div>
                     <vaadin-combo-box class="full-width" filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" on-value-changed="filterInvoiceList" selected-item="{{selectedHcpItem}}" label="Prestataire" readonly="[[readonly]]"></vaadin-combo-box>
                 </div>
 
                 <div class="form-boxes flex grow-1 space-between">
                     <div class="flex col space-between full-height">
-                        <paper-checkbox checked="{{invoiceType_mutualfund}}">Mutuelle</paper-checkbox>
-                        <paper-checkbox checked="{{invoiceType_patient}}">Patient</paper-checkbox>
-                        <paper-checkbox checked="{{invoiceType_others}}">Autres Organismes</paper-checkbox>
+                        <paper-checkbox checked="{{invoiceType_mutualfund}}">[[localize('mut', "Mutuelle", language)]]</paper-checkbox>
+                        <paper-checkbox checked="{{invoiceType_patient}}">[[localize('inv_pat', "Patient", language)]]</paper-checkbox>
+                        <paper-checkbox checked="{{invoiceType_others}}">[[localize('oth_orgs', "Autres Organismes", language)]]</paper-checkbox>
                     </div>
                     <div class="flex col space-between full-height">
                         <paper-checkbox checked="{{sentMediumType_eattest}}">e-Attest</paper-checkbox>
                         <paper-checkbox checked="{{sentMediumType_efact}}">e-Fact</paper-checkbox>
                         <paper-checkbox checked="{{sentMediumType_mediprima}}">Mediprima</paper-checkbox>
-                        <paper-checkbox checked="{{sentMediumType_paper}}">Papier</paper-checkbox>
+                        <paper-checkbox checked="{{sentMediumType_paper}}">[[localize('paper', "Papier", language)]]</paper-checkbox>
                     </div>
                     <div class="flex col space-between full-height">
                         <paper-checkbox checked="{{paymentType_cash}}">[[localize('cash','Cash',language)]]</paper-checkbox>
@@ -229,6 +229,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     </template>
                     <template>
                         <div>[[item.insurance]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('inv_smt','Sent medium type',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.sentMediumType]]</div>
                     </template>
                 </vaadin-grid-column>
                 <vaadin-grid-column>
@@ -401,6 +409,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         ]
                     },
 
+                    sentMediumTypes: {
+                        type: Array,
+                        value: () => [
+                            {
+                                id: "paper",
+                                label: {"fr": "Papier", "nl": "Papier", "en": "Paper"}
+                            },
+                            {
+                                id: "efact",
+                                label: {"fr": "e-Fact", "nl": "e-Fact", "en": "e-Fact"}
+                            },
+                            {
+                                id: "eattest",
+                                label: {"fr": "e-Attest", "nl": "e-Attest", "en": "e-Attest"}
+                            },
+                            {
+                                id: "mediprima",
+                                label: {"fr": "Mediprima", "nl": "Mediprima", "en": "Mediprima"}
+                            }
+                        ]
+                    },
+
 
                     invoiceType_patient: {
                         type: Boolean,
@@ -502,65 +532,68 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             refreshInvoiceList() {
-                return this.api.invoiceicc.listToPatients().then(invoices => {
-                    return Promise.all(invoices.filter(i => i.sentMediumType === "efact").map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]])))
-                        .then(invAndIdsPat =>
-                            this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
-                        ).then(invAndPats =>
-                            this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it => [it[0], it[1], ins.find(i => it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate >= patIns.startDate && it[0].invoiceDate <= patIns.endDate && patIns.insuranceId === i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId === i.id))))]))
-                        )
-                        .then(invAndPats => {
-                            return Promise.all(invAndPats.map(([invoice, pat, ins]) => {
+                return this.api.hcparty().getCurrentHealthcareParty().then(currentHcp  => {
+                    return this.api.invoiceicc.listToPatients(currentHcp.parentId).then(invoices => {
+                        return Promise.all(invoices.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]])))
+                            .then(invAndIdsPat =>
+                                this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
+                            ).then(invAndPats =>
+                                this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it => [it[0], it[1], ins.find(i => it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate >= patIns.startDate && it[0].invoiceDate <= patIns.endDate && patIns.insuranceId === i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId === i.id))))]))
+                            )
+                            .then(invAndPats => {
+                                return Promise.all(invAndPats.map(([invoice, pat, ins]) => {
 
-                                console.log("invoice:", invoice)
-                                const invdate = invoice.invoiceDate.toString()
-                                const item = {
-                                    //author: after,
-                                    date: invdate.substr(0,4) + '-' + invdate.substr(4,2) + '-' + invdate.substr(6,2),
-                                    //patient: after
-                                    invoiceReference: invoice.invoiceReference,
-                                    //oa: after
-                                    //insurance: after
-                                    invoiceType: this.getInvoiceTypeLabel(invoice.invoiceType),
-                                    //linkedConvention: for future use
-                                    paymentType: this.getPaymentTypeLabel(invoice.paymentType),
-                                    cash: 0,
-                                    debitCard: 0,
-                                    creditCard: 0,
-                                    wired: 0,
-                                    totalAmount: 0,
+                                    console.log("invoice:", invoice)
+                                    const invdate = invoice.invoiceDate.toString()
+                                    const item = {
+                                        //author: after,
+                                        date: invdate.substr(0, 4) + '-' + invdate.substr(4, 2) + '-' + invdate.substr(6, 2),
+                                        //patient: after
+                                        invoiceReference: invoice.invoiceReference,
+                                        //oa: after
+                                        //insurance: after
+                                        invoiceType: this.getInvoiceTypeLabel(invoice.invoiceType),
+                                        sentMediumType: this.getSentMediumTypeLabel(invoice.sentMediumType),
+                                        //linkedConvention: for future use
+                                        paymentType: this.getPaymentTypeLabel(invoice.paymentType),
+                                        cash: 0,
+                                        debitCard: 0,
+                                        creditCard: 0,
+                                        wired: 0,
+                                        totalAmount: 0,
 
-                                    invoice: invoice
-                                }
+                                        invoice: invoice
+                                    }
 
-                                const computeSum = function(paytype) {
-                                    return invoice.invoicingCodes.filter(c => c.paymentType === paytype).reduce((acc, code) => {
+                                    const computeSum = function (paytype) {
+                                        return invoice.invoicingCodes.filter(c => c.paymentType === paytype).reduce((acc, code) => {
+                                            return acc + code.totalAmount
+                                        }, 0) || 0
+                                    }
+                                    item.totalAmount = invoice.invoicingCodes.reduce((acc, code) => {
                                         return acc + code.totalAmount
                                     }, 0) || 0
-                                }
-                                item.totalAmount = invoice.invoicingCodes.reduce((acc, code) => {
-                                    return acc + code.totalAmount
-                                }, 0) || 0
-                                item.cash = computeSum('cash')
-                                item.debitCard = computeSum('debitCard')
-                                item.creditCard = computeSum('creditCard')
-                                item.wired = computeSum('wired')
+                                    item.cash = computeSum('cash')
+                                    item.debitCard = computeSum('debitCard')
+                                    item.creditCard = computeSum('creditCard')
+                                    item.wired = computeSum('wired')
 
-                                item.insurance = ins ? ins.code + ' ' + (ins.name["fr"] || ins.name["nl"]) : null
-                                item.oa = item.insurance ? item.insurance[0] + '00' : null
-                                item.patient = pat ? (pat.firstName + ' ' + pat.lastName) : null
+                                    item.insurance = ins ? ins.code + ' ' + (ins.name["fr"] || ins.name["nl"]) : null
+                                    item.oa = item.insurance ? item.insurance[0] + '00' : null
+                                    item.patient = pat ? (pat.firstName + ' ' + pat.lastName) : null
 
-                                return this.api.user().getUser(invoice.author).then(user => {
-                                    return this.api.hcparty().getHealthcareParty(user.healthcarePartyId).then(hcp => {
-                                        item.author = hcp.lastName + ' ' + hcp.firstName
-                                        item.authorHcpId = hcp.id
-                                        return item
+                                    return this.api.user().getUser(invoice.author).then(user => {
+                                        return this.api.hcparty().getHealthcareParty(user.healthcarePartyId).then(hcp => {
+                                            item.author = hcp.lastName + ' ' + hcp.firstName
+                                            item.authorHcpId = hcp.id
+                                            return item
+                                        })
                                     })
-                                })
-                            }))
-                        }).then(invlist =>
-                            this.set('invoiceItems', invlist)
-                        )
+                                }))
+                            }).then(invlist =>
+                                this.set('invoiceItems', invlist)
+                            )
+                    })
                 })
             }
 
@@ -577,17 +610,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
 
                 const sentMediumTypeFilter = []
+                const icure_invoiceTypeFilter = [] // NOTE: icure use invoiceType instead of sentMediumType which is unused
                 if(this.sentMediumType_eattest === true) {
                     sentMediumTypeFilter.push("eattest")
+                    icure_invoiceTypeFilter.push("eattest")
                 }
                 if(this.sentMediumType_efact === true) {
                     sentMediumTypeFilter.push("efact")
+                    icure_invoiceTypeFilter.push("efact")
                 }
                 if(this.sentMediumType_mediprima === true) {
                     sentMediumTypeFilter.push("mediprima")
+                    icure_invoiceTypeFilter.push("mediprima")
                 }
                 if(this.sentMediumType_paper === true) {
                     sentMediumTypeFilter.push("paper")
+                    icure_invoiceTypeFilter.push("paper")
                 }
 
                 const paymentTypeFilter = []
@@ -617,7 +655,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         //res = true
                         // no checkbox checked, show all
                     } else {
-                        res = res && sentMediumTypeFilter.includes(inv.invoice.sentMediumType)
+                        res = res && (sentMediumTypeFilter.includes(inv.invoice.sentMediumType) || icure_invoiceTypeFilter.includes(inv.invoice.invoiceType))
                     }
 
                     if(paymentTypeFilter.length === 0) {
@@ -703,15 +741,21 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return
             }
 
-            getInvoiceTypeLabel(invoiceType){
-                if(!invoiceType) return;
-                const type = this.invoiceTypes.find(type => type.id === invoiceType)
+            getSentMediumTypeLabel(aType){
+                if(!aType) return;
+                const type = this.sentMediumTypes.find(type => type.id === aType)
                 return type && type.label && type.label[this.language]
             }
 
-            getPaymentTypeLabel(invoiceType){
-                if(!invoiceType) return;
-                const type = this.paymentTypes.find(type => type.id === invoiceType)
+            getInvoiceTypeLabel(aType){
+                if(!aType) return "";
+                const type = this.invoiceTypes.find(type => type.id === aType)
+                return type && type.label && type.label[this.language]
+            }
+
+            getPaymentTypeLabel(aType){
+                if(!aType) return "";
+                const type = this.paymentTypes.find(type => type.id === aType)
                 return type && type.label && type.label[this.language]
             }
 
