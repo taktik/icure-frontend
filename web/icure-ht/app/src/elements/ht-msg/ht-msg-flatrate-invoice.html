@@ -1008,7 +1008,7 @@
             <template is="dom-if" if="[[_isLoading]]">
                 <div id="loadingContainer">
                     <div id="loadingContentContainer">
-                        <ht-spinner class="spinner" alt="Loading..." active></ht-spinner>
+                        <div style="max-width:200px; margin:0 auto"><ht-spinner class="spinner" alt="Loading..." active></ht-spinner></div>
                         <div id="loadingContent"><p><iron-icon icon="arrow-forward" class="loadingIcon"></iron-icon> [[localize("mhListing.spinner.step_1", language)]]</p></div>
                     </div>
                 </div>
@@ -4133,30 +4133,91 @@
                             || _.size( medicalHouseAvailableValorisationsByNihii ) !== _.size(_.compact( _.map(medicalHouseAvailableValorisationsByNihii, mhValorisation => !!parseInt( _.size( _.filter(this.flatRateInvoicingDataObject.hcpValorisationsPreviousMonth, i=> { return _.trim(i.flatRateType) === _.trim(mhValorisation.flatRateType) && parseFloat(_.get(i, "price", 0)) }) ) )) ))
                         ) throw new Error("missing-flatrate-tarification");
 
-                        // Check for existing exports - did it run already?
+
+
+                        // Check for existing exports - did it run already? - do we have anything to run again for this month?
+                        //     1. Get existing messages of month we're trying to export
+                        //     2. No message found -> allow to run. Only of status fullyAccepted / pending -> don't allow to run again. If some of status archived / error / partiallyAccepted / rejected -> allow to run again (after checking invoicingCode booleans).
+                        //     3. Take & resolve invoiceIds
+                        //     4. Only keep (old) invoices with a correctiveInvoiceId
+                        //     5. Resolve corrective invoices & drop already sent ones
+                        //     6. Filter inv.invoicingCodes based on all bool false but "pending" === true (when BOTH pending & resent are true -> invoice will appear under "Invoices to be corrected" / customer has to flag as being corrected)
+                        //     7. One+ record found? Export may run again
                         return this.api.getRowsUsingPagination(
                             (key,docId) =>
-                                this.api.message().findMessagesByTransportGuid('MH:FLATRATE:*', null, key, docId, 1000)
+                                this.api.message().findMessagesByTransportGuid('MH:FLATRATE:INVOICING-FLATFILE', null, key, docId, 1000)
                                     .then(pl => { return {
                                         rows:_.filter(pl.rows, m => {
+                                            m.evaluatedStatus =
+                                                !!(m.status & (1 << 21)) ? "archived" :
+                                                !!(m.status & (1 << 17)) ? "error" :
+                                                !!(m.status & (1 << 16)) ? "partiallyAccepted" :
+                                                !!(m.status & (1 << 15)) ? "fullyAccepted" :
+                                                !!(m.status & (1 << 12)) ? "rejected" :
+                                                !!(m.status & (1 << 11)) ? "treated" :
+                                                !!(m.status & (1 << 10)) ? "acceptedForTreatment" :
+                                                !!(m.status & (1 << 9))  ? "successfullySentToOA" :
+                                                !!(m.status & (1 << 8))  ? "pending" : 
+                                                ""
                                             return m
                                                 && _.get(m,'fromHealthcarePartyId',false)===this.user.healthcarePartyId
                                                 && _.get(m, "recipients", []).indexOf(this.user.healthcarePartyId) > -1
                                                 && parseInt( _.get(m, "metas.batchExportTstamp", 0) )
                                                 && parseInt( _.size( _.get(m, "invoiceIds", [] ) ) )
+                                                && parseInt( _.get(m, "metas.exportedDate", "" ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate)
                                         }),
                                         nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
                                         nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
                                         done: !pl.nextKeyPair
                                     }})
                                     .catch(()=>{ return Promise.resolve(); })
-                        ).then(x=>x)
+                        ).then(foundMessages=> (
+
+                            // Never ran, allow to run
+                            !parseInt(_.size(foundMessages)) ? true :
+
+                            // All are pending or fully accepted, don't allow to run again
+                            !parseInt( _.size(_.filter(foundMessages, msg => { return ["archived","error","partiallyAccepted","rejected"].indexOf(msg.evaluatedStatus) > -1 }))) ? false :
+
+                            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.compact(_.uniq(_.flatMap(_.map(_.filter(foundMessages, msg => { return ["archived","error","partiallyAccepted","rejected"].indexOf(msg.evaluatedStatus) > -1 }), "invoiceIds"))))}))
+                                .then(invoicesToBeCorrected => !parseInt(_.size(invoicesToBeCorrected)) ? false :
+                                    this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.compact(_.uniq(_.map(_.filter(invoicesToBeCorrected, _.trim("correctiveInvoiceId")), "correctiveInvoiceId")))}))
+                                        .then(correctiveInvoices => !parseInt(_.size(correctiveInvoices)) ? false :
+                                            _.compact(
+                                                _.filter(correctiveInvoices, i => !_.trim(_.get(i, "sentDate", ""))).map(inv => {
+                                                    const invoicingCodes = _.get(inv, "invoicingCodes", [])
+                                                    return !parseInt(_.size(invoicingCodes)) ? false :
+                                                        _.every(invoicingCodes, {
+                                                            accepted: false,
+                                                            archived: false,
+                                                            canceled: false,
+                                                            resent: false,
+                                                            pending: true
+                                                        }) ? inv : []   // Array is of type OBJECT !=== Array.isArray(xxx)
+                                                })
+                                            )
+                                        )
+                                        .catch(e => {
+                                            console.log("Could not getInvoices (corrective ones) by ", _.compact(_.uniq(_.map(_.filter(invoicesToBeCorrected, _.trim("correctiveInvoiceId")), "correctiveInvoiceId"))));
+                                            console.log(e);
+                                            return false;
+                                        })
+                                )
+                                .catch(e => {
+                                    console.log("Could not getInvoices (to be corrected) by ", _.compact(_.uniq(_.flatMap(_.map(foundMessages, "invoiceIds")))));
+                                    console.log(e);
+                                    return false;
+                                })
+                        ))
 
                     })
-                    .then(exportAlreadyRanMessages=>{
-                        if(_.size(exportAlreadyRanMessages)) throw new Error("export-already-ran");
+                    .then(exportMayRunBooleanOrInvoicesToAddObjects => {
+                        if( typeof exportMayRunBooleanOrInvoicesToAddObjects === "boolean" && !exportMayRunBooleanOrInvoicesToAddObjects ) throw new Error("export-already-ran")
+                        if( typeof exportMayRunBooleanOrInvoicesToAddObjects === "object" && !parseInt(_.size(_.compact(_.filter(exportMayRunBooleanOrInvoicesToAddObjects, _.size))))) throw new Error("export-already-ran")
+                        if( typeof exportMayRunBooleanOrInvoicesToAddObjects === "object" && parseInt(_.size(_.compact(_.filter(exportMayRunBooleanOrInvoicesToAddObjects, _.size)))) ) return _.compact(_.filter(exportMayRunBooleanOrInvoicesToAddObjects, _.size))
+                        return false
                     })
-                    .then(()=>{
+                    .then(pendingInvoicesToResend=>{
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_1_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_2',this.language), icon:"arrow-forward"});
                         return this._getPatientsByHcp(_.get(this.hcp, "id")).then(myPatients=>_.chain(myPatients).uniqBy('ssin').orderBy(['lastName', 'firstName'],['asc','asc']).value())
