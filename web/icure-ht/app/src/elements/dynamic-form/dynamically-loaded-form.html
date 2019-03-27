@@ -427,9 +427,9 @@
                     const saveAction = this.saveAction = () => {
                         console.log("Saving...")
                         this.saveTimeout = undefined;
-                                                                        
+
                         return new Promise((resolve,reject) =>
-                        this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true})) //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
+                        this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true})))//Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
                     };
                     this.saveTimeout = setTimeout(saveAction, 10000); //Make sure the save is done with the right saveAction by using a const
 				})
@@ -497,9 +497,16 @@
 
                             const computables = lis.filter(li => !li.subForm).map(li => {
                                 const deps = []
-								(li.formulas || []).filter(f => lifecycles.includes(f.lifecycle.toString())).forEach(f => {
-                                    const expr = `(function(x) { ${f.value} })(x)`
-                                    simple(parse(expr), {
+								;(li.formulas || []).filter(f => lifecycles.includes(f.lifecycle.toString())).forEach(f => {
+									let expr =""
+									let parsed =""
+									expr = `(function(x) { ${f.value} })(x)`
+									parsed = parse(expr)
+									if(parsed.body[0].expression.callee.body.body.length===1 && _.last(parsed.body[0].expression.callee.body.body).type ==="ExpressionStatement"){
+										expr = `(function(x) { return(${f.value}); })(x)`
+										parsed = parse(expr)
+									}
+									simple(parsed, {
                                         MemberExpression(node) {
                                             if (node.object.name === 'x') {
                                                 deps.push(node.property.name)
@@ -542,9 +549,9 @@
                                         status = gen.next() //Execute lines one by one
                                     }
 
-                                    const compValue = status.value !== null ? status.value : (lifecycles.includes('OnCreate') ? comp.li.defaultValue : null)
+                                    const compValue = status.value !== null ? status.value : (lifecycles.includes('OnCreate') ? typeof comp.li.defaultValue === "object" ? this.api.contact().contentValue(comp.li.defaultValue[0])  : comp.li.defaultValue : null)
 
-                                    ;['StringEditor', 'PopupMenuEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'string') && this.dataProvider.setStringValue(comp.name, compValue || null, false);
+                                    ;['StringEditor', 'PopupMenuEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'string') && this.dataProvider.setStringValue(comp.name, compValue, false);
                                     ;['NumberEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setNumberValue(comp.name, compValue === 0 ? 0 : (Number(compValue.toFixed(3)) || null), false);
                                     ;['MeasureEditor'].includes(comp.li.editor.key) && (typeof compValue === 'number') && this.dataProvider.setMeasureValue(comp.name, {value: Number(compValue.toFixed(3))} || null, false);
                                     ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'object') && this.dataProvider.setMeasureValue(comp.name, Number(compValue.toFixed(3)) || null, false);
