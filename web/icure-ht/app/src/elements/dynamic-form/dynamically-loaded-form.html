@@ -497,15 +497,12 @@
 
                             const computables = lis.filter(li => !li.subForm).map(li => {
                                 const deps = []
+                                const shouldWrap = {}
 								;(li.formulas || []).filter(f => lifecycles.includes(f.lifecycle.toString())).forEach(f => {
-									let expr =""
-									let parsed =""
-									expr = `(function(x) { ${f.value} })(x)`
-									parsed = parse(expr)
-									if(parsed.body[0].expression.callee.body.body.length===1 && _.last(parsed.body[0].expression.callee.body.body).type ==="ExpressionStatement"){
-										expr = `(function(x) { return(${f.value}); })(x)`
-										parsed = parse(expr)
-									}
+									const expr = `(function(x) { ${f.value} })(x)`
+									const parsed = parse(expr)
+                                    shouldWrap[f.value] =  parsed.body[0].expression.callee.body.body.length === 1 && _.last(parsed.body[0].expression.callee.body.body).type === "ExpressionStatement"
+
 									simple(parsed, {
                                         MemberExpression(node) {
                                             if (node.object.name === 'x') {
@@ -514,9 +511,8 @@
                                         }
                                     })
                                 })
-                                return {name: li.name, deps: deps, li: li}
+                                return {name: li.name, deps: deps, shouldWrap: shouldWrap, li: li}
                             })
-
 
                             const visit = (computables, oks) => {
                                 const okNames = oks.map(k => k.name)
@@ -541,7 +537,7 @@
 
                                     const f = (comp.li.formulas || []).find(f => lifecycles.includes(f.lifecycle.toString()))
 
-									const expr = f && `(function(x,patient,contact,contacts) { ${f.value} })(x,patient,contact,contacts)`
+									const expr = f && `(function(x,patient,contact,contacts) { ${comp.shouldWrap[f.value] ? `return (${f.value});` : f.value} })(x,patient,contact,contacts)`
                                     const gen = expr && (env.gen(expr)())
                                     let status = {done: false, value: null}
 
