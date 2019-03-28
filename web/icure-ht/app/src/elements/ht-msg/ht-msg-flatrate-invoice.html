@@ -3090,11 +3090,6 @@
             }
 
             _createOrUpdateMedicalHousePatientsInvoices() {
-
-                console.log("------------ INVOICE GENERATOR ------------");
-                console.log(this.flatRateInvoicingDataObject.listsData);
-                this.bug();
-
                 let prom = Promise.resolve([])
                 const allPats = _.flatMap(this.flatRateInvoicingDataObject.listsData)
                 const patsCount = _.size(allPats)
@@ -4375,6 +4370,7 @@
                     })
                     .then((listsData)=>{
                         this.flatRateInvoicingDataObject.listsData = listsData
+                        this.flatRateInvoicingDataObject.invoicesToBeModified = []
 
                         // Drop patients we couldn't find in list (no valorisation)
                         const patientsInLists = _.uniq(_.compact(_.flatMap(_.get(this, "flatRateInvoicingDataObject.listsData", {})).map(i=>i.id) ))||[]
@@ -4411,36 +4407,21 @@
                                     )
                                 )
                                 const additionalInvoicingCodes = _.flatMap(_.map(_.get(pat,"invoiceToBeResent",[]), invoiceToBeResent=>{
-
                                     const invoiceCodesToBeDeleted = _.get(invoiceToBeResent,"invoicingCodes",[]).filter(ic=>_.compact(_.uniq(_.map(originalInvoicingCodes,oic=>_.trim(_.get(oic,"valorisationMonth",0))))).indexOf(_.trim(_.get(ic,"dateCode",0))) > -1 )
                                     if( !!parseInt(_.size(invoiceCodesToBeDeleted)) ) {
-                                        console.log("INV CODES A SUPPRIMER: ",invoiceCodesToBeDeleted);
-                                        console.log("DANS FACTURE: ",invoiceToBeResent);
+                                        const newInvoicingCodes = _.compact(_.map(invoiceToBeResent.invoicingCodes, ic => _.compact(_.map(invoiceCodesToBeDeleted,"id")).indexOf(_.trim(_.get(ic,"id",false)))>-1 ? false : ic ))
+                                        const invoiceToBeResentWithOmittedDuplicatedInvCodes = _.assign(_.cloneDeep(invoiceToBeResent), {invoicingCodes:newInvoicingCodes})
+                                        this.flatRateInvoicingDataObject.invoicesToBeModified.push(invoiceToBeResentWithOmittedDuplicatedInvCodes)
                                     }
-
-
                                     return _.map(_.get(invoiceToBeResent,"invoicingCodes",[]).filter(ic=>_.compact(_.uniq(_.map(originalInvoicingCodes,oic=>_.trim(_.get(oic,"valorisationMonth",0))))).indexOf(_.trim(_.get(ic,"dateCode",0))) === -1 ), ic => _.merge({},{
                                         code: _.get(ic,"code",""),
-                                        label: {
-                                            fr: _.get(ic,"label",""),
-                                            nl: _.get(ic,"label",""),
-                                            en: _.get(ic,"label","")
-                                        },
+                                        label: { fr: _.get(ic,"label",""), nl: _.get(ic,"label",""), en: _.get(ic,"label","") },
                                         price: _.get(ic,"totalAmount",0),
                                         valorisationMonth: _.get(ic,"dateCode",null)
                                     }))
                                 })||[])
-                                const finalInvoicingCodes = _.compact(_.concat(additionalInvoicingCodes||[],originalInvoicingCodes))
-
-                                console.log(originalInvoicingCodes)
-                                console.log(additionalInvoicingCodes)
-                                console.log(finalInvoicingCodes)
-                                console.log(pat)
-                                console.log(pat.invoiceToBeResent)
-                                // this.bug();
-
                                 return _.assign(pat, {
-                                    invoicingCodes: finalInvoicingCodes.map(val => ({
+                                    invoicingCodes: _.compact(_.concat(additionalInvoicingCodes||[],originalInvoicingCodes)).map(val => ({
                                         code: val.code,
                                         tarificationId: "INAMI-RIZIV|" + val.code + "|1.0",
                                         label: _.get(val, "label."+this.language,""),
@@ -4460,7 +4441,20 @@
                                     }))
                                 })
                             })
-                        })).then(()=>this._createOrUpdateMedicalHousePatientsInvoices())
+                        }))
+                            .then(()=>{
+                                let prom = Promise.resolve([])
+                                let invoicesToBeModified = _.cloneDeep(this.flatRateInvoicingDataObject.invoicesToBeModified);
+                                return !parseInt(_.size(invoicesToBeModified||[])) ?
+                                    prom :
+                                    Promise.all(invoicesToBeModified.map( inv => {
+                                        prom = prom.then(invoicesToBeModified => this.api.invoice().modifyInvoice(inv)
+                                            .then(() => _.concat(invoicesToBeModified, [inv]))
+                                            .catch(e => { console.log("Can't modify invoice", inv, e); return false; })
+                                        )
+                                    }))
+                            })
+                            .then(()=>this._createOrUpdateMedicalHousePatientsInvoices())
                     })
                     .then(invoicesData=>{
                         this.flatRateInvoicingDataObject.invoicesData = invoicesData
@@ -4962,6 +4956,7 @@
 
                             // For msg-menu
                             this.dispatchEvent(new CustomEvent('initialize-batch-counter-j20', { bubbles: true, composed: true, detail: this.messagesCachedData.countByStatus }));
+                            return false;
 
                         })
                         .catch((e)=>console.log(e))
