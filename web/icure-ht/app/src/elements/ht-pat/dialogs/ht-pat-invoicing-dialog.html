@@ -2295,9 +2295,9 @@
                         type: Boolean,
                         value: false
                     },
-                    supervisor:{
-                        type: Object,
-                        value: () => {}
+                    supervisorId:{
+                        type: String,
+                        value: null
                     }
                 }
 
@@ -2408,11 +2408,12 @@
             open(selection) {
                 if (!this.user) return
                 Promise.all([this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId), this.api.invoice().findBy(this.user.healthcarePartyId, this.patient).then(invoices => invoices.map(i => this.api.register(i, 'invoice')))]).then(([hcp, invoices]) => {
+                    this.set('supervisorId', null)
                     this.set('hcp', hcp)
                     this.set('nmcl-value','')
 
                     ;((this.isDoctorAssistant(this.hcp.nihii || null) === true  && this.hcp.supervisorId && this.hcp.supervisorId !== "") ? this.api.user().findByHcpartyId(this.hcp.supervisorId) : Promise.resolve({})).then(sup => {
-                        sup && sup.id ? this.set('supervisor', sup) : null
+                        sup && sup[0] ? this.set('supervisorId', sup[0]) : null
                         const invoiceOfDay = invoices.find( i=> i.invoiceDate+'' === moment().format("YYYYMMDD") && !i.printedDate )
 
                         if(!invoiceOfDay){
@@ -2502,7 +2503,7 @@
                 if (preferedCode && preferedCode.typedValue) {
                     const code = JSON.parse(preferedCode.typedValue.stringValue)
 
-                    this.api.tarification().getTarifications(new models.ListOfIdsDto({ids: code.cs.map(c => c)})).then(t => {
+                    code && code.cs ? this.api.tarification().getTarifications(new models.ListOfIdsDto({ids: code && code.cs && code.cs.map(c => c)})) : Promise.resolve([]).then(t => {
                         this.set("favoriteCode", t)
                     })
                 }
@@ -2664,7 +2665,7 @@
 
                     this.api.crypto().extractDelegationsSFKs(this.patient, this.user.healthcarePartyId).then(secretForeignKeys => {
                         const patientKeys = secretForeignKeys.extractedKeys.join(",")
-                        this.api.invoice().appendCodes(this.user.id, this.selectedInvoice.invoiceType, this.selectedMediumCodeType, (!!this.patient.insurabilities.length?this.patient.insurabilities[0].insuranceId:''), patientKeys, null, 0, [newNmcl])
+                        this.api.invoice().appendCodes((this.isDoctorAssistant(this.hcp.nihii) === true && this.supervisorId && this.supervisorId.length) ? this.supervisorId : this.user.id, this.selectedInvoice.invoiceType, this.selectedMediumCodeType, (!!this.patient.insurabilities.length?this.patient.insurabilities[0].insuranceId:''), patientKeys, null, 0, [newNmcl])
                             .then(inv => (lastPatientAssurance && lastPatientAssurance.insuranceId ? this.api.insurance().getInsurance(lastPatientAssurance.insuranceId).then(ins => [inv[0] || null, ins || null]) :  Promise.resolve([inv[0] || null, null])))
                             .then(([inv, ins]) => (ins && ins != null) ? this.api.insurance().getInsurance(ins.parent).then(parentIns => [inv, parentIns]) : Promise.resolve([inv, null]))
                             .then(([inv, parentIns]) => {
