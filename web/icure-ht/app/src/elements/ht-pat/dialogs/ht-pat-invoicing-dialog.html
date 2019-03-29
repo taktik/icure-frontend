@@ -2295,9 +2295,9 @@
                         type: Boolean,
                         value: false
                     },
-                    supervisorId:{
-                        type: String,
-                        value: null
+                    supervisor:{
+                        type: Object,
+                        value: () => {}
                     }
                 }
 
@@ -2408,12 +2408,14 @@
             open(selection) {
                 if (!this.user) return
                 Promise.all([this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId), this.api.invoice().findBy(this.user.healthcarePartyId, this.patient).then(invoices => invoices.map(i => this.api.register(i, 'invoice')))]).then(([hcp, invoices]) => {
-                    this.set('supervisorId', null)
+                    this.set('supervisor', {})
                     this.set('hcp', hcp)
                     this.set('nmcl-value','')
 
-                    ;((this.isDoctorAssistant(this.hcp.nihii || null) === true  && this.hcp.supervisorId && this.hcp.supervisorId !== "") ? this.api.user().findByHcpartyId(this.hcp.supervisorId) : Promise.resolve({})).then(sup => {
-                        sup && sup[0] ? this.set('supervisorId', sup[0]) : null
+                    ;((this.isDoctorAssistant(this.hcp.nihii || null) === true  && this.hcp.supervisorId && this.hcp.supervisorId !== "") ? this.api.user().findByHcpartyId(this.hcp.supervisorId) : Promise.resolve({}))
+                        .then(sup => sup && sup[0] ? this.api.user().getUser(sup[0]) : Promise.resolve({}))
+                        .then(supervisor => {
+                            supervisor && supervisor.id ? this.set('supervisor', supervisor) : null
                         const invoiceOfDay = invoices.find( i=> i.invoiceDate+'' === moment().format("YYYYMMDD") && !i.printedDate )
 
                         if(!invoiceOfDay){
@@ -2665,7 +2667,7 @@
 
                     this.api.crypto().extractDelegationsSFKs(this.patient, this.user.healthcarePartyId).then(secretForeignKeys => {
                         const patientKeys = secretForeignKeys.extractedKeys.join(",")
-                        this.api.invoice().appendCodes((this.isDoctorAssistant(this.hcp.nihii) === true && this.supervisorId && this.supervisorId.length) ? this.supervisorId : this.user.id, this.selectedInvoice.invoiceType, this.selectedMediumCodeType, (!!this.patient.insurabilities.length?this.patient.insurabilities[0].insuranceId:''), patientKeys, null, 0, [newNmcl])
+                        this.api.invoice().appendCodes((this.isDoctorAssistant(this.hcp.nihii) === true && this.supervisor && this.supervisor.id) ? this.supervisor.id : this.user.id, this.selectedInvoice.invoiceType, this.selectedMediumCodeType, (!!this.patient.insurabilities.length?this.patient.insurabilities[0].insuranceId:''), patientKeys, null, 0, [newNmcl])
                             .then(inv => (lastPatientAssurance && lastPatientAssurance.insuranceId ? this.api.insurance().getInsurance(lastPatientAssurance.insuranceId).then(ins => [inv[0] || null, ins || null]) :  Promise.resolve([inv[0] || null, null])))
                             .then(([inv, ins]) => (ins && ins != null) ? this.api.insurance().getInsurance(ins.parent).then(parentIns => [inv, parentIns]) : Promise.resolve([inv, null]))
                             .then(([inv, parentIns]) => {
@@ -2696,7 +2698,7 @@
                                     })
                                 }
 
-                                return this.api.invoice().newInstance(this.user, this.patient, invoice)
+                                return this.api.invoice().newInstance((this.isDoctorAssistant(this.hcp.nihii) === true && this.supervisor && this.supervisor.id) ? this.supervisor : this.user, this.patient, invoice)
                                     .then(invoice => this.api.invoice().createInvoice(invoice, prefix))
                                     .then(invoice => this.api.register(invoice,'invoice'))
                                     .then(invoice => {
@@ -2821,7 +2823,7 @@
                     this.isLoadingEattest = true
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
                         .then(hcp =>
-                            this.selectedInvoice.careProviderType === 'traineesupervised' && hcp.supervisorId ?
+                            (this.selectedInvoice.careProviderType === 'traineesupervised' || this.selectedInvoice.careProviderType === 'trainee') && hcp.supervisorId ?
                                 this.api.hcparty().getHealthcareParty(hcp.supervisorId).then(sup =>
                                     this.api.fhc().Tarificationcontroller().consultTarificationUsingPOST(
                                         this.patient.ssin, this.api.tokenId, this.api.keystoreId, this.api.credentials.ehpassword,
