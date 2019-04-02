@@ -173,8 +173,8 @@
             <div class="endline">
                 <div class="buttons">
                     <paper-button class="modal-button modal-button--cancel" on-tap="" dialog-dismiss>[[localize('can', "Annuler", language)]]</paper-button>
-                    <paper-button class="modal-button modal-button--cancel" on-tap="_printPrescriptionNoRecipe" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumnsCache)]]">[[localize('print_no_recipe', "Imprimer sans recipe", language)]]</paper-button>
-                    <paper-button class="modal-button modal-button--save" dialog-dismiss autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumnsCache)]]">[[localize('try_again','Réessayer',language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--cancel" on-tap="_printPrescriptionNoRecipe" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumns)]]">[[localize('print_no_recipe', "Imprimer sans recipe", language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--save" dialog-dismiss autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumns)]]">[[localize('try_again','Réessayer',language)]]</paper-button>
                 </div>
             </div>
         </paper-dialog>
@@ -284,10 +284,6 @@
                         </template>
                     </vaadin-grid-column>
                 </vaadin-grid>
-<!--                <div class="buttons">
-                    <paper-button class="modal-button modal-button&#45;&#45;cancel" on-tap="debugRefresh" >refresh</paper-button>
-                    <paper-button class="modal-button modal-button&#45;&#45;cancel" on-tap="debugClear" >clear</paper-button>
-                </div>-->
             </template>
             <template is="dom-if" if="[[_isToSendView(prescriptionTab)]]">
                 <!-- <h2 class="modal-title">[[localize('pri_pre','Print prescription',language)]]</h2> -->
@@ -308,15 +304,13 @@
                             <div class="cell frozen">[[_drugPosology(item.svc)]]</div>
                         </template>
                     </vaadin-grid-column>
-                    <template is="dom-repeat" items="[[_splitColumnsCache]]" as="column" index-as="columnIndex">
+                    <template is="dom-repeat" items="[[_splitColumns]]" as="column" index-as="columnIndex">
                         <vaadin-grid-column flex-grow="0" width="50px">
                             <template class="header">
                                 [[_columnName(columnIndex)]]
                             </template>
                             <template>
-                                <!--<vaadin-checkbox id="[[item.id]]:[[columnIndex]]" disabled="[[!_enabled(columnIndex,index,_drugsOnPrescriptions,_drugsOnPrescriptions.*)]]" checked="[[_drugOnPrescription(item,columnIndex)]]" on-checked-changed="_setDrugOnPrescription"></vaadin-checkbox>-->
-                                <vaadin-checkbox class="drugCheckbox" id="[[item.id]]:[[columnIndex]]" on-checked-changed="_toggleDrugOnPrescription" data-column$="[[columnIndex]]" data-item$="[[item]]"></vaadin-checkbox>
-                                <!--<vaadin-checkbox class="drugCheckbox" id="[[item.id]]:[[columnIndex]]" checked="[[_drugOnPrescription(item,columnIndex,_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumnsCache)]]" on-checked-changed="_toggleDrugOnPrescription" data-column$="[[columnIndex]]" data-item$="[[item]]"></vaadin-checkbox>-->
+                                <vaadin-checkbox id="[[item.id]]:[[columnIndex]]" disabled="[[!_enabled(columnIndex,index,_drugsOnPrescriptions,_drugsOnPrescriptions.*)]]" checked="[[_drugOnPrescription(item,columnIndex,_splitColumns)]]" on-checked-changed="_setDrugOnPrescription"></vaadin-checkbox>
                             </template>
                         </vaadin-grid-column>
                     </template>
@@ -340,10 +334,8 @@
                         </paper-radio-group>
                     </template>
                     <div class="buttons">
-<!--                        drugsRefresher: [[drugsRefresher]] .
-                        <paper-button class="modal-button modal-button&#45;&#45;cancel" on-tap="debugRefresh" >refresh</paper-button>-->
                         <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('close','Close',language)]]</paper-button>
-                        <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumnsCache)]]">[[localize('pri','Print',language)]]</paper-button>
+                        <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumns)]]">[[localize('pri','Print',language)]]</paper-button>
                     </div>
                 </div>
             </template>
@@ -411,13 +403,13 @@
                         type: Function,
                         value: function(){}
                     },
-                    _drugsToBePrescribedCache: {
+                    _drugsToBePrescribed: {
                         type: Array,
                         value: function () {
                             return [];
                         }
                     },
-                    _splitColumnsCache: {
+                    _splitColumns: {
                         type: Array,
                         value: function () {
                             return [];
@@ -429,20 +421,23 @@
                             return [];
                         }
                     },
+                    _fetchRidSentListEnabled: {
+                        type: Boolean,
+                        value: false,
+                    },
                     prescriptionTab: {
                         type: String,
                         value: 'toSend'
                     }
-                };
+                }
             }
 
             static get observers() {
 				return [
 				    '_setPrintSize(selectedFormat)',
-                    '_fetchRidSentList(_drugsToBePrescribedCache)',
-                    '_populateDrugsOnPrescriptions(_drugsToBePrescribedCache)',
+                    '_fetchRidSentList(_drugsToBePrescribed)',
+                    '_populateDrugsOnPrescriptions(_drugsToBePrescribed)',
                     '_refreshSplitColumns(_drugsOnPrescriptions,_drugsOnPrescriptions.*)',
-                    '_refreshAllCheckboxes(_splitColumnsCache)',
                 ];
 			}
 
@@ -469,10 +464,10 @@
             _isToSendView() {
                 //console.log("is to send view")
                 if(this.prescriptionTab == 'toSend') {
-                    this._refreshDrugsToBePrescribed()
-                    //this._refreshAllCheckboxes()
                     return true
                 } else {
+                    this._fetchRidSentListEnabled = true
+                    this._fetchRidSentList()
                     return false
                 }
             }
@@ -576,16 +571,6 @@
                 this._pdfReport(ridDrugs,toPrint,this.selectedFormat)
             }
 
-            debugRefresh() {
-                this._fetchRidSentList()
-                //this.set('drugsRefresher', this.drugsRefresher + 1)
-                this._refreshDrugsToBePrescribed()
-            }
-
-            debugClear() {
-                this.set('ridSentListExtended', []) // ugly hack to refresh
-            }
-
             _drugIsType(item, itemType) {
                 return item.itemType === itemType
             }
@@ -596,6 +581,10 @@
 
             _fetchRidSentList() {
                 //console.log("_fetchRidSentList()")
+                if(!this._fetchRidSentListEnabled) { // prevent fetch when opening patient
+                    console.log("skip fetch recipe")
+                    return
+                }
 
                 // local RIDs
                 const groupObj = _.groupBy(this._drugsAlreadyPrescribed(), svc => this.api.contact().medicationValue(svc, this.language).prescriptionRID)
@@ -675,8 +664,8 @@
             }
 
             _drugOnPrescription(svc, index) {
-				const col = this._splitColumns()[index];
-				//console.log("_drugOnPrescription: ", index, svc, col, svc && col && col.drugIds && col.drugIds.includes(svc.id) || false)
+				const col = this._splitColumns[index];
+				console.log("_drugOnPrescription: ", index, svc, col, svc && col && col.drugIds && col.drugIds.includes(svc.id) || false)
 				return svc && col && col.drugIds && col.drugIds.includes(svc.id) || false;
             }
             
@@ -684,20 +673,15 @@
 				return svc && this.api.contact().medication().posologyToString(this.api.contact().medicationValue(svc, this.language), this.language) || "N/A";
 			}
             
-            _drugsToBePrescribed() {
-                return this._drugsToBePrescribedCache
-            }
-
             _refreshDrugsToBePrescribed() {
                 //console.log("_refreshDrugsToBePrescribed()")
                 let tbp = this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags.find(t => t.type === 'CD-ITEM' && t.code === 'treatment') && !s.endOfLife && !s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
-                this.set('_drugsToBePrescribedCache', tbp)
-                //console.log("_refreshDrugsToBePrescribed(): this._drugsToBePrescribedCache", this._drugsToBePrescribedCache)
+                this.set('_drugsToBePrescribed', tbp)
                 return tbp
             }
 
             _drugsSelectedAndToBePrescribed() {
-                return this._drugsToBePrescribed().filter(d=>this._safeDrugsOnPrescriptions().find(dop=>dop.id === d.id && dop.column >= 0))
+                return this._drugsToBePrescribed.filter(d=>this._drugsOnPrescriptions.find(dop=>dop.id === d.id && dop.column >= 0))
             }
 
             _enabled(column, line) {
@@ -705,7 +689,7 @@
 					return true;
 				}
 
-				const dop = this._safeDrugsOnPrescriptions();
+				const dop = this._drugsOnPrescriptions;
 				if (dop.length < 5) {
 					return true;
 				}
@@ -721,7 +705,7 @@
 					return true;
 				}
 
-				const ids = this._drugsToBePrescribed().map(d => d.id);
+				const ids = this._drugsToBePrescribed.map(d => d.id);
 				const id = ids[line];
 				return dop.find(x => x.id === id && x.column === column) || false;
 			}
@@ -742,7 +726,7 @@
                 }
                 this.$.confirmNoRecipe.close()
 				this.$.loading.open();
-				const splitColumns = this._splitColumns().filter(c => c && c.drugIds && c.drugIds.length > 0)
+				const splitColumns = this._splitColumns.filter(c => c && c.drugIds && c.drugIds.length > 0)
                 const drugsToBePrescribed = this._drugsSelectedAndToBePrescribed();
 				const element = this.root.querySelector("#barCode");
 				let toPrint = undefined
@@ -802,7 +786,7 @@
                     console.log("nothing to print")
                     return
                 }
-                const splitColumns = this._splitColumns().filter(c => c && c.drugIds && c.drugIds.length > 0)
+                const splitColumns = this._splitColumns.filter(c => c && c.drugIds && c.drugIds.length > 0)
                 const drugsToBePrescribed = this._drugsSelectedAndToBePrescribed();
                 const element = this.root.querySelector("#barCode");
                 let toPrint = undefined
@@ -1188,7 +1172,7 @@
                 //console.log('_populateDrugsOnPrescriptions()')
                 this.set('_drugsOnPrescriptions', []) // ugly hack to force refresh due to polymer bug
                 this.set('_drugsOnPrescriptions',
-                    this._drugsToBePrescribedCache.reduce((accu, s) => {
+                    this._drugsToBePrescribed.reduce((accu, s) => {
                         const availableSpace = accu.reduce((acc,drug) => {
                             if(drug.column >= 0) {
                                 acc[drug.column] >= 0 ? acc[drug.column]-- : acc[drug.column] = 4;
@@ -1222,56 +1206,11 @@
                 return this._drugsOnPrescriptions
             }
 
-            _safeDrugsOnPrescriptions() {
-                return this._drugsOnPrescriptions
-            }
-
-
-            _toggleDrugOnPrescription(e) {
-                if(!e.target.dataset.item) {
-                    console.log("no item!")
-                    return
-                }
-
-                if(this._isToggling) {
-                    return
-                } else {
-
-                    const svc = JSON.parse(e.target.dataset.item);
-                    const columnIndex = JSON.parse(e.target.dataset.column);
-                    this._isToggling = true
-                    const id = e.target.id.split(':')[0];
-                    let column = parseInt(e.target.id.split(':')[1]);
-                    const checked = e.detail.value
-                    this._setDrugOnPrescription(e)
-                    //console.log("checked", checked)
-                    //this._refreshAllCheckboxes() // already called by _setDrugOnPrescription by changing _drugsOnPrescriptions
-                    //e.path[0].checked = this._drugOnPrescription(svc, columnIndex)
-                    //console.log("_toggleDrugOnPrescription: _safeDrugsOnPrescriptions:", this._safeDrugsOnPrescriptions(), "_drugsOnPrescriptions: ", this._drugsOnPrescriptions)
-                    this._isToggling = false
-                }
-
-            }
-
-            _refreshAllCheckboxes() {
-                //console.log("_refreshAllCheckboxes")
-                //console.log("_refreshAllCheckboxes: NOW!",this.root.querySelectorAll(".drugCheckbox") )
-                this.root && this.root.querySelectorAll(".drugCheckbox").forEach(cb=>{
-                    const splitted = cb.id.split(':');
-                    const myid = splitted[0]
-                    const colidx = splitted[1]
-                    if(myid) {
-                        const svc = this._drugsToBePrescribed().find(d=> d.id === myid)
-                        cb.checked = this._drugOnPrescription(svc, colidx)
-                    }
-                })
-            }
-
 			_setDrugOnPrescription(e) {
 				const id = e.target.id.split(':')[0];
 				let column = parseInt(e.target.id.split(':')[1]);
 				const checked = e.detail.value
-                //console.log("_setDrugOnPrescription: _drugsOnPrescriptions:", this._drugsOnPrescriptions)
+                console.log("_setDrugOnPrescription: _drugsOnPrescriptions:", this._drugsOnPrescriptions)
                 if(checked === false) {
                     column = -1 // null mean do not print this drug
                 }
@@ -1285,24 +1224,22 @@
 				const markIndex = current.findIndex(m => m.id === id);
 
 				if (markIndex >= 0) {
-                    //const mark = current[markIndex]
-					//mark.column = column;
                     this.set('_drugsOnPrescriptions.' + markIndex + '.column', column);
 				} else {
 				    console.log("_setDrugOnPrescription: not found: should not happen!")
-					//current.push({ id: id, column: column });
+					//current.push({ id: id, column: column }); // should not be needed ?
 				}
 
             }
 
             _printEnabled() {
-                const cols = this._splitColumns()
+                const cols = this._splitColumns
                 return cols.length !== 0 && cols.find(c=>c && c.drugIds && c.drugIds.length !== 0)
             }
 
             _refreshSplitColumns() {
-                const drugs = this._drugsToBePrescribed();
-                const columns = this._safeDrugsOnPrescriptions().reduce((columns, mark) => {
+                const drugs = this._drugsToBePrescribed;
+                const columns = this._drugsOnPrescriptions.reduce((columns, mark) => {
                     const id = mark.id;
                     const column = mark.column;
                     if(column >= 0) { // ignore unchecked drugs
@@ -1314,11 +1251,7 @@
                     columns.push({drugIds:[]});
                 }
                 //console.log("_refreshSplitColumns", columns)
-                this.set('_splitColumnsCache', columns)
-            }
-
-            _splitColumns() {
-                return this._splitColumnsCache
+                this.set('_splitColumns', columns)
             }
 
         }
