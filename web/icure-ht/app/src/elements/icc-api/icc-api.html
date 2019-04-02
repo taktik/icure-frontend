@@ -25,6 +25,7 @@
     import {IccUserXApi} from 'icc-api/dist/icc-x-api/icc-user-x-api'
     import {IccInvoiceXApi} from 'icc-api/dist/icc-x-api/icc-invoice-x-api'
     import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
+    import {IccClassificationXApi} from 'icc-api/dist/icc-x-api/icc-classification-x-api'
 
     class IccApi extends Polymer.Element {
         static get is() {
@@ -118,13 +119,15 @@
 
             this.cryptoicc = new IccCryptoXApi(this.host, this.headers, this.hcpartyicc)
 
+            this.classificationicc = new IccClassificationXApi(this.host, this.headers, this.cryptoicc)
+
             this.receipticc = new IccReceiptXApi(this.host, this.headers, this.cryptoicc)
             this.contacticc = new IccContactXApi(this.host, this.headers, this.cryptoicc)
             this.documenticc = new IccDocumentXApi(this.host, this.headers, this.cryptoicc)
             this.formicc = new IccFormXApi(this.host, this.headers, this.cryptoicc)
             this.helementicc = new IccHelementXApi(this.host, this.headers, this.cryptoicc)
             this.invoiceicc = new IccInvoiceXApi(this.host, this.headers, this.cryptoicc, this.entityreficc)
-            this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc)
+            this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc, this.classificationicc)
             this.messageicc = new IccMessageXApi(this.host, this.headers, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
 
@@ -734,15 +737,18 @@
 
         }
 
-        encryptDecryptFileContentByUserHcpIdAndDocumentObject( encryptOrDecryptMethod, hcpId, documentObject, rawFileContent  ) {
-            if( !_.trim(encryptOrDecryptMethod) || !_.trim(hcpId) || !documentObject || !rawFileContent || typeof this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()] !== "function" ) return Promise.resolve(rawFileContent);
-            return this.crypto().decryptAndImportAesHcPartyKeysInDelegations(hcpId, documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length ? documentObject.encryptionKeys : documentObject.delegations).then(decryptedAndImportedAesHcPartyKeys => {
-                let collatedAesKeys = {}; decryptedAndImportedAesHcPartyKeys.map(k => collatedAesKeys[k.delegatorId] = k.key);
-                return this.crypto().decryptKeyInDelegationLikes((documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length? documentObject.encryptionKeys: documentObject.delegations)[hcpId], collatedAesKeys, documentObject.id).then(enckeys => {
-                    return new Promise((resolve) => { this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()](_.get( _.head(decryptedAndImportedAesHcPartyKeys), "key", undefined ), rawFileContent).then(encryptedDecryptedFileContent => resolve(encryptedDecryptedFileContent)) })
-                })
-            })
+        encryptDecryptFileContentByUserHcpIdAndDocumentObject( encryptOrDecryptMethod, user, documentObject, rawFileContent  ) {
+            const edf = this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()].bind(this.crypto().AES)
+            if( !_.trim(encryptOrDecryptMethod) || !_.trim(user.healthcarePartyId) || !documentObject || !rawFileContent || typeof edf !== "function" ) return Promise.resolve(rawFileContent);
 
+            return (documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys || {}).length ? Promise.resolve(documentObject) : this.document().initEncryptionKeys(user, documentObject))
+                .then(doc => this.crypto().extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId, doc.id, doc.encryptionKeys))
+                .then((sfks) => this.crypto().AES.importKey("raw", this.crypto().utils.hex2ua(sfks.extractedKeys[0].replace(/-/g, ""))))
+                .then((key) => edf(key, rawFileContent))
+                .catch((e) =>
+                    this.crypto().decryptAndImportAesHcPartyKeysInDelegations(user.healthcarePartyId, documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length ? documentObject.encryptionKeys : documentObject.delegations)
+                        .then(decryptedAndImportedAesHcPartyKeys => edf(_.get(_.head(decryptedAndImportedAesHcPartyKeys), "key", undefined), rawFileContent))
+                )
         }
 
         findJsonObjectPathByPropNameAndPropValue( inputData, propName, propValue ) {

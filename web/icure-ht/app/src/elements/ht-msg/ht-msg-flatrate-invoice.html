@@ -1,3 +1,4 @@
+
 <link rel="import" href="../../../bower_components/polymer/polymer.html">
 
 <link rel="import" href="../../../bower_components/iron-icon/iron-icon.html">
@@ -343,7 +344,7 @@
                     display: none;
                 }
 
-                #messagesGridContainer {
+                #messagesGridContainer,#messagesGridContainer2 {
                     overflow-y: auto;
                 }
 
@@ -354,7 +355,7 @@
                     box-shadow: var(--app-shadow-elevation-1);
                 }
                 .invoiceSubContainerBig {
-                   height: 100%;
+                    height: 100%;
                 }
 
                 .invoiceSubContainerMiddle {
@@ -486,6 +487,10 @@
 
                 #invoiceAndBatchesGridDetail {
                     height: calc(100% - 100px);
+                }
+
+                .invoicesToBeCorrectedGrid {
+                    height: 100%;
                 }
 
                 #helpdeskInfoDialog{
@@ -892,7 +897,6 @@
 
                 .centerCenter {
                     text-align:center;
-                    margin-top:30vh;
                     text-align:center;
                 }
 
@@ -991,13 +995,20 @@
         <div class="invoice-panel">
 
 
+
+            <div style="display:none" id="_DEVELOPERS_ONLY_deleteFlatrateMessagesAndInvoices_container">
+                <paper-button class="tool-btn" on-tap="_DEVELOPERS_ONLY_deleteFlatrateMessagesAndInvoices"><iron-icon icon="icons:error" class="w30px h30px"></iron-icon> &nbsp; DELETE ALL INVOICES - NOT FOR PROD !!!</paper-button>
+            </div>
+
+
+
             <template is="dom-if" if="[[_bodyOverlay]]">
                 <div id="loadingContainer"></div>
             </template>
             <template is="dom-if" if="[[_isLoading]]">
                 <div id="loadingContainer">
                     <div id="loadingContentContainer">
-                        <ht-spinner class="spinner" alt="Loading..." active></ht-spinner>
+                        <div style="max-width:200px; margin:0 auto"><ht-spinner class="spinner" alt="Loading..." active></ht-spinner></div>
                         <div id="loadingContent"><p><iron-icon icon="arrow-forward" class="loadingIcon"></iron-icon> [[localize("mhListing.spinner.step_1", language)]]</p></div>
                     </div>
                 </div>
@@ -1029,9 +1040,14 @@
             <template is="dom-if" if="[[_isEqual(flatrateMenuSection, 'j3')]]">
                 <template is="dom-if" if="[[_showWarningMessageEarlyInvoicingListing()]]"><div class="warningMessage" id="warningMessageListing"><div class="warningMessageBody"><iron-icon icon="icons:warning" class="w30px h30px"></iron-icon> &nbsp; [[localize('earlyInvoicingWarningMessage', 'Attention\, veuillez ne procéder à la facturation qu\'entre le premier et le cinquième jour du mois.', language)]]</div></div></template>
                 <div class="centerCenter">
+                    <div class="exportMonthPicker">
+                        <div class="exportMonthPickerTitle"><iron-icon icon="vaadin:calendar" style="max-width:20px; max-height:20px; margin-right:7px;"></iron-icon> [[localize('j20_monthToGenerate','Month to generate',language)]]</div>
+                        <vaadin-combo-box id="listingExportedMonth" filtered-items="[[_getExportMonthsList()]]" item-label-path="label" item-value-path="id" label="[[localize('month','Month',language)]]" value="[[_getExportCurrentMonth()]]"></vaadin-combo-box>
+                        <vaadin-combo-box id="listingExportedYear" filtered-items="[[_getExportYearsList()]]" item-label-path="label" item-value-path="id" label="[[localize('year','Year',language)]]" value="[[_getExportCurrentYear()]]"></vaadin-combo-box>
+                    </div>
                     <paper-button class="tool-btn p-35px m-t-20 f-s-1em bordered" on-tap="_getListingJ3"><iron-icon icon="icons:cloud-download" class="w30px h30px"></iron-icon> &nbsp; [[localize('downloadListing','Téléchargement listing',language)]] (*)</paper-button>
-                    <div id="exportRangeNotification">(*) [[localize('exportedPeriod', language)]]: [[localize('from2', language)]] <span>[[_startOfPreviousMonth()]]</span> [[localize('till', language)]] <span>[[_endOfPreviousMonth()]]</span></div>
-                    <paper-button class="tool-btn tool-btn-previous-month p-10px m-t-50 f-s-08em bordered" id="getListingJ3PreviousMonth" on-tap="_getListingJ3"><iron-icon icon="icons:cloud-download" class="w30px h30px"></iron-icon> &nbsp; [[localize('downloadListingPreviousMonth','Téléchargement listing du mois précédent',language)]]<span class="onlyIfRejectRate">[[localize('downloadListingPreviousMonthRemark','Only when rejection rate > 5%',language)]]</span></paper-button>
+                    <!--<div id="exportRangeNotification">(*) [[localize('exportedPeriod', language)]]: [[localize('from2', language)]] <span>[[_startOfPreviousMonth()]]</span> [[localize('till', language)]] <span>[[_endOfPreviousMonth()]]</span></div>-->
+                    <!--<paper-button class="tool-btn tool-btn-previous-month p-10px m-t-50 f-s-08em bordered" id="getListingJ3PreviousMonth" on-tap="_getListingJ3"><iron-icon icon="icons:cloud-download" class="w30px h30px"></iron-icon> &nbsp; [[localize('downloadListingPreviousMonth','Téléchargement listing du mois précédent',language)]]<span class="onlyIfRejectRate">[[localize('downloadListingPreviousMonthRemark','Only when rejection rate > 5%',language)]]</span></paper-button>-->
                 </div>
             </template>
 
@@ -1092,8 +1108,87 @@
 
 
             <template is="dom-if" if="[[_isEqual(flatrateMenuSection, 'j20_toBeCorrected')]]">
-                <div class="centerCenter">
-                    En cours de finalisation, disponible très prochainement.
+                <div class="invoicesGridContainer">
+                    <div class="invoiceContainer">
+                        <div id="messagesGridContainer2" class="invoiceSubContainerMiddle">
+                            <div class="scrollBox">
+                                <vaadin-grid id="messagesGrid" items="[[messagesGridData]]" data-status$="[[_getBatchStatusByMenuSection(flatrateMenuSection)]]" class="invoicesToBeCorrectedGrid">
+                                    <vaadin-grid-column flex-grow="0" width="4%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="oaCode">Oa</vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[item.oaCode]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="0" width="15%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="oaLabel">[[localize('name','Name',language)]]</vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[item.oaLabel]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="0" width="5%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="invoiceData.invoiceReference">N° fact.</vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[item.invoiceData.invoiceReference]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="0" width="17%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="patientData.firstName">[[localize('inv_pat','Patient',language)]] </vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[item.patientData.firstName]] [[item.patientData.lastName]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="0" width="8%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="patientData.ssin">[[localize('inv_niss','Niss',language)]]</vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[_formatSsinNumber(item.patientData.ssin)]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="0" width="9%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="invoiceData.invoicingCodes">Nmcl</vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[_renderGridInvoiceNmcl(item.invoiceData.invoicingCodes)]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="0" width="7%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="invoiceData.invoiceDate">Date presta.</vaadin-grid-sorter>
+                                        </template>
+                                        <template>[[formatDate(item.invoiceData.invoiceDate,'date')]]</template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column-group>
+                                        <vaadin-grid-column flex-grow="0" width="5%" class="recipient-col">
+                                            <template class="header">
+                                                <vaadin-grid-sorter path="invoicedAmount">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_invoiced','Invoiced',language)]]</vaadin-grid-sorter>
+                                            </template>
+                                            <template><span class$="invoice-status [[_getTxtStatusColor(item.invoiceStatusHr,item.invoicedAmount)]]">[[item.invoicedAmount]]€</span></template>
+                                            <template class="footer">[[_invoicesToBeCorrectedInvoicedAmount(flatrateMenuSection, 'flatFiles')]]€</template>
+                                        </vaadin-grid-column>
+                                        <vaadin-grid-column flex-grow="0" width="5%" class="recipient-col">
+                                            <template class="header">
+                                                <vaadin-grid-sorter path="refusedAmount">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_rej','Rejected',language)]]</vaadin-grid-sorter>
+                                            </template>
+                                            <template><span class$="invoice-status [[_getTxtStatusColor('force-red',item.refusedAmount)]]">[[item.refusedAmount]]€</span></template>
+                                            <template class="footer">[[_invoicesToBeCorrectedRefusedAmount(flatrateMenuSection, 'flatFiles')]]€</template>
+                                        </vaadin-grid-column>
+                                    </vaadin-grid-column-group>
+                                    <vaadin-grid-column flex-grow="0" width="5%" class="recipient-col">
+                                        <template class="header">
+                                            <vaadin-grid-sorter path="invoiceStatusHr">[[localize('inv_stat','Status',language)]]</vaadin-grid-sorter>
+                                        </template>
+                                        <template>
+                                            <span class="invoice-status invoice-status--redStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--redStatus"></iron-icon> [[localize('inv_rej','Rejected',language)]]</span>
+                                        </template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="1" class="stat-col">
+                                        <template><paper-button class="grid-btn-small modal-button-accepted" on-tap="_flagInvoiceAsCorrected" data-invoice-id$="[[item.invoiceData.id]]" ><iron-icon icon="check-circle" class="force-left" data-message-id$="[[item.id]]" data-invoice-id$="[[item.invoiceData.id]]"></iron-icon> &nbsp; [[localize('invoiceGotCorrected',"I corrected the invoice",language)]]</paper-button></template>
+                                    </vaadin-grid-column>
+                                    <vaadin-grid-column flex-grow="1" class="stat-col">
+                                        <template><paper-button class="grid-btn-small modal-button-rejected" on-tap="_flagInvoiceAsLostConfirmationDialog" data-invoice-id$="[[item.invoiceData.id]]" ><iron-icon icon="error" class="force-left" data-message-id$="[[item.id]]" data-invoice-id$="[[item.invoiceData.id]]"></iron-icon> &nbsp; [[localize('invoiceIsUnrecoverable',"Unrecoverable invoice",language)]]</paper-button></template>
+                                    </vaadin-grid-column>
+                                </vaadin-grid>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </template>
 
@@ -1121,7 +1216,7 @@
 
                         <div id="messagesGridContainer" class="invoiceSubContainerMiddle">
                             <div class="scrollBox">
-                                <vaadin-grid id="messagesGrid" class="processTable" items="[[messagesGridData]]" data-status$="[[_getBatchStatusByMenuSection(flatrateMenuSection)]]" active-item="{{activeGridItem}}" on-tap="_toggleBatchDetails">
+                                <vaadin-grid id="messagesGrid" items="[[messagesGridData]]" data-status$="[[_getBatchStatusByMenuSection(flatrateMenuSection)]]" active-item="{{activeGridItem}}" on-tap="_toggleBatchDetails">
                                     <vaadin-grid-column flex-grow="0" width="4%" class="oa-col">
                                         <template class="header">
                                             <vaadin-grid-sorter path="messageInfo.parentOaCode">[[localize('inv_oa','Oa',language)]]</vaadin-grid-sorter>
@@ -1175,7 +1270,7 @@
                                     </vaadin-grid-column>
                                     <vaadin-grid-column flex-grow="0" width="9%" class="stat-col">
                                         <template class="header">
-                                            <vaadin-grid-sorter path="messageInfo.refusedAmount">[[localize('inv_stat','Status',language)]]</vaadin-grid-sorter>
+                                            <vaadin-grid-sorter path="messageInfo.invoiceStatusHr">[[localize('inv_stat','Status',language)]]</vaadin-grid-sorter>
                                         </template>
                                         <template><span class$="invoice-status [[_getIconStatusClass(item.messageInfo.invoiceStatusHr)]]"><iron-icon icon="vaadin:circle" class$="statusIcon [[_getIconStatusClass(item.messageInfo.invoiceStatusHr)]]"></iron-icon> [[item.messageInfo.invoiceStatusHr]]</span></template>
                                     </vaadin-grid-column>
@@ -1220,31 +1315,31 @@
                                 </vaadin-grid-column>
                                 <vaadin-grid-column flex-grow="0" width="5%" class="recipient-col">
                                     <template class="header">
-                                        <vaadin-grid-sorter path="invoiceReference">N° fact.</vaadin-grid-sorter>
+                                        <vaadin-grid-sorter path="invoiceData.invoiceReference">N° fact.</vaadin-grid-sorter>
                                     </template>
                                     <template>[[item.invoiceData.invoiceReference]]</template>
                                 </vaadin-grid-column>
                                 <vaadin-grid-column flex-grow="0" width="17%" class="recipient-col">
                                     <template class="header">
-                                        <vaadin-grid-sorter path="patientName">[[localize('inv_pat','Patient',language)]] </vaadin-grid-sorter>
+                                        <vaadin-grid-sorter path="patientData.firstName">[[localize('inv_pat','Patient',language)]] </vaadin-grid-sorter>
                                     </template>
                                     <template>[[item.patientData.firstName]] [[item.patientData.lastName]]</template>
                                 </vaadin-grid-column>
                                 <vaadin-grid-column flex-grow="0" width="8%" class="recipient-col">
                                     <template class="header">
-                                        <vaadin-grid-sorter path="ssin">[[localize('inv_niss','Niss',language)]]</vaadin-grid-sorter>
+                                        <vaadin-grid-sorter path="patientData.ssin">[[localize('inv_niss','Niss',language)]]</vaadin-grid-sorter>
                                     </template>
                                     <template>[[_formatSsinNumber(item.patientData.ssin)]]</template>
                                 </vaadin-grid-column>
                                 <vaadin-grid-column flex-grow="0" width="9%" class="recipient-col">
                                     <template class="header">
-                                        <vaadin-grid-sorter path="invoicingCode">Nmcl</vaadin-grid-sorter>
+                                        <vaadin-grid-sorter path="invoiceData.invoicingCodes">Nmcl</vaadin-grid-sorter>
                                     </template>
                                     <template>[[_renderGridInvoiceNmcl(item.invoiceData.invoicingCodes)]]</template>
                                 </vaadin-grid-column>
                                 <vaadin-grid-column flex-grow="0" width="7%" class="recipient-col">
                                     <template class="header">
-                                        <vaadin-grid-sorter path="invoiceDate">Date presta.</vaadin-grid-sorter>
+                                        <vaadin-grid-sorter path="invoiceData.invoiceDate">Date presta.</vaadin-grid-sorter>
                                     </template>
                                     <template>[[formatDate(item.invoiceData.invoiceDate,'date')]]</template>
                                 </vaadin-grid-column>
@@ -1384,6 +1479,17 @@
                     <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
             </paper-dialog>
+            <paper-dialog class="modalDialog" id="flagInvoiceAsLostConfirmationDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                <div class="modalDialogContent m-t-50">
+                    <h3 class="textAlignCenter">[[localize('areYouSureFlagInvoiceAsLost','Are you sure you wish to flag invoice as permanently lost?',language)]]</h3>
+                    <p class="textAlignCenter m-t-50 bold">[[localize('unrecoverableAction','This action is unrecoverable',language)]].</p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('can','Cancel',language)]]</paper-button>
+                    <paper-button class="modal-button" on-tap="_flagInvoiceAsLost"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+                </div>
+            </paper-dialog>
 
 
 
@@ -1495,9 +1601,9 @@
                         type: Array,
                         value: () => []
                     },
-					archiveListingMessages:{
-						type:Object,
-						value: {}
+                    archiveListingMessages:{
+                        type:Object,
+                        value: {}
                     },
                     downloadFileName: {
                         type: String,
@@ -1567,6 +1673,10 @@
                     messagesGridData: {
                         type: Object,
                         value: null
+                    },
+                    flagInvoiceAsLostId: {
+                        type: String,
+                        value: ""
                     }
                 };
             }
@@ -1583,9 +1693,9 @@
                 this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(response =>{
                     this.set("hcp",response)
                     if(response.contactPersonHcpId){
-                    this.api.hcparty().getHealthcareParty(response.contactPersonHcpId).then(hcpCt => {
-                        this.set("contactPerson", _.trim( _.trim(_.get(hcpCt, "lastName", "")) + " " + _.trim(_.get(hcpCt, "firstName", "")) ));
-                    })}
+                        this.api.hcparty().getHealthcareParty(response.contactPersonHcpId).then(hcpCt => {
+                            this.set("contactPerson", _.trim( _.trim(_.get(hcpCt, "lastName", "")) + " " + _.trim(_.get(hcpCt, "firstName", "")) ));
+                        })}
                 })
             }
 
@@ -1604,7 +1714,7 @@
 
                 if( this.flatrateMenuSection === "archivej3" ) { this._getListingArchives(); return; }
 
-                if( ['j20_toBeCorrected', 'j20_process', 'j20_reject', 'j20_accept', 'j20_partiallyAccepted', 'j20_archive'].indexOf(_.trim(this.flatrateMenuSection)) > -1  ) {
+                if( ['j20_process', 'j20_reject', 'j20_accept', 'j20_partiallyAccepted', 'j20_archive', 'j20_toBeCorrected'].indexOf(_.trim(this.flatrateMenuSection)) > -1  ) {
 
                     // Close when opened + unset objects & reset detail grid
                     this._toggleBatchDetails();
@@ -1613,6 +1723,7 @@
                         this.set("messagesGridData", this._getBatchDataByMenuSection(this.flatrateMenuSection, 'flatFiles'))
                         const messagesGrid = this.root.querySelector('#messagesGrid'); messagesGrid && messagesGrid.clearCache();
                         const invGridDetail = this.root.querySelector('#invoiceAndBatchesGridDetail'); invGridDetail && invGridDetail.clearCache();
+
                     } else {
                         this._fetchJ20Messages();
                     }
@@ -1630,17 +1741,17 @@
                     case 'month' :
                         const monthStr =
                             (mm.toString() === '01') ? this.localize('Jan',this.language) :
-                            (mm.toString() === '02') ? this.localize('Feb',this.language) :
-                            (mm.toString() === '03') ? this.localize('Mar',this.language) :
-                            (mm.toString() === '04') ? this.localize('Apr',this.language) :
-                            (mm.toString() === '05') ? this.localize('May',this.language) :
-                            (mm.toString() === '06') ? this.localize('Jun',this.language) :
-                            (mm.toString() === '07') ? this.localize('Jul',this.language) :
-                            (mm.toString() === '08') ? this.localize('Aug',this.language) :
-                            (mm.toString() === '09') ? this.localize('Sep',this.language) :
-                            (mm.toString() === '10') ? this.localize('Oct',this.language) :
-                            (mm.toString() === '11') ? this.localize('Nov',this.language) :
-                            this.localize('Dec',this.language)
+                                (mm.toString() === '02') ? this.localize('Feb',this.language) :
+                                    (mm.toString() === '03') ? this.localize('Mar',this.language) :
+                                        (mm.toString() === '04') ? this.localize('Apr',this.language) :
+                                            (mm.toString() === '05') ? this.localize('May',this.language) :
+                                                (mm.toString() === '06') ? this.localize('Jun',this.language) :
+                                                    (mm.toString() === '07') ? this.localize('Jul',this.language) :
+                                                        (mm.toString() === '08') ? this.localize('Aug',this.language) :
+                                                            (mm.toString() === '09') ? this.localize('Sep',this.language) :
+                                                                (mm.toString() === '10') ? this.localize('Oct',this.language) :
+                                                                    (mm.toString() === '11') ? this.localize('Nov',this.language) :
+                                                                        this.localize('Dec',this.language)
                         return `${monthStr} ${yyyy}`
                 }
             }
@@ -2103,7 +2214,7 @@
 
             _getBatchDataByMenuSection(menuSection, dataSet) {
                 const batchDataStatus = this._getBatchStatusByMenuSection(menuSection)
-                return _.get(this, "messagesCachedData.dataByStatus."+batchDataStatus+"." + dataSet, [] )
+                return _.get(this, "messagesCachedData.dataByStatus."+batchDataStatus+"." + dataSet, false ) || _.get(this, "messagesCachedData.dataByStatus."+batchDataStatus, [] )
             }
 
             _getBatchStatusByMenuSection(menuSection) {
@@ -2130,10 +2241,14 @@
 
                 this.set('_isLoading', true );
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_1',this.language), icon:"arrow-forward"});
-
-                // Default values OR previous month (could be we had a rejection rate > 5%)
-                this.reportMonthGap = _.trim(e.currentTarget.id) === "getListingJ3PreviousMonth" ? 2 : 1;
-                this.reportCurrentDateMomentObject = _.trim(e.currentTarget.id) === "getListingJ3PreviousMonth" ? moment().subtract(1, 'month') : moment();
+                this.reportCurrentDateMomentObject = moment(
+                    _.trim(
+                        parseInt(_.get(this.shadowRoot.getElementById("listingExportedYear")||{}, "value", this._getExportCurrentYear())) +
+                        ( ( _.trim(_.get(this.shadowRoot.getElementById("listingExportedMonth")||{}, "value", this._getExportCurrentMonth())).length === 1 ? "0" : "" ) + parseInt(_.get(this.shadowRoot.getElementById("listingExportedMonth"), "value", this._getExportCurrentMonth())) ) +
+                        "01"
+                    ),
+                    "YYYYMMDD"
+                );
 
                 // get my hcp children
                 this._getMyHcps()
@@ -2200,7 +2315,7 @@
                                 <tr class="">
                                     <td width="55%">
                 ` + (
-                        isInvoicingExport ?
+                    isInvoicingExport ?
                         `
                             <span class="bold uppercase">${this.flatRateInvoicingDataObject.hcpData.name}</span><br />
                             ${this.flatRateInvoicingDataObject.hcpData.address.street} ${this.flatRateInvoicingDataObject.hcpData.address.houseNumber}` +( _.trim(this.flatRateInvoicingDataObject.hcpData.address.postboxNumber) ? " / " + _.trim(this.flatRateInvoicingDataObject.hcpData.address.postboxNumber) : "" )+ `<br />
@@ -2216,7 +2331,7 @@
                             ` + this.localize('inami',this.language) + `: &nbsp;&nbsp; ${_.get(this.hcp, "nihii", "")}<br />
                             ` + this.localize('adm_ctc_per',this.language) + `: &nbsp;&nbsp; ${this.contactPerson} &nbsp;&nbsp; ${_.get(this.hcp, "addresses[0].telecoms[0].telecomNumber", "")}<br />
                         `
-                    ) + `
+                ) + `
                                 </td>
                                 <td width="45%">
                                     <table class="borderOa"><tbody><tr><td class="fs11">
@@ -2229,7 +2344,7 @@
                         </tbody>
                     </table>
                 `
-                ;
+                    ;
 
             }
 
@@ -2276,7 +2391,7 @@
 
                     _.forEach(listEntries, (singleEntry)=>{
                         _.forEach(singleEntry, _.trim);
-                            contentToReturn += `
+                        contentToReturn += `
                                 <tr class="fs9 borderTopLightThinGrey pt2 pb2">
                                     <td width="5%" class="">`+_.get(singleEntry, "externalId", "")+`</td>
                                     <td width="30%" class="">`+_.get(singleEntry, "lastName", "")+` `+_.get(singleEntry, "firstName", "")+`</td>
@@ -2316,7 +2431,7 @@
 
                     _.forEach(listEntries, (singleEntry)=>{
                         _.forEach(singleEntry, _.trim);
-                            contentToReturn += `
+                        contentToReturn += `
                                 <tr class="fs9 borderTopLightThinGrey pt2 pb2">
                                     <td width="4%" class="">`+_.get(singleEntry, "externalId", "")+`</td>
                                     <td width="19%" class="">`+_.get(singleEntry, "lastName", "")+` `+_.get(singleEntry, "firstName", "")+`</td>
@@ -2579,9 +2694,9 @@
                                     .chain(pl.rows)
                                     .filter((i)=>{return(
                                         !!i
-                                        && !!i.nihii
-                                        && !!i.ssin
-                                        && i.parentId === this.user.healthcarePartyId
+                                        && !!_.trim(_.get(i,"nihii", ""))
+                                        && !!_.trim(_.get(i,"ssin", ""))
+                                        && _.trim(_.get(i,"parentId", "")) === _.trim(_.get(this,"user.healthcarePartyId", ""))
                                     )})
                                     .uniqBy( 'nihii' )
                                     .value()
@@ -2608,16 +2723,16 @@
                                     .chain(pl.rows)
                                     .filter((i)=>{return(
                                         !!i
-                                        && !!i.active
-                                        && !!i.dateOfBirth
-                                        && !!i.ssin
-                                        && !!i.insurabilities.length
+                                        && !!_.get(i,"active", true)
+                                        && !!_.trim(_.get(i,"dateOfBirth", ""))
+                                        && !!_.trim(_.get(i,"ssin", ""))
+                                        && !!parseInt(_.size(_.get(i,"insurabilities", [])))
                                         && !!_.size(
                                             _.chain(i.insurabilities)
                                                 .filter(i=>{return(
-                                                    i
+                                                    !!i
                                                     // && i.identificationNumber
-                                                    && i.insuranceId
+                                                    && !!_.trim(_.get(i,"insuranceId", ""))
                                                     && _.trim(_.get(i, "parameters.tc1", "")).length === 3
                                                     && _.trim(_.get(i, "parameters.tc2", "")).length === 3
                                                     && ( _.trim(_.get(i, "parameters.tc1", "")) + _.trim(_.get(i, "parameters.tc2", "")) !== "000000" )
@@ -2632,38 +2747,39 @@
                                                         !parseInt(_.get(i, "endDate", 0))
                                                     )
                                                 )})
-                                            .value()
+                                                .value()
                                         )
                                         && parseInt( _.size( _.get(i, "medicalHouseContracts", [] ) ) )
-                                        && parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return i && i.hcpId === this.user.healthcarePartyId}) ) )
+                                        && !!parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return !!i && _.trim(_.get(i,"hcpId", "something")) === _.trim(_.get(this,"user.healthcarePartyId","else"))}) ) )
                                     )})
                                     .uniqBy( 'ssin' )
                                     .value()
                                     .map((i) => {
-                                        i.lastName = (i.lastName||"").toUpperCase()
-                                        i.firstName = (i.firstName||"").toUpperCase()
-                                        i.dateOfBirth = (i.dateOfBirth?moment(i.dateOfBirth+"", "YYYYMMDD").format('DD/MM/YYYY'):"")
+                                        i.ssin = _.trim(_.get(i,"ssin","")).replace(/[^\d]/gmi,"")
+                                        i.lastName = (_.get(i,"lastName","")).toUpperCase()
+                                        i.firstName = (_.get(i,"firstName","")).toUpperCase()
+                                        i.dateOfBirth = (!!_.trim(_.get(i,"dateOfBirth",""))?moment(_.trim(_.get(i,"dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY'):"")
                                         i.finalInsurability = _.get(
                                             _.filter(
                                                 i.insurabilities,
                                                 (ins) => {
                                                     return ins &&
-                                                    _.size(ins) &&
-                                                    !!_.trim(_.get( ins, "insuranceId", "" ) ) &&
-                                                    _.trim(_.get(ins, "parameters.tc1", "")).length === 3 &&
-                                                    _.trim(_.get(ins, "parameters.tc2", "")).length === 3 &&
-                                                    ( _.trim(_.get(ins, "parameters.tc1", "")) + _.trim(_.get(ins, "parameters.tc2", "")) !== "000000" ) &&
-                                                    // !!_.trim(_.get( ins, "identificationNumber", "" ) ) &&
-                                                    (
-                                                        moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isBefore(this.reportCurrentDateMomentObject, 'date') ||
-                                                        moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isSame(this.reportCurrentDateMomentObject, 'date') ||
-                                                        !parseInt(_.get(ins, "startDate", 0))
-                                                    ) &&
-                                                    (
-                                                        moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isAfter(this.reportCurrentDateMomentObject, 'date') ||
-                                                        moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isSame(this.reportCurrentDateMomentObject, 'date') ||
-                                                        !parseInt(_.get(ins, "endDate", 0))
-                                                    )
+                                                        _.size(ins) &&
+                                                        !!_.trim(_.get( ins, "insuranceId", "" ) ) &&
+                                                        _.trim(_.get(ins, "parameters.tc1", "")).length === 3 &&
+                                                        _.trim(_.get(ins, "parameters.tc2", "")).length === 3 &&
+                                                        ( _.trim(_.get(ins, "parameters.tc1", "")) + _.trim(_.get(ins, "parameters.tc2", "")) !== "000000" ) &&
+                                                        // !!_.trim(_.get( ins, "identificationNumber", "" ) ) &&
+                                                        (
+                                                            moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isBefore(this.reportCurrentDateMomentObject, 'date') ||
+                                                            moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isSame(this.reportCurrentDateMomentObject, 'date') ||
+                                                            !parseInt(_.get(ins, "startDate", 0))
+                                                        ) &&
+                                                        (
+                                                            moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isAfter(this.reportCurrentDateMomentObject, 'date') ||
+                                                            moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isSame(this.reportCurrentDateMomentObject, 'date') ||
+                                                            !parseInt(_.get(ins, "endDate", 0))
+                                                        )
                                                 }
                                             ), "[0]", {}
                                         )
@@ -2689,14 +2805,28 @@
                 this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.chain(this.flatRateAllPatients).map((i)=>{return (i && i.insurabilities && i.insurabilities.length && i.insurabilities[0].insuranceId) ? i.insurabilities[0].insuranceId : false }).uniq().value()}))
                     .then((ins) => {
                         this.oaData = _
-                          .chain(ins)
-                          .map((i)=>{ i.finalName = (i && i.name && i.name[this.language]) ? i.name[this.language] : i.name[(this.language==='fr' ? 'nl' : 'fr')]; return i; })
-                          .sortBy((i)=>{ return i.code; })
-                          .value();
+                            .chain(ins)
+                            .map((i)=>{ i.finalName = (i && i.name && i.name[this.language]) ? i.name[this.language] : i.name[(this.language==='fr' ? 'nl' : 'fr')]; return i; })
+                            .sortBy((i)=>{ return _.get(i,"code",""); })
+                            .value();
                         this._generateJ3FileAndDownload();
                     })
                     .catch(()=>{this.set('_isLoading', false );});
 
+            }
+
+            getDestCode(affCode){
+                let destCode = affCode;
+                if (affCode.startsWith("3")) {
+                    if (["304", "305", "309", "311", "315", "317", "319", "322", "323", "325"].includes(affCode)) {
+                        destCode = "300";
+                    } else {
+                        destCode ="306";
+                    }
+                } else if (affCode.startsWith("4")) {
+                    destCode =  "400"
+                }
+                return  destCode;
             }
 
             _getInsurancesDataByPatientsList(inputPatientsList) {
@@ -2707,7 +2837,7 @@
                                 .chain(insurancesData)
                                 .map((i)=>{ i.finalName = (i && i.name && i.name[this.language]) ? i.name[this.language] : i.name[(this.language==='fr' ? 'nl' : 'fr')]; return i; })
                                 .sortBy((i)=>{ return i.code; })
-                            .value()
+                                .value()
                         ))
                 })
             }
@@ -2720,12 +2850,26 @@
                                 .chain(insurancesData)
                                 .map((i)=>{ i.finalName = (i && i.name && i.name[this.language]) ? i.name[this.language] : i.name[(this.language==='fr' ? 'nl' : 'fr')]; return i; })
                                 .sortBy((i)=>{ return i.code; })
-                            .value()
+                                .value()
+                        ))
+                })
+            }
+
+            _getInsurancesDataByCode(insurancesCode) {
+                return new Promise(resolve => {
+                    this.api.insurance().listInsurancesByCode(insurancesCode)
+                        .then(insurancesData => resolve(
+                            _
+                                .chain(insurancesData)
+                                .map((i)=>{ i.finalName = (i && i.name && i.name[this.language]) ? i.name[this.language] : i.name[(this.language==='fr' ? 'nl' : 'fr')]; return i; })
+                                .sortBy((i)=>{ return i.code; })
+                                .value()
                         ))
                 })
             }
 
             _getIOsDataByInsurancesList(inputInsurancesList) {
+
                 return new Promise(resolve => {
                     this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.chain(inputInsurancesList).map(i=>_.trim(_.get(i, "parent"))).uniq().compact().value()}))
                         .then(insurancesData => resolve(
@@ -2851,7 +2995,7 @@
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_6',this.language), icon:"arrow-forward"});
 
-                this.downloadFileName = this.reportCurrentDateMomentObject.format('YYYY-MM-DD-HH[h]-mm[m]-ss[s]') + "-listing-patients" + ".pdf";
+                this.downloadFileName = this.reportCurrentDateMomentObject.format('YYYY-MM-DD') + '-' + moment().format("HH[h]-mm[m]-ss[s]") + "-listing-patients" + ".pdf";
 
                 // Generate, archive & download pdf report
                 this.api.pdfReport(mustache.render(pdfTemplate, pdfData))
@@ -2875,7 +3019,7 @@
                                 name: this.downloadFileName
                             }))
                             .then(newDocumentInstance => this.api.document().createDocument(newDocumentInstance))
-                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, createdDocument, pdfFileContent).then(encryptedFileContent => ({createdDocument, encryptedFileContent })))
+                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, pdfFileContent).then(encryptedFileContent => ({createdDocument, encryptedFileContent })))
                             .then(({createdDocument, encryptedFileContent}) => this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent))
                             .then(() => !printed && this.api.triggerFileDownload( pdfFileContent, "application/pdf", this.downloadFileName ))
                     })
@@ -2897,15 +3041,15 @@
                 this.api.message().findMessagesByTransportGuid('MH:ARCHIVES:LISTING', null, null, null, 1000).then(m => {
                     this.archiveListingMessages = _
                         .chain(m.rows)
-                            .filter((m)=>{return _.get(m,'fromHealthcarePartyId',false)===this.user.healthcarePartyId && (!dateRangeStart?true:(!moment(m.created).isBefore(moment(dateRangeStart, "YYYY-MM-DD")))) && (!dateRangeEnd?true:(moment(m.created).isBefore(moment(dateRangeEnd, "YYYY-MM-DD"))))})
-                            .map((i)=>{
-                                i.hrDate = moment(i.created).format('DD/MM/YYYY');
-                                i.hrTime = moment(i.created).format("HH:mm:ss");
-                                i.filename = _.get(i.metas,"filename", "listing-patients.pdf");
-                                i.totalPages = _.get(i.metas,"totalPages",1);
-                                return i;
-                            })
-                            .orderBy("created", "desc")
+                        .filter((m)=>{return _.get(m,'fromHealthcarePartyId',false)===this.user.healthcarePartyId && (!dateRangeStart?true:(!moment(m.created).isBefore(moment(dateRangeStart, "YYYY-MM-DD")))) && (!dateRangeEnd?true:(moment(m.created).isBefore(moment(dateRangeEnd, "YYYY-MM-DD"))))})
+                        .map((i)=>{
+                            i.hrDate = moment(i.created).format('DD/MM/YYYY');
+                            i.hrTime = moment(i.created).format("HH:mm:ss");
+                            i.filename = _.get(i.metas,"filename", "listing-patients.pdf");
+                            i.totalPages = _.get(i.metas,"totalPages",1);
+                            return i;
+                        })
+                        .orderBy("created", "desc")
                         .value();
                 });
 
@@ -2917,8 +3061,8 @@
                     if(singleMessage && singleMessage[0] && singleMessage[0].id && singleMessage[0].attachmentId && singleMessage[0].secretForeignKeys) {
                         this.api.document().getAttachment(singleMessage[0].id, singleMessage[0].attachmentId, singleMessage[0].secretForeignKeys).then(attachmentResponse => {
                             if(attachmentResponse) {
-                                this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user.healthcarePartyId, _.head(singleMessage), attachmentResponse).then(decryptedFileContent =>{
-                                   this.api.triggerFileDownload(decryptedFileContent,"application/pdf",_.get( _.head(_.filter(this.archiveListingMessages, {"id":_.trim(messageId)})), "filename","listing-patients.pdf"));
+                                this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, _.head(singleMessage), attachmentResponse).then(decryptedFileContent =>{
+                                    this.api.triggerFileDownload(decryptedFileContent,"application/pdf",_.get( _.head(_.filter(this.archiveListingMessages, {"id":_.trim(messageId)})), "filename","listing-patients.pdf"));
                                 }).catch(()=>{})
                             }
                         }).catch(()=>{})
@@ -2950,60 +3094,38 @@
                 return new Promise((resolve) => setTimeout(resolve, time));
             }
 
+            getChangeParentCode306(code){
+                return code === "306" ? "300" : code;
+            }
+
             _createOrUpdateMedicalHousePatientsInvoices() {
-                return Promise.all(_.toPairs(this.flatRateInvoicingDataObject.listsData).map(list => {
-                    const typeList = list[0]
-                    const patientList = list[1]
-                    const codesList = typeList === "list5" || typeList === "list6" ? _.concat(this.flatRateInvoicingDataObject.hcpValorisationsCurrentMonth, this.flatRateInvoicingDataObject.hcpValorisationsPreviousMonth) : this.flatRateInvoicingDataObject.hcpValorisationsCurrentMonth
-
-                    return patientList.map(pat => _.assign(pat, {invoicingCodes: codesList.filter(code => parseFloat(code.price) && ((code.flatRateType === "physician" && pat.finalMedicalHouseContracts.gp === true ) || (code.flatRateType === "nurse" && pat.finalMedicalHouseContracts.nurse === true) || (code.flatRateType === "physiotherapist" && pat.finalMedicalHouseContracts.kine === true))).map(val => ({
-                                code: val.code,
-                                tarificationId: "INAMI-RIZIV|" + val.code + "|1.0",
-                                label: _.get(val, "label."+this.language,""),
-                                totalAmount: Number(val.price),
-                                reimbursement: Number(val.price),
-                                patientIntervention: Number(0.00).toFixed(2),
-                                doctorSupplement: Number(0.00).toFixed(2),
-                                units: 1,
-                                canceled: false,
-                                accepted: false,
-                                pending: false,
-                                resent: false,
-                                dateCode: val.type === "current" ? parseInt( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format('YYYYMMDD') ) : val.type === "previous" ? parseInt( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(1, 'month').format('YYYYMMDD') ) : null,
-                                id: this.api.crypto().randomUuid(),
-                                logicalId: this.api.crypto().randomUuid()
-                            }))}
-                        ))
-                    })
-                ).then(pats => {
-                    let prom = Promise.resolve([])
-
-                    const allPats = _.flatten(pats)
-                    const parentInsuranceIds = allPats.reduce((acc,pat) => { const parentId = this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent; if (!acc.includes(parentId)) { acc.push(parentId) }; return acc}, [])
-
-                    return this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : parentInsuranceIds})).then(
-                        parentInsurances => {
-                            allPats.forEach(pat => {
-                                prom = prom.then(pats =>
-                                    this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
-                                        .then(secretForeignKeys => {
-                                                const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
-                                                return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
-                                                    .then(invoices =>
-                                                        !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
-                                                            .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + (insParent && insParent.code ? insParent.code : '000') + ':'))
-                                                            .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
-                                                    .then(newInvoice => {
-                                                        pat.invoices = [newInvoice]
-                                                        return _.concat(pats, [pat])
-                                                    })
-                                            }
-                                        ))
-                            })
-                            return prom
-                        }
-                    )
-                })
+                let prom = Promise.resolve([])
+                const allPats = _.flatMap(this.flatRateInvoicingDataObject.listsData)
+                const patsCount = _.size(allPats)
+                const parentInsuranceIds = allPats.reduce((acc,pat) => { const parentId = this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent; if (!acc.includes(parentId)) { acc.push(parentId) }; return acc}, [])
+                return this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : parentInsuranceIds})).then(
+                    parentInsurances => {
+                        allPats.forEach((pat,loopIndex) => {
+                            prom = prom.then(pats =>
+                                this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys => {
+                                            const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
+                                            return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
+                                                .then(invoices =>
+                                                    !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
+                                                        .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
+                                                        .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
+                                                .then(newInvoice => {
+                                                    pat.invoices = [newInvoice]
+                                                    this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
+                                                    return _.concat(pats, [pat])
+                                                })
+                                        }
+                                    ))
+                        })
+                        return prom
+                    }
+                )
             }
 
             _generateJ20FlatFiles(){
@@ -3023,18 +3145,19 @@
                     ib.sender.lastName = this.flatRateInvoicingDataObject.hcpData.name;
                     ib.sender.nihii = this.flatRateInvoicingDataObject.hcpData.nihii;
                     ib.sender.phoneNumber = Number(this.flatRateInvoicingDataObject.hcpData.address.telecoms.filter(tc => tc.telecomType = "phone")[0].telecomNumber.replace(/[^\d]/g, ''));
-                    ib.sender.ssin = '72022102793'; //not used
+                    ib.sender.ssin = ''; //not used
                     ib.numericalRef = 0;//not used
                     ib.invoiceContent = 0;
                     ib.magneticInvoice = true;
                     let invoices = []
 
                     //loop patients of OA
-                    const oaMuts = this.flatRateInvoicingDataObject.insurancesData.filter(i=> _.trim(_.get(i, "parent", "")) === _.trim(_.get(OA, "id", "")));
+                    //const oaMuts = this.flatRateInvoicingDataObject.insurancesData.filter(i=> _.trim(_.get(i, "parent", "")) === _.trim(_.get(OA, "id", "")));
+                    const oaMuts = this.flatRateInvoicingDataObject.insurancesData.filter(insdt => insdt.code.substr(0,1) === OA.code.substr(0,1));
                     const oaMutIds = oaMuts.map(oaMut => oaMut.id);//.join(",");
                     const oaInvoicesData = this.flatRateInvoicingDataObject.invoicesData.filter(idt => oaMutIds.includes(idt.insurabilities[0].insuranceId));
                     oaInvoicesData.map(idt => parseInt(_.size(_.get(idt, "invoicingCodes", false))) ? invoices.push(this.getPatientInvoice(idt, _.trim(_.get(OA, "code", "")))) : false )
-                    ib.invoices = invoices; //1 per patient
+                    ib.invoices = _.orderBy(invoices, ["destInsuranceCode", "insuranceCode", "invoiceNumber"], ["asc", "asc","asc"]); //1 per patient
 
                     //end loop patients of OA
                     return this.api.fhc().Efactcontroller().makeFlatFileCoreUsingPOST(ib).then(flatRes => {
@@ -3200,6 +3323,8 @@
                 patientData.invoiceNumber = patientData.invoices[0].invoiceReference;
                 inv.invoiceRef = patientData.externalId ? patientData.externalId : patientData.ssin; //R20Z28
                 inv.ioCode = ins.insuranceCode.padEnd(3," ").substr(0,3);
+                inv.insuranceCode = ins.insuranceCode;
+                inv.destInsuranceCode = this.getDestCode(ins.insuranceCode);
                 inv.reason = 'Other';
                 inv.startOfCoveragePeriod= patientData.medicalHouseContracts[0].startOfContract;
                 inv.items = [];
@@ -3254,12 +3379,19 @@
 
             _updateBatchStatus( action ) {
 
+                const defaultInvoiceStatuses = {
+                    accepted: false,
+                    canceled: false,
+                    pending: false,
+                    resent: false,
+                    archived: false
+                }
+
                 const actionSettings = action === "reject" ? { newStatusKey: "rejected", newInvoicingCodeStatus: "canceled" } :
                     action === "accept" ? { newStatusKey: "fullyAccepted", newInvoicingCodeStatus: "accepted" } :
-                    action === "partialAccept" ? { newStatusKey: "partiallyAccepted", newInvoicingCodeStatus: "accepted" } :
-                    // action === "archive" ? { newStatusKey: "archived", newInvoicingCodeStatus: "archived" } :
-                    action === "archive" ? { newStatusKey: "archived", newInvoicingCodeStatus: "" } :
-                    {}
+                        action === "partialAccept" ? { newStatusKey: "partiallyAccepted", newInvoicingCodeStatus: "accepted" } :
+                            action === "archive" ? { newStatusKey: "archived", newInvoicingCodeStatus: "archived" } :
+                                {}
 
                 if ( _.size(this.activeGridItem) && _.size(actionSettings) ) {
                     this.set('_isLoadingSmall', true );
@@ -3275,7 +3407,13 @@
                         return ( !_.trim(actionSettings.newInvoicingCodeStatus) ) ? false : this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.uniq(_.flatten( _.map(allMessages, msg=>msg.invoiceIds.map(i => i))))}))
                             .then(invoices => {
                                 return Promise.all(invoices.map(inv => {
-                                    inv.invoicingCodes.map(ic => ic[actionSettings.newInvoicingCodeStatus] = true)
+                                    if(actionSettings.newStatusKey==="archived") {
+                                        // When archiving, only set archived status to true / leave other statuses as such
+                                        inv.invoicingCodes.map(ic =>{ ic.archived = true; return ic; })
+                                    } else {
+                                        // When not archiving, reset all statuses but the one
+                                        inv.invoicingCodes.map(ic => _.merge(ic, _.merge( defaultInvoiceStatuses, {[actionSettings.newInvoicingCodeStatus]:true} )))
+                                    }
                                     return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
                                 }))
                             })
@@ -3288,12 +3426,15 @@
                                 return this.api.message().modifyMessage(updatedFlatFileMessage).then(msg =>this.api.register(msg,'message'))
                             })
                     })
-                    .catch((e)=>{console.log(e)})
-                    .finally(() => {
-                        this.set('_isLoadingSmall', false );
-                        this.set('activeGridItem', null );
-                        this._fetchJ20Messages(true)
-                    })
+                        .then((updatedFlatFileMessage) => {
+                            return _.size(_.get(updatedFlatFileMessage, "invoiceIds", [])) ? this._duplicateRejectedInvoices(_.uniq(_.get(updatedFlatFileMessage, "invoiceIds", []))).then(x=>x) : false
+                        })
+                        .catch((e)=>{console.log(e)})
+                        .finally(() => {
+                            this.set('_isLoadingSmall', false );
+                            this.set('activeGridItem', null );
+                            this._fetchJ20Messages(true)
+                        })
                 }
 
             }
@@ -3306,15 +3447,24 @@
 
                 this.api.invoice().getInvoice(invoiceId)
                     .then(invoice => {
-                        invoice.invoicingCodes.map(ic => { ic.accepted = false; ic.resent = true; return ic;  })
-                        try{ delete(invoice.sentDate); } catch(e){}
+                        invoice.invoicingCodes.map(ic => {
+                            ic.canceled = true;
+                            ic.accepted = false;
+                            ic.pending = false;
+                            ic.resent = false;
+                            ic.archived = false;
+                            return ic;
+                        })
                         return this.api.invoice().modifyInvoice(invoice).then(invoice => this.api.register(invoice,'invoice'))
+                    })
+                    .then(invoice=>{
+                        return _.trim(_.get(invoice, "id", "")) ? this._duplicateRejectedInvoices([_.trim(_.get(invoice, "id", ""))]).then(x=>x) : false
                     })
                     .then(() => {
                         return this.api.invoice().getInvoices(new models.ListOfIdsDto({ ids:_.compact(_.uniq(_.map(_.get(this, "activeGridItem.invoiceIds", []),i=>i))) }))
                             .then(invoices => {
-                                const acceptedAmount = this.api._powRoundFloatByPrecision( _.sumBy( _.filter( _.map(invoices, inv => { return { acceptedOrRefused: !!_.get( inv, "invoicingCodes[0].resent", false ) ? "refused" : "accepted", amount: this.api._powRoundFloatByPrecision( parseFloat( _.sumBy( _.get( inv, "invoicingCodes" ), i=>parseFloat(i.totalAmount) ) ), 2 ) } }),  {acceptedOrRefused:"accepted"}  ), i=>parseFloat(i.amount) ), 2)
-                                const refusedAmount = this.api._powRoundFloatByPrecision( _.sumBy( _.filter( _.map(invoices, inv => { return { acceptedOrRefused: !!_.get( inv, "invoicingCodes[0].resent", false ) ? "refused" : "accepted", amount: this.api._powRoundFloatByPrecision( parseFloat( _.sumBy( _.get( inv, "invoicingCodes" ), i=>parseFloat(i.totalAmount) ) ), 2 ) } }),  {acceptedOrRefused:"refused"}  ), i=>parseFloat(i.amount) ), 2)
+                                const acceptedAmount = this.api._powRoundFloatByPrecision( _.sumBy( _.filter( _.map(invoices, inv => { return { acceptedOrRefused: !!_.get( inv, "invoicingCodes[0].canceled", false ) ? "refused" : "accepted", amount: this.api._powRoundFloatByPrecision( parseFloat( _.sumBy( _.get( inv, "invoicingCodes" ), i=>parseFloat(i.totalAmount) ) ), 2 ) } }),  {acceptedOrRefused:"accepted"}  ), i=>parseFloat(i.amount) ), 2)
+                                const refusedAmount = this.api._powRoundFloatByPrecision( _.sumBy( _.filter( _.map(invoices, inv => { return { acceptedOrRefused: !!_.get( inv, "invoicingCodes[0].canceled", false ) ? "refused" : "accepted", amount: this.api._powRoundFloatByPrecision( parseFloat( _.sumBy( _.get( inv, "invoicingCodes" ), i=>parseFloat(i.totalAmount) ) ), 2 ) } }),  {acceptedOrRefused:"refused"}  ), i=>parseFloat(i.amount) ), 2)
                                 this.activeGridItem.metas = _.merge(this.activeGridItem.metas, {acceptedAmount:acceptedAmount, refusedAmount:refusedAmount});
                                 return this.api.message().modifyMessage(this.activeGridItem).then(msg => { this.api.register(msg,'message'); })
                             })
@@ -3341,7 +3491,7 @@
 
                 return !messageId ? null : this.api.document().findByMessage(this.user.healthcarePartyId, batchMessage)
                     .then(doc => (doc && doc[0] && doc[0].id && doc[0].attachmentId && doc[0].secretForeignKeys) ? this.api.document().getAttachment(doc[0].id, doc[0].attachmentId, doc[0].secretForeignKeys).then(attachment=>{return {doc:_.head(doc),attachment:attachment }}) : prom )
-                    .then(({doc,attachment})=> attachment ? this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user.healthcarePartyId, doc, attachment).then(decryptedContent=>{return {doc:doc,decryptedContent:decryptedContent }}) : prom)
+                    .then(({doc,attachment})=> attachment ? this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, attachment).then(decryptedContent=>{return {doc:doc,decryptedContent:decryptedContent }}) : prom)
                     .then(({doc,decryptedContent})=> this.api.triggerFileDownload(decryptedContent,"application/zip",_.get( doc, "name", doc.id + ".zip")))
                     .catch(e=>{console.log(e)})
                     .finally(()=>{this.set('_isLoadingSmall', false );})
@@ -3360,7 +3510,7 @@
 
                 return !messageId ? null : this.api.document().findByMessage(this.user.healthcarePartyId, batchMessage)
                     .then(doc => (doc && doc[0] && doc[0].id && doc[0].attachmentId && doc[0].secretForeignKeys) ? this.api.document().getAttachment(doc[0].id, doc[0].attachmentId, doc[0].secretForeignKeys).then(attachment=>{return {doc:_.head(doc),attachment:attachment }}).catch(e=>{console.log(e)}) : prom )
-                    .then(({doc,attachment})=> attachment ? this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user.healthcarePartyId, doc, attachment).then(decryptedContent=>{return {doc:doc,decryptedContent:decryptedContent }}) : prom)
+                    .then(({doc,attachment})=> attachment ? this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, attachment).then(decryptedContent=>{return {doc:doc,decryptedContent:decryptedContent }}) : prom)
                     .then(({doc,decryptedContent})=> this.api.triggerFileDownload(decryptedContent,"application/pdf",_.get( doc, "name", doc.id + ".pdf")))
                     .catch(e=>{console.log(e)})
                     .finally(()=>{this.set('_isLoadingSmall', false );})
@@ -3375,7 +3525,7 @@
 
                 return !messageId ? null : this.api.document().findByMessage(this.user.healthcarePartyId, _.get(_.filter(this.messageDetailsData, {id:messageId}), "[0].messageData" ))
                     .then(doc => (doc && doc[0] && doc[0].id && doc[0].attachmentId && doc[0].secretForeignKeys) ? this.api.document().getAttachment(doc[0].id, doc[0].attachmentId, doc[0].secretForeignKeys).then(attachment=>{return {doc:_.head(doc),attachment:attachment }}) : prom )
-                    .then(({doc,attachment})=> attachment ? this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user.healthcarePartyId, doc, attachment).then(decryptedContent=>{return {doc:doc,decryptedContent:decryptedContent }}) : prom)
+                    .then(({doc,attachment})=> attachment ? this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, attachment).then(decryptedContent=>{return {doc:doc,decryptedContent:decryptedContent }}) : prom)
                     .then(({doc,decryptedContent})=> this.api.triggerFileDownload(decryptedContent,"application/pdf",_.get( doc, "name", doc.id + ".pdf")))
                     .catch(e=>{console.log(e)})
                     .finally(()=>{this.set('_isLoadingSmall', false );})
@@ -3387,6 +3537,14 @@
 
             _invoicedAmount(menuSection, dataSet) {
                 return this.api.hrFormatNumber( this.api._powRoundFloatByPrecision( parseFloat(_.sumBy( _.map( this._getBatchDataByMenuSection(menuSection, dataSet), i=>parseFloat(_.get(i, "metas.totalAmount", "0.00"))), i=>parseFloat(i)) )))
+            }
+
+            _invoicesToBeCorrectedInvoicedAmount(menuSection, dataSet) {
+                return this.api.hrFormatNumber( this.api._powRoundFloatByPrecision( parseFloat(_.sumBy( _.map( this._getBatchDataByMenuSection(menuSection, dataSet), i=>parseFloat(_.trim(_.get(i, "invoicedAmount", "0.00")).replace(",","."))), i=>parseFloat(i)) )))
+            }
+
+            _invoicesToBeCorrectedRefusedAmount(menuSection, dataSet) {
+                return this.api.hrFormatNumber( this.api._powRoundFloatByPrecision( parseFloat(_.sumBy( _.map( this._getBatchDataByMenuSection(menuSection, dataSet), i=>parseFloat(_.trim(_.get(i, "refusedAmount", "0.00")).replace(",","."))), i=>parseFloat(i)) )))
             }
 
             _acceptedAmount(menuSection, dataSet) {
@@ -3401,20 +3559,20 @@
 
                 return (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "invoice-status--blueStatus" :
                     (status === this.localize('inv_to_be_send','To be send',this.language)) ? (!this.statusToBeSend)  ? "invoice-status--blueStatus" : "invoice-status--orangeStatus" :
-                    (status === this.localize('inv_to_be_corrected','To be corrected',this.language))  ? "invoice-status--redStatus" :
-                    (status === this.localize('inv_rej','To be corrected',this.language))  ? "invoice-status--redStatus" :
-                    (status === this.localize('inv_par_acc','Partially accepted',this.language)) ? "invoice-status--orangeStatus" :
-                    (status === this.localize('inv_full_acc','Fully accepted',this.language)) ? "invoice-status--greenStatus" :
-                    (status === this.localize('inv_tre','Treated',this.language)) ? "invoice-status--greenStatus" :
-                    (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "invoice-status--blueStatus" :
-                    (status === this.localize('inv_pen','Pending',this.language)) ? (!this.statusToBeSend) ? "invoice-status--blueStatus" : "" :
-                    (status === this.localize('inv_err','Error',this.language)) ? "invoice-status--redStatus" :
-                    (status === this.localize('inv_arch','Archived',this.language)) ? "invoice-status--purpleStatus" :
-                    (status === this.localize('nmcl-rejected','Rejected',this.language)) ? "invoice-status--redStatus" :
-                    (status === this.localize('nmcl-accepted','Accepted',this.language)) ? "invoice-status--greenStatus" :
-                    (status === 'force-red') ? "txtcolor--redStatus" :
-                    (status === 'force-green') ? "txtcolor--greenStatus" :
-                    ""
+                        (status === this.localize('inv_to_be_corrected','To be corrected',this.language))  ? "invoice-status--redStatus" :
+                            (status === this.localize('inv_rej','To be corrected',this.language))  ? "invoice-status--redStatus" :
+                                (status === this.localize('inv_par_acc','Partially accepted',this.language)) ? "invoice-status--orangeStatus" :
+                                    (status === this.localize('inv_full_acc','Fully accepted',this.language)) ? "invoice-status--greenStatus" :
+                                        (status === this.localize('inv_tre','Treated',this.language)) ? "invoice-status--greenStatus" :
+                                            (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "invoice-status--blueStatus" :
+                                                (status === this.localize('inv_pen','Pending',this.language)) ? (!this.statusToBeSend) ? "invoice-status--blueStatus" : "" :
+                                                    (status === this.localize('inv_err','Error',this.language)) ? "invoice-status--redStatus" :
+                                                        (status === this.localize('inv_arch','Archived',this.language)) ? "invoice-status--purpleStatus" :
+                                                            (status === this.localize('nmcl-rejected','Rejected',this.language)) ? "invoice-status--redStatus" :
+                                                                (status === this.localize('nmcl-accepted','Accepted',this.language)) ? "invoice-status--greenStatus" :
+                                                                    (status === 'force-red') ? "txtcolor--redStatus" :
+                                                                        (status === 'force-green') ? "txtcolor--greenStatus" :
+                                                                            ""
             }
 
             _getTxtStatusColor(status,amount) {
@@ -3422,17 +3580,17 @@
                     return (status === this.localize('inv_par_acc','Partially accepted',this.language)) ? "txtcolor--orangeStatus" :
                         (status === this.localize('inv_full_acc','Fully accepted',this.language)) ? "txtcolor--greenStatus" :
                             (status === this.localize('inv_to_be_corrected','To be corrected',this.language))  ? "txtcolor--redStatus" :
-                            (status === this.localize('inv_rej','To be corrected',this.language))  ? "txtcolor--redStatus" :
-                                (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "txtcolor--blueStatus" :
-                                    (status === this.localize('inv_pen','Pending',this.language)) ? "txtcolor--blueStatus" :
-                                        (status === this.localize('inv_tre','Treated',this.language)) ? "txtcolor--greenStatus" :
-                                            (status === this.localize('inv_err','Error',this.language)) ? "txtcolor--redStatus" :
-                                                (status === this.localize('inv_arch','Archived',this.language)) ? "txtcolor--purpleStatus" :
-                                                    (status === this.localize('nmcl-rejected','Rejected',this.language)) ? "txtcolor--redStatus" :
-                                                        (status === this.localize('nmcl-accepted','Accepted',this.language)) ? "txtcolor--greenStatus" :
-                                                            (status === 'force-red') ? "txtcolor--redStatus" :
-                                                                (status === 'force-green') ? "txtcolor--greenStatus" :
-                                                                    ""
+                                (status === this.localize('inv_rej','To be corrected',this.language))  ? "txtcolor--redStatus" :
+                                    (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "txtcolor--blueStatus" :
+                                        (status === this.localize('inv_pen','Pending',this.language)) ? "txtcolor--blueStatus" :
+                                            (status === this.localize('inv_tre','Treated',this.language)) ? "txtcolor--greenStatus" :
+                                                (status === this.localize('inv_err','Error',this.language)) ? "txtcolor--redStatus" :
+                                                    (status === this.localize('inv_arch','Archived',this.language)) ? "txtcolor--purpleStatus" :
+                                                        (status === this.localize('nmcl-rejected','Rejected',this.language)) ? "txtcolor--redStatus" :
+                                                            (status === this.localize('nmcl-accepted','Accepted',this.language)) ? "txtcolor--greenStatus" :
+                                                                (status === 'force-red') ? "txtcolor--redStatus" :
+                                                                    (status === 'force-green') ? "txtcolor--greenStatus" :
+                                                                        ""
                 }
             }
 
@@ -3449,10 +3607,15 @@
                             }})
                             .catch(()=>{ return Promise.resolve(); })
                 ).then(messages=>{
-                    Promise.all(_.uniq( _.flatten(_.map(messages, i=>i.invoiceIds))).map(i => this.api.invoice().deleteInvoice(i).catch(()=>{}) ))
-                        .then(()=> this.api.message().deleteMessagesBatch(new models.ListOfIdsDto({ids: _.map(messages, i=>i.id)})).catch(()=>{}) );
+                    const invoiceIdsFromMessage = _.compact(_.uniq( _.flatten(_.map(messages, i=>i.invoiceIds))))
+                    this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: invoiceIdsFromMessage }))
+                        .then(invoices=>{
+                            const correctiveInvoiceIds = _.compact(_.uniq(_.map( _.filter(invoices, i=>!!_.trim(i.correctiveInvoiceId)), "id" )))
+                            Promise.all( _.compact(_.uniq(_.concat(invoiceIdsFromMessage,correctiveInvoiceIds))).map(i => this.api.invoice().deleteInvoice(i).catch(()=>{}) ))
+                                .then(()=> !!_.size(messages) && this.api.message().deleteMessagesBatch(new models.ListOfIdsDto({ids: _.map(messages, i=>i.id)})).catch(()=>{}) );
+                        })
                 })
-                .catch((e)=>console.log(e))
+                    .catch((e)=>console.log(e))
 
             }
 
@@ -3522,14 +3685,14 @@
                             this._getExportPageHeader(oaData.oa, true) +
                             "<div style='margin-top:100px'></div>" +
                             "<p class='bold fs10'>" +
-                                _.compact(
-                                    _.map(oaData.entries, (listEntries, listKey) => {
-                                        let listIndex = parseInt(listKey.replace('list',''));
-                                        return !parseInt(_.size(listEntries)) ? false :
-                                            this.localize('flatrate_invoicing_listTotal',this.language) + ' ('+_.trim(listIndex)+') "<span class="italic colorBlue">'+_.trim(this.localize('flatrate_invoicing_'+_.trim(listIndex)+'_subheader',this.language)).toLowerCase()+'</span>": ' +
-                                            this.api.hrFormatNumber(_.get( _.filter(this.flatRateInvoicingDataObject.oaTotalPrices, i=>{ return _.trim(i.oaId)=== _.trim(oaData.oa.id) && _.trim(i.listId)=== _.trim(listKey) }), "[0].listTotal", 0 )) + ' €'
-                                    })
-                                ) .join("<br />") +
+                            _.compact(
+                                _.map(oaData.entries, (listEntries, listKey) => {
+                                    let listIndex = parseInt(listKey.replace('list',''));
+                                    return !parseInt(_.size(listEntries)) ? false :
+                                        this.localize('flatrate_invoicing_listTotal',this.language) + ' ('+_.trim(listIndex)+') "<span class="italic colorBlue">'+_.trim(this.localize('flatrate_invoicing_'+_.trim(listIndex)+'_subheader',this.language)).toLowerCase()+'</span>": ' +
+                                        this.api.hrFormatNumber(_.get( _.filter(this.flatRateInvoicingDataObject.oaTotalPrices, i=>{ return _.trim(i.oaId)=== _.trim(oaData.oa.id) && _.trim(i.listId)=== _.trim(listKey) }), "[0].listTotal", 0 )) + ' €'
+                                })
+                            ) .join("<br />") +
                             "</p>" +
                             "<p class='bold fs15 mt20 colorBlue uppercase italic'>" + this.localize('flatrate_invoicing_insTotal',this.language) + ': ' + this.api.hrFormatNumber(totalAmount) + ' €</p>' +
                             this._getExportPageFooter(currentPage,totalPages,oaData.oa.code, true) +
@@ -3623,14 +3786,14 @@
                             this._getExportPageHeader(oaData.oa, true) +
                             "<div style='margin-top:100px'></div>" +
                             "<p class='bold fs10'>" +
-                                _.compact(
-                                    _.map(oaData.entries, (listEntries, listKey) => {
-                                        let listIndex = parseInt(listKey.replace('list',''));
-                                        return !parseInt(_.size(listEntries)) ? false :
-                                            this.localize('flatrate_invoicing_listTotal',this.language) + ' ('+_.trim(listIndex)+') "<span class="italic colorBlue">'+_.trim(this.localize('flatrate_invoicing_'+_.trim(listIndex)+'_subheader',this.language)).toLowerCase()+'</span>": ' +
-                                            this.api.hrFormatNumber(_.get( _.filter(oasTotalPrices, i=>{ return _.trim(i.oaId)=== _.trim(oaData.oa.id) && _.trim(i.listId)=== _.trim(listKey) }), "[0].listTotal", 0 )) + ' €'
-                                    })
-                                ) .join("<br />") +
+                            _.compact(
+                                _.map(oaData.entries, (listEntries, listKey) => {
+                                    let listIndex = parseInt(listKey.replace('list',''));
+                                    return !parseInt(_.size(listEntries)) ? false :
+                                        this.localize('flatrate_invoicing_listTotal',this.language) + ' ('+_.trim(listIndex)+') "<span class="italic colorBlue">'+_.trim(this.localize('flatrate_invoicing_'+_.trim(listIndex)+'_subheader',this.language)).toLowerCase()+'</span>": ' +
+                                        this.api.hrFormatNumber(_.get( _.filter(oasTotalPrices, i=>{ return _.trim(i.oaId)=== _.trim(oaData.oa.id) && _.trim(i.listId)=== _.trim(listKey) }), "[0].listTotal", 0 )) + ' €'
+                                })
+                            ) .join("<br />") +
                             "</p>" +
                             "<p class='bold fs15 mt20 colorBlue uppercase italic'>" + this.localize('flatrate_invoicing_insTotal',this.language) + ': ' + this.api.hrFormatNumber(totalAmount) + ' €</p>' +
                             this._getExportPageFooter(currentPage,totalPages,oaData.oa.code, true)
@@ -3655,16 +3818,16 @@
                         this._getExportPageHeader(parentOaData, true) +
                         "<div style='margin-top:100px'></div>" +
                         "<div style='padding:10px; border:3px solid #101079'>" +
-                            "<p class='bold fs15 mt20 colorBlue uppercase'>" + _.get(parentOaData, "code", "") + ' - ' + _.get(parentOaData, "finalName", "") + '</p>' +
-                            "<p class='bold fs10'>" +
-                                _.map(computedPrices, (totalPrice, listKey) => {
-                                    let listIndex = parseInt(listKey.replace('list',''));
-                                    return "" +
-                                        this.localize('flatrate_invoicing_listTotal',this.language) + ' ('+_.trim(listIndex)+') "<span class="italic colorBlue">'+_.trim(this.localize('flatrate_invoicing_'+_.trim(listIndex)+'_subheader',this.language)).toLowerCase()+'</span>": ' +
-                                        this.api.hrFormatNumber( this.api._powRoundFloatByPrecision(totalPrice) ) + ' €'
-                                }).join("<br />") +
-                            "</p>" +
-                            "<p class='bold fs15 mt20 colorBlue uppercase italic'>" + this.localize('groupGrandTotal',this.language) + ' <span style="color:#000000">' + _.get(parentOaData, "code", "") + '</span>: ' + this.api.hrFormatNumber( poaTotalPrice ) + ' €</p>' +
+                        "<p class='bold fs15 mt20 colorBlue uppercase'>" + _.get(parentOaData, "code", "") + ' - ' + _.get(parentOaData, "finalName", "") + '</p>' +
+                        "<p class='bold fs10'>" +
+                        _.map(computedPrices, (totalPrice, listKey) => {
+                            let listIndex = parseInt(listKey.replace('list',''));
+                            return "" +
+                                this.localize('flatrate_invoicing_listTotal',this.language) + ' ('+_.trim(listIndex)+') "<span class="italic colorBlue">'+_.trim(this.localize('flatrate_invoicing_'+_.trim(listIndex)+'_subheader',this.language)).toLowerCase()+'</span>": ' +
+                                this.api.hrFormatNumber( this.api._powRoundFloatByPrecision(totalPrice) ) + ' €'
+                        }).join("<br />") +
+                        "</p>" +
+                        "<p class='bold fs15 mt20 colorBlue uppercase italic'>" + this.localize('groupGrandTotal',this.language) + ' <span style="color:#000000">' + _.get(parentOaData, "code", "") + '</span>: ' + this.api.hrFormatNumber( poaTotalPrice ) + ' €</p>' +
                         "</div>" +
                         this._getExportPageFooter(currentPage,totalPages,parentOaData.code, true)
 
@@ -3694,16 +3857,16 @@
 
                     zipArchive
                         .folder(parentOaFolderName)
-                            .file("bordereau-oa-"+_.trim(_.get(parentOa, "code", ""))+".txt", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.slips, {parentOaId:parentOa.id}),"[0].fileContent", ""))
-                            .file("flat-file-oa-"+_.trim(_.get(parentOa, "code", ""))+".txt", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.flatFiles, {parentOaId:parentOa.id}),"[0].fileContent", ""))
-                            .file("listes-A4-oa-"+_.trim(_.get(parentOa, "code", ""))+".pdf", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.oaPdfs, {parentOaId:parentOa.id}),"[0].fileContent", ""))
+                        .file("bordereau-oa-"+_.trim(_.get(parentOa, "code", ""))+".txt", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.slips, {parentOaId:parentOa.id}),"[0].fileContent", ""))
+                        .file("flat-file-oa-"+_.trim(_.get(parentOa, "code", ""))+".txt", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.flatFiles, {parentOaId:parentOa.id}),"[0].fileContent", ""))
+                        .file("listes-A4-oa-"+_.trim(_.get(parentOa, "code", ""))+".pdf", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.oaPdfs, {parentOaId:parentOa.id}),"[0].fileContent", ""))
 
                     _.map(_.filter(this.flatRateInvoicingDataObject.insurancesData, {parent:parentOa.id}), oa => {
                         zipArchive
                             .folder(parentOaFolderName)
-                                // .folder(_.kebabCase( _.compact([ _.trim(_.get(oa, "code", "")), _.trim(_.get(oa, "finalName", "")) ]).join(" ")))
-                                .folder(_.trim(_.get(oa, "code", "")))
-                                    .file("listes-A4-oa-"+_.trim(_.get(oa, "code", ""))+".pdf", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.pdfs, {oaId:oa.id}),"[0].fileContent", ""))
+                            // .folder(_.kebabCase( _.compact([ _.trim(_.get(oa, "code", "")), _.trim(_.get(oa, "finalName", "")) ]).join(" ")))
+                            .folder(_.trim(_.get(oa, "code", "")))
+                            .file("listes-A4-oa-"+_.trim(_.get(oa, "code", ""))+".pdf", _.get(_.filter(this.flatRateInvoicingDataObject.generatedFiles.pdfs, {oaId:oa.id}),"[0].fileContent", ""))
                     })
 
                 })
@@ -3764,31 +3927,33 @@
                 this.api.hcparty().getHealthcareParty(_.get(this.user, "healthcarePartyId", "" ))
                     .then(hcp => {
 
-                        this.set("hcp",hcp);
-                        if(!_.trim(_.get(this, "hcp.nihii", ""))) throw new Error("no-nihii");
+                        this.set("hcp", hcp);
+                        if (!_.trim(_.get(this, "hcp.nihii", ""))) throw new Error("no-nihii");
 
                         this.flatRateInvoicingDataObject = {
                             hcpData: {
                                 id: _.trim(_.get(this.hcp, "id")),
                                 name: _.trim(_.get(this.hcp, "name", "")) || _.trim(_.trim(_.get(this.hcp, "firstName", "")) + " " + _.trim(_.get(this.hcp, "lastName", ""))) || _.trim(_.get(this.user, "name", "")),
-                                address: _.chain(_.get(this.hcp,"addresses",{})).filter({addressType:"work"}).head().value() || _.chain(_.get(this.hcp,"addresses",{})).filter({addressType:"home"}).head().value() || _.chain(_.get(this.hcp,"addresses",{})).head().value() || {},
+                                address: _.chain(_.get(this.hcp, "addresses", {})).filter({addressType: "work"}).head().value() || _.chain(_.get(this.hcp, "addresses", {})).filter({addressType: "home"}).head().value() || _.chain(_.get(this.hcp, "addresses", {})).head().value() || {},
                                 cbe: _.trim(_.get(this.hcp, "cbe", "")),
                                 nihii: _.trim(_.get(this.hcp, "nihii", "")),
                                 nihiiFormated: this.api.formatInamiNumber(_.trim(_.get(this.hcp, "nihii", ""))),
                                 contactPersonHcpId: _.trim(_.get(this.hcp, "contactPersonHcpId", "")),
                                 contactPerson: "",  // Make it empty at first, done on purpose
-                                financialInfo: _.head( _.filter( _.get(this.hcp, "financialInstitutionInformation", []), i => { return !!i && _.trim(_.get(i, "bankAccount", "")) }) )
+                                financialInfo: _.head(_.filter(_.get(this.hcp, "financialInstitutionInformation", []), i => {
+                                    return !!i && _.trim(_.get(i, "bankAccount", ""))
+                                }))
                             },
                             patientsData: [],
                             insurancesData: [],
-                            iosData:[],
+                            iosData: [],
                             listsData: [],
                             invoicesData: [],
                             oaTotalPrices: [],
                             batchExportTstamp: +new Date(),
                             exportedDate: _.trim(
                                 parseInt(_.get(this.shadowRoot.getElementById("exportedYear"), "value", this._getExportCurrentYear())) +
-                                ( ( _.trim(_.get(this.shadowRoot.getElementById("exportedMonth"), "value", this._getExportCurrentMonth())).length === 1 ? "0" : "" ) + parseInt(_.get(this.shadowRoot.getElementById("exportedMonth"), "value", this._getExportCurrentMonth())) ) +
+                                ((_.trim(_.get(this.shadowRoot.getElementById("exportedMonth"), "value", this._getExportCurrentMonth())).length === 1 ? "0" : "") + parseInt(_.get(this.shadowRoot.getElementById("exportedMonth"), "value", this._getExportCurrentMonth()))) +
                                 "01"
                             ),
                             generatedFiles: {
@@ -3811,55 +3976,64 @@
                                     moment().format('YYYY-MM-DD-HH[h]-mm[m]-ss[s]'),
                                     "invoicing export",
                                 ]).join(" ")) + ".zip"
-                            }
+                            },
+                            pendingInvoicesToResend: [],
+                            pendingInvoicesAndPatToResend: [],
+                            hcpValorisationsByMonth: []
                         }
                         this.reportCurrentDateMomentObject = moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")
-                        this.flatRateInvoicingDataObject.hcpData = _.merge(this.flatRateInvoicingDataObject.hcpData,{
+                        this.flatRateInvoicingDataObject.hcpData = _.merge(this.flatRateInvoicingDataObject.hcpData, {
                             phone: _.trim(_.get(_.filter(this.flatRateInvoicingDataObject.hcpData.address.telecoms, {telecomType: "phone"}), "[0].telecomNumber", "")) || _.trim(_.get(_.filter(this.flatRateInvoicingDataObject.hcpData.address.telecoms, {telecomType: "mobile"}), "[0].telecomNumber", "")),
                             email: _.trim(_.get(_.filter(this.flatRateInvoicingDataObject.hcpData.address.telecoms, {telecomType: "email"}), "[0].telecomNumber", "")),
                             financialInfo: {
                                 bankAccount: _.trim(_.get(this.flatRateInvoicingDataObject, "hcpData.financialInfo.bankAccount", "")),
-                                bankAccountFormated: this.api.formatBankAccount( _.trim(_.get(this.flatRateInvoicingDataObject, "hcpData.financialInfo.bankAccount", "")) ),
+                                bankAccountFormated: this.api.formatBankAccount(_.trim(_.get(this.flatRateInvoicingDataObject, "hcpData.financialInfo.bankAccount", ""))),
                                 bic: _.trim(_.get(this.flatRateInvoicingDataObject, "hcpData.financialInfo.bic", "")) || this.api.getBicByIban(_.trim(_.get(this.flatRateInvoicingDataObject, "hcpData.financialInfo.bankAccount", ""))),
                                 name: _.trim(_.get(this.flatRateInvoicingDataObject, "hcpData.financialInfo.name", "")),
                             }
                         })
 
 
+                        // Make sure - refuse to proceed if missing
+                        if (!_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.cbe"))) throw new Error("missing-cbe");
 
                         // Make sure - refuse to proceed if missing
-                        if(!_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.cbe"))) throw new Error("missing-cbe");
+                        if (!_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.contactPersonHcpId"))) throw new Error("missing-contact-person");
 
                         // Make sure - refuse to proceed if missing
-                        if(!_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.contactPersonHcpId"))) throw new Error("missing-contact-person");
-
-                        // Make sure - refuse to proceed if missing
-                        if(!_.size(this.flatRateInvoicingDataObject.hcpData.financialInfo) || !_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.financialInfo.bankAccount", ""))) throw new Error("missing-bank-account");
+                        if (!_.size(this.flatRateInvoicingDataObject.hcpData.financialInfo) || !_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.financialInfo.bankAccount", ""))) throw new Error("missing-bank-account");
 
                         // Check again, even if already done in this.super() - could be got updated meanwhile & this.super() is only called !once
                         this.api.hcparty().getHealthcareParty(_.trim(_.get(this, "flatRateInvoicingDataObject.hcpData.contactPersonHcpId")))
                             .then(hcpContactPerson => {
-                                if(!_.size(hcpContactPerson) || !_.trim(_.get(hcpContactPerson, "id", "")) || !_.trim(_.get(hcpContactPerson, "lastName", "")) || !_.trim(_.get(hcpContactPerson, "firstName", ""))) throw new Error("missing-contact-person");
+                                if (!_.size(hcpContactPerson) || !_.trim(_.get(hcpContactPerson, "id", "")) || !_.trim(_.get(hcpContactPerson, "lastName", "")) || !_.trim(_.get(hcpContactPerson, "firstName", ""))) throw new Error("missing-contact-person");
                                 const contactPerson = _.trim(_.trim(_.get(hcpContactPerson, "lastName", "")) + " " + _.trim(_.get(hcpContactPerson, "firstName", "")))
-                                this.set("contactPerson", contactPerson );
+                                this.set("contactPerson", contactPerson);
                                 this.flatRateInvoicingDataObject.hcpData.contactPerson = contactPerson
                             })
-                            .catch((e)=>{ throw new Error("missing-contact-person"); })
+                            .catch((e) => {
+                                throw new Error("missing-contact-person");
+                            })
 
 
-
-                        this.flatRateInvoicingDataObject.hcpValorisationsPreviousMonth = _.merge(
-                            [
-                                {code: "109616", price: 0.00, flatRateType: "physician"},           // Doctor
-                                {code: "509611", price: 0.00, flatRateType: "physiotherapist"},     // Kine
-                                {code: "409614", price: 0.00, flatRateType: "nurse"}                // Nurse
-                            ],
-                            _.compact(
-                                _.chain(_.get(this.hcp, "flatRateTarifications", []))
-                                    .map(singleNomenclature => {
-                                        const valorisationPrice = parseFloat(
-                                            _.get(
-                                                _.head(
+                        // Get valorisations for last 24 months - as of export date
+                        let valorisationMonths = [];
+                        for (let i = 0; i < 24; i++) {
+                            valorisationMonths.push(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(i, "month").format("YYYYMMDD")))
+                        }
+                        this.flatRateInvoicingDataObject.hcpValorisationsByMonth = valorisationMonths.map(valorisationMonth => {
+                            return {
+                                month: parseInt(valorisationMonth),
+                                valorisations: _.merge(
+                                    [
+                                        {code: "109616", price: 0.00, flatRateType: "physician"},           // Doctor
+                                        {code: "509611", price: 0.00, flatRateType: "physiotherapist"},     // Kine
+                                        {code: "409614", price: 0.00, flatRateType: "nurse"}                // Nurse
+                                    ],
+                                    _.compact(
+                                        _.chain(_.get(this.hcp, "flatRateTarifications", []))
+                                            .map(singleNomenclature => {
+                                                const valorisationObject = _.head(
                                                     _.orderBy(
                                                         _
                                                             .chain(singleNomenclature.valorisations)
@@ -3868,118 +4042,229 @@
                                                                     !!singleValorisation
                                                                     && parseFloat(_.get(singleValorisation, "reimbursement", 0))
                                                                     && (
-                                                                        (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).isBefore( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(1, 'month') ) ||
-                                                                        (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).format("YYYYMMDD") === moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(1, 'month').format("YYYYMMDD")
+                                                                        (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).isBefore(moment(_.trim(valorisationMonth), "YYYYMMDD").startOf('month')) ||
+                                                                        (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).format("YYYYMMDD") === moment(_.trim(valorisationMonth), "YYYYMMDD").startOf('month').format("YYYYMMDD")
                                                                     )
                                                                 )
 
                                                             })
-                                                        .value(),
+                                                            .value(),
                                                         ["startOfValidity"],
                                                         ["desc"]
                                                     )
-                                                ),
-                                                "reimbursement"
-                                            )
-                                        )
-                                        return parseFloat(valorisationPrice) ? {
-                                            code: _.trim(_.get(singleNomenclature, "code")),
-                                            label: _.get(singleNomenclature, "label"),
-                                            flatRateType: _.trim(_.get(singleNomenclature, "flatRateType")),
-                                            price: valorisationPrice,
-                                            type: 'previous'
-                                        } : false
-                                    })
-                                .value()
-                            )
-                        )
+                                                )
+                                                return parseFloat(_.get(valorisationObject, "reimbursement", 0)) ? {
+                                                    code: _.trim(_.get(singleNomenclature, "code")),
+                                                    label: _.get(singleNomenclature, "label"),
+                                                    flatRateType: _.trim(_.get(singleNomenclature, "flatRateType")),
+                                                    price: parseFloat(_.get(valorisationObject, "reimbursement", 0)),
+                                                    valorisationMonth: parseInt(valorisationMonth)
+                                                } : false
+                                            })
+                                            .value()
+                                    )
+                                )
+                            }
+                        })
 
-                        this.flatRateInvoicingDataObject.hcpValorisationsCurrentMonth = _.merge(
-                            [
-                                {code: "109616", price: 0.00, flatRateType: "physician"},           // Doctor
-                                {code: "509611", price: 0.00, flatRateType: "physiotherapist"},     // Kine
-                                {code: "409614", price: 0.00, flatRateType: "nurse"}                // Nurse
-                            ],
-                            _.compact(
-                                _.chain(_.get(this.hcp, "flatRateTarifications", []))
-                                    .map(singleNomenclature => {
-                                        const valorisationPrice = parseFloat(
-                                            _.get(
-                                                _.head(
-                                                    _.orderBy(
-                                                        _
-                                                            .chain(singleNomenclature.valorisations)
-                                                            .filter(singleValorisation => {
-                                                                return (
-                                                                    !!singleValorisation
-                                                                    && parseFloat(_.get(singleValorisation, "reimbursement", 0))
-                                                                    && (
-                                                                        (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).isBefore( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month') ) ||
-                                                                        (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).format("YYYYMMDD") === moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")
-                                                                    )
-                                                                )
-
-                                                            })
-                                                        .value(),
-                                                        ["startOfValidity"],
-                                                        ["desc"]
-                                                    )
-                                                ),
-                                                "reimbursement"
-                                            )
-                                        )
-                                        return parseFloat(valorisationPrice) ? {
-                                            code: _.trim(_.get(singleNomenclature, "code")),
-                                            label: _.get(singleNomenclature, "label"),
-                                            flatRateType: _.trim(_.get(singleNomenclature, "flatRateType")),
-                                            price: valorisationPrice,
-                                            type: 'current'
-                                        } : false
-                                    })
-                                    .value()
-                            )
-                        )
 
                         // HCP NIHII last 3 digits = booleans (0/1) tell us whether or not HCP has (respectively) MKI availabilities (respectively: M = physician, K = physiotherapist & I = nurse)
                         const medicalHouseNihiiLastThreeDigits = _.trim(this.hcp.nihii).slice(-3).split("")
-                        const medicalHouseAvailableValorisationsByNihii = _.compact( _.map( ["physician", "physiotherapist", "nurse" ], (v,k) => { return !!parseInt(medicalHouseNihiiLastThreeDigits[k]) ? { flatRateType: v } : false }) )
+                        const medicalHouseAvailableValorisationsByNihii = _.compact(_.map(["physician", "physiotherapist", "nurse"], (v, k) => {
+                            return !!parseInt(medicalHouseNihiiLastThreeDigits[k]) ? {flatRateType: v} : false
+                        }))
 
                         // At least one MH valorisation is missing
-                        if(
-                            !parseInt(_.size( medicalHouseAvailableValorisationsByNihii ))
-                            || _.size( medicalHouseAvailableValorisationsByNihii ) !== _.size(_.compact( _.map(medicalHouseAvailableValorisationsByNihii, mhValorisation => !!parseInt( _.size( _.filter(this.flatRateInvoicingDataObject.hcpValorisationsCurrentMonth, i=> { return _.trim(i.flatRateType) === _.trim(mhValorisation.flatRateType) && parseFloat(_.get(i, "price", 0)) }) ) )) ))
-                            || _.size( medicalHouseAvailableValorisationsByNihii ) !== _.size(_.compact( _.map(medicalHouseAvailableValorisationsByNihii, mhValorisation => !!parseInt( _.size( _.filter(this.flatRateInvoicingDataObject.hcpValorisationsPreviousMonth, i=> { return _.trim(i.flatRateType) === _.trim(mhValorisation.flatRateType) && parseFloat(_.get(i, "price", 0)) }) ) )) ))
+                        if (
+                            !parseInt(_.size(medicalHouseAvailableValorisationsByNihii))
+                            || _.size(medicalHouseAvailableValorisationsByNihii) !== _.size(_.compact(_.map(medicalHouseAvailableValorisationsByNihii, mhValorisation => !!parseInt(_.size(_.filter(_.get(this, "flatRateInvoicingDataObject.hcpValorisationsByMonth[0].valorisations", {}), i => {
+                                return _.trim(_.get(i, "flatRateType", "")) === _.trim(mhValorisation.flatRateType) && parseFloat(_.get(i, "price", 0))
+                            }))))))
                         ) throw new Error("missing-flatrate-tarification");
 
-                        // Check for existing exports - did it run already?
+                        return null
+
+                    })
+                    .then(()=>{
+
+                        // Check for existing exports - did it run already? - do we have anything to run again for this month?
+                        //     1. Get existing messages of month we're trying to export
+                        //     2. No message found -> allow to run. Only of status fullyAccepted / pending -> don't allow to run again. If some of status archived / error / partiallyAccepted / rejected -> allow to run again (after checking invoicingCode booleans).
+                        //     3. Take & resolve invoiceIds
+                        //     4. Only keep (old) invoices with a correctiveInvoiceId
+                        //     5. Resolve corrective invoices & drop already sent ones
+                        //     6. Filter inv.invoicingCodes based on all bool false but "pending" === true (when BOTH pending & resent are true -> invoice will appear under "Invoices to be corrected" / customer has to flag as being corrected)
+                        //     7. One+ record found? Export may run again
                         return this.api.getRowsUsingPagination(
                             (key,docId) =>
-                                this.api.message().findMessagesByTransportGuid('MH:FLATRATE:*', null, key, docId, 1000)
+                                this.api.message().findMessagesByTransportGuid('MH:FLATRATE:INVOICING-FLATFILE', null, key, docId, 1000)
                                     .then(pl => { return {
                                         rows:_.filter(pl.rows, m => {
+                                            m.evaluatedStatus =
+                                                !!(m.status & (1 << 21)) ? "archived" :
+                                                    !!(m.status & (1 << 17)) ? "error" :
+                                                        !!(m.status & (1 << 16)) ? "partiallyAccepted" :
+                                                            !!(m.status & (1 << 15)) ? "fullyAccepted" :
+                                                                !!(m.status & (1 << 12)) ? "rejected" :
+                                                                    !!(m.status & (1 << 11)) ? "treated" :
+                                                                        !!(m.status & (1 << 10)) ? "acceptedForTreatment" :
+                                                                            !!(m.status & (1 << 9))  ? "successfullySentToOA" :
+                                                                                !!(m.status & (1 << 8))  ? "pending" :
+                                                                                    ""
                                             return m
                                                 && _.get(m,'fromHealthcarePartyId',false)===this.user.healthcarePartyId
                                                 && _.get(m, "recipients", []).indexOf(this.user.healthcarePartyId) > -1
                                                 && parseInt( _.get(m, "metas.batchExportTstamp", 0) )
                                                 && parseInt( _.size( _.get(m, "invoiceIds", [] ) ) )
+                                                && (
+                                                    parseInt( _.get(m, "metas.exportedDate", "" ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate)     // Either current month
+                                                    || parseInt( _.get(m, "metas.exportedDate", "" ) ) < parseInt(this.flatRateInvoicingDataObject.exportedDate)    // Or before, NEVER take resent invoices "in the future"
+                                                )
                                         }),
                                         nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
                                         nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
                                         done: !pl.nextKeyPair
                                     }})
                                     .catch(()=>{ return Promise.resolve(); })
-                        ).then(x=>x)
+                        ).then(foundMessages=> {
+
+                            // Export already ran this month - any message at all?
+                            this.flatRateInvoicingDataObject.exportAlreadyRanThisMonth = !!parseInt( _.size(_.filter(foundMessages, m=>{return _.trim(_.get(m,"metas.exportedDate",0))=== _.trim(this.flatRateInvoicingDataObject.exportedDate) })) )
+
+                            // Invoices / no invoices to resend
+                            return !parseInt(_.size(foundMessages)) ? [] :
+
+                                // All are pending or fully accepted, nothing to resend
+                                !parseInt( _.size(_.filter(foundMessages, msg => { return ["archived","error","partiallyAccepted","rejected"].indexOf(msg.evaluatedStatus) > -1 }))) ? [] :
+
+                                    this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.compact(_.uniq(_.flatMap(_.map(_.filter(foundMessages, msg => { return ["archived","error","partiallyAccepted","rejected"].indexOf(msg.evaluatedStatus) > -1 }), "invoiceIds"))))}))
+                                        .then(invoicesToBeCorrected => !parseInt(_.size(invoicesToBeCorrected)) ? [] :
+                                            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.compact(_.uniq(_.map(_.filter(invoicesToBeCorrected, _.trim("correctiveInvoiceId")), "correctiveInvoiceId")))}))
+                                                .then(correctiveInvoices => !parseInt(_.size(correctiveInvoices)) ? [] :
+                                                    _.compact(
+                                                        _.filter(correctiveInvoices, i => !_.trim(_.get(i, "sentDate", ""))).map(inv => {
+                                                            const invoicingCodes = _.get(inv, "invoicingCodes", [])
+                                                            // If I try to resend a corrective invoice for current month, DROP its invoicingCodes (otherwise append code will double the charged amounts).
+                                                            // If not, append codes so that both previous & current month will be charged, which is legit
+                                                            inv.resentMonth = parseInt( _.get(inv, "invoiceDate", 0 ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate) ? "currentMonth" : "inThePast"
+                                                            return !parseInt(_.size(invoicingCodes)) ? false :
+                                                                _.every(invoicingCodes, ic => {
+                                                                    return _.get(ic,"accepted",false)===false
+                                                                        && _.get(ic,"archived",false)===false
+                                                                        && _.get(ic,"canceled",false)===false
+                                                                        && _.get(ic,"resent",false)===false
+                                                                        && _.get(ic,"lost",false)===false
+                                                                        && _.get(ic,"pending",false)===true
+                                                                }) ? inv : false
+                                                        })
+                                                    )
+                                                )
+                                                .catch(e => {
+                                                    console.log("Could not getInvoices (corrective ones) by ", _.compact(_.uniq(_.map(_.filter(invoicesToBeCorrected, _.trim("correctiveInvoiceId")), "correctiveInvoiceId"))));
+                                                    console.log(e);
+                                                    return false;
+                                                })
+                                        )
+                                        .catch(e => {
+                                            console.log("Could not getInvoices (to be corrected) by ", _.compact(_.uniq(_.flatMap(_.map(foundMessages, "invoiceIds")))));
+                                            console.log(e);
+                                            return false;
+                                        })
+                        })
 
                     })
-                    .then(exportAlreadyRanMessages=>{
-                        if(_.size(exportAlreadyRanMessages)) throw new Error("export-already-ran");
-                    })
-                    .then(()=>{
+                    .then(pendingInvoicesToResend => {
+                        if(!parseInt(_.size(pendingInvoicesToResend)) && !!this.flatRateInvoicingDataObject.exportAlreadyRanThisMonth) throw new Error("export-already-ran")
+                        this.flatRateInvoicingDataObject.pendingInvoicesToResend = pendingInvoicesToResend
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_1_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_2',this.language), icon:"arrow-forward"});
-                        return this._getPatientsByHcp(_.get(this.hcp, "id")).then(myPatients=>_.chain(myPatients).uniqBy('ssin').orderBy(['lastName', 'firstName'],['asc','asc']).value())
+                        return !this.flatRateInvoicingDataObject.exportAlreadyRanThisMonth ? this._getPatientsByHcp(_.get(this.hcp, "id")).then(myPatients=>_.chain(myPatients).uniqBy('ssin').orderBy(['lastName', 'firstName'],['asc','asc']).value()) : false
                     })
-                    .then((myPatients)=>{
+                    .then(myPatients=> {
+                        return !parseInt(_.size(this.flatRateInvoicingDataObject.pendingInvoicesToResend)) ?
+                            { myPatients: _.compact(myPatients), myPatientsToResend: [] } :
+                            Promise.all(this.flatRateInvoicingDataObject.pendingInvoicesToResend.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]]).catch(e=>{console.log(e); console.log("Could not extractCryptedFKs for invoices to resend");})))
+                                .then(invAndIdsPat => this.api.patient().getPatientsWithUser(this.user,new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])])).catch(e=>{console.log(e); console.log("Could not get getPatientsWithUser for invoices to resend");}))
+                                .then(invoicesAndPatient=>{
+                                    invoicesAndPatient = _.map(invoicesAndPatient, invAndPat => {
+                                        let tempPat = _.cloneDeep(invAndPat[1])
+                                        tempPat.patientToBeResent = true
+                                        tempPat.invoiceToBeResent = _.get(_.cloneDeep(invAndPat),"[0]",{})
+                                        tempPat.ssin = _.trim(_.get(tempPat,"ssin","")).replace(/[^\d]/gmi,"")
+                                        tempPat.lastName = (tempPat.lastName||"").toUpperCase()
+                                        tempPat.firstName = (tempPat.firstName||"").toUpperCase()
+                                        tempPat.dateOfBirth = (tempPat.dateOfBirth?moment(tempPat.dateOfBirth+"", "YYYYMMDD").format('DD/MM/YYYY'):"")
+                                        tempPat.finalInsurability = _.get(
+                                            _.filter(
+                                                tempPat.insurabilities,
+                                                (ins) => {
+                                                    return ins &&
+                                                        _.size(ins) &&
+                                                        !!_.trim(_.get( ins, "insuranceId", "" )) &&
+                                                        _.trim(_.get(ins, "parameters.tc1", "")).length === 3 &&
+                                                        _.trim(_.get(ins, "parameters.tc2", "")).length === 3 &&
+                                                        ( _.trim(_.get(ins, "parameters.tc1", "")) + _.trim(_.get(ins, "parameters.tc2", "")) !== "000000" ) &&
+                                                        // !!_.trim(_.get( ins, "identificationNumber", "" ) ) &&
+                                                        (
+                                                            moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isBefore( moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD") ) ||
+                                                            moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isSame(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
+                                                            !parseInt(_.get(ins, "startDate", 0))
+                                                        ) &&
+                                                        (
+                                                            moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isAfter(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
+                                                            moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isSame(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
+                                                            !parseInt(_.get(ins, "endDate", 0))
+                                                        ) &&
+                                                        // When resending a corrective invoice, make sure we match PAT's INS to whom original invoice was sent to
+                                                        _.trim(_.get(tempPat,"invoiceToBeResent.recipientId","")) === _.trim(_.get( ins, "insuranceId", "" ))
+                                                }
+                                            ), "[0]", {}
+                                        )
+                                        tempPat.insurancePersonType = !_.trim( _.get( tempPat, "finalInsurability.titularyId", "" )) ? "T" : ( moment().diff(moment(_.get(tempPat, "dateOfBirth"+"", "0")+"", "DD/MM/YYYY"), 'years') < 18 ) ? "E" : "C"
+                                        tempPat.titularyId = _.trim( _.get( tempPat, "finalInsurability.titularyId", "" ))
+                                        invAndPat[1] = tempPat
+                                        return invAndPat
+                                    })
+                                    this.flatRateInvoicingDataObject.pendingInvoicesAndPatToResend = invoicesAndPatient
+                                    return { myPatients: _.compact(myPatients), myPatientsToResend: _.compact(_.map(invoicesAndPatient,x=>x[1])) }
+                                })
+                    })
+                    .then(patsAndPatsToResend=>{
+                        let myPatients = patsAndPatsToResend.myPatients
+                        let myPatientsToResend = _.cloneDeep(patsAndPatsToResend.myPatientsToResend)
+                        let resolvedPatientsToBeResent = []
+                        const commonPatientsBetweenExportsWithSameIns = _.compact(
+                            _.map(myPatients, pat => {
+                                const matchingPat = _.filter(myPatientsToResend, patToResend => { return (
+                                    _.trim(_.get(patToResend,"ssin","something")) === _.trim(_.get(pat,"ssin","else")) &&
+                                    _.trim(_.get(patToResend,"finalInsurability.identificationNumber","something")) === _.trim(_.get(pat,"finalInsurability.identificationNumber","else"))
+                                )})
+                                return _.size(matchingPat) ? matchingPat : false
+                            })
+                        )
+                        _.map(commonPatientsBetweenExportsWithSameIns, commonPat=>{
+                            myPatients = _.map(myPatients, existingPat => {
+                                return _.trim(_.get(existingPat,"ssin","something"))!== _.trim(_.get(commonPat,"[0].ssin","else")) ?
+                                    existingPat :
+                                    _.merge(existingPat,{
+                                        invoiceToBeResent: _.compact(_.map(commonPat,"invoiceToBeResent")),
+                                        patientToBeResent: true,
+                                        patientIsInCurrentAndPreviousExport: true
+                                    })
+                            })
+                            // _.remove(myPatientsToResend, i=> _.trim(_.get(i,"ssin","something")) === _.trim(_.get(commonPat,"[0].ssin","else")) )
+                            _.remove(myPatientsToResend, i=> _.trim(_.get(i,"ssin","something")) === _.trim(_.get(commonPat,"[0].ssin","else")) )
+                        })
+
+                        const nonCommonPatientsToAdded = _.compact( _.map( _.map(myPatientsToResend, "id"), patId => {
+                            if( resolvedPatientsToBeResent.indexOf(patId) > -1 ) { return false; } else { resolvedPatientsToBeResent.push(patId); }
+                            let singlePat = _.find(myPatientsToResend, {id:patId})
+                            singlePat.invoiceToBeResent = _.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent" )
+                            singlePat.patientToBeResent = true
+                            singlePat.patientIsInCurrentAndPreviousExport = false
+                            return singlePat
+                        }))
+                        if(!!parseInt(_.size(nonCommonPatientsToAdded))) myPatients = _.concat(myPatients,nonCommonPatientsToAdded)
 
                         // Find valid MHContract or drop entry
                         myPatients = _.compact(
@@ -3989,28 +4274,20 @@
                                         _
                                             .chain(pat.medicalHouseContracts||[])
                                             .filter(mhc => {
+                                                // Eval final MHC either based on export date OR based on resent invoice date
+                                                let mhcExportDateOrResentDate = !!parseInt(_.size(_.get(pat,"invoiceToBeResent[0]",[]))) ? moment(_.trim(_.get(pat,"invoiceToBeResent[0].invoiceDate",0)),"YYYYMMDD") : moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")
                                                 return (
                                                     !!mhc &&
                                                     !!_.size(mhc) &&
-
                                                     // Has to begin in the past
-                                                    moment(_.trim(_.get(mhc, "startOfContract", 0)), "YYYYMMDD").startOf('month').isBefore(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")) &&
-                                                    (
-                                                        // Either end of contract is in the future or is not set
-                                                        moment(_.trim(_.get(mhc, "endOfContract", "0")), "YYYYMMDD").endOf('month').isAfter(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")) ||
-                                                        !parseInt(_.get(mhc, "endOfContract", 0))
-                                                    ) &&
+                                                    moment(_.trim(_.get(mhc, "startOfContract", 0)), "YYYYMMDD").startOf('month').isBefore(mhcExportDateOrResentDate) &&
+                                                    // Either end of contract is in the future or is not set
+                                                    ( moment(_.trim(_.get(mhc, "endOfContract", "0")), "YYYYMMDD").endOf('month').isAfter(mhcExportDateOrResentDate) || !parseInt(_.get(mhc, "endOfContract", 0)) ) &&
                                                     (
                                                         // Either start of coverage is before this month AND set OR
                                                         // Start of coverage isn't set and start of contract is two month in the past (start of coverage = start of contract + 1 month when no trial period)
-                                                        (
-                                                            parseInt(_.get(mhc, "startOfCoverage", 0)) &&
-                                                            moment(_.trim(_.get(mhc, "startOfCoverage", "0")), "YYYYMMDD").endOf('month').isBefore(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD"))
-                                                        ) ||
-                                                        (
-                                                            !parseInt(_.get(mhc, "startOfCoverage", 0)) &&
-                                                            moment(_.trim(_.get(mhc, "startOfContract", 0)), "YYYYMMDD").startOf('month').add(1, 'months').isBefore(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD"))
-                                                        )
+                                                        ( parseInt(_.get(mhc, "startOfCoverage", 0)) && moment(_.trim(_.get(mhc, "startOfCoverage", "0")), "YYYYMMDD").endOf('month').isBefore(mhcExportDateOrResentDate) ) ||
+                                                        ( !parseInt(_.get(mhc, "startOfCoverage", 0)) && moment(_.trim(_.get(mhc, "startOfContract", 0)), "YYYYMMDD").startOf('month').add(1, 'months').isBefore(mhcExportDateOrResentDate) )
                                                     )
                                                 )
                                             })
@@ -4049,41 +4326,60 @@
                         this.flatRateInvoicingDataObject.insurancesData = insurancesData
                         return this._getIOsDataByInsurancesList(this.flatRateInvoicingDataObject.insurancesData).then(x=>x);})
                     .then((iosData) => {
-                        this.flatRateInvoicingDataObject.iosData = iosData
-                        this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                        this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5',this.language), icon:"arrow-forward"});
-                        return {
+                        // Ins 306 has to be seen as a child of 300
+                        return this._getInsurancesDataByCode(300)
+                            .then(ins300=>{
+                                iosData = parseInt(_.size(_.filter(iosData, {code:"300"}))) ? iosData : _.size(_.filter(iosData, {code:"306"})) ? _.sortBy(_.concat(iosData, _.head(ins300)), "code") : iosData
+                                _.remove(iosData, i=>_.trim(_.get(i,"code",""))==="306")
+                                this.flatRateInvoicingDataObject.iosData = iosData
+                                this.flatRateInvoicingDataObject.insurancesData = _.map(this.flatRateInvoicingDataObject.insurancesData, ins => { if(_.trim(_.get(ins, "code", "")) === "306") ins.parent = _.trim(_.get(_.filter(this.flatRateInvoicingDataObject.iosData, {code:"300"}), "[0].id", "")); return ins })
+                                return null
+                            })
+                            .then(()=>{
+                                this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
+                                this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5',this.language), icon:"arrow-forward"});
+                                return {
+                                    // "Old" patients
+                                    // Start of month of start cover must be BEFORE (start of export month -1 month)
+                                    // Ie: start of coverage began 2+ month before exported month
+                                    list8: _.filter( this.flatRateInvoicingDataObject.patientsData, pat => {
+                                        let mhcExportDateOrResentDate = !!parseInt(_.size(_.get(pat,"invoiceToBeResent[0]",[]))) ? moment(_.trim(_.get(pat,"invoiceToBeResent[0].invoiceDate",0)),"YYYYMMDD") : moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")
+                                        return(
+                                            !!moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").isBefore( mhcExportDateOrResentDate.startOf("month").subtract(1, 'month') ) &&
+                                            (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
+                                        )
+                                    }),
 
-                            // "Old" patients
-                            // Start of month of start cover must be BEFORE (start of export month -1 month)
-                            // Ie: start of coverage began 2+ month before exported month
-                            list8: _.filter( this.flatRateInvoicingDataObject.patientsData, pat => { return(
-                                !!moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").isBefore( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf("month").subtract(1, 'month') ) &&
-                                (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
-                            )}),
+                                    // New patients WITHOUT tryout (double amounts / must appear twice)
+                                    // Start of month of start cover must be EQUAL TO (start of export month -1 month)
+                                    // AND Start of month of cover - 1 month === Start of month of contract
+                                    list5: _.filter( this.flatRateInvoicingDataObject.patientsData, pat => {
+                                        let mhcExportDateOrResentDate = !!parseInt(_.size(_.get(pat,"invoiceToBeResent[0]",[]))) ? moment(_.trim(_.get(pat,"invoiceToBeResent[0].invoiceDate",0)),"YYYYMMDD") : moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")
+                                        return(
+                                            !!moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").isSame( mhcExportDateOrResentDate.startOf("month").subtract(1, 'month') ) &&
+                                            !!(moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").subtract(1, 'month')).isSame( moment(pat.finalMedicalHouseContracts.startOfContract, "YYYYMMDD").startOf("month") ) &&
+                                            (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
+                                        )
+                                    }),
 
-                            // New patients WITHOUT tryout (double amounts / must appear twice)
-                            // Start of month of start cover must be EQUAL TO (start of export month -1 month)
-                            // AND Start of month of cover - 1 month === Start of month of contract
-                            list5: _.filter( this.flatRateInvoicingDataObject.patientsData, pat => { return(
-                                !!moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").isSame( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf("month").subtract(1, 'month') ) &&
-                                !!(moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").subtract(1, 'month')).isSame( moment(pat.finalMedicalHouseContracts.startOfContract, "YYYYMMDD").startOf("month") ) &&
-                                (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
-                            )}),
-
-                            // New patients WITH tryout (double amounts / must appear twice)
-                            // Start of month of start cover must be EQUAL TO (start of export month -1 month)
-                            // AND Start of month of cover - 1 month > Start of month of contract
-                            list6: _.filter( this.flatRateInvoicingDataObject.patientsData, pat => { return(
-                                !!moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").isSame( moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf("month").subtract(1, 'month') ) &&
-                                !!(moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").subtract(1, 'month')).isAfter( moment(pat.finalMedicalHouseContracts.startOfContract, "YYYYMMDD").startOf("month") ) &&
-                                (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
-                            )}),
-                        }
+                                    // New patients WITH tryout (double amounts / must appear twice)
+                                    // Start of month of start cover must be EQUAL TO (start of export month -1 month)
+                                    // AND Start of month of cover - 1 month > Start of month of contract
+                                    list6: _.filter( this.flatRateInvoicingDataObject.patientsData, pat => {
+                                        let mhcExportDateOrResentDate = !!parseInt(_.size(_.get(pat,"invoiceToBeResent[0]",[]))) ? moment(_.trim(_.get(pat,"invoiceToBeResent[0].invoiceDate",0)),"YYYYMMDD") : moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD")
+                                        return(
+                                            !!moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").isSame( mhcExportDateOrResentDate.startOf("month").subtract(1, 'month') ) &&
+                                            !!(moment(pat.finalMedicalHouseContracts.startOfCoverage, "YYYYMMDD").startOf("month").subtract(1, 'month')).isAfter( moment(pat.finalMedicalHouseContracts.startOfContract, "YYYYMMDD").startOf("month") ) &&
+                                            (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
+                                        )
+                                    })
+                                }
+                            })
 
                     })
                     .then((listsData)=>{
                         this.flatRateInvoicingDataObject.listsData = listsData
+                        this.flatRateInvoicingDataObject.invoicesToBeModified = []
 
                         // Drop patients we couldn't find in list (no valorisation)
                         const patientsInLists = _.uniq(_.compact(_.flatMap(_.get(this, "flatRateInvoicingDataObject.listsData", {})).map(i=>i.id) ))||[]
@@ -4096,9 +4392,78 @@
 
                         this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language), icon:"arrow-forward"});
-                        console.log("--- before create invoices ---");
-                        console.log(this.flatRateInvoicingDataObject);
-                        return this._createOrUpdateMedicalHousePatientsInvoices().then(x=>x)
+
+                        console.log("--- Before generate invoices ---");
+                        console.log(_.cloneDeep(this.flatRateInvoicingDataObject));
+
+                        return Promise.all(_.toPairs(this.flatRateInvoicingDataObject.listsData).map(list => {
+
+                            const typeList = list[0]
+                            const patientList = list[1]
+                            const codesList = typeList === "list5" || typeList === "list6" ?
+                                _.concat(
+                                    _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")))}), "valorisations"),
+                                    _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(1,"month").format("YYYYMMDD")))}), "valorisations")
+                                ) :
+                                _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")))}), "valorisations")
+
+                            return patientList.map(pat => {
+                                const originalInvoicingCodes = codesList.filter(code =>
+                                    parseFloat(code.price) && (
+                                        (code.flatRateType === "physician" && pat.finalMedicalHouseContracts.gp === true ) ||
+                                        (code.flatRateType === "nurse" && pat.finalMedicalHouseContracts.nurse === true) ||
+                                        (code.flatRateType === "physiotherapist" && pat.finalMedicalHouseContracts.kine === true)
+                                    )
+                                )
+                                const additionalInvoicingCodes = _.flatMap(_.map(_.get(pat,"invoiceToBeResent",[]), invoiceToBeResent=>{
+                                    const invoiceCodesToBeDeleted = _.get(invoiceToBeResent,"invoicingCodes",[]).filter(ic=>_.compact(_.uniq(_.map(originalInvoicingCodes,oic=>_.trim(_.get(oic,"valorisationMonth",0))))).indexOf(_.trim(_.get(ic,"dateCode",0))) > -1 )
+                                    if( !!parseInt(_.size(invoiceCodesToBeDeleted)) ) {
+                                        const newInvoicingCodes = _.compact(_.map(invoiceToBeResent.invoicingCodes, ic => _.compact(_.map(invoiceCodesToBeDeleted,"id")).indexOf(_.trim(_.get(ic,"id",false)))>-1 ? false : ic ))
+                                        const invoiceToBeResentWithOmittedDuplicatedInvCodes = _.assign(_.cloneDeep(invoiceToBeResent), {invoicingCodes:newInvoicingCodes})
+                                        this.flatRateInvoicingDataObject.invoicesToBeModified.push(invoiceToBeResentWithOmittedDuplicatedInvCodes)
+                                    }
+                                    return _.map(_.get(invoiceToBeResent,"invoicingCodes",[]).filter(ic=>_.compact(_.uniq(_.map(originalInvoicingCodes,oic=>_.trim(_.get(oic,"valorisationMonth",0))))).indexOf(_.trim(_.get(ic,"dateCode",0))) === -1 ), ic => _.merge({},{
+                                        code: _.get(ic,"code",""),
+                                        label: { fr: _.get(ic,"label",""), nl: _.get(ic,"label",""), en: _.get(ic,"label","") },
+                                        price: _.get(ic,"totalAmount",0),
+                                        valorisationMonth: _.get(ic,"dateCode",null)
+                                    }))
+                                })||[])
+                                return _.assign(pat, {
+                                    invoicingCodes: _.compact(_.concat(additionalInvoicingCodes||[],originalInvoicingCodes)).map(val => ({
+                                        code: val.code,
+                                        tarificationId: "INAMI-RIZIV|" + val.code + "|1.0",
+                                        label: _.get(val, "label."+this.language,""),
+                                        totalAmount: Number(_.get(val,"price",0)),
+                                        reimbursement: Number(_.get(val,"price",0)),
+                                        patientIntervention: Number(0.00).toFixed(2),
+                                        doctorSupplement: Number(0.00).toFixed(2),
+                                        units: 1,
+                                        canceled: false,
+                                        accepted: false,
+                                        pending: false,
+                                        resent: false,
+                                        lost: false,
+                                        dateCode: parseInt(_.get(val,"valorisationMonth",0))||null,
+                                        id: this.api.crypto().randomUuid(),
+                                        logicalId: this.api.crypto().randomUuid()
+                                    }))
+                                })
+                            })
+                        }))
+                            .then(()=>{
+                                let prom = Promise.resolve([])
+                                let invoicesToBeModified = _.cloneDeep(this.flatRateInvoicingDataObject.invoicesToBeModified);
+                                return !parseInt(_.size(invoicesToBeModified||[])) ?
+                                    prom :
+                                    Promise.all(invoicesToBeModified.map( inv => {
+                                        prom = prom.then(invoicesToBeModified => this.api.invoice().modifyInvoice(inv)
+                                            .then(() => _.concat(invoicesToBeModified, [inv]))
+                                            .catch(e => { console.log("Can't modify invoice", inv, e); return false; })
+                                        )
+                                    }))
+                            })
+                            .then(()=>this._createOrUpdateMedicalHousePatientsInvoices())
                     })
                     .then(invoicesData=>{
                         this.flatRateInvoicingDataObject.invoicesData = invoicesData
@@ -4193,7 +4558,7 @@
                                 })
                                 .then(createdDocument => {
                                     _.merge(singleFileObject, {documentId:createdDocument.id})
-                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, createdDocument, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(singleFileObject.fileContent))).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
+                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(singleFileObject.fileContent))).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
                                 })
                                 .then(({createdDocument, encryptedFileContent}) => { return this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment flatfile---");console.log(createdDocument);console.log(encryptedFileContent);}) })
                         }))
@@ -4225,23 +4590,23 @@
                                         })
                                         .then(createdDocument => {
                                             _.merge(singleFileObject, {documentId:createdDocument.id})
-                                            return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, createdDocument, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(singleFileObject.fileContent))).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
+                                            return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(singleFileObject.fileContent))).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
                                         })
                                         .then(({createdDocument, encryptedFileContent}) => { return this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment slip---");console.log(createdDocument);console.log(encryptedFileContent);}) })
                                 })).then(x=>x)
-                        }).then(()=>{
-                            return this.api.invoice().getInvoices(new models.ListOfIdsDto({ ids: _.uniq( _.compact( _.map( _.get(this.flatRateInvoicingDataObject, "invoicesData", []), i => _.get(i, "invoices[0].id", false )))) }))
-                                .then(invoices => {
-                                    return Promise.all(invoices.map(inv => {
-                                        inv.sentDate = moment().format("YYYYMMDD")
-                                        return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
-                                    }))
-                                }).then(x=>x)
-                        }).then(()=>{
-                            this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_7_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                            this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_5',this.language), icon:"arrow-forward"});
-                            return this._generateJ20PdfTemplateObjects().then(x=>x)
-                        })
+                            }).then(()=>{
+                                return this.api.invoice().getInvoices(new models.ListOfIdsDto({ ids: _.uniq( _.compact( _.map( _.get(this.flatRateInvoicingDataObject, "invoicesData", []), i => _.get(i, "invoices[0].id", false )))) }))
+                                    .then(invoices => {
+                                        return Promise.all(invoices.map(inv => {
+                                            inv.sentDate = moment().format("YYYYMMDD")
+                                            return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
+                                        }))
+                                    }).then(x=>x)
+                            }).then(()=>{
+                                this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_7_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
+                                this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_5',this.language), icon:"arrow-forward"});
+                                return this._generateJ20PdfTemplateObjects().then(x=>x)
+                            })
                     })
                     .then(pdfTemplateObjects=>{
                         return Promise.all(pdfTemplateObjects.map( singlePdfFileObject => this.api.pdfReport(mustache.render(singlePdfFileObject.template, {})).then(x=>_.merge(singlePdfFileObject, {fileContent:x.pdf})) ))
@@ -4289,7 +4654,7 @@
                                 })
                                 .then(createdDocument => {
                                     _.merge(singlePdfFileObject, {documentId:createdDocument.id})
-                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, createdDocument, singlePdfFileObject.fileContent).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
+                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, singlePdfFileObject.fileContent).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
                                 })
                                 .then(({createdDocument, encryptedFileContent}) => { return this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment pdf---");console.log(createdDocument);console.log(encryptedFileContent);}) })
                         })).then(x=>x)
@@ -4343,7 +4708,7 @@
                                 })
                                 .then(createdDocument => {
                                     _.merge(singlePdfFileObject, {documentId:createdDocument.id})
-                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, createdDocument, singlePdfFileObject.fileContent).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
+                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, singlePdfFileObject.fileContent).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
                                 })
                                 .then(({createdDocument, encryptedFileContent}) => { return this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment parent oa pdf---");console.log(createdDocument);console.log(encryptedFileContent);}) })
                         })).then(x=>x)
@@ -4382,7 +4747,7 @@
                             })
                             .then(createdDocument => {
                                 _.merge(this.flatRateInvoicingDataObject.finalArchive, {documentId:createdDocument.id})
-                                return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, createdDocument, this.flatRateInvoicingDataObject.finalArchive.batchZipFileBlob).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
+                                return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, this.flatRateInvoicingDataObject.finalArchive.batchZipFileBlob).then(encryptedFileContent => ({createdDocument, encryptedFileContent}))
                             })
                             .then(({createdDocument, encryptedFileContent}) => { return this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment batch---");console.log(createdDocument);console.log(encryptedFileContent);}) })
                     })
@@ -4395,13 +4760,13 @@
                         console.log(e);
                         return (
                             ( _.trim(e).indexOf('no-nihii') > -1 ) ? this._showWarningNoHcpNihii() && e :
-                            ( _.trim(e).indexOf('missing-flatrate-tarification') > -1 ) ? this._showWarningNoHcpFlatrateTarification() && e :
-                            ( _.trim(e).indexOf('no-data-to-export') > -1 ) ? this._showWarningNoDataToExport() && e :
-                            ( _.trim(e).indexOf('missing-contact-person') > -1 ) ? this._showWarningNoHcpContactPerson() && e :
-                            ( _.trim(e).indexOf('missing-cbe') > -1 ) ? this._showWarningNoCbe() && e :
-                            ( _.trim(e).indexOf('missing-bank-account') > -1 ) ? this._showWarningNoBankAccount() && e :
-                            ( _.trim(e).indexOf('export-already-ran') > -1 ) ? this._showWarningExportAlreadyRan() && e :
-                            e
+                                ( _.trim(e).indexOf('missing-flatrate-tarification') > -1 ) ? this._showWarningNoHcpFlatrateTarification() && e :
+                                    ( _.trim(e).indexOf('no-data-to-export') > -1 ) ? this._showWarningNoDataToExport() && e :
+                                        ( _.trim(e).indexOf('missing-contact-person') > -1 ) ? this._showWarningNoHcpContactPerson() && e :
+                                            ( _.trim(e).indexOf('missing-cbe') > -1 ) ? this._showWarningNoCbe() && e :
+                                                ( _.trim(e).indexOf('missing-bank-account') > -1 ) ? this._showWarningNoBankAccount() && e :
+                                                    ( _.trim(e).indexOf('export-already-ran') > -1 ) ? this._showWarningExportAlreadyRan() && e :
+                                                        e
                         )
                     })
                     .finally(()=>{
@@ -4487,19 +4852,19 @@
 
                                 const acceptedAmount =
                                     _.get(invoiceStatus, "finalStatus") === "pending" ? "0,00" :
-                                    _.get(invoiceStatus, "finalStatus") === "rejected" ? "0,00" :
-                                    _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.totalAmount", "0.00")))):
-                                    _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.acceptedAmount", _.get(message, "metas.totalAmount", "0.00"))))):
-                                    _.get(invoiceStatus, "finalStatus") === "archived" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.acceptedAmount", _.get(message, "metas.totalAmount", "0.00"))))):
-                                    "0,00"
+                                        _.get(invoiceStatus, "finalStatus") === "rejected" ? "0,00" :
+                                            _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.totalAmount", "0.00")))):
+                                                _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.acceptedAmount", _.get(message, "metas.totalAmount", "0.00"))))):
+                                                    _.get(invoiceStatus, "finalStatus") === "archived" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.acceptedAmount", _.get(message, "metas.totalAmount", "0.00"))))):
+                                                        "0,00"
 
                                 const refusedAmount =
                                     _.get(invoiceStatus, "finalStatus") === "pending" ? "0,00" :
-                                    _.get(invoiceStatus, "finalStatus") === "rejected" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.totalAmount", "0.00")))) :
-                                    _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? "0,00":
-                                    _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.refusedAmount", "0.00")))):
-                                    _.get(invoiceStatus, "finalStatus") === "archived" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.refusedAmount", "0.00")))):
-                                    "0,00"
+                                        _.get(invoiceStatus, "finalStatus") === "rejected" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.totalAmount", "0.00")))) :
+                                            _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? "0,00":
+                                                _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.refusedAmount", "0.00")))):
+                                                    _.get(invoiceStatus, "finalStatus") === "archived" ? this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(parseFloat(_.get(message, "metas.refusedAmount", "0.00")))):
+                                                        "0,00"
 
                                 return _.merge(message, {
                                     messageInfo: {
@@ -4540,12 +4905,70 @@
                             countByStatus[statusKey] = parseInt(_.size(dataByStatus[statusKey].flatFiles))
                         })
 
-                        // For us (has to be assigned at once)
-                        this.set("messagesCachedData.dataByStatus", dataByStatus)
-                        this.set("messagesCachedData.countByStatus", countByStatus)
+                        // Eval error invoices based on fully rejected or partially accepted
+                        return Promise.all( _.map( _.concat(dataByStatus.partiallyAccepted.flatFiles, dataByStatus.rejected.flatFiles), msg => {
+                            const originalMessage = msg
+                            const invoiceIds = _.compact(_.uniq(msg.invoiceIds))
+                            return this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: invoiceIds}))
+                                .then(allInvoices=>this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.map(allInvoices,"correctiveInvoiceId")})))
+                                .then(invoicesToBeCorrected =>{
+                                    return _.compact(
+                                        _.map(invoicesToBeCorrected, i =>{
+                                            return (
+                                                !parseInt(_.get(i,"sentDate",0))
+                                                && _.trim(_.get(i,"error","")).toLowerCase() !== "flagged as lost"
+                                                && _.every(_.get(i,"invoicingCodes",[]), ic=>{ return _.get(ic,"pending",false)===true && _.get(ic,"resent",false)===true && _.get(ic,"lost",false)===false })
+                                            ) ? i : false
+                                        })
+                                    )
+                                })
+                                .then(invoicesToBeCorrected => Promise.all(invoicesToBeCorrected.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]]))))
+                                .then(invAndPatIds => this.api.patient().getPatientsWithUser(this.user,new models.ListOfIdsDto({ids: _.uniq(invAndPatIds.map(x => x[1]))})).then(pats => invAndPatIds.map(it => [it[0], pats.find(p => p.id === it[1])])))
+                                .then(invoicesAndPatient=>_.orderBy(
+                                    _.map(invoicesAndPatient, invAndPat => {
+                                        let invoiceData = invAndPat[0]
+                                        const patientData = invAndPat[1]
+                                        invoiceData = _.merge(invoiceData, {invoiceDate:_.trim(_.get(invoiceData, "invoiceDate","")) || moment(_.get(invoiceData, "created","0")).startOf('month').format("YYYYMMDD") })
+                                        return {
+                                            id: _.get(invoiceData, "id", ""),
+                                            oaId: _.get(invoiceData, "recipientId", ""),
+                                            oaCode: _.get(_.filter(this.messagesCachedData.insurancesData, ins => ins.id === _.get(invoiceData, "recipientId", "")), "[0].code"),
+                                            oaLabel: _.get(_.filter(this.messagesCachedData.insurancesData, ins => ins.id === _.get(invoiceData, "recipientId", "")), "[0].finalName"),
+                                            parentOaId: _.get(_.filter(this.messagesCachedData.insurancesData, ins => ins.id === _.get(invoiceData, "recipientId", "")), "[0].parent"),
+                                            parentOaCode: _.get(_.filter(this.messagesCachedData.parentInsurancesData, ins => ins.id === _.get(message, "metas.parentOaId", "")), "[0].code"),
+                                            parentOaLabel: _.get(_.filter(this.messagesCachedData.parentInsurancesData, ins => ins.id === _.get(message, "metas.parentOaId", "")), "[0].finalName"),
+                                            invoiceData: invoiceData,
+                                            patientData: patientData,
+                                            invoicedAmount: this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(_.sumBy( _.get( invoiceData, "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ))),
+                                            acceptedAmount: "0,00",
+                                            refusedAmount: this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(_.sumBy( _.get( invoiceData, "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ))),
+                                            messageData: originalMessage
+                                        }
+                                    })
+                                    ),
+                                    ['oaCode','invoiceData.invoiceReference','patientData.firstName','patientData.lastName'],
+                                    ['asc','asc','asc','asc']
+                                )
+                                .catch((e)=>console.log(e))
+                        })).then(x=>{
 
-                        // For msg-menu
-                        this.dispatchEvent(new CustomEvent('initialize-batch-counter-j20', { bubbles: true, composed: true, detail: this.messagesCachedData.countByStatus }));
+                            dataByStatus.error = _.orderBy(
+                                _.flatMap(x),
+                                ['oaCode','invoiceData.invoiceReference','patientData.firstName','patientData.lastName'],
+                                ['asc','asc','asc','asc']
+                            )
+                            countByStatus.error = parseInt(_.size(dataByStatus.error))
+
+                            // For us (has to be assigned at once)
+                            this.set("messagesCachedData.dataByStatus", dataByStatus)
+                            this.set("messagesCachedData.countByStatus", countByStatus)
+
+                            // For msg-menu
+                            this.dispatchEvent(new CustomEvent('initialize-batch-counter-j20', { bubbles: true, composed: true, detail: this.messagesCachedData.countByStatus }));
+                            return false;
+
+                        })
+                            .catch((e)=>console.log(e))
 
                     })
                     .catch((e)=>console.log(e))
@@ -4560,6 +4983,7 @@
 
             _toggleBatchDetails(e) {
 
+                // Make sure we have a "legit" click
                 if( _.get(e, "path", false) ) {
                     var paths = _.map( e.path, (pathNode,index)=> { return { index:index, nodeName:_.get( pathNode, "nodeName", "" ), target: _.get( pathNode, "id", "" ).toLowerCase()==="messagesgrid" } })
                     if( !parseInt(_.size(_.compact(_.map( paths.slice( 0, _.get( _.filter(paths,"target"), "[0].index", 0 ) ), (path, index) => { return ["vaadin-grid-cell-content", "slot", "td", "tr" ].indexOf( _.trim(path.nodeName).toLowerCase() ) > -1 } )))) ) return;
@@ -4599,24 +5023,24 @@
 
                                         const acceptedAmount =
                                             _.get(invoiceStatus, "finalStatus") === "pending" ? "0,00" :
-                                            _.get(invoiceStatus, "finalStatus") === "rejected" ? "0,00" :
-                                            _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ):
-                                            _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !i.resent ? parseFloat(i.totalAmount) : 0) ):
-                                            _.get(invoiceStatus, "finalStatus") === "archived" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !i.resent&&!i.canceled ? parseFloat(i.totalAmount) : 0) ):
-                                            "0,00"
+                                                _.get(invoiceStatus, "finalStatus") === "rejected" ? "0,00" :
+                                                    _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ):
+                                                        _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !i.canceled ? parseFloat(i.totalAmount) : 0) ):
+                                                            _.get(invoiceStatus, "finalStatus") === "archived" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !i.canceled ? parseFloat(i.totalAmount) : 0) ):
+                                                                "0,00"
 
                                         const refusedAmount =
                                             _.get(invoiceStatus, "finalStatus") === "pending" ? "0,00" :
-                                            _.get(invoiceStatus, "finalStatus") === "rejected" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ) :
-                                            _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? "0,00" :
-                                            _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !!i.resent ? parseFloat(i.totalAmount) : 0) ):
-                                            _.get(invoiceStatus, "finalStatus") === "archived" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !!i.resent||!!i.canceled ? parseFloat(i.totalAmount) : 0) ):
-                                            "0,00"
+                                                _.get(invoiceStatus, "finalStatus") === "rejected" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ) :
+                                                    _.get(invoiceStatus, "finalStatus") === "fullyAccepted" ? "0,00" :
+                                                        _.get(invoiceStatus, "finalStatus") === "partiallyAccepted" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !!i.canceled ? parseFloat(i.totalAmount) : 0) ):
+                                                            _.get(invoiceStatus, "finalStatus") === "archived" ? _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>( !!i.canceled ? parseFloat(i.totalAmount) : 0) ):
+                                                                "0,00"
 
                                         const messageOriginalStatus = invoiceStatus
 
                                         invoiceStatus = _.get(invoiceStatus, "finalStatus")!=="partiallyAccepted" ? invoiceStatus :
-                                            (_.size(_.compact(_.map( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>!!i.resent )))) ?
+                                            (_.size(_.compact(_.map( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>!!i.canceled )))) ?
                                                 { hrLabel: this.localize('inv_rej','Rejected',this.language), finalStatus:"rejected" } : { hrLabel: this.localize('inv_full_acc','Fully accepted',this.language), finalStatus:"fullyAccepted" }
 
                                         return {
@@ -4640,8 +5064,8 @@
                                     })
                                 })
                             ),
-                            ['oaCode','patientData.firstName','patientData.lastName'],
-                            ['asc', 'asc', 'asc']
+                            ['oaCode','invoiceData.invoiceReference','patientData.firstName','patientData.lastName'],
+                            ['asc','asc','asc','asc']
                         ))
                         .then(messageDetailsData=>{
                             this.set("messageDetailsData", messageDetailsData)
@@ -4657,6 +5081,179 @@
                     this.shadowRoot.getElementById("invoiceDetailContainer") && this.shadowRoot.getElementById("invoiceDetailContainer").classList.remove("open")
 
                 }
+
+            }
+
+            _duplicateRejectedInvoices(rejectedInvoiceIds) {
+
+                // 1. Get invoice(s)
+                // 2. Extract foreign keys to get PAT ID
+                // 3. Get pat with user
+                // 4. Thanks to pat OBJECT, new instance invoice, omitting non "legit" fields (of inv to be corrected)
+                // 5. Link NEW invoice to old one (corrective/corrected)
+                // 6. On new inv instance, loop invoicing codes and set as pending true + resent true (all others to false)
+                // 7. DO create new invoice, passing the entity ref ("type:hcpid:poaId:")
+                // 8. Modify old invoice to set corrective invoice id
+
+                let prom = Promise.resolve([])
+                let insData = {}
+
+                return !parseInt(_.size(rejectedInvoiceIds||[])) ?
+                    prom :
+                    this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.uniq(rejectedInvoiceIds)}))
+                        .then(invoices => {
+                            return this._getInsurancesDataByIds(_.compact(_.uniq(_.map(invoices,"recipientId","")))).then(ins=>{ insData = ins; return invoices; })
+                        })
+                        .then(invoices => {
+                            if(!parseInt(_.size(invoices))) throw new Error("no-resolved-invoices");
+                            return Promise.all(invoices.map(inv => this.api.crypto().extractCryptedFKs(inv, _.get(this, "user.healthcarePartyId", ""))
+                                .then(ids => [inv, ids.extractedKeys[0]])
+                                .catch(e=>{console.log("Can't extractCryptedFKs for", inv, e); return [{},""];})
+                            ))
+                        })
+                        .then(invoicesAndPatIds => {
+                            if(!parseInt(_.size(invoicesAndPatIds))) throw new Error("no-invoices-and-pat-ids");
+                            return this.api.patient().getPatientsWithUser(this.user,new models.ListOfIdsDto({ids: _.uniq(invoicesAndPatIds.map(x => x[1]))}))
+                                .then(pats => invoicesAndPatIds.map(x => [x[0], pats.find(p => p.id === x[1])]))
+                                .catch(e=>{ console.log("Can't getPatientsWithUser for", invoicesAndPatIds, e); return false; })
+                        })
+                        .then(invoicesAndPatients => {
+                            if(!parseInt(_.size(invoicesAndPatients))) throw new Error("no-invoices-and-pats");
+                            return Promise.all( invoicesAndPatients.map( invoiceAndPatient => {
+                                let oldInvoice = invoiceAndPatient[0]
+                                let patient = invoiceAndPatient[1]
+                                return this.api.invoice().newInstance(
+                                    this.user,
+                                    patient,
+                                    _.omit(oldInvoice, [
+                                        "id",
+                                        "rev",
+                                        "deletionDate",
+                                        "created",
+                                        "modified",
+                                        "sentDate",
+                                        "printedDate",
+                                        "secretForeignKeys",
+                                        "cryptedForeignKeys",
+                                        "delegations",
+                                        "encryptionKeys",
+                                        "invoicingCodes",
+                                        "error",
+                                        "receipts",
+                                        "encryptedSelf"
+                                    ])
+                                )
+                                    .then(newInvoiceInstance => {
+                                        oldInvoice.correctiveInvoiceId = _.get(newInvoiceInstance, "id", "" )
+                                        newInvoiceInstance.correctedInvoiceId = _.get(oldInvoice, "id", "" )
+                                        return ({ oldInvoice, newInvoiceInstance })
+                                    })
+                                    .catch(e=>{ console.log("Can't get invoice newInstance based on ", oldInvoice, e); return false; })
+                            }))
+                                .then(x=>x)
+                        })
+                        .then(oldInvoicesObjectsAndNewInvoicesInstances => {
+                            if(!parseInt(_.size(oldInvoicesObjectsAndNewInvoicesInstances))) throw new Error("no-old-new-invoices");
+                            return Promise.all(oldInvoicesObjectsAndNewInvoicesInstances.map( i => {
+                                i.newInvoiceInstance.invoicingCodes = _.map( i.oldInvoice.invoicingCodes, ic => { return _.assign({}, ic, {
+                                    id: this.api.crypto().randomUuid(),
+                                    accepted: false,
+                                    canceled: false,
+                                    pending: true,
+                                    resent: true,
+                                    archived: false
+                                })})
+                                return i;
+                            }))
+                                .then(x=>x)
+                        })
+                        .then(oldInvoicesObjectsAndNewInvoicesInstancesWithInvoicingCodes => {
+                            if(!parseInt(_.size(oldInvoicesObjectsAndNewInvoicesInstancesWithInvoicingCodes))) throw new Error("no-old-new-invoices-with-invoicing-codes");
+
+                            return Promise.all(oldInvoicesObjectsAndNewInvoicesInstancesWithInvoicingCodes.map( i => {
+                                prom = prom.then(oldInvoicesObjectsAndNewInvoicesInstancesWithInvoicingCodes => {
+                                    // This would have 306 being thrown under 300 (done on purpose)
+                                    let parentInsCode = _.get( _.get(_.filter(insData, {id:_.get(i, "oldInvoice.recipientId", "")}), "[0]", {}), "code", "0" ).substr(0,1) + "00"
+                                    return this.api.invoice().modifyInvoice(i.oldInvoice).catch(e=>{ console.log("Can't modify old invoice ", i.oldInvoice, e); return false; }).then(()=>
+                                        this.api.invoice().createInvoice(i.newInvoiceInstance, 'invoice:' + this.user.healthcarePartyId + ':' + parentInsCode + ':')
+                                            .then(()=> _.concat(oldInvoicesObjectsAndNewInvoicesInstancesWithInvoicingCodes, [i]))
+                                            .catch(e=>{ console.log("Can't createInvoice for ", i.newInvoiceInstance, e); return false; })
+                                    )
+                                })
+                            }))
+
+                        })
+                        .catch((e)=>{
+                            console.log(e);
+                            return (
+                                ( _.trim(e).indexOf('no-resolved-invoices') > -1 ) ? console.log("Couldn't find any invoice to resolve?") && e :
+                                    ( _.trim(e).indexOf('no-invoices-and-pat-ids') > -1 ) ? console.log("Couldn't resolve pat ids based on invoices?") && e :
+                                        ( _.trim(e).indexOf('no-invoices-and-pats') > -1 ) ? console.log("Couldn't resolve patients based on invoices?") && e :
+                                            ( _.trim(e).indexOf('no-old-new-invoices') > -1 ) ? console.log("Couldn't get new invoices instances based on old ones?") && e :
+                                                ( _.trim(e).indexOf('no-old-new-invoices-with-invoicing-codes') > -1 ) ? console.log("Couldn't get new invoices instances, (including invoicingCodes) based on old ones?") && e :
+                                                    e
+                            )
+                        })
+                        .finally(()=>prom)
+
+            }
+
+            _flagInvoiceAsCorrected(e) {
+
+                this.set('_isLoadingSmall', true );
+                const invoiceId = _.get(e, "target.dataset.invoiceId", "")
+
+                this.api.invoice().getInvoice(invoiceId)
+                    .then(invoice => {
+                        invoice.invoicingCodes.map(ic => {
+                            ic.canceled = false;
+                            ic.accepted = false;
+                            ic.pending = true;
+                            ic.resent = false;
+                            ic.archived = false;
+                            return ic;
+                        })
+                        return this.api.invoice().modifyInvoice(invoice).then(invoice => this.api.register(invoice,'invoice'))
+                    })
+                    .catch((e)=>{console.log(e)})
+                    .finally(() => {
+                        this.set('_isLoadingSmall', false );
+                        this._fetchJ20Messages(true)
+                    })
+
+            }
+
+            _flagInvoiceAsLostConfirmationDialog(e) {
+                this.flagInvoiceAsLostId = _.get(e, "target.dataset.invoiceId", "")
+                this.set("_bodyOverlay", true);
+                this.$["flagInvoiceAsLostConfirmationDialog"].open()
+            }
+
+            _flagInvoiceAsLost() {
+
+                this.set('_isLoadingSmall', true );
+
+                this.api.invoice().getInvoice(this.flagInvoiceAsLostId)
+                    .then(invoice => {
+                        invoice.invoicingCodes.map(ic => {
+                            ic.canceled = true;
+                            ic.lost = true;
+                            ic.accepted = false;
+                            ic.pending = false;
+                            ic.resent = false;
+                            ic.archived = false;
+                            return ic;
+                        })
+                        invoice.error = "Flagged as lost"
+                        return this.api.invoice().modifyInvoice(invoice).then(invoice => this.api.register(invoice,'invoice'))
+                    })
+                    .catch((e)=>{console.log(e)})
+                    .finally(() => {
+                        this.flagInvoiceAsLostId = "";
+                        this._closeDialogs()
+                        this.set('_isLoadingSmall', false );
+                        this._fetchJ20Messages(true)
+                    })
 
             }
 

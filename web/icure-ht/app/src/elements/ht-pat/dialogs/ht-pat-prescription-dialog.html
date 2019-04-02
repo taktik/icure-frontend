@@ -295,7 +295,7 @@
 			}
 
             _drugsToBePrescribed() {
-                let tbp = this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags.find(t => t.type === 'CD-ITEM' && t.code === 'treatment') && !s.endOfLife && !s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
+                let tbp = this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags.find(t => (t.type === 'CD-ITEM' && t.code === 'treatment') || (t.type === 'ICURE' && t.code === 'PRESC')) && !s.endOfLife && !s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
                 return tbp.length > 0 ? tbp : this._drugsAlreadyPrescribed();
             }
 
@@ -361,7 +361,7 @@
 						patient: this.patient,
 						hcp: hcp,
 						feedback: false,
-						medications: drugsToBePrescribed.filter(s => c.includes(s.id)).map(s => this.api.contact().medicationValue(s, this.language)),
+						medications: drugsToBePrescribed.filter(s => c.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
 						deliveryDate: moment(this.deliveryDateString).format("YYYYMMDD")
 					}).then(prescri => {
 						rid.push(prescri.rid)
@@ -379,9 +379,18 @@
 				})
 				this.$.loading.close();
 			} // print end
-            
+
+            addEmptyPosologyIfNeeded(mv){
+                if(mv.instructionForPatient || mv.regimen && mv.regimen.length > 0){
+                    return mv
+                } else {
+                    mv.instructionForPatient = this.localize('not_applicable','not applicable',this.language);//"pas d'application";
+                    return mv;
+                }
+            }
+
 			_formatPrescriptionsBody(splitColumns,drugsToBePrescribed,patient,hcp,deliveryDate,element,rid) {
-                
+
 				// console.log('_formatPrescriptionsBody, hello hcp is : ',hcp)
 				let prescriToPrint = [], allPages = []
 				let prescNum = 0, pageNum = 1
@@ -422,8 +431,8 @@
 						articleMedWithPoso.push({medR: onePrescri.R, poso: onePrescri.poso})//add medication with posology to the list
 						medicName = onePrescri.R
 					}) // map end
-                    
-                    
+
+
 					const prescri = (this.patient.ssin && this.api.tokenId && rid[idx]) ? `<article class="prescription">
                 <header>
                     <img src="${jpegUrl}" alt="code-bar">
@@ -578,7 +587,7 @@
 							}
 						})
 						if (this.patient.ssin && this.api.tokenId && rid && rid.length>0) {
-							const onePageBodyTop = `<div class="page"><main>${thatBody}</main><footer><table><thead><tr><td>Nom</td><td>Fréquence</td></tr></thead><tbody>`; // prepare the PDF's pages
+							const onePageBodyTop = `<div class="page"><main>${thatBody}</main><footer><table><thead><tr><td>${this.localize('name','Name',this.language)}</td><td>${this.localize('freq','Frequency',this.language)}</td></tr></thead><tbody>`; // prepare the PDF's pages
 							const onepageBodyBottom = `</tbody></table></footer></div>`;
 							allPagesBody += onePageBodyTop+posoTable+onepageBodyBottom;
 						} else {
@@ -696,7 +705,7 @@
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
                 .then(pdfPrintingData=>this.api.document().createDocument(pdfPrintingData.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},pdfPrintingData)))
-                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
+                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
                 .then(pdfPrintingData=>this.api.document().setAttachment(pdfPrintingData.createDocumentResponse.id, null, pdfPrintingData.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},pdfPrintingData)))
                 .then(pdfPrintingData=>{
                     this.dispatchEvent(new CustomEvent('save-document-as-service', {detail: {

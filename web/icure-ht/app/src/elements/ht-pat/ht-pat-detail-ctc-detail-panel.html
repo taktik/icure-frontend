@@ -559,7 +559,7 @@
 				<ht-spinner class="center" active="[[isLoadingDoc]]"></ht-spinner>
 				<template is="dom-if" if="[[list]]">
                     <div class="ctc-header">
-						<span class="contact-title">[[currentContactTypeLabel]][[currentContact.descr]] ([[_dateFormat(currentContact.openingDate)]])
+						<span class="contact-title">[[currentContactTypeLabel]] [[currentContact.descr]] ([[_dateFormat(currentContact.openingDate)]])
                             <template is="dom-if" if="[[_hasCurrentContact()]]">
                                 <dynamic-subcontact-type-selector id="subctc-type-a" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
                             </template>
@@ -576,7 +576,7 @@
 				</template>
 				<template is="dom-if" if="[[table]]">
                     <div class="ctc-header">
-						<span class="contact-title">[[currentContactTypeLabel]][[currentContact.descr]] ([[_dateFormat(currentContact.openingDate)]])
+						<span class="contact-title">[[currentContactTypeLabel]] [[currentContact.descr]] ([[_dateFormat(currentContact.openingDate)]])
                             <template is="dom-if" if="[[_hasCurrentContact()]]">
                                 <dynamic-subcontact-type-selector id="subctc-type-b" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
                             </template>
@@ -593,7 +593,7 @@
 				</template>
 				<template is="dom-if" if="[[graphique]]">
                     <div class="ctc-header">
-						<span class="contact-title">[[currentContactTypeLabel]][[currentContact.descr]] ([[_dateFormat(currentContact.openingDate)]])
+						<span class="contact-title">[[currentContactTypeLabel]] [[currentContact.descr]] ([[_dateFormat(currentContact.openingDate)]])
                             <template is="dom-if" if="[[_hasCurrentContact()]]">
                                 <dynamic-subcontact-type-selector id="subctc-type-c" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
                             </template>
@@ -610,7 +610,7 @@
 					<div class="contact-card-frame">
 					<template is="dom-repeat" items="[[contactsFormsAndDocuments]]" as="dof">
 						<div class="ctc-header">
-                            <span class="contact-title">[[currentContactTypeLabel]][[dof.ctc.userDescr]] ([[_dateFormat(dof.ctc.openingDate)]])
+                            <span class="contact-title">[[currentContactTypeLabel]] [[dof.ctc.descr]] ([[_dateFormat(dof.ctc.openingDate)]])
 								<template is="dom-if" if="[[!dof.ctc.closingDate]]">
                                     <dynamic-subcontact-type-selector id="subctc-type-d" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
 								</template>
@@ -1074,7 +1074,7 @@
 
 			flushSave() {
 				const dynamicallyLoadedForm = this.shadowRoot.querySelector('#dynamicallyLoadedForm');
-				dynamicallyLoadedForm && dynamicallyLoadedForm.flushSave();
+				return dynamicallyLoadedForm && dynamicallyLoadedForm.flushSave();
 			}
 
             _dateFormat(date) {
@@ -1302,7 +1302,7 @@
 			}
 
 			saveCurrentContact() {
-				return (this.currentContact.rev ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
+				return this.flushSave() || (this.currentContact.rev ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
 			}
 
             forceSaveCtc() {
@@ -1368,7 +1368,6 @@
 			}
 
             _refreshCurrentContactTypeLabel() {
-                console.log("ctcs", this.contacts)
                 if(this.contacts) {
                     let label = _.flatten(this.contacts.map( ctc =>{
                         return ctc.tags && ctc.tags.filter(tag=> tag.type == "BE-CONTACT-TYPE").map(tag=> {
@@ -1391,6 +1390,8 @@
                     this.currentContact.tags.push(e.detail.type);
                     this._refreshCurrentContactTypeLabel()
                     this.saveCurrentContact()
+							.then(ctc => this.dispatchEvent(new CustomEvent('contact-saved', { detail: {contact :ctc} , bubbles:true })))
+
                 }
             }
 
@@ -1447,10 +1448,15 @@
 
                 const seenForms = {}
                 const formGroups = this.contacts.reduce((contacts, contact) => {
+					const subContacts = contact.subContacts.map(x=>x)
 
+					const orphanedServices = contact.services.filter(s => !subContacts.some(sc => sc.services.some(lnk => (lnk.id === s.id))))
+					if (orphanedServices.length) {
+					    subContacts.push({services:orphanedServices.map(s=>({serviceId:s.id}))})
+					}
                     const forms = ((this.serviceFilters && this.serviceFilters.length ?
-                    contact.subContacts.filter(sc => !(sc.formId && seenForms[sc.formId]) && sc.services.some( s => this.filteredServiceIds.find(fsId => fsId === s.serviceId))):
-                    contact.subContacts.filter(sc => !(sc.formId && seenForms[sc.formId]) ))|| [])
+                    subContacts.filter(sc => !(sc.formId && seenForms[sc.formId]) && sc.services.some( s => this.filteredServiceIds.find(fsId => fsId === s.serviceId))) :
+                    subContacts.filter(sc => !(sc.formId && seenForms[sc.formId]) )) || [])
                     .map(sc => {
                         const serviceIds = sc.services.map(s => s.serviceId)
                         return {
@@ -1462,8 +1468,8 @@
                     const docIds = _.flatMap(forms, f => f.docs.map(d => d.id))
 
                     const unmappedServices = this.serviceFilters && this.serviceFilters.length ?
-                    _.sortBy(contact.services.filter(svc => !docIds.includes(svc.id) && !contact.subContacts.some(sc => sc.formId && sc.services.some(ssc => ssc.serviceId === svc.id)) && this.filteredServiceIds.some(fsId => fsId === svc.id) ), 'created'):
-                    _.sortBy(contact.services.filter(svc => !docIds.includes(svc.id) && !contact.subContacts.some(sc => sc.formId && sc.services.some(ssc => ssc.serviceId === svc.id)) ), 'created')
+                    _.sortBy(contact.services.filter(svc => !docIds.includes(svc.id) && !subContacts.some(sc => sc.formId && sc.services.some(ssc => ssc.serviceId === svc.id)) && this.filteredServiceIds.some(fsId => fsId === svc.id) ), 'created'):
+                    _.sortBy(contact.services.filter(svc => !docIds.includes(svc.id) && !subContacts.some(sc => sc.formId && sc.services.some(ssc => ssc.serviceId === svc.id)) ), 'created')
 
                     if((forms && forms.length) || (unmappedServices && unmappedServices.length)) {
                         contacts.push({
@@ -1910,7 +1916,7 @@
                     )
                     .then(resourcesObject=>this.api.document().createDocument(resourcesObject.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},resourcesObject)))
                     .then(resourcesObject=>this.api.pdfReport(this._getProsePdfHeader() + this.api.rewriteTableColumnsWidth(proseHtmlContent) + this._getPdfFooter()).then(pdfFileContent=>_.assign({pdfFileContent:pdfFileContent},resourcesObject)))
-                    .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
+                    .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
                     .then(resourcesObject=>this.api.document().setAttachment(resourcesObject.createDocumentResponse.id, null, resourcesObject.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},resourcesObject)))
                     .then(resourcesObject=>this._saveDocumentAsService({
                         documentId: _.trim(_.get(resourcesObject, "createDocumentResponse.id", "")),
@@ -2242,7 +2248,7 @@
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
                     .then(resourcesObject=>this.api.document().createDocument(resourcesObject.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},resourcesObject)))
-                    .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
+                    .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
                     .then(resourcesObject=>this.api.document().setAttachment(resourcesObject.createDocumentResponse.id, null, resourcesObject.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},resourcesObject)))
                     .then(resourcesObject=>{
                         this._saveDocumentAsService({
@@ -2561,7 +2567,7 @@
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
                 .then(pdfPrintingData=>this.api.document().createDocument(pdfPrintingData.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},pdfPrintingData)))
-                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
+                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
                 .then(pdfPrintingData=>this.api.document().setAttachment(pdfPrintingData.createDocumentResponse.id, null, pdfPrintingData.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},pdfPrintingData)))
                 .then(pdfPrintingData=>{
                     this._saveDocumentAsService({
@@ -2710,7 +2716,7 @@
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
                 .then(pdfPrintingData=>this.api.document().createDocument(pdfPrintingData.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},pdfPrintingData)))
-                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
+                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
                 .then(pdfPrintingData=>this.api.document().setAttachment(pdfPrintingData.createDocumentResponse.id, null, pdfPrintingData.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},pdfPrintingData)))
                 .then(pdfPrintingData=>{
                     this._saveDocumentAsService({
@@ -2892,7 +2898,7 @@
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
                 .then(pdfPrintingData=>this.api.document().createDocument(pdfPrintingData.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},pdfPrintingData)))
-                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
+                .then(pdfPrintingData=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, pdfPrintingData.createDocumentResponse, pdfPrintingData.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},pdfPrintingData)))
                 .then(pdfPrintingData=>this.api.document().setAttachment(pdfPrintingData.createDocumentResponse.id, null, pdfPrintingData.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},pdfPrintingData)))
                 .then(pdfPrintingData=>{
                     this._saveDocumentAsService({
@@ -3389,7 +3395,7 @@
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
                     .then(resourcesObject=>this.api.document().createDocument(resourcesObject.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},resourcesObject)))
-                    .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user.healthcarePartyId, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
+                    .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
                     .then(resourcesObject=>this.api.document().setAttachment(resourcesObject.createDocumentResponse.id, null, resourcesObject.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},resourcesObject)))
                     .then(resourcesObject=>{
                         this._saveDocumentAsService({
