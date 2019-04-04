@@ -181,6 +181,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <template>
                             <div>
                                 <paper-icon-button class="mobile-menu-btn" icon="vaadin:edit" data-item$="[[item.id]]" on-tap="_editSticker"></paper-icon-button>
+                                <paper-icon-button class="mobile-menu-btn" icon="vaadin:trash" data-item$="[[item.id]]" on-tap="_delSticker"></paper-icon-button>
                             </div>
                         </template>
                     </vaadin-grid-column>
@@ -272,8 +273,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             ready() {
                 super.ready()
                 this.api.isElectronAvailable().then(elect=>this.set('electronAvailable',elect))
-
-
             }
 
             _electronChange(){
@@ -285,53 +284,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _savePrinters(){
                 const printerSettingComplete = this.listTypeDocument.filter(type => (type.formatSelected || type.formatSelected===0) && (type.printerSelected || type.printerSelected===0))
-                    .map(x => {return{type:x.type,format : x.formatSelected,printer : x.printerSelected}})
-
-                let property =this.user.properties.filter( prop => prop.type.identifier==="org.taktik.icure.be.user.preferredPrinters");
-                let tmpStickProperties = [];
-                if(!property.length){
-                    property = {
-                        type: {
-                            identifier: "org.taktik.icure.be.user.preferredPrinters",
-                            type: "JSON",
-                            unique: true,
-                            localized: false,
-                            _attachments: {},
-                            java_type: "org.taktik.icure.entities.PropertyType",
-                            rev_history: {}
-                        },
-                        typedValue: {
-                            type: "STRING",
-                            stringValue: ""
-                        },
-                        _attachments: {},
-                        java_type: "org.taktik.icure.entities.Property",
-                        rev_history: {}
-                    }
-                    this.user.properties.push(property);
-
-                }
-                else{
-                    tmpStickProperties = (property.typedValue && property.typedValue.stringValue && JSON.parse(property.typedValue.stringValue).stickers) || []
-                }
-
-                this.user.properties.find( prop => prop.type.identifier==="org.taktik.icure.be.user.preferredPrinters").typedValue.stringValue=JSON.stringify({documents : printerSettingComplete, stickers : tmpStickProperties})
-                this.api.user().modifyUser(this.user)
-                    .then(user => this.api.register(user,"user"))
-                    .then(user => this.set('user',user))
-
+                .map(x => {return{type:x.type,format : x.formatSelected,printer : x.printerSelected}})
+                localStorage.setItem('printerSetting',JSON.stringify(printerSettingComplete))
             }
 
             _userChanged(){
                 if(!this.printers.length)return;
-                const property = this.user.properties.find( prop => prop.type.identifier==="org.taktik.icure.be.user.preferredPrinters")
-                const printerSetting = (property && property.typedValue && property.typedValue.type ==="STRING" && property.typedValue.stringValue) ? JSON.parse(property.typedValue.stringValue) : {documents : [],stickers : []}
-                printerSetting.documents.map(setting => {
+                const property = JSON.parse(localStorage.getItem('printerSetting'))
+                property.map(setting => {
                     const itemTypeDoc =this.listTypeDocument.findIndex(itemDoc => itemDoc.type===setting.type)
                     this.set("listTypeDocument."+itemTypeDoc+".formatSelected", setting.format)
                     this.set("listTypeDocument."+itemTypeDoc+".printerSelected", this.printers.find(printer => printer.name===setting.printer) ? setting.printer : "print-window")
                 })
-                this.set("listStickers",printerSetting.stickers || [])
+                const propertyStickers = JSON.parse(localStorage.getItem('stickersSetting'))
+                this.set("listStickers",propertyStickers || [])
             }
 
             _addSticker(){
@@ -358,71 +324,31 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _saveSticker(){
-                let property = this.user.properties.find( prop => prop.type.identifier==="org.taktik.icure.be.user.preferredPrinters")
-                let printerSetting = {}
-                if(property) {
-                    printerSetting = (property && property.typedValue && property.typedValue.type === "STRING" && property.typedValue.stringValue) ? JSON.parse(property.typedValue.stringValue) : {
-                        documents: [],
-                        stickers: []
-                    }
-                    let stickTmp = {}
-                    if (this.sticker.id) {
-                        stickTmp = printerSetting.stickers.find(stick => stick.id === this.sticker.id)
-                        stickTmp.name = this.sticker.name
-                        stickTmp.printer = this.sticker.printer
-                        stickTmp.formatX = this.sticker.formatX
-                        stickTmp.formatY = this.sticker.formatY
-                        this.set("listStickers."+this.listStickers.findIndex(stick => stick.id===this.sticker.id),stickTmp)
-                    } else {
-                        stickTmp.id = this.api.crypto().randomUuid()
-                        stickTmp.name = this.sticker.name
-                        stickTmp.printer = this.sticker.printer
-                        stickTmp.formatX = this.sticker.formatX
-                        stickTmp.formatY = this.sticker.formatY
-                        printerSetting.stickers.push(stickTmp)
-                        this.push("listStickers",stickTmp)
-                    }
-
-                    this.user.properties.find(prop => prop.type.identifier === "org.taktik.icure.be.user.preferredPrinters").typedValue.stringValue = JSON.stringify(printerSetting)
-                    this.api.user().modifyUser(this.user)
-                        .then(user => this.api.register(user, "user"))
-                        .then(user => this.set('user', user))
+                const printerSetting =localStorage.getItem("stickersSetting") ? JSON.parse(localStorage.getItem("stickersSetting")) : []
+                let stickTmp = {}
+                if (this.sticker.id) {
+                    stickTmp = printerSetting.find(stick => stick.id === this.sticker.id)
+                    stickTmp.name = this.sticker.name
+                    stickTmp.printer = this.sticker.printer
+                    stickTmp.formatX = this.sticker.formatX
+                    stickTmp.formatY = this.sticker.formatY
+                    this.set("listStickers."+this.listStickers.findIndex(stick => stick.id===this.sticker.id),stickTmp)
+                } else {
+                    stickTmp.id = this.api.crypto().randomUuid()
+                    stickTmp.name = this.sticker.name
+                    stickTmp.printer = this.sticker.printer
+                    stickTmp.formatX = this.sticker.formatX
+                    stickTmp.formatY = this.sticker.formatY
+                    this.push("listStickers",stickTmp)
                 }
-                else{
-                    let stickTmp ={
-                        id : this.api.crypto().randomUuid(),
-                        name : this.sticker.name,
-                        printer : this.sticker.printer,
-                        formatX : this.sticker.formatX,
-                        formatY : this.sticker.formatY
-                    }
-                    property = {
-                        type: {
-                            identifier: "org.taktik.icure.be.user.preferredPrinters",
-                            type: "JSON",
-                            unique: true,
-                            localized: false,
-                            _attachments: {},
-                            java_type: "org.taktik.icure.entities.PropertyType",
-                            rev_history: {}
-                        },
-                        typedValue: {
-                            type: "STRING",
-                            stringValue: JSON.stringify({documents : [],stickers : [stickTmp]})
-                        },
-                        _attachments: {},
-                        java_type: "org.taktik.icure.entities.Property",
-                        rev_history: {}
-                    }
 
-                    this.user.properties.push(property)
-                    this.api.user().modifyUser(this.user)
-                        .then(user => this.api.register(user, "user"))
-                        .then(user => {
-                            this.set('user', user)
-                            this.push("listStickers",stickTmp)
-                        })
-                }
+                localStorage.setItem("stickersSetting",JSON.stringify(this.listStickers))
+            }
+
+            _delSticker(e){
+                const stickTemp = this.listStickers.filter(stick => stick.id!==e.target.dataset.item)
+                this.set("listStickers",stickTemp)
+                localStorage.setItem("stickersSetting",JSON.stringify(this.listStickers))
             }
         }
 
