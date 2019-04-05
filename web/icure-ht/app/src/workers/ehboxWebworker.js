@@ -193,7 +193,8 @@ onmessage = e => {
                         console.log('boxId',boxId)
                         registerNewMessage(fullMessage, boxId)
                             .then(([createdMessage, annexDocs]) => {
-                                return tryToAssignAppendices(createdMessage, fullMessage, annexDocs, boxId)
+                               // return tryToAssignAppendices(createdMessage, fullMessage, annexDocs, boxId)
+                                return Promise.resolve()
                             })
                     }
                 })
