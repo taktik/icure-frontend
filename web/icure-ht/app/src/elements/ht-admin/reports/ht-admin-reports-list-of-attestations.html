@@ -79,7 +79,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             .form vaadin-combo-box{
                 flex-grow: 2;
-                padding: 0 8px 0 0;
+                padding: 0 0px 0 0;
                 box-sizing: border-box;
             }
 
@@ -213,10 +213,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <vaadin-date-picker id="date-picker" label="[[localize('to2', 'Au', language)]]" value="{{dateTo}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
                     </div>
                     <vaadin-combo-box class="full-width" filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" on-value-changed="filterInvoiceList" selected-item="{{selectedHcpItem}}" label="Prestataire" readonly="[[readonly]]"></vaadin-combo-box>
+                    <vaadin-combo-box class="full-width" filtered-items="[[patientListItem]]" id="pat-list" item-label-path="name" item-value-path="id" on-filter-changed="_patientFilterChanged" on-value-changed="filterInvoiceList" selected-item="{{selectedPatientItem}}" label="Patient" readonly="[[readonly]]"></vaadin-combo-box>
                 </div>
 
                 <div class="form-boxes flex grow-1 space-between">
                     <div class="flex col space-between full-height">
+                        <paper-checkbox checked="{{invoiceIsSent}}">[[localize('sent','Envoyé',language)]]</paper-checkbox>
+
                         <paper-checkbox checked="{{invoiceType_mutualfund}}">[[localize('inv_mut','Mutual',language)]]</paper-checkbox>
                         <paper-checkbox checked="{{invoiceType_patient}}">[[localize('inv_pat','Patient',language)]]</paper-checkbox>
                         <paper-checkbox checked="{{invoiceType_others}}">[[localize('oth_orgs','Other organisms',language)]]</paper-checkbox>
@@ -257,6 +260,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </vaadin-grid-column>
                 <vaadin-grid-column>
                     <template class="header">
+                        <vaadin-grid-sorter path="responsibleToSort">
+                            [[localize('responsible','Responsable',language)]]
+                        </vaadin-grid-sorter>
+                    </template>
+                    <template>
+                        <div>[[item.responsible]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
 
                         <vaadin-grid-sorter path="dateToSort" direction="desc">
                             [[localize('dat','Date',language)]]
@@ -264,6 +277,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     </template>
                     <template>
                         <div>[[item.date]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+
+                        <vaadin-grid-sorter path="sentDateToSort" direction="desc">
+                            [[localize('sent_date','Date d\'envoi',language)]]
+                        </vaadin-grid-sorter>
+                    </template>
+                    <template>
+                        <div>[[item.sentDate]]</div>
                     </template>
                 </vaadin-grid-column>
                 <vaadin-grid-column>
@@ -380,7 +404,47 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </vaadin-grid-column>
                 <vaadin-grid-column>
                     <template class="header">
-                        [[localize('tot_amount','Total amount',language)]]
+                        [[localize('inv_oa','Remboursement par l\'OA',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.reimbursementAmount]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('convention','Convention',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.conventionAmount]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('inv_sup','Supplément',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.doctorSupplement]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('tot_pat','Ticket modérateur',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.ticketAmount]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('total_patient','Total patient',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.totalPatientAmount]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('inv_tot','Total amount',language)]]
                     </template>
                     <template>
                         <div>[[item.totalAmount]]</div>
@@ -529,6 +593,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         value: false
                     },
 
+                    invoiceIsSent: {
+                        type: Boolean,
+                        value: true
+                    },
+
                     invoiceType_patient: {
                         type: Boolean,
                         value: false
@@ -583,12 +652,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             return {};
                         }
                     },
+                    hcpCache: {
+                        type: Object,
+                        noReset: true,
+                        value: function () {
+                            return {};
+                        }
+                    },
                 }
             }
 
             static get observers() {
                 return [
-                    'filterInvoiceList(selectedHcpItem)',
+                    'filterInvoiceList(selectedHcpItem, selectedPatientItem)',
+                    'filterInvoiceList(invoiceIsSent)',
                     'filterInvoiceList(invoiceType_mutualfund, invoiceType_patient, invoiceType_others)',
                     'filterInvoiceList(sentMediumType_eattest, sentMediumType_efact, sentMediumType_mediprima, sentMediumType_paper)',
                     'filterInvoiceList(paymentType_cash, paymentType_debitcard, paymentType_creditcard, paymentType_wired)',
@@ -627,11 +704,43 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _hcpDataProvider() {
                 return {
                     filter: function (filterValue) {
-                        const desc = 'desc';
+                        const desc = 'asc';
                         let count = 15;
                         return Promise.all([this.api.hcparty().findByName(filterValue, null,  null, count, desc)]).then(results => {
                             const hcpList = results[0];
                             const filtered = _.flatten(hcpList.rows.filter(hcp => hcp.lastName && hcp.lastName !== "" || hcp.firstName && hcp.firstName !== "").map(hcp => ({id: hcp.id , name : hcp.lastName + ' ' +hcp.firstName}) ));
+                            return { totalSize: filtered.length, rows: filtered };
+                        });
+
+                    }.bind(this)
+                };
+            }
+
+            _patientFilterChanged(e){
+                let latestSearchValue = e && e.detail.value;
+                this.latestSearchValue = latestSearchValue;
+                if (!latestSearchValue || latestSearchValue.length < 2) {
+                    console.log("Cancelling empty search");
+                    this.set('patientListItem', []);
+                    return;
+                }
+                this._patientDataProvider() && this._patientDataProvider().filter(latestSearchValue).then(res => {
+                    if (latestSearchValue !== this.latestSearchValue) {
+                        console.log("Cancelling obsolete search");
+                        return;
+                    }
+                    this.set('patientListItem', res.rows);
+                });
+            }
+
+            _patientDataProvider() {
+                return {
+                    filter: function (filterValue) {
+                        const desc = 'asc';
+                        let count = 15;
+                        return Promise.all([this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, filterValue, null, null, 100, "asc")]).then(results => {
+                            const patList = results[0];
+                            const filtered = _.flatten(patList.rows.filter(pat => pat.lastName && pat.lastName !== "" || pat.firstName && pat.firstName !== "").map(pat => ({id: pat.id , name : pat.lastName + ' ' +pat.firstName}) ));
                             return { totalSize: filtered.length, rows: filtered };
                         });
 
@@ -647,8 +756,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return this.api.user().getUser(userId).then(user => {
                             return this.api.hcparty().getHealthcareParty(user.healthcarePartyId).then(hcp => {
                                 this.userCache[userId] = hcp
+                                this.hcpCache[hcp.id] = hcp
                                 return hcp
                             })
+                        })
+                    }
+                })
+            }
+
+            getCachedHcpByHcpId(hcpId) {
+                return Promise.resolve().then(() => {
+                    if(this.hcpCache[hcpId] != null) {
+                        return this.hcpCache[hcpId]
+                    } else {
+                        return this.api.hcparty().getHealthcareParty(hcpId).then(hcp => {
+                            this.hcpCache[hcpId] = hcp
+                            return hcp
                         })
                     }
                 })
@@ -691,22 +814,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it => [it[0], it[1], ins.find(i => it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate >= patIns.startDate && it[0].invoiceDate <= patIns.endDate && patIns.insuranceId === i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId === i.id))))]))
                         )
                         .then(invAndPats => {
-                            return Promise.all(_.uniq(invAndPats.map(iap => iap[0].author)).map(author => this.getCachedHcpByUserId(author))).then(() => invAndPats)
+                            // cache author
+                            return Promise.all(_.uniq(invAndPats.map(iap => iap[0].author)).map(userId => this.getCachedHcpByUserId(userId))).then(() => invAndPats)
+                        })
+                        .then(invAndPats => {
+                            // cache responsible
+                            return Promise.all(_.uniq(invAndPats.map(iap => iap[0].responsible)).map(hcpId => this.getCachedHcpByHcpId(hcpId))).then(() => invAndPats)
                         })
                         .then(invAndPats => {
                             return Promise.all(invAndPats.map(([invoice, pat, ins]) => {
 
                                 //console.log("invoice:", invoice)
                                 let invdate = ""
+                                let sentdate = ""
                                 let dateToSort = 0
+                                let sentDateToSort = 0
                                 if(invoice.invoiceDate !== null && invoice.invoiceDate !== undefined && invoice.invoiceDate !== "" ) {
                                     invdate = this.api.moment(invoice.invoiceDate).format("DD-MM-YYYY")
                                     dateToSort = parseInt(this.api.moment(invoice.invoiceDate).format("YYYYMMDD"))
                                 }
+                                if(invoice.sentDate !== null && invoice.sentDate !== undefined && invoice.sentDate !== "" ) {
+                                    sentdate = this.api.moment(invoice.sentDate).format("DD-MM-YYYY")
+                                    sentDateToSort = parseInt(this.api.moment(invoice.sentDate).format("YYYYMMDD"))
+                                }
                                 const item = {
                                     //author: after,
                                     date: invdate,
+                                    sentDate: sentdate,
                                     dateToSort: dateToSort,
+                                    sentDateToSort: sentDateToSort,
                                     //patient: after
                                     invoiceReference: invoice.invoiceReference,
                                     //oa: after
@@ -726,14 +862,27 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                                 const computeSum = function (paytype) {
                                     if(invoice.paymentType == paytype) {
-                                        return item.totalAmount
+                                        return item.totalPatientAmount
                                     } else {
                                         return 0
                                     }
                                 }
-                                item.totalAmount = invoice.invoicingCodes.reduce((acc, code) => {
-                                    return acc + code.totalAmount
-                                }, 0) || 0
+                                const computeCodeSum = function(propName) {
+                                    return invoice.invoicingCodes.reduce((acc, code) => {
+                                        return acc + code[propName]
+                                    }, 0) || 0
+                                }
+                                item.totalAmount = computeCodeSum('totalAmount')
+                                item.reimbursementAmount = computeCodeSum('reimbursement')
+                                item.conventionAmount = computeCodeSum('conventionAmount')
+                                item.doctorSupplement = computeCodeSum('doctorSupplement')
+                                item.ticketAmount = computeCodeSum('patientIntervention')
+                                if(invoice.sentMediumType == "eattest" || invoice.invoiceType == "eattest") {
+                                    item.totalPatientAmount = item.totalAmount
+                                } else {
+                                    item.totalPatientAmount = item.ticketAmount + item.doctorSupplement
+                                }
+
                                 item.cash = computeSum('cash')
                                 item.debitCard = computeSum('debitcard')
                                 item.creditCard = computeSum('creditcard')
@@ -742,13 +891,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 item.insurance = ins ? ins.code + ' ' + (ins.name["fr"] || ins.name["nl"]) : null
                                 item.oa = item.insurance ? item.insurance[0] + '00' : null
                                 item.patient = pat ? (pat.firstName + ' ' + pat.lastName) : null
+                                item.patientId = pat ? pat.id : null
                                 item.patientToSort = item.patient.toLowerCase()
 
                                 return this.getCachedHcpByUserId(invoice.author).then(hcp => {
                                     item.author = hcp.lastName + ' ' + hcp.firstName
                                     item.authorToSort = item.author.toLowerCase()
                                     item.authorHcpId = hcp.id
-                                    return item
+                                }).then(() => {
+                                    return this.getCachedHcpByHcpId(invoice.responsible).then(hcp => {
+                                        item.responsible = hcp.lastName + ' ' + hcp.firstName
+                                        item.responsibleToSort = item.responsible.toLowerCase()
+                                        item.responsibleHcpId = hcp.id
+                                        return item
+                                    })
                                 })
                             }))
                         }).then(invlist => {
@@ -760,6 +916,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             filterInvoiceList() {
                 const invoiceTypeFilter = []
+
+
                 if(this.invoiceType_mutualfund === true) {
                     invoiceTypeFilter.push("mutualfund")
                 }
@@ -807,6 +965,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 this.set('filteredInvoiceItems', this.invoiceItems.filter(inv => {
                     let res = true
+
+                    if(this.invoiceIsSent === true) {
+                        res = res && (inv.sentDate != "" && inv.sentDate != null && inv.sentDate != 0)
+                    }
+
                     if(invoiceTypeFilter.length === 0) {
                         //res = true
                         // no checkbox checked, show all
@@ -833,6 +996,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         res = res && inv.authorHcpId === this.selectedHcpItem.id
                     }
 
+                    if(this.selectedPatientItem != null) {
+                        res = res && inv.patientId === this.selectedPatientItem.id
+                    }
+
                     return res
                 }))
             }
@@ -851,11 +1018,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     }
                     xlinv.date = xlinv.date.replace("-", "/").replace("-", "/")
                     xlinv.invoiceId = xlinv.invoice.id
+                    delete xlinv.patientId
                     delete xlinv.invoice
                     delete xlinv.authorHcpId
+                    delete xlinv.responsibleHcpId
+                    delete xlinv.responsibleToSort
                     delete xlinv.patientToSort
                     delete xlinv.authorToSort
                     delete xlinv.dateToSort
+                    delete xlinv.sentDateToSort
                     return xlinv
                 }))
             }
