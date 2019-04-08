@@ -703,6 +703,11 @@
                     overflow: auto;
                 }
 
+                .traineeIcon{
+                    height: 12px;
+                    width: 12px;
+                }
+
             </style>
         </custom-style>
         <div class="invoice-panel">
@@ -737,7 +742,7 @@
                         <vaadin-grid id="noscroll" class="pendingTable" class="force-sizer" theme="force-sizer">
                             <vaadin-grid-column flex-grow="0" width="4%" class="recipient-col" >
                                 <template class="header">
-                                    <vaadin-grid-sorter path="invoice.sentMediumType">[[localize('inv_insurability','Insurability',language)]]</vaadin-grid-sorter>
+                                   <!-- <vaadin-grid-sorter path="invoice.sentMediumType">[[localize('inv_insurability','Insurability',language)]]</vaadin-grid-sorter>-->
                                 </template>
                             </vaadin-grid-column>
                             <vaadin-grid-column flex-grow="0" width="10%" class="recipient-col">
@@ -810,7 +815,13 @@
                                 <div slot="collapse-content">
                                     <vaadin-grid id="invoiceGrid" class="invoiceGrid" items="[[item.pat]]" multi-sort="[[multiSort]]" active-item="{{activeGridItem}}" on-tap="_showInvoiceToBeSendDetails">
                                         <vaadin-grid-column flex-grow="0" width="4%" class="recipient-col">
-                                            <!--<template>[[item.invoice.sentMediumType]]</template>-->
+                                            <template>
+                                                <small>
+                                                    <template is="dom-if" if="[[item.realizedByTrainee]]">
+                                                        <iron-icon icon="vaadin:academy-cap" class="traineeIcon"></iron-icon>
+                                                    </template>
+                                                </small>
+                                            </template>
                                         </vaadin-grid-column>
                                         <vaadin-grid-column flex-grow="0" width="10%" class="recipient-col">
                                             <template>
@@ -1955,7 +1966,8 @@
                             invoice: inv,
                             toBeCorrected: !!inv.invoicingCodes.find(ic => ic.resent === true),
                             error: inv.error || "",
-                            insurabilityCheck: insurabilityComplete
+                            insurabilityCheck: insurabilityComplete,
+                            realizedByTrainee : inv.internshipNihii && inv.internshipNihii.length ? true : false
                     })
                 }))
                 .then(invoiceStruct => {
@@ -2406,8 +2418,9 @@
                             .groupBy(fact => fact.insuranceParent)
                             .toPairs().value()
                             .forEach(([fedId,invoices]) => {
-                                prom = prom.then(() => this.api.message().sendBatch(this.user, hcp, invoices.map(iv=>({invoiceDto:iv.invoice, patientDto:iv.patient})), this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.api.fhc().Efactcontroller()))
-                                            .then(message => this.api.register(message,'message'))
+                                prom = prom.then(() => this.api.message().sendBatch(this.user, hcp, invoices.map(iv=>({invoiceDto:iv.invoice, patientDto:iv.patient})), this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.api.fhc().Efactcontroller(),
+                                    (fed, hcpId) => `efact:${hcpId}:${fed.code === "306" ? "300" : fed.code}:`)
+                                ).then(message => this.api.register(message,'message'))
                             })
 
                         return prom.then(() => {
@@ -2956,8 +2969,12 @@
                             prom = prom.then(() =>
                                 new Promise((resolve) => {
                                     if (message.detail) {
-                                        this.api.message().processEfactMessage(this.user, this.hcp, message)
-                                            .then(msg => {
+                                        this.api.message().processEfactMessage(this.user, this.hcp, message, null, (iv, hcpId) =>
+                                            iv.recipientId && this.api.insurance().getInsurance(iv.recipientId)
+                                                .then(ins => this.api.insurance().getInsurance(ins.parent))
+                                                .then(ins => `invoice:${hcpId}:${ins.code || '000'}:`)
+                                            || Promise.resolve(`invoice:${hcpId}:000:`)
+                                        ).then(msg => {
                                                 msg ? resolve(message) : resolve()
                                             })
                                             .catch(e => {
