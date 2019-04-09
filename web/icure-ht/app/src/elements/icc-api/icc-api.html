@@ -581,16 +581,19 @@
                 electron = elect
                 const optionsString = _.toPairs(options).map(([k, v]) => `${k}=${v}`).join('&')
 
-                return !electron || !options.type ? Promise.resolve(electron) : fetch("http://127.0.0.1:16042/getPrinterSetting", {
+                return (!electron || !options.type || !options.user ? Promise.resolve(electron) : fetch('http://localhost:16042/getPrinterSetting', {
                     method: "POST",
-                    mode: "cors", // no-cors, cors, *same-origin
-                    credentials: "same-origin", // include, same-origin, *omit
-                    headers: {"Content-Type": "text/html; charset=utf-8"},
-                    redirect: "follow",
-                    body: {userId : this.user.id},
-                }).then( data => {
-                    const printersPrefs = electron && data ? JSON.parse(data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
-                    const stickersPrefs = electron && data ? printersPrefs.find( pref => pref.type === "sticker-mut") || {} : printersPrefs.stickers
+                    headers: {
+                        "Content-Type": "application/json; charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                        userId: options.user
+                    })
+                }))
+                .then(response => response ? response.json() : Promise.resolve(response))
+                .then( data => {
+                    const printersPrefs = electron && data && data.ok ? JSON.parse(data.data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
+                    const stickersPrefs = electron && data && data.ok ? printersPrefs.find( pref => pref.type === "sticker-mut") || {} : printersPrefs.stickers
                     const typePreference = electron && data && options.type ? printersPrefs.find(pref => pref.type===options.type) || null : null
                     const paperSize = typePreference ?  typePreference.type==="sticker-mut" ? "stickers" : typePreference.format==="A4" ? "a4" : typePreference.format ==="A5" ? "a5" : typePreference.format==="DL" ? "presc" : "a4"
                         :  options.paperWidth === 105 ? 'presc' : options.paperHeight === 210 ? 'a5' : (stickersPrefs && options.paperWidth === stickersPrefs.w && options.paperHeight === stickersPrefs.h) ? 'stickers' : 'a4'
