@@ -579,18 +579,21 @@
             let electron = false
             return this.isElectronAvailable().then(elect => {
                 electron = elect
+                return this.user().getCurrentUser()
+            }).then(user =>{
                 const optionsString = _.toPairs(options).map(([k, v]) => `${k}=${v}`).join('&')
+                if(!optionsString.length) option.type="doc-big-format"
 
-                return (!electron || !options.type || !options.user ? Promise.resolve(electron) : fetch('http://localhost:16042/getPrinterSetting', {
+                return (!electron || !options.type ? Promise.resolve(electron) : fetch('http://localhost:16042/getPrinterSetting', {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json; charset=utf-8"
                     },
                     body: JSON.stringify({
-                        userId: options.user
+                        userId: user.id
                     })
                 }))
-                .then(response => response ? response.json() : Promise.resolve(response))
+                .then(response => response && response.status===200 ? response.json() : Promise.resolve({}))
                 .then( data => {
                     const printersPrefs = electron && data && data.ok ? JSON.parse(data.data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
                     const stickersPrefs = electron && data && data.ok ? printersPrefs.find( pref => pref.type === "sticker-mut") || {} : printersPrefs.stickers
@@ -598,6 +601,10 @@
                     const paperSize = typePreference ?  typePreference.type==="sticker-mut" ? "stickers" : typePreference.format==="A4" ? "a4" : typePreference.format ==="A5" ? "a5" : typePreference.format==="DL" ? "presc" : "a4"
                         :  options.paperWidth === 105 ? 'presc' : options.paperHeight === 210 ? 'a5' : (stickersPrefs && options.paperWidth === stickersPrefs.w && options.paperHeight === stickersPrefs.h) ? 'stickers' : 'a4'
                     const printerName = typePreference ? typePreference.printer : options.printer ? printersPrefs[options.printer] && printersPrefs[options.printer].bw || "" : (printersPrefs[paperSize] && (printersPrefs[paperSize].bw && printersPrefs[paperSize].bw.length ? printersPrefs[paperSize].bw : printersPrefs[paperSize].color && printersPrefs[paperSize].color.length ? printersPrefs[paperSize].color : null)) || null
+
+                    //if(paperSize==="stickers"){
+                    //    optionsString += "paperWidth=90&paperHeight=29"
+                    //}
 
                     return (printerName ? Promise.resolve(printerName) : this.printers().then(printers => printers.find(p => p.isDefault)).then(p => p && p.name))
                         .then(printerName =>
