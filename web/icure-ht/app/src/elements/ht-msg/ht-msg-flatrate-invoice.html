@@ -1613,10 +1613,6 @@
                         type: Object,
                         value: moment()
                     },
-                    reportMonthGap: {
-                        type: Number,
-                        value: 1
-                    },
                     flatRateInvoicingDataObject: {
                         type: Object,
                         value: null
@@ -2240,44 +2236,25 @@
             _getListingJ3(e) {
 
                 this.set('_isLoading', true );
-                this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_1',this.language), icon:"arrow-forward"});
-                this.reportCurrentDateMomentObject = moment(
-                    _.trim(
-                        parseInt(_.get(this.shadowRoot.getElementById("listingExportedYear")||{}, "value", this._getExportCurrentYear())) +
-                        ( ( _.trim(_.get(this.shadowRoot.getElementById("listingExportedMonth")||{}, "value", this._getExportCurrentMonth())).length === 1 ? "0" : "" ) + parseInt(_.get(this.shadowRoot.getElementById("listingExportedMonth"), "value", this._getExportCurrentMonth())) ) +
-                        "01"
-                    ),
-                    "YYYYMMDD"
+                this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_2',this.language), icon:"arrow-forward"});
+
+                this.reportCurrentDateString = _.trim(
+                    parseInt(_.get(this.shadowRoot.getElementById("listingExportedYear")||{}, "value", this._getExportCurrentYear())) +
+                    ( ( _.trim(_.get(this.shadowRoot.getElementById("listingExportedMonth")||{}, "value", this._getExportCurrentMonth())).length === 1 ? "0" : "" ) + parseInt(_.get(this.shadowRoot.getElementById("listingExportedMonth"), "value", this._getExportCurrentMonth())) ) +
+                    "01"
                 );
+                this.reportCurrentDateMomentObject = moment(this.reportCurrentDateString, "YYYYMMDD");
 
-                // get my hcp children
-                this._getMyHcps()
-                    .then(myHcps => {
-                        this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_1_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                        this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_2',this.language), icon:"arrow-forward"});
-
-                        let resolvedHcpPatients = 0;
-                        let totalHcpPatientToResolve = _.size(myHcps);
-                        if(!totalHcpPatientToResolve) {this.set('_isLoading', false ); return;}
-
-                        // Get patients of child hcp
-                        _.forEach(myHcps, (singleHcp) => {
-                            this._getPatientsByHcp(singleHcp.id)
-                                .then(hcpPat => {
-                                    resolvedHcpPatients++;
-                                    this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_3',this.language) + " " + (resolvedHcpPatients) + '/' + totalHcpPatientToResolve+"...", icon:"arrow-forward", updateLastMessage: true});
-                                    if(!!hcpPat.length) _.forEach(hcpPat, ((singleHcpPat)=>this.flatRateAllPatients.push(singleHcpPat)));
-                                    if(totalHcpPatientToResolve===resolvedHcpPatients){
-                                        this.flatRateAllPatients = _.chain(this.flatRateAllPatients).uniqBy('ssin').orderBy(['lastName', 'firstName'],['asc','asc']).value();
-                                        this._getInsuranceTitularyInfo().then( data => {
-                                            this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_3_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                                            this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4',this.language), icon:"arrow-forward"});
-                                            this._getInsurancesData();
-                                        })
-                                    }
-                                })
-                                .catch(()=>{this.set('_isLoading', false );})
+                this._getPatientsByHcp(_.get(this.hcp, "id"))
+                    .then(hcpPat => {
+                        this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_3_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
+                        if(!!hcpPat.length) _.forEach(hcpPat, ((singleHcpPat)=>this.flatRateAllPatients.push(singleHcpPat)));
+                        this.flatRateAllPatients = _.chain(this.flatRateAllPatients).uniqBy('ssin').orderBy(['lastName', 'firstName'],['asc','asc']).value();
+                        this._getInsuranceTitularyInfo().then( data => {
+                            this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4',this.language), icon:"arrow-forward"});
+                            this._getInsurancesData();
                         })
+
                     })
                     .catch(()=>{this.set('_isLoading', false );})
                 ;
@@ -2296,6 +2273,9 @@
             }
 
             _getExportPageHeader(data, isInvoicingExport=false) {
+
+                // Make sure
+                this.reportCurrentDateMomentObject = !!_.trim(this.reportCurrentDateString) ? moment(this.reportCurrentDateString, "YYYYMMDD") : this.reportCurrentDateMomentObject;
 
                 return `
                     <article id="" class="page">
@@ -2530,6 +2510,9 @@
             }
 
             _getExportPageFooter(currentPage,totalPages,oaCode, isInvoicingExport=false) {
+
+                // Make sure
+                this.reportCurrentDateMomentObject = !!_.trim(this.reportCurrentDateString) ? moment(this.reportCurrentDateString, "YYYYMMDD") : this.reportCurrentDateMomentObject;
 
                 return `
                     </article>
@@ -2831,7 +2814,7 @@
 
             _getInsurancesDataByPatientsList(inputPatientsList) {
                 return new Promise(resolve => {
-                    this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.chain(inputPatientsList).map(i=>_.trim(_.get(i, "insurabilities[0].insuranceId"))).uniq().compact().value()}))
+                    this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.chain(inputPatientsList).map(i=> i.insurabilities.map(ins => _.trim(_.get(ins, "insuranceId")))).flattenDeep().uniq().compact().value()}))
                         .then(insurancesData => resolve(
                             _
                                 .chain(insurancesData)
@@ -2908,7 +2891,7 @@
                             // 01 : Subscriptions WITHOUT try-out period
                             list1 :  _.compact(_.map(OaPatients, pat=>{
                                 return parseInt(_.size(_.filter(_.get(pat, "medicalHouseContracts", []), mhc=>{return(
-                                    moment( _.get(mhc, "startOfContract", 0), 'YYYYMMDD').startOf('month').isSame( moment().subtract(this.reportMonthGap, 'month').startOf('month') ) &&
+                                    moment( _.get(mhc, "startOfContract", 0), 'YYYYMMDD').startOf('month').isSame( this.reportCurrentDateMomentObject.startOf('month') ) &&
                                     ( moment( _.get(mhc, "startOfContract", 0), 'YYYYMMDD').startOf('month').isSame( moment( _.get(mhc, "startOfCoverage", 0), 'YYYYMMDD').subtract(1,"month").startOf('month') ) || !parseInt(_.get(mhc, "startOfCoverage", 0)) )
                                 )}))) ? pat : false
                             })),
@@ -2916,20 +2899,20 @@
                             // 02 : Subscriptions WITH try-out period
                             list2 : _.compact(_.map(OaPatients, pat=>{
                                 return parseInt(_.size(_.filter(_.get(pat, "medicalHouseContracts", []), mhc=>{return(
-                                    moment( _.get(mhc, "startOfContract", 0), 'YYYYMMDD').startOf('month').isSame( moment().subtract(this.reportMonthGap, 'month').startOf('month') ) &&
+                                    moment( _.get(mhc, "startOfContract", 0), 'YYYYMMDD').startOf('month').isSame( this.reportCurrentDateMomentObject.startOf('month') ) &&
                                     moment( _.get(mhc, "startOfContract", 0), 'YYYYMMDD').startOf('month').isBefore( moment( _.get(mhc, "startOfCoverage", 0), 'YYYYMMDD').subtract(1,"month").startOf('month') )
                                 )}))) ? pat : false
                             })),
 
                             // 03 : Unsubscriptions
-                            list3 : _.compact(_.map(OaPatients, pat=>{ return parseInt(_.size(_.filter(_.get(pat, "medicalHouseContracts", []), mhc=>{ return moment( _.get(mhc, "endOfContract", 0), 'YYYYMMDD').startOf('month').isSame( moment().subtract(this.reportMonthGap, 'month').startOf('month') ) }))) ? pat : false })),
+                            list3 : _.compact(_.map(OaPatients, pat=>{ return parseInt(_.size(_.filter(_.get(pat, "medicalHouseContracts", []), mhc=>{ return moment( _.get(mhc, "endOfContract", 0), 'YYYYMMDD').startOf('month').isSame( this.reportCurrentDateMomentObject.startOf('month') ) }))) ? pat : false })),
 
                             //  Suspensions
                             suspensions : _.compact(_.map(OaPatients, pat=>{
                                 return parseInt(_.size(_.filter( _.get(pat, "medicalHouseContracts", []), mhc=>{return(
                                     !!_.trim( _.get(mhc,"suspensionReason","")) &&
-                                    ( parseInt(_.get(mhc,"startOfSuspension",0)) && moment( _.get(mhc,"startOfSuspension",0)+"", "YYYYMMDD" ).isBefore( moment() ) ) &&
-                                    ( !parseInt(_.get(mhc,"endOfSuspension",0)) || moment( _.get(mhc,"endOfSuspension",0)+"", "YYYYMMDD" ).isAfter( moment() ) )
+                                    ( parseInt(_.get(mhc,"startOfSuspension",0)) && moment( _.get(mhc,"startOfSuspension",0)+"", "YYYYMMDD" ).isBefore( this.reportCurrentDateMomentObject ) ) &&
+                                    ( !parseInt(_.get(mhc,"endOfSuspension",0)) || moment( _.get(mhc,"endOfSuspension",0)+"", "YYYYMMDD" ).isAfter( this.reportCurrentDateMomentObject ) )
                                 )}))) ? pat : false
                             }))
 
@@ -2995,8 +2978,16 @@
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_6',this.language), icon:"arrow-forward"});
 
-                this.downloadFileName = this.reportCurrentDateMomentObject.format('YYYY-MM-DD') + '-' + moment().format("HH[h]-mm[m]-ss[s]") + "-listing-patients" + ".pdf";
+                this.downloadFileName = _.kebabCase( _.compact([
+                    'listing patients',
+                    ' ',
+                    this.localize('month_' + parseInt(moment(this.reportCurrentDateString, "YYYYMMDD").format('M')), this.language),
+                    ' ',
+                    parseInt(moment(this.reportCurrentDateString, "YYYYMMDD").format('Y')),
+                    ' au '
+                ]).join("")) + "-" + moment().format("YYYY-MM-DD-HH[h]-mm[m]-ss[s]") + '.pdf'
 
+                pdfData.type="doc-off-format"
                 // Generate, archive & download pdf report
                 this.api.pdfReport(mustache.render(pdfTemplate, pdfData))
                     .then(({pdf:pdfFileContent, printed:printed}) =>{
@@ -3920,6 +3911,7 @@
 
                 this.set('_isLoading', true );
                 this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_1',this.language), icon:"arrow-forward"});
+                this.reportCurrentDateString = null;
 
                 // Force refresh - could be new "valorisation" / bce / bank account / contact person / ... was just set
                 if(_.size(_.get(this.api.hcparty().cache, _.get(this.user, "healthcarePartyId", "" )))) delete this.api.hcparty().cache[_.get(this.user, "healthcarePartyId", "" )];
@@ -4609,7 +4601,7 @@
                             })
                     })
                     .then(pdfTemplateObjects=>{
-                        return Promise.all(pdfTemplateObjects.map( singlePdfFileObject => this.api.pdfReport(mustache.render(singlePdfFileObject.template, {})).then(x=>_.merge(singlePdfFileObject, {fileContent:x.pdf})) ))
+                        return Promise.all(pdfTemplateObjects.map( singlePdfFileObject => this.api.pdfReport(mustache.render(singlePdfFileObject.template, {type : "doc-off-format"})).then(x=>_.merge(singlePdfFileObject, {fileContent:x.pdf})) ))
                     })
                     .then(generatedPdfFiles=>{
 
@@ -4663,7 +4655,7 @@
                         return this._generateJ20PdfTemplateParentOaObjects().then(x=>x)
                     })
                     .then((parentOaPdfTemplateObjects)=>{
-                        return Promise.all(parentOaPdfTemplateObjects.map( singlePdfFileObject => this.api.pdfReport(mustache.render(singlePdfFileObject.template, {})).then(x=>_.merge(singlePdfFileObject, {fileContent:x.pdf})) ))
+                        return Promise.all(parentOaPdfTemplateObjects.map( singlePdfFileObject => this.api.pdfReport(mustache.render(singlePdfFileObject.template, {type : "doc-off-format"})).then(x=>_.merge(singlePdfFileObject, {fileContent:x.pdf})) ))
                     })
                     .then(generatedOaPdfFiles=>{
 
