@@ -31,10 +31,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../../bower_components/vaadin-upload/vaadin-upload.html">
 
 <link rel="import" href="../../dialog-style.html">
+<link rel="import" href="../../notification-style.html">
 
 <dom-module id="ht-pat-list">
     <template>
-        <style include="dialog-style"></style>
+        <style include="dialog-style notification-style"></style>
         <custom-style>
             <style include="custom-style">
                 :host {
@@ -851,7 +852,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
 
                 .eid-notification-panel{
-                    display: flex;
+                    display: none;
                     flex-direction: column;
                     position: fixed;
                     top: 84px;
@@ -860,16 +861,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     background: var(--app-background-color);
                     color: var(--app-text-color);
                     font-size: 13px;
-                    min-width: 208px;
+                    width: 460px;
                     opacity: 0;
                     z-index: 1000;
                     border-radius: 3px 0 0 3px;
                     box-shadow: var(--app-shadow-elevation-1);
                     overflow: hidden;
                     transition: all .5s ease-in;
+                    z-index: 2;
                 }
 
+
                 .notification {
+                    display: flex;
                     opacity: 1;
                     right: 16px;
                 }
@@ -893,20 +897,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     display: flex;
                     flex-direction: row;
                     width: 100%;
-                    justify-content: space-around;
+                    justify-content: flex-end;
                 }
-                div.panel-bottom-btns > paper-button {
-                    flex-grow: 1;
-                    height: 40px;
+                div.panel-bottom-btns > paper-button {           
                     margin: 4px;
-                    padding: 4px;
-                    text-align: center;
-                    cursor: pointer;
-                    border-radius: 2px;
                     transition: .25s ease;
                 }
+                div.panel-bottom-btns > paper-button > iron-icon {           
+                    padding: 4px;
+                    box-sizing: border-box;
+                    opacity: .7;
+                }
                 div.panel-bottom-btns > paper-button:hover {
-                    background: var(--app-secondary-color-dark);
+                    box-shadow: var(--app-shadow-elevation-2);
                 }
 
                 paper-icon-button.save-filter {
@@ -918,6 +921,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     flex-flow: row nowrap;
                     justify-content: space-between;
                     align-items: center;
+                    z-index: 1;
                 }
 
                 .search-field-container paper-input {
@@ -927,7 +931,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 .search-field-container paper-button {
                     margin: 20px 24px 0 0;
                 }
-
             </style>
         </custom-style>
 
@@ -971,12 +974,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <paper-button on-tap="closeEidPanel" panel="eidOpenPatientMessage"><iron-icon icon="cancel" panel="eidOpenPatientMessage"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
             </paper-item>
-            <paper-item id="eidFound" class="eid-notification-panel">
-                <div class="panel-header"><iron-icon icon="vaadin:health-card"></iron-icon> [[localize('eid_found','eid found',language)]], [[localize('open_pat','open patient',language)]] ?</div>
-                <div class="panel-bottom-btns">
-                    <paper-button on-tap="closeEidPanel" panel="eidFound"><iron-icon icon="cancel" panel="eidFound"></iron-icon>[[localize('no','No',language)]]</paper-button>
-                    <paper-button on-tap="checkNiss"><iron-icon icon="check-circle"></iron-icon> [[localize('yes','Yes',language)]]</paper-button>
-                </div>
+            <paper-item id="eidFound" class="notification-container">
+                <iron-icon class="notification-icn" icon="vaadin:health-card"></iron-icon>
+                <div class="notification-msg">[[localize('eid_found','eid found',language)]], [[localize('open_pat','open patient',language)]] ?</div>
+                <paper-button class="notification-btn" on-tap="closeEidPanel" panel="eidFound"><iron-icon icon="cancel" panel="eidFound"></iron-icon>[[localize('no','No',language)]]</paper-button>
+                <paper-button class="notification-btn" on-tap="checkNiss"><iron-icon icon="check-circle"></iron-icon> [[localize('yes','Yes',language)]]</paper-button>
             </paper-item>
 
             <div class="second-filter-panel">
@@ -1896,14 +1898,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _showInactivePatientsChanged() {
                 const grid = this.$['patients-list']
-                grid.cache = []
+                grid.innerCache = []
                 grid.clearCache()
             }
 
             _any(a,b,c) {
                 return a || b
             }
-
 
             ready() {
                 super.ready()
@@ -1923,9 +1924,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 var grid = this.$['patients-list']
 
                 grid.lastParams = null //Used to prevent double calls
+                grid.lastParamsWithIdx = null //Used to prevent double calls
                 grid.size = 0
                 grid.pageSize = 50
-                grid.cache = []
+                grid.innerCache = []
 
                 grid.dataProvider = (params, callback) => {
                     const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path || 'lastName'
@@ -1935,115 +1937,163 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     const startIndex = (params.page || 0) * pageSize
                     const endIndex = ((params.page || 0) + 1) * pageSize
 
-                    const thisParams = this.filterValue + "|" + sort + "|" + (desc ? "<|" : ">|") + startIndex + ":" + pageSize + ":" + JSON.stringify(this.selectedFilters || [])
+                    const thisParams = this.filterValue + "|" + sort + "|" + (desc ? "<|" : ">|") + pageSize + ":" + JSON.stringify(this.selectedFilters || [])
+                    const thisParamsWithIdx = thisParams + ":" + startIndex
 
-                    let latestSearchValue = this.filterValue
-                    this.latestSearchValue = latestSearchValue
+                    //100ms cooldown period
 
-                    if ((!latestSearchValue || latestSearchValue.length < 2) && !(this.selectedFilters && this.selectedFilters.length)) {
-                        console.log("Cancelling empty search")
-                        this.btnSelectionPatient = false
-                        this.shareOption = false
-                        this.exportOption = false
-                        this.fusionOption = false
-                        grid.set("size", 0)
-                        callback([])
-                        return
-                    }
+                        let latestSearchValue = this.filterValue
+                        this.latestSearchValue = latestSearchValue
 
-                    let svcFilter = null
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(currentHcp => {
-                        if (this.selectedFilters && this.selectedFilters.length) {
-                            svcFilter = this.selectedFilters.length > 1 ? {
-                                "$type": "IntersectionFilter",
-                                filters: this.selectedFilters.map(f => f.filter)
-                            } : this.selectedFilters[0].filter
-                        } else {
-                            try {
-                                svcFilter = filterExParser.parse(latestSearchValue, {hcpId: currentHcp.parentId || this.user.healthcarePartyId})
-                            } catch (ignored) {
+                        if ((!latestSearchValue || latestSearchValue.length < 2) && !(this.selectedFilters && this.selectedFilters.length)) {
+                            console.log("Cancelling empty search")
+                            this.btnSelectionPatient = false
+                            this.shareOption = false
+                            this.exportOption = false
+                            this.fusionOption = false
+                            grid.set("size", 0)
+                            callback([])
+                            return
+                        }
+
+                        let svcFilter = null
+                        this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(currentHcp => {
+                            if (this.selectedFilters && this.selectedFilters.length) {
+                                svcFilter = this.selectedFilters.length > 1 ? {
+                                    "$type": "IntersectionFilter",
+                                    filters: this.selectedFilters.map(f => f.filter)
+                                } : this.selectedFilters[0].filter
+                            } else {
+                                try {
+                                    svcFilter = filterExParser.parse(latestSearchValue, {hcpId: currentHcp.parentId || this.user.healthcarePartyId})
+                                } catch (ignored) {}
                             }
-                        }
 
-                        const filter = svcFilter ? null : /^[0-9]{11}$/.test(latestSearchValue) ? {
-                            '$type': 'PatientByHcPartyAndSsinFilter',
-                            'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
-                            'ssin': latestSearchValue
-                        } : /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(latestSearchValue) ? {
-                            '$type': 'PatientByHcPartyDateOfBirthFilter',
-                            'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
-                            'dateOfBirth': latestSearchValue.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3, decalage, chaine) => (p3.length === 4 ? p3 : (p3 > 20) ? "19" + p3 : "20" + p3) + (p2.length === 2 ? p2 : "0" + p2) + (p1.length === 2 ? p1 : "0" + p1))
-                        } : {
-                            '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
-                            'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
-                            'searchString': latestSearchValue
-                        }
+                            const filter = svcFilter ? null : {
+                                '$type': 'IntersectionFilter',
+                                'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word => /^[0-9]{11}$/.test(word) ? {
+                                    '$type': 'PatientByHcPartyAndSsinFilter',
+                                    'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                    'ssin': word
+                                } : /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? {
+                                    '$type': 'PatientByHcPartyDateOfBirthFilter',
+                                    'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                    'dateOfBirth': word.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3) => (p3.length === 4 ? p3 : (p3 > 20) ? "19" + p3 : "20" + p3) + (p2.length === 2 ? p2 : "0" + p2) + (p1.length === 2 ? p1 : "0" + p1))
+                                } : /^[0-9]{3}[0-9]+$/.test(word) ? {
+                                    '$type': 'UnionFilter',
+                                    'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                    'filters': [
+                                        {
+                                            '$type': 'PatientByHcPartyDateOfBirthBetweenFilter', 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                            'minDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '00') : Number(word.substr(0,4) + '0000'),
+                                            'maxDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '99') : Number(word.substr(0,4) + '9999')
+                                        },
+                                        {
+                                            '$type': 'PatientByHcPartyAndExternalIdFilter', 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                            'externalId': word
+                                        }
+                                    ]
+                                } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
+                                    '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                                    'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                    'searchString': word
+                                } : null))
+                            }
 
-
-                        if (grid.lastParams !== thisParams) {
-                            grid.lastParams = thisParams
-                            console.log("Starting search for " + thisParams)
-
-                            this.set('hideSpinner', false)
-                            this.set('isLoadingPatient', true)
-
-                            ;(svcFilter ? this.api.contact().filterServicesBy(null, null, 10000, {filter: svcFilter})
-                                    .then(out => {
-                                        let rows = out.rows
-
-                                        const svcDict = rows.reduce((acc, s) => {
-                                            const cs = acc[s.id]
-                                            if (!cs || !cs.modified || s.modified && this.api.after(s.modified, cs.modified)) {
-                                                acc[s.id] = s
-                                            }
-                                            return acc
-                                        }, {})
-                                        const services = _.sortBy(Object.values(svcDict).filter(s => !s.endOfLife), [s => +this.api.moment(s.modified || s.created || s.valueDate)])
-                                        const hcpId = this.user.healthcarePartyId
-
-                                        const ownersOfDelegations = services.reduce((acc, s) => {
-                                            s.cryptedForeignKeys[hcpId].forEach(d => acc[d.owner] = 1)
-                                            return acc
-                                        }, {})
-                                        const importedAESHcPartyKeys = {}
-
-                                        return Promise.all(services.map(s => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(hcpId, document.id, s.cryptedForeignKeys)
-                                            .then(({extractedKeys: cfks}) => cfks)))
-                                            .then(cfksLists => this.api.patient().filterByWithUser(this.user, null, null, endIndex, params.index, sort, desc, {
-                                                filter: {
-                                                    '$type': 'PatientByIdsFilter',
-                                                    'ids': _.uniqBy(_.compact(_.flatMap(cfksLists)))
-                                                }
-                                            }))
-                                    }).then(res => res.rows.filter(p => this.showInactive || p.active).slice(startIndex, endIndex)) : this.api.getRowsUsingPagination((key, docId, pageSize) =>
-                                    this.api.patient().filterByWithUser(this.user, key, docId, pageSize || 50, 0, sort, desc, {filter: filter})
-                                        .then(pl => {
-                                                return {
-                                                    rows: pl.rows,
-                                                    nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
-                                                    nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
-                                                    done: !pl.nextKeyPair
-                                                }
+                            const predicates = svcFilter ? [] : latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word =>
+                                /^[0-9]{11}$/.test(word) ? (() => true) :
+                                    /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? (() => true) :
+                                        /^[0-9]{3}[0-9]+$/.test(word) ? ((p) => (p.dateOfBirth && (`${p.dateOfBirth}`.includes(word))) || (p.externalId && p.externalId.includes(word))) :
+                                            (p => {
+                                                const w = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'')
+                                                return w.length<2 ? true : (p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                                    (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
                                             })
-                                            .catch(() => {
-                                                return Promise.resolve()
+                            )
+
+
+                            if (grid.lastParamsWithIdx !== thisParamsWithIdx) {
+                                grid.lastParamsWithIdx = thisParamsWithIdx
+                                console.log("Starting search for " + thisParamsWithIdx)
+
+                                this.set('hideSpinner', false)
+                                this.set('isLoadingPatient', true)
+
+                                if (thisParams !== grid.lastParams) {
+                                    grid.lastParams = thisParams
+                                    grid.innerCache = []
+                                }
+
+                                grid.lastParamsWithIdxProm = (svcFilter ? this.api.contact().filterServicesBy(null, null, 10000, {filter: svcFilter})
+                                            .then(out => {
+                                                let rows = out.rows
+
+                                                const svcDict = rows.reduce((acc, s) => {
+                                                    const cs = acc[s.id]
+                                                    if (!cs || !cs.modified || s.modified && this.api.after(s.modified, cs.modified)) {
+                                                        acc[s.id] = s
+                                                    }
+                                                    return acc
+                                                }, {})
+                                                const services = _.sortBy(Object.values(svcDict).filter(s => !s.endOfLife), [s => +this.api.moment(s.modified || s.created || s.valueDate)])
+                                                const hcpId = this.user.healthcarePartyId
+
+                                                return Promise.all(services.map(s => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(hcpId, document.id, s.cryptedForeignKeys)
+                                                    .then(({extractedKeys: cfks}) => cfks)))
+                                                    .then(cfksLists => this.api.patient().filterByWithUser(this.user, null, null, endIndex, params.index, sort, desc, {
+                                                        filter: {
+                                                            '$type': 'PatientByIdsFilter',
+                                                            'ids': _.uniqBy(_.compact(_.flatMap(cfksLists)))
+                                                        }
+                                                    }))
+                                            }).then(res => res.rows.filter(p => this.showInactive || p.active).slice(startIndex, endIndex)) :
+                                        this.api.getRowsUsingPagination((key, docId, pageSize) =>
+                                            this.api.patient().filterByWithUser(this.user, key, docId, pageSize || 50, 0, sort, desc, {
+                                                filter: _.assign({}, filter, {filters: filter.filters.filter(f => f['$type'] !== 'ClientSideFilter')})
                                             })
-                                , p => this.showInactive || p.active, startIndex, endIndex, grid.cache || ((grid.cache = [])))
-                            ).then(res => {
-                                if (grid.lastParams !== thisParams) {
-                                    console.log("Cancelling obsolete search")
-                                    return
-                                }
-                                if (res.length > 0 || startIndex > 0) {
-                                    this.btnSelectionPatient = true
-                                }
-                                callback(res.map(this.pimpPatient), res.length >= endIndex - startIndex ? res.length + startIndex + pageSize : res.length + startIndex)
-                            }).finally(() => {
-                                this.set('hideSpinner', true)
-                                this.set('isLoadingPatient', false)
-                            })
-                        }
-                    })
+                                                .then(pl => {
+                                                    const filteredRows = pl.rows.filter(p => predicates.every(f => f(p)))
+                                                    this.set('searchHint', filteredRows.length > 20 ? this.localize('add_criteria', 'Add search criteria (year, part of file id, part of firstname, separated by spaces to improve the precision of your search') : '')
+                                                    return {
+                                                        rows: filteredRows,
+                                                        nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                                        nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                                        done: !pl.nextKeyPair
+                                                    }
+                                                })
+                                                .catch(() => {
+                                                    return Promise.resolve()
+                                                }), p => this.showInactive || p.active, startIndex, endIndex, grid.innerCache || ((grid.innerCache = [])))
+                                )
+
+                                grid.lastParamsWithIdxProm.then(res => {
+                                    if (grid.lastParams !== thisParams) {
+                                        console.log("Cancelling obsolete search")
+                                        return
+                                    }
+                                    if (res.length > 0 || startIndex > 0) {
+                                        this.btnSelectionPatient = true
+                                    }
+                                    callback(res.map(this.pimpPatient), res.length >= endIndex - startIndex ? res.length + startIndex + pageSize : res.length + startIndex)
+                                }).finally(() => {
+                                    this.set('hideSpinner', true)
+                                    this.set('isLoadingPatient', false)
+                                })
+                            } else {
+                                grid.lastParamsWithIdxProm.then(res => {
+                                    if (grid.lastParams !== thisParams) {
+                                        console.log("Cancelling obsolete search")
+                                        return
+                                    }
+                                    if (res.length > 0 || startIndex > 0) {
+                                        this.btnSelectionPatient = true
+                                    }
+                                    callback(res.map(this.pimpPatient), res.length >= endIndex - startIndex ? res.length + startIndex + pageSize : res.length + startIndex)
+                                })
+                            }
+                        })
+
                 }
 
 
@@ -2142,7 +2192,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     if (previousValue === this.filterValue) {
                         console.log("Triggering search for " + this.filterValue)
                         const grid = this.$['patients-list']
-                        grid.cache = []
+                        grid.innerCache = []
                         grid.clearCache()
                     } else {
                         console.log("Skipping search for new value " + this.filterValue + " != " + previousValue)
@@ -2736,7 +2786,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (this.selectedFilters.length) {
                     this.set('filterValue', this._selectedFiltersAsString())
                     const grid = this.$['patients-list']
-                    grid.cache = []
+                    grid.innerCache = []
                     grid.clearCache()
                 }
             }
