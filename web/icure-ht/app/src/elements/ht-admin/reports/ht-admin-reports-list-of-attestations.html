@@ -390,6 +390,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             <div class="flex space-between">
                 <paper-checkbox class="anon-check" checked="{{isExportAnonyme}}">[[localize('anon_export','Anonymous export',language)]]</paper-checkbox>
+                <div>[[localize("nr_of_rows","Nombre de lignes", language)]] : [[filteredInvoiceItems.length]]/[[invoiceItems.length]]</div>
                 <paper-button on-tap="exportToCsv" class="modal-button modal-button--save export-btn">[[localize('export','Export',language)]]</paper-button>
             </div>
 
@@ -587,10 +588,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             static get observers() {
                 return [
-                    'filterInvoiceList(selectedHcpItem, dateFrom, dateTo)',
+                    'filterInvoiceList(selectedHcpItem)',
                     'filterInvoiceList(invoiceType_mutualfund, invoiceType_patient, invoiceType_others)',
                     'filterInvoiceList(sentMediumType_eattest, sentMediumType_efact, sentMediumType_mediprima, sentMediumType_paper)',
                     'filterInvoiceList(paymentType_cash, paymentType_debitcard, paymentType_creditcard, paymentType_wired)',
+                    'refreshInvoiceList(dateFrom, dateTo)',
+                    'filterInvoiceList(invoiceItems)',
                 ];
             }
 
@@ -600,7 +603,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             ready() {
                 super.ready()
-                this.refreshInvoiceList().then(x=> this.filterInvoiceList() )
+                this.set("dateFrom", moment().startOf('month').format("YYYY-MM-DD"))
+                this.set("dateTo", moment().endOf('month').format("YYYY-MM-DD"))
             }
 
             _hcpFilterChanged(e){
@@ -650,83 +654,107 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
             }
 
+            getRawInvoiceList() {
+                return this.api.user().getCurrentUser().then(user  => {
+                    return this.api.hcparty().getCurrentHealthcareParty().then(currentHcp => {
+                        const dateFrom = this.dateFrom !== "" ? parseInt(this.dateFrom.replace("-", "").replace("-", ""), 10) : null
+                        let dateTo = this.dateTo !== "" ? parseInt(this.dateTo.replace("-", "").replace("-", ""), 10) : null
+                        if(dateTo && dateFrom && dateTo < dateFrom) {
+                            dateTo = dateFrom // prevent error in API
+                        }
+                        //console.log("from to", dateFrom, dateTo)
+
+                        return this.api.getRowsUsingPagination(
+                            (key,docId) =>
+                                this.api.invoice().findByAuthor(currentHcp.parentId || currentHcp.id, dateFrom, dateTo, key, docId, 2000)
+                                    .then(pl => { return {
+                                        rows:  pl.rows,
+                                        nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                        nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                        done: !pl.nextKeyPair,
+                                    }})
+                        ) .catch(e=>{ console.log(e); return Promise.resolve([]); })
+                    })
+                })
+            }
+
             refreshInvoiceList() {
                 this.set('_isLoadingList', true)
-                return this.api.hcparty().getCurrentHealthcareParty().then(currentHcp  => {
-                    return this.api.invoiceicc.listToPatients(currentHcp.parentId).then(invoices => {
-                        return Promise.all(invoices.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]])))
-                            .then(invAndIdsPat =>
-                                this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
-                            ).then(invAndPats => {
-                                console.log("invAndPats", invAndPats)
-                                return invAndPats.filter(iap => iap[1] !== undefined && iap[1] !== null)
-                            }).then(invAndPats =>
-                                this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it => [it[0], it[1], ins.find(i => it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate >= patIns.startDate && it[0].invoiceDate <= patIns.endDate && patIns.insuranceId === i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId === i.id))))]))
-                            )
-                            .then(invAndPats => {
-                                return Promise.all(_.uniq(invAndPats.map(iap => iap[0].author)).map(author => this.getCachedHcpByUserId(author))).then(() => invAndPats)
-                            })
-                            .then(invAndPats => {
-                                return Promise.all(invAndPats.map(([invoice, pat, ins]) => {
+                return this.getRawInvoiceList().then(invoices => {
+                    return Promise.all(invoices.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]])))
+                        .then(invAndIdsPat =>
+                            this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
+                        ).then(invAndPats => {
+                            console.log("invAndPats", invAndPats)
+                            return invAndPats.filter(iap => iap[1] !== undefined && iap[1] !== null)
+                        }).then(invAndPats =>
+                            this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it => [it[0], it[1], ins.find(i => it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate >= patIns.startDate && it[0].invoiceDate <= patIns.endDate && patIns.insuranceId === i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId === i.id))))]))
+                        )
+                        .then(invAndPats => {
+                            return Promise.all(_.uniq(invAndPats.map(iap => iap[0].author)).map(author => this.getCachedHcpByUserId(author))).then(() => invAndPats)
+                        })
+                        .then(invAndPats => {
+                            return Promise.all(invAndPats.map(([invoice, pat, ins]) => {
 
-                                    //console.log("invoice:", invoice)
-                                    let invdate = ""
-                                    let dateToSort = 0
-                                    if(invoice.invoiceDate !== null && invoice.invoiceDate !== undefined && invoice.invoiceDate !== "" ) {
-                                        invdate = this.api.moment(invoice.invoiceDate).format("DD-MM-YYYY")
-                                        dateToSort = parseInt(this.api.moment(invoice.invoiceDate).format("YYYYMMDD"))
+                                //console.log("invoice:", invoice)
+                                let invdate = ""
+                                let dateToSort = 0
+                                if(invoice.invoiceDate !== null && invoice.invoiceDate !== undefined && invoice.invoiceDate !== "" ) {
+                                    invdate = this.api.moment(invoice.invoiceDate).format("DD-MM-YYYY")
+                                    dateToSort = parseInt(this.api.moment(invoice.invoiceDate).format("YYYYMMDD"))
+                                }
+                                const item = {
+                                    //author: after,
+                                    date: invdate,
+                                    dateToSort: dateToSort,
+                                    //patient: after
+                                    invoiceReference: invoice.invoiceReference,
+                                    //oa: after
+                                    //insurance: after
+                                    invoiceType: this.getInvoiceTypeLabel(invoice.invoiceType),
+                                    sentMediumType: this.getSentMediumTypeLabel(invoice.sentMediumType),
+                                    //linkedConvention: for future use
+                                    paymentType: this.getPaymentTypeLabel(invoice.paymentType),
+                                    cash: 0,
+                                    debitCard: 0,
+                                    creditCard: 0,
+                                    wired: 0,
+                                    totalAmount: 0,
+
+                                    invoice: invoice
+                                }
+
+                                const computeSum = function (paytype) {
+                                    if(invoice.paymentType == paytype) {
+                                        return item.totalAmount
+                                    } else {
+                                        return 0
                                     }
-                                    const item = {
-                                        //author: after,
-                                        date: invdate,
-                                        dateToSort: dateToSort,
-                                        //patient: after
-                                        invoiceReference: invoice.invoiceReference,
-                                        //oa: after
-                                        //insurance: after
-                                        invoiceType: this.getInvoiceTypeLabel(invoice.invoiceType),
-                                        sentMediumType: this.getSentMediumTypeLabel(invoice.sentMediumType),
-                                        //linkedConvention: for future use
-                                        paymentType: this.getPaymentTypeLabel(invoice.paymentType),
-                                        cash: 0,
-                                        debitCard: 0,
-                                        creditCard: 0,
-                                        wired: 0,
-                                        totalAmount: 0,
+                                }
+                                item.totalAmount = invoice.invoicingCodes.reduce((acc, code) => {
+                                    return acc + code.totalAmount
+                                }, 0) || 0
+                                item.cash = computeSum('cash')
+                                item.debitCard = computeSum('debitcard')
+                                item.creditCard = computeSum('creditcard')
+                                item.wired = computeSum('wired')
 
-                                        invoice: invoice
-                                    }
+                                item.insurance = ins ? ins.code + ' ' + (ins.name["fr"] || ins.name["nl"]) : null
+                                item.oa = item.insurance ? item.insurance[0] + '00' : null
+                                item.patient = pat ? (pat.firstName + ' ' + pat.lastName) : null
+                                item.patientToSort = item.patient.toLowerCase()
 
-                                    const computeSum = function (paytype) {
-                                        return invoice.invoicingCodes.filter(c => c.paymentType === paytype).reduce((acc, code) => {
-                                            return acc + code.totalAmount
-                                        }, 0) || 0
-                                    }
-                                    item.totalAmount = invoice.invoicingCodes.reduce((acc, code) => {
-                                        return acc + code.totalAmount
-                                    }, 0) || 0
-                                    item.cash = computeSum('cash')
-                                    item.debitCard = computeSum('debitCard')
-                                    item.creditCard = computeSum('creditCard')
-                                    item.wired = computeSum('wired')
-
-                                    item.insurance = ins ? ins.code + ' ' + (ins.name["fr"] || ins.name["nl"]) : null
-                                    item.oa = item.insurance ? item.insurance[0] + '00' : null
-                                    item.patient = pat ? (pat.firstName + ' ' + pat.lastName) : null
-                                    item.patientToSort = item.patient.toLowerCase()
-
-                                    return this.getCachedHcpByUserId(invoice.author).then(hcp => {
-                                        item.author = hcp.lastName + ' ' + hcp.firstName
-                                        item.authorToSort = item.author.toLowerCase()
-                                        item.authorHcpId = hcp.id
-                                        return item
-                                    })
-                                }))
-                            }).then(invlist => {
-                                this.set('invoiceItems', invlist)
-                                this.set('_isLoadingList', false)
-                            })
-                    })
+                                return this.getCachedHcpByUserId(invoice.author).then(hcp => {
+                                    item.author = hcp.lastName + ' ' + hcp.firstName
+                                    item.authorToSort = item.author.toLowerCase()
+                                    item.authorHcpId = hcp.id
+                                    return item
+                                })
+                            }))
+                        }).then(invlist => {
+                            this.set('invoiceItems', invlist)
+                            this.set('_isLoadingList', false)
+                        })
                 })
             }
 
@@ -805,14 +833,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         res = res && inv.authorHcpId === this.selectedHcpItem.id
                     }
 
-                    if(this.dateFrom !== null && this.dateFrom !== "") {
-                        res = res && inv.dateToSort >= parseInt(this.dateFrom.replace("-", "").replace("-", ""), 10)
-                    }
-
-                    if(this.dateFrom !== null && this.dateTo !== "") {
-                        res = res && inv.dateToSort <= parseInt(this.dateTo.replace("-", "").replace("-", ""), 10)
-                    }
-
                     return res
                 }))
             }
@@ -829,6 +849,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     if(this.isExportAnonyme) {
                         delete xlinv.patient
                     }
+                    xlinv.date = xlinv.date.replace("-", "/").replace("-", "/")
                     delete xlinv.invoice
                     delete xlinv.authorHcpId
                     delete xlinv.patientToSort
@@ -882,19 +903,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             getSentMediumTypeLabel(aType){
                 if(!aType) return;
                 const type = this.sentMediumTypes.find(type => type.id === aType)
-                return type && type.label && type.label[this.language]
+                return type && type.label && type.label[this.language.toLowerCase()]
             }
 
             getInvoiceTypeLabel(aType){
                 if(!aType) return "";
                 const type = this.invoiceTypes.find(type => type.id === aType)
-                return type && type.label && type.label[this.language] || this.getSentMediumTypeLabel(aType)
+                return type && type.label && type.label[this.language.toLowerCase()] || this.getSentMediumTypeLabel(aType)
             }
 
             getPaymentTypeLabel(aType){
                 if(!aType) return "";
                 const type = this.paymentTypes.find(type => type.id === aType)
-                return type && type.label && type.label[this.language]
+                return type && type.label && type.label[this.language.toLowerCase()]
             }
 
             _itemSelected(e) {
