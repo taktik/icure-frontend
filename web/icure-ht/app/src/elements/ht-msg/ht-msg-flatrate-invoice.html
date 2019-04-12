@@ -1506,6 +1506,8 @@
         import * as fhcmodels from 'fhc-api/dist/model/models'
         import mustache from "mustache/mustache.js";
         import jsZip from "jszip/dist/jszip.js";
+        import promiseLimit from 'promise-limit';
+        import * as retry from "icc-api/dist/icc-x-api/utils/net-utils"
 
         class HtMsgFlatrateInvoice extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
@@ -3104,7 +3106,7 @@
                                             return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
                                                 .then(invoices =>
                                                     !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
-                                                        .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
+                                                        .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
                                                         .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
                                                 .then(newInvoice => {
                                                     pat.invoices = [newInvoice]
@@ -4589,9 +4591,13 @@
                             }).then(()=>{
                                 return this.api.invoice().getInvoices(new models.ListOfIdsDto({ ids: _.uniq( _.compact( _.map( _.get(this.flatRateInvoicingDataObject, "invoicesData", []), i => _.get(i, "invoices[0].id", false )))) }))
                                     .then(invoices => {
+                                        let limit = promiseLimit(100);
                                         return Promise.all(invoices.map(inv => {
-                                            inv.sentDate = moment().format("YYYYMMDD")
-                                            return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
+                                            return limit(() => {
+                                                inv.sentDate = moment().format("YYYYMMDD")
+                                                return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
+                                            })
+
                                         }))
                                     }).then(x=>x)
                             }).then(()=>{
