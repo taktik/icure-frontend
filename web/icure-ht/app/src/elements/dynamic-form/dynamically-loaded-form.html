@@ -321,6 +321,12 @@
                 if (this.contacts && this.contact && this.form && this.user && this.patient && this.servicesMap) {
                     this.set('dataProvider', this.getDataProvider(this.form, ''));
 
+                    if (!this.form.hasBeenInitialized) {
+                        this.form.hasBeenInitialized = true
+                        this.api.form().modifyForm(this.form).then(f => this.form.rev = f.rev)
+                        this.dataProvider.computeFormulas(['OnCreate'])
+                    }
+
                     if ((this.form.template || {}).layout) {
                         const layoutItems = _.flatten(_.flatten(this.form.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
                         this.set('dataMap', _.fromPairs(layoutItems.map(f => [f.name, 1])))
@@ -375,58 +381,60 @@
                     return;
                 }
 
-                this.dataProvider.computeFormulas(['OnChange'])
+                this.dataProvider.computeFormulas(['OnChange']).finally(() => {
+                    //Make sure that healthElements contain new potential linkables
+                    const idLinkables = this.healthElements.map(he=>he.idService)
 
-                //Make sure that healthElements contain new potential linkables
-                const idLinkables = this.healthElements.map(he=>he.idService)
+                    ctc.services.filter(s => s.tags.some(t => t.type === 'CD-ITEM' && (t.code === 'healthelement'  || t.code === 'healthissue')))
+                        .forEach(svc => {
+                            const descr = this.shortServiceDescription(svc, this.language)
+                            if (descr && descr.length && !idLinkables.includes(svc.id)) {
+                                const he = {
+                                    created: svc.created,
+                                    modified: svc.modified,
+                                    endOfLife: svc.endOfLife,
+                                    author: svc.author,
+                                    responsible: svc.responsible,
+                                    codes: svc.codes,
+                                    tags: svc.tags,
+                                    valueDate: svc.valueDate,
+                                    openingDate: svc.openingDate,
+                                    closingDate: svc.closingDate,
+                                    descr: descr,
+                                    idService: svc.id,
+                                    status: svc.status,
+                                    svc: svc,
+                                    plansOfAction: []
+                                }
+                                this.api.code().icpcChapters(he.codes.filter(c => c.type === 'ICPC' || c.type === 'ICPC2').map(x => x.code))
+                                    .then(([code]) => {
+                                        code && code.descr && ((he.colour = code.descr.colour))
+                                    })
+                                    .finally(() => {
+                                        idLinkables.push(svc.id)
 
-                ctc.services.filter(s => s.tags.some(t => t.type === 'CD-ITEM' && (t.code === 'healthelement'  || t.code === 'healthissue')))
-					.forEach(svc => {
-                        const descr = this.shortServiceDescription(svc, this.language)
-                        if (descr && descr.length && !idLinkables.includes(svc.id)) {
-                            const he = {
-                                created: svc.created,
-                                modified: svc.modified,
-                                endOfLife: svc.endOfLife,
-                                author: svc.author,
-                                responsible: svc.responsible,
-                                codes: svc.codes,
-                                tags: svc.tags,
-                                valueDate: svc.valueDate,
-                                openingDate: svc.openingDate,
-                                closingDate: svc.closingDate,
-                                descr: descr,
-                                idService: svc.id,
-                                status: svc.status,
-                                svc: svc,
-                                plansOfAction: []
+                                        this.splice('healthElements', 0, 0, he)
+                                        this.splice('mainHealthElements', 0, 0, he)
+                                    })
                             }
-                            this.api.code().icpcChapters(he.codes.filter(c => c.type === 'ICPC' || c.type === 'ICPC2').map(x => x.code))
-								.then(([code]) => {
-								    code && code.descr && ((he.colour = code.descr.colour))
-								})
-								.finally(() => {
-                                    idLinkables.push(svc.id)
-
-                                    this.splice('healthElements', 0, 0, he)
-                                    this.splice('mainHealthElements', 0, 0, he)
-								})
-                        }
-                    })
+                        })
 
 
-                this.dispatchEvent(new CustomEvent('data-change', {detail: ctc, bubbles: true, composed: true})); //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
-                if (this.saveTimeout) {
-                    clearTimeout(this.saveTimeout);
-                }
-                const saveAction = this.saveAction = () => {
-                    console.log("Saving...")
-					this.saveTimeout = undefined;
+                    this.dispatchEvent(new CustomEvent('data-change', {detail: ctc, bubbles: true, composed: true})); //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
+                    if (this.saveTimeout) {
+                        clearTimeout(this.saveTimeout);
+                    }
+                    const saveAction = this.saveAction = () => {
+                        console.log("Saving...")
+                        this.saveTimeout = undefined;
 
-                    return new Promise((resolve,reject) =>
-                    this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true}))) //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
-                };
-                this.saveTimeout = setTimeout(saveAction, 10000); //Make sure the save is done with the right saveAction by using a const
+                        return new Promise((resolve,reject) =>
+                        this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true})))//Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
+                    };
+                    this.saveTimeout = setTimeout(saveAction, 10000); //Make sure the save is done with the right saveAction by using a const
+				})
+
+
             }
 
             shouldSave() {
@@ -485,13 +493,17 @@
                     computeFormulas: (lifecycles) => {
                         try {
                             const layoutItems = _.flatten(_.flatten(this.form.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
-                            const lis = layoutItems.filter(li => li.subForm || (li.formulas || []).some(f => f.lifecycle && lifecycles.includes(f.lifecycle.toString())))
+                            const lis = layoutItems.filter(li => li.subForm || (li.formulas || []).some(f =>f && f.lifecycle && lifecycles.includes(f.lifecycle.toString())) || (li.defaultValue && lifecycles.includes('OnCreate')) )
 
                             const computables = lis.filter(li => !li.subForm).map(li => {
                                 const deps = []
-                                li.formulas.filter(f => lifecycles.includes(f.lifecycle.toString())).forEach(f => {
-                                    const expr = `(function(x) { ${f.value} })(x)`
-                                    simple(parse(expr), {
+                                const shouldWrap = {}
+								;(li.formulas || []).filter(f => f && f.lifecycle && lifecycles.includes(f.lifecycle.toString())).forEach(f => {
+									const expr = `(function(x) { ${f.value} })(x)`
+									const parsed = parse(expr)
+                                    shouldWrap[f.value] =  parsed.body[0].expression.callee.body.body.length === 1 && _.last(parsed.body[0].expression.callee.body.body).type === "ExpressionStatement"
+
+									simple(parsed, {
                                         MemberExpression(node) {
                                             if (node.object.name === 'x') {
                                                 deps.push(node.property.name)
@@ -499,9 +511,8 @@
                                         }
                                     })
                                 })
-                                return {name: li.name, deps: deps, li: li}
+                                return {name: li.name, deps: deps, shouldWrap: shouldWrap, li: li}
                             })
-
 
                             const visit = (computables, oks) => {
                                 const okNames = oks.map(k => k.name)
@@ -523,21 +534,25 @@
                                     }, {})
                                 });
                                 return Promise.all(orderedComputables.map(comp => {
-                                    const f = comp.li.formulas.find(f => lifecycles.includes(f.lifecycle.toString()))
-                                    const expr = `(function(x,patient,contact,contacts) { ${f.value} })(x,patient,contact,contacts)`
-                                    const gen = (env.gen(expr)())
+
+                                    const f = (comp.li.formulas || []).find(f => f && f.lifecycle && lifecycles.includes(f.lifecycle.toString()))
+
+									const expr = f && `(function(x,patient,contact,contacts) { ${comp.shouldWrap[f.value] ? `return (${f.value});` : f.value} })(x,patient,contact,contacts)`
+                                    const gen = expr && (env.gen(expr)())
                                     let status = {done: false, value: null}
 
-                                    while (!status.done) {
+                                    while (gen && !status.done) {
                                         status = gen.next() //Execute lines one by one
                                     }
 
-                                    ['StringEditor', 'PopupMenuEditor'].includes(comp.li.editor.key) && (!status.value || typeof status.value === 'string') && this.dataProvider.setStringValue(comp.name, status.value || null, false);
-                                    ['NumberEditor'].includes(comp.li.editor.key) && (!status.value || typeof status.value === 'number') && this.dataProvider.setNumberValue(comp.name, status.value === 0 ? 0 : (Number(status.value.toFixed(3)) || null), false);
-                                    ['MeasureEditor'].includes(comp.li.editor.key) && (typeof status.value === 'number') && this.dataProvider.setMeasureValue(comp.name, {value: Number(status.value.toFixed(3))} || null, false);
-                                    ['MeasureEditor'].includes(comp.li.editor.key) && (!status.value || typeof status.value === 'object') && this.dataProvider.setMeasureValue(comp.name, Number(status.value.toFixed(3)) || null, false);
-                                    //['DateTimeEditor'].includes(comp.li.editor.key) && (typeof status.value === 'number') && this.dataProvider.setDateValue(comp.name, status.value || null, false);
-                                    //['DateTimeEditor'].includes(comp.li.editor.key) && (!status.value || typeof status.value === 'object') && this.dataProvider.setDateValue(comp.name, status.value || null, false);
+                                    const compValue = status.value !== null ? status.value : (lifecycles.includes('OnCreate') ? typeof comp.li.defaultValue === "object" ? this.api.contact().contentValue(comp.li.defaultValue[0])  : comp.li.defaultValue : null)
+
+                                    ;['StringEditor', 'PopupMenuEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'string') && this.dataProvider.setStringValue(comp.name, compValue, false);
+                                    ;['NumberEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setNumberValue(comp.name, compValue === 0 ? 0 : (Number(compValue.toFixed(3)) || null), false);
+                                    ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setMeasureValue(comp.name, {value: Number(compValue.toFixed(3))} || null, false);
+                                    ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'object') && this.dataProvider.setMeasureValue(comp.name, Number(compValue.toFixed(3)) || null, false);
+                                    ;['DateTimeEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setDateValue(comp.name, status.value || null, false);
+                                    ;['DateTimeEditor'].includes(comp.li.editor.key) && (typeof compValue === 'string') && this.dataProvider.setDateValue(comp.name,isNaN(Date.parse(compValue)) ? compValue : Date.parse(compValue) || null, false);
 
                                     this.root.querySelector('#dynamic-form') && this.root.querySelector('#dynamic-form').notify((rootPath.length ? rootPath + '.' : '') + comp.name)
 
@@ -757,8 +772,8 @@
                         }
                         self.promoteOrCreateService(label, form.id, null, (this.highlightedHes || []).map(he => he.id), svc => {
                             let c = self.getOrCreateContent(svc, this.language);
-                            if (c && c.fuzzyDateValue !== value) {
-                                c.fuzzyDateValue = value;
+                            if (c && c.fuzzyDateValue !== this.api.moment(value).format("YYYYMMDD000000")) {
+                                c.fuzzyDateValue = this.api.moment(value).format("YYYYMMDD000000");
                                 save && this.scanServicesAndScheduleSave(this.currentContact);
                             }
                             return svc;
