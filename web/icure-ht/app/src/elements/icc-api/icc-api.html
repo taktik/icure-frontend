@@ -25,6 +25,7 @@
     import {IccUserXApi} from 'icc-api/dist/icc-x-api/icc-user-x-api'
     import {IccInvoiceXApi} from 'icc-api/dist/icc-x-api/icc-invoice-x-api'
     import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
+    import {IccClassificationXApi} from 'icc-api/dist/icc-x-api/icc-classification-x-api'
 
     class IccApi extends Polymer.Element {
         static get is() {
@@ -118,13 +119,15 @@
 
             this.cryptoicc = new IccCryptoXApi(this.host, this.headers, this.hcpartyicc)
 
+            this.classificationicc = new IccClassificationXApi(this.host, this.headers, this.cryptoicc)
+
             this.receipticc = new IccReceiptXApi(this.host, this.headers, this.cryptoicc)
             this.contacticc = new IccContactXApi(this.host, this.headers, this.cryptoicc)
             this.documenticc = new IccDocumentXApi(this.host, this.headers, this.cryptoicc)
             this.formicc = new IccFormXApi(this.host, this.headers, this.cryptoicc)
             this.helementicc = new IccHelementXApi(this.host, this.headers, this.cryptoicc)
             this.invoiceicc = new IccInvoiceXApi(this.host, this.headers, this.cryptoicc, this.entityreficc)
-            this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc)
+            this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc, this.classificationicc)
             this.messageicc = new IccMessageXApi(this.host, this.headers, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
 
@@ -506,9 +509,9 @@
                 }, {}))
                 return Promise.all(_.chunk(users.rows,100).map(uChunk => this.hcparty().getHealthcareParties(uChunk.map(u => u.healthcarePartyId).filter(id => !!id).join(','))))
             }).then(hcps => this.set('hcParties', _.flatMap(hcps).map(hcp => this.register(hcp, 'hcp')).reduce((acc, hcp) => {
-                acc[hcp.id] = hcp
-                return acc
-            }, {}))
+                    acc[hcp.id] = hcp
+                    return acc
+                }, {}))
             ).catch(() => setTimeout(() => this.loadUsersAndHcParties(), 10000))
         }
 
@@ -590,34 +593,34 @@
                         userId: user.id
                     })
                 }))
-                .then(response => response && response.status===200 ? response.json() : Promise.resolve({}))
-                .then( data => {
-                    const printersPrefs = electron && data && data.ok ? JSON.parse(data.data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
-                    const stickersPrefs = electron && data && data.ok ? printersPrefs.find( pref => pref.type === "sticker-mut") || {} : printersPrefs.stickers
-                    const typePreference = electron && data && options.type ? printersPrefs.find(pref => pref.type===options.type) || null : null
-                    const paperSize = typePreference ?  typePreference.type==="sticker-mut" ? "stickers" : typePreference.format==="A4" ? "a4" : typePreference.format ==="A5" ? "a5" : typePreference.format==="DL" ? "presc" : "a4"
-                        :  options.paperWidth === 105 ? 'presc' : options.paperHeight === 210 ? 'a5' : (stickersPrefs && options.paperWidth === stickersPrefs.w && options.paperHeight === stickersPrefs.h) ? 'stickers' : 'a4'
-                    const printerName = typePreference ? typePreference.printer : options.printer ? printersPrefs[options.printer] && printersPrefs[options.printer].bw || "" : (printersPrefs[paperSize] && (printersPrefs[paperSize].bw && printersPrefs[paperSize].bw.length ? printersPrefs[paperSize].bw : printersPrefs[paperSize].color && printersPrefs[paperSize].color.length ? printersPrefs[paperSize].color : null)) || null
+                    .then(response => response && response.status===200 ? response.json() : Promise.resolve({}))
+                    .then( data => {
+                        const printersPrefs = electron && data && data.ok ? JSON.parse(data.data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
+                        const stickersPrefs = electron && data && data.ok ? printersPrefs.find( pref => pref.type === "sticker-mut") || {} : printersPrefs.stickers
+                        const typePreference = electron && data && options.type ? printersPrefs.find(pref => pref.type===options.type) || null : null
+                        const paperSize = typePreference ?  typePreference.type==="sticker-mut" ? "stickers" : typePreference.format==="A4" ? "a4" : typePreference.format ==="A5" ? "a5" : typePreference.format==="DL" ? "presc" : "a4"
+                            :  options.paperWidth === 105 ? 'presc' : options.paperHeight === 210 ? 'a5' : (stickersPrefs && options.paperWidth === stickersPrefs.w && options.paperHeight === stickersPrefs.h) ? 'stickers' : 'a4'
+                        const printerName = typePreference ? typePreference.printer : options.printer ? printersPrefs[options.printer] && printersPrefs[options.printer].bw || "" : (printersPrefs[paperSize] && (printersPrefs[paperSize].bw && printersPrefs[paperSize].bw.length ? printersPrefs[paperSize].bw : printersPrefs[paperSize].color && printersPrefs[paperSize].color.length ? printersPrefs[paperSize].color : null)) || null
 
-                    //if(paperSize==="stickers"){
-                    //    optionsString += "paperWidth=90&paperHeight=29"
-                    //}
+                        //if(paperSize==="stickers"){
+                        //    optionsString += "paperWidth=90&paperHeight=29"
+                        //}
 
-                    return (printerName ? Promise.resolve(printerName) : this.printers().then(printers => printers.find(p => p.isDefault)).then(p => p && p.name))
-                        .then(printerName =>
-                            fetch(`${electron && printerName ? 'http://127.0.0.1:16042/print/' + encodeURIComponent(printerName) : 'https://report.icure.cloud/pdf'}${optionsString && optionsString.length ? `?${optionsString}` : ''}`, {
-                                method: "POST",
-                                mode: "cors", // no-cors, cors, *same-origin
-                                credentials: "same-origin", // include, same-origin, *omit
-                                headers: {"Content-Type": "text/html; charset=utf-8"},
-                                redirect: "follow",
-                                body: html,
-                            }).then(response => response.arrayBuffer()).then(data => ({
-                                pdf: data,
-                                printed: electron && printerName
-                            }))
-                        )
-                })
+                        return (printerName ? Promise.resolve(printerName) : this.printers().then(printers => printers.find(p => p.isDefault)).then(p => p && p.name))
+                            .then(printerName =>
+                                fetch(`${electron && printerName ? 'http://127.0.0.1:16042/print/' + encodeURIComponent(printerName) : 'https://report.icure.cloud/pdf'}${optionsString && optionsString.length ? `?${optionsString}` : ''}`, {
+                                    method: "POST",
+                                    mode: "cors", // no-cors, cors, *same-origin
+                                    credentials: "same-origin", // include, same-origin, *omit
+                                    headers: {"Content-Type": "text/html; charset=utf-8"},
+                                    redirect: "follow",
+                                    body: html,
+                                }).then(response => response.arrayBuffer()).then(data => ({
+                                    pdf: data,
+                                    printed: electron && printerName
+                                }))
+                            )
+                    })
 
             })
         }
@@ -720,7 +723,7 @@
                             localStorage.setItem( cachedEdmgRespStorageName, JSON.stringify(edmgResp) );
                             return edmgResp||Promise.resolve(null);
                         }).catch(() => { return Promise.resolve(null)});
-                    }).catch(() => { return Promise.resolve(null)});
+                }).catch(() => { return Promise.resolve(null)});
             }
 
         }
@@ -761,36 +764,39 @@
 
         }
 
-        encryptDecryptFileContentByUserHcpIdAndDocumentObject( encryptOrDecryptMethod, hcpId, documentObject, rawFileContent  ) {
-            if( !_.trim(encryptOrDecryptMethod) || !_.trim(hcpId) || !documentObject || !rawFileContent || typeof this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()] !== "function" ) return Promise.resolve(rawFileContent);
-            return this.crypto().decryptAndImportAesHcPartyKeysInDelegations(hcpId, documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length ? documentObject.encryptionKeys : documentObject.delegations).then(decryptedAndImportedAesHcPartyKeys => {
-                let collatedAesKeys = {}; decryptedAndImportedAesHcPartyKeys.map(k => collatedAesKeys[k.delegatorId] = k.key);
-                return this.crypto().decryptKeyInDelegationLikes((documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length? documentObject.encryptionKeys: documentObject.delegations)[hcpId], collatedAesKeys, documentObject.id).then(enckeys => {
-                    return new Promise((resolve) => { this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()](_.get( _.head(decryptedAndImportedAesHcPartyKeys), "key", undefined ), rawFileContent).then(encryptedDecryptedFileContent => resolve(encryptedDecryptedFileContent)) })
-                })
-            })
+        encryptDecryptFileContentByUserHcpIdAndDocumentObject( encryptOrDecryptMethod, user, documentObject, rawFileContent  ) {
+            const edf = this.crypto().AES[_.trim(encryptOrDecryptMethod).toLocaleLowerCase()].bind(this.crypto().AES)
+            if( !_.trim(encryptOrDecryptMethod) || !_.trim(user.healthcarePartyId) || !documentObject || !rawFileContent || typeof edf !== "function" ) return Promise.resolve(rawFileContent);
 
+            return (documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys || {}).length ? Promise.resolve(documentObject) : this.document().initEncryptionKeys(user, documentObject))
+                .then(doc => this.crypto().extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId, doc.id, doc.encryptionKeys))
+                .then((sfks) => this.crypto().AES.importKey("raw", this.crypto().utils.hex2ua(sfks.extractedKeys[0].replace(/-/g, ""))))
+                .then((key) => edf(key, rawFileContent))
+                .catch((e) =>
+                    this.crypto().decryptAndImportAesHcPartyKeysInDelegations(user.healthcarePartyId, documentObject.encryptionKeys && Object.keys(documentObject.encryptionKeys).length ? documentObject.encryptionKeys : documentObject.delegations)
+                        .then(decryptedAndImportedAesHcPartyKeys => edf(_.get(_.head(decryptedAndImportedAesHcPartyKeys), "key", undefined), rawFileContent))
+                )
         }
 
         findJsonObjectPathByPropNameAndPropValue( inputData, propName, propValue ) {
-          this.variablesPath = []; this.propName = propName; this.propValue = propValue;
-          this.browseObject(inputData);
-          return this.variablesPath;
+            this.variablesPath = []; this.propName = propName; this.propValue = propValue;
+            this.browseObject(inputData);
+            return this.variablesPath;
         }
 
         browseObject(inputData, sub="") {
             if (inputData && typeof inputData === "object") {
-              if (Array.isArray(inputData)) { for (let i = 0; i < inputData.length; i++) { this.browseObject(inputData[i], sub + "[" + i + "]"); }
-              } else {
-                for (let p in inputData) {
-                    if ((/^[a-z_$][a-z0-9_$]*$/i).test(p)) {
-                        this.browseObject(inputData[p], sub + "." + p);
-                        if(p===this.propName && inputData[p] === this.propValue ) { this.variablesPath.push(sub.substr(1)); }
-                    } else {
-                        this.browseObject(inputData[p], sub + "[\"" + p + "\"]");
+                if (Array.isArray(inputData)) { for (let i = 0; i < inputData.length; i++) { this.browseObject(inputData[i], sub + "[" + i + "]"); }
+                } else {
+                    for (let p in inputData) {
+                        if ((/^[a-z_$][a-z0-9_$]*$/i).test(p)) {
+                            this.browseObject(inputData[p], sub + "." + p);
+                            if(p===this.propName && inputData[p] === this.propValue ) { this.variablesPath.push(sub.substr(1)); }
+                        } else {
+                            this.browseObject(inputData[p], sub + "[\"" + p + "\"]");
+                        }
                     }
                 }
-              }
             }
         }
 
@@ -843,7 +849,3 @@
 
     customElements.define(IccApi.is, IccApi)
 </script>
-
-@end
-
-
