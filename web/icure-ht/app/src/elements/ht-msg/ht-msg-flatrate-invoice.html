@@ -2221,7 +2221,7 @@
 
             _getInsuranceTitularyInfo(inputPatientsList=false) {
                 return new Promise(resolve =>{
-                    const insuranceTitularyIds = _.uniq(_.filter( (inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i)=>{ return _.trim(_.get(i, "titularyId", "")) }).map(i=>i.titularyId) );
+                    const insuranceTitularyIds = _.compact(_.uniq(_.filter( (inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i)=>{ return _.trim(_.get(i, "titularyId", "")) }).map(i=>i.titularyId) ));
                     return !_.size(insuranceTitularyIds) ? resolve((inputPatientsList?inputPatientsList:this.flatRateAllPatients)) : this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ ids: insuranceTitularyIds })).then(results => {
                         return resolve(
                             _.map((inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i=>{
@@ -2238,7 +2238,7 @@
             _getListingJ3(e) {
 
                 this.set('_isLoading', true );
-                this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_2',this.language), icon:"arrow-forward"});
+                this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_2',this.language), icon:"arrow-forward"});
 
                 this.reportCurrentDateString = _.trim(
                     parseInt(_.get(this.shadowRoot.getElementById("listingExportedYear")||{}, "value", this._getExportCurrentYear())) +
@@ -2787,7 +2787,7 @@
 
             _getInsurancesData() {
 
-                this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.chain(this.flatRateAllPatients).map((i)=>{return (i && i.insurabilities && i.insurabilities.length && i.insurabilities[0].insuranceId) ? i.insurabilities[0].insuranceId : false }).uniq().value()}))
+                this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.compact(_.chain(this.flatRateAllPatients).map((i)=>{return (i && !!_.get(i,"finalInsurability",false)) ? _.get(i,"finalInsurability.insuranceId",false) : false }).uniq().value())}))
                     .then((ins) => {
                         this.oaData = _
                             .chain(ins)
@@ -2872,6 +2872,9 @@
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5',this.language), icon:"arrow-forward"});
 
+                // Always export data versus previous month's contracts (will kick in this month)
+                this.reportCurrentDateMomentObject = moment(this.reportCurrentDateString, "YYYYMMDD").subtract(1, 'month');
+
                 let pdfData = {};
 
                 // Loop OA
@@ -2944,6 +2947,9 @@
                 // _(pdfData).forEach((oa)=>{_(oa.entries).forEach((entries)=>{if( !entries.length ) return;_.forEach(entries, (i)=>{ entries.push(i); })})});
                 // _(pdfData).forEach((oa)=>{_(oa.entries).forEach((entries)=>{if( !entries.length ) return;_.forEach(entries, (i)=>{ entries.push(i); })})});
                 // _(pdfData).forEach((oa)=>{_(oa.entries).forEach((entries)=>{if( !entries.length ) return;_.forEach(entries, (i)=>{ entries.push(i); })})});
+
+                // We're done collecting data, reset according to given exported month
+                this.reportCurrentDateMomentObject = moment(this.reportCurrentDateString, "YYYYMMDD");
 
                 // Namely for footer
                 let totalPages = 0; let currentPage = 0;
