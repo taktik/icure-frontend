@@ -1506,6 +1506,8 @@
         import * as fhcmodels from 'fhc-api/dist/model/models'
         import mustache from "mustache/mustache.js";
         import jsZip from "jszip/dist/jszip.js";
+        import promiseLimit from 'promise-limit';
+        import * as retry from "icc-api/dist/icc-x-api/utils/net-utils"
 
         class HtMsgFlatrateInvoice extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
@@ -2219,7 +2221,7 @@
 
             _getInsuranceTitularyInfo(inputPatientsList=false) {
                 return new Promise(resolve =>{
-                    const insuranceTitularyIds = _.uniq(_.filter( (inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i)=>{ return _.trim(_.get(i, "titularyId", "")) }).map(i=>i.titularyId) );
+                    const insuranceTitularyIds = _.compact(_.uniq(_.filter( (inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i)=>{ return _.trim(_.get(i, "titularyId", "")) }).map(i=>i.titularyId) ));
                     return !_.size(insuranceTitularyIds) ? resolve((inputPatientsList?inputPatientsList:this.flatRateAllPatients)) : this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ ids: insuranceTitularyIds })).then(results => {
                         return resolve(
                             _.map((inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i=>{
@@ -2236,7 +2238,7 @@
             _getListingJ3(e) {
 
                 this.set('_isLoading', true );
-                this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_2',this.language), icon:"arrow-forward"});
+                this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_2',this.language), icon:"arrow-forward"});
 
                 this.reportCurrentDateString = _.trim(
                     parseInt(_.get(this.shadowRoot.getElementById("listingExportedYear")||{}, "value", this._getExportCurrentYear())) +
@@ -2785,7 +2787,7 @@
 
             _getInsurancesData() {
 
-                this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.chain(this.flatRateAllPatients).map((i)=>{return (i && i.insurabilities && i.insurabilities.length && i.insurabilities[0].insuranceId) ? i.insurabilities[0].insuranceId : false }).uniq().value()}))
+                this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.compact(_.chain(this.flatRateAllPatients).map((i)=>{return (i && !!_.get(i,"finalInsurability",false)) ? _.get(i,"finalInsurability.insuranceId",false) : false }).uniq().value())}))
                     .then((ins) => {
                         this.oaData = _
                             .chain(ins)
@@ -2870,6 +2872,9 @@
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5',this.language), icon:"arrow-forward"});
 
+                // Always export data versus previous month's contracts (will kick in this month)
+                this.reportCurrentDateMomentObject = moment(this.reportCurrentDateString, "YYYYMMDD").subtract(1, 'month');
+
                 let pdfData = {};
 
                 // Loop OA
@@ -2942,6 +2947,9 @@
                 // _(pdfData).forEach((oa)=>{_(oa.entries).forEach((entries)=>{if( !entries.length ) return;_.forEach(entries, (i)=>{ entries.push(i); })})});
                 // _(pdfData).forEach((oa)=>{_(oa.entries).forEach((entries)=>{if( !entries.length ) return;_.forEach(entries, (i)=>{ entries.push(i); })})});
                 // _(pdfData).forEach((oa)=>{_(oa.entries).forEach((entries)=>{if( !entries.length ) return;_.forEach(entries, (i)=>{ entries.push(i); })})});
+
+                // We're done collecting data, reset according to given exported month
+                this.reportCurrentDateMomentObject = moment(this.reportCurrentDateString, "YYYYMMDD");
 
                 // Namely for footer
                 let totalPages = 0; let currentPage = 0;
@@ -3104,7 +3112,7 @@
                                             return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
                                                 .then(invoices =>
                                                     !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
-                                                        .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
+                                                        .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
                                                         .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
                                                 .then(newInvoice => {
                                                     pat.invoices = [newInvoice]
@@ -3146,7 +3154,8 @@
                     //const oaMuts = this.flatRateInvoicingDataObject.insurancesData.filter(i=> _.trim(_.get(i, "parent", "")) === _.trim(_.get(OA, "id", "")));
                     const oaMuts = this.flatRateInvoicingDataObject.insurancesData.filter(insdt => insdt.code.substr(0,1) === OA.code.substr(0,1));
                     const oaMutIds = oaMuts.map(oaMut => oaMut.id);//.join(",");
-                    const oaInvoicesData = this.flatRateInvoicingDataObject.invoicesData.filter(idt => oaMutIds.includes(idt.insurabilities[0].insuranceId));
+                    // const oaInvoicesData = this.flatRateInvoicingDataObject.invoicesData.filter(idt => oaMutIds.includes(idt.insurabilities[0].insuranceId));
+                    const oaInvoicesData = this.flatRateInvoicingDataObject.invoicesData.filter(idt => oaMutIds.includes(idt.finalInsurability.insuranceId));
                     oaInvoicesData.map(idt => parseInt(_.size(_.get(idt, "invoicingCodes", false))) ? invoices.push(this.getPatientInvoice(idt, _.trim(_.get(OA, "code", "")))) : false )
                     ib.invoices = _.orderBy(invoices, ["destInsuranceCode", "insuranceCode", "invoiceNumber"], ["asc", "asc","asc"]); //1 per patient
 
@@ -3306,7 +3315,8 @@
                 inv.patient.insurabilities = [];
                 inv.patient.gender = patientData.gender;
                 let ins = new fhcmodels.Insurability('');
-                const patIns = patientData.insurabilities[0];
+                // const patIns = patientData.insurabilities[0];
+                const patIns = patientData.finalInsurability;
                 ins.insuranceCode = this.flatRateInvoicingDataObject.insurancesData.filter(idt => idt.id === patIns.insuranceId)[0].code;
                 ins.parameters = {tc1 : patIns.parameters.tc1 , tc2 : patIns.parameters.tc2};
                 inv.patient.insurabilities.push(ins);
@@ -4589,9 +4599,13 @@
                             }).then(()=>{
                                 return this.api.invoice().getInvoices(new models.ListOfIdsDto({ ids: _.uniq( _.compact( _.map( _.get(this.flatRateInvoicingDataObject, "invoicesData", []), i => _.get(i, "invoices[0].id", false )))) }))
                                     .then(invoices => {
+                                        let limit = promiseLimit(100);
                                         return Promise.all(invoices.map(inv => {
-                                            inv.sentDate = moment().format("YYYYMMDD")
-                                            return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
+                                            return limit(() => {
+                                                inv.sentDate = moment().format("YYYYMMDD")
+                                                return this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))
+                                            })
+
                                         }))
                                     }).then(x=>x)
                             }).then(()=>{

@@ -29,6 +29,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../../../bower_components/vaadin-material-theme/vaadin-grid.html">
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid.html">
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-column.html">
+<link rel="import" href="../../../../bower_components/vaadin-upload/vaadin-upload.html">
 <link rel="import" href="../../../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../../../bower_components/paper-listbox/paper-listbox.html">
 <link rel="import" href="../../../../bower_components/paper-item/paper-item.html">
@@ -113,6 +114,29 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 color: var(--app-text-color);
             }
 
+            vaadin-upload {
+                margin: 16px 0;
+                min-height: 280px;
+                min-height: 0;
+                background: var(--app-background-color);
+                --vaadin-upload-buttons-primary: {
+                    padding: 16px;
+                };
+                --vaadin-upload-button-add: {
+                    background: var(--app-secondary-color);
+                    color: var(--app-text-color);
+                };
+                --vaadin-upload-file-progress: {
+                    --paper-progress-active-color: var(--app-secondary-color);
+                };
+                --vaadin-upload-file-commands: {
+                    color: var(--app-primary-color);
+                };
+                --vaadin-upload-file-meta: {
+                    min-height: 36px;
+                };
+
+            }
 
             #formInformationDialog{
                 height: 500px;
@@ -268,16 +292,29 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         </div>
                     </page>
                     <page>
-                        <textarea id="formData">
-
-                        </textarea>
+                        <textarea id="formData"></textarea>
                     </page>
                 </iron-pages>
                 <div class="buttons">
+                    <paper-button on-tap="_download">[[localize('download','Download',language)]]</paper-button>
+                    <paper-button on-tap="_upload">[[localize('upload','Upload',language)]]</paper-button>
                     <paper-button class="modal-button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
                 </div>
+
             </div>
         </paper-dialog>
+
+
+        <paper-dialog id="upload-dialog">
+            <h2>[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
+            <!--<paper-fab class="close-button-icon" icon="icons:close" dialog-dismiss></paper-fab>-->
+            <vaadin-upload id="vaadin-upload" files="{{files}}" target$="[[api.host]]/form/template/[[selectedForm.id]]/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT"
+                           form-data-name="attachment" on-upload-success="_fileUpload"></vaadin-upload>
+            <div class="buttons">
+                <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
     </template>
 
     <script>
@@ -326,7 +363,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             static get observers() {
-                return ['_initFormsDataProvider(user)', '_selectedFormChanged(selectedForm)'];
+                return ['_initFormsDataProvider(user)', '_selectedFormChanged(selectedForm)', '_initCodeMirror(tabs)'];
             }
 
             constructor() {
@@ -351,21 +388,43 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         .finally(() => {
                             this.$['formInformationDialog'].open()
                             this.set('tabs',tab>0?tab:0)
-
-                            let mirror = CodeMirror.fromTextArea(this.$['formData'], {
-                                //value: this.selectedFormData.formDataAsString,
-                                value: 'test',
-                                mode: 'javascript',
-                                json: true,
-                                readOnly: true,
-                                inputStyle: 'textarea',
-                                lineNumbers: true
-                            })
                         })
 
                 }
             }
 
+            _download(e) {
+                const array = this.api.crypto().utils.utf82ua(JSON.stringify(this.selectedFormData.layout, null, 2))
+
+                this.api.triggerFileDownload(array.buffer.slice(0, array.length), "application/json", `${this.selectedFormData.group.name}/${this.selectedFormData.name}`)
+            }
+
+            _upload() {
+                const vaadinUpload = this.root.querySelector('#vaadin-upload');
+                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
+                vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
+                this.root.querySelector('#upload-dialog').open();
+            }
+
+            _fileUpload() {
+                setTimeout(() => this.root.querySelector('#upload-dialog').close(), 5000);
+            }
+
+
+
+            _initCodeMirror(tabs) {
+                if (tabs === 1) {
+                    let mirror = CodeMirror.fromTextArea(this.$['formData'], {
+                        //value: this.selectedFormData.formDataAsString,
+                        value: 'test',
+                        mode: 'javascript',
+                        json: true,
+                        readOnly: true,
+                        inputStyle: 'textarea',
+                        lineNumbers: true
+                    })
+                }
+            }
         }
 
         customElements.define(HtAdminManagementForms.is, HtAdminManagementForms)
