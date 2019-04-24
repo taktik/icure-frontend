@@ -492,10 +492,15 @@
                     servicesMap: {},
                     computeFormulas: (lifecycles) => {
                         try {
-                            const layoutItems = _.flatten(_.flatten(this.form.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
+                        	form = form || this.form
+                            const layoutItems = _.flatten(_.flatten(form.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
                             const lis = layoutItems.filter(li => li.subForm || (li.formulas || []).some(f =>f && f.lifecycle && lifecycles.includes(f.lifecycle.toString())) || (li.defaultValue && lifecycles.includes('OnCreate')) )
 
-                            const computables = lis.filter(li => !li.subForm).map(li => {
+							form.children.forEach( child =>{
+								lis.findIndex(li=> li.subForm && child.descr === li.name)!==-1 && self.getSubForms(child.descr).map(subForms => subForms.dataProvider.computeFormulas(lifecycles))
+							})
+
+							const computables = lis.filter(li => !li.subForm).map(li => {
                                 const deps = []
                                 const shouldWrap = {}
 								;(li.formulas || []).filter(f => f && f.lifecycle && lifecycles.includes(f.lifecycle.toString())).forEach(f => {
@@ -547,12 +552,12 @@
 
                                     const compValue = status.value !== null ? status.value : (lifecycles.includes('OnCreate') ? typeof comp.li.defaultValue === "object" ? this.api.contact().contentValue(comp.li.defaultValue[0])  : comp.li.defaultValue : null)
 
-                                    ;['StringEditor', 'PopupMenuEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'string') && this.dataProvider.setStringValue(comp.name, compValue, false);
-                                    ;['NumberEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setNumberValue(comp.name, compValue === 0 ? 0 : (Number(compValue.toFixed(3)) || null), false);
-                                    ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setMeasureValue(comp.name, {value: Number(compValue.toFixed(3))} || null, false);
-                                    ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'object') && this.dataProvider.setMeasureValue(comp.name, Number(compValue.toFixed(3)) || null, false);
-                                    ;['DateTimeEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && this.dataProvider.setDateValue(comp.name, status.value || null, false);
-                                    ;['DateTimeEditor'].includes(comp.li.editor.key) && (typeof compValue === 'string') && this.dataProvider.setDateValue(comp.name,isNaN(Date.parse(compValue)) ? compValue : Date.parse(compValue) || null, false);
+                                    ;['StringEditor', 'PopupMenuEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'string') && self.setStringValue(comp.name, compValue, false);
+                                    ;['NumberEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && self.setNumberValue(comp.name, compValue === 0 ? 0 : (Number(compValue.toFixed(3)) || null), false);
+                                    ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && self.setMeasureValue(comp.name, {value: Number(compValue.toFixed(3))} || null, false);
+                                    ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'object') && self.setMeasureValue(comp.name, Number(compValue.toFixed(3)) || null, false);
+                                    ;['DateTimeEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && self.setDateValue(comp.name, status.value || null, false);
+                                    ;['DateTimeEditor'].includes(comp.li.editor.key) && (typeof compValue === 'string') && self.setDateValue(comp.name,isNaN(Date.parse(compValue)) ? compValue : Date.parse(compValue) || null, false);
 
                                     this.root.querySelector('#dynamic-form') && this.root.querySelector('#dynamic-form').notify((rootPath.length ? rootPath + '.' : '') + comp.name)
 
@@ -772,7 +777,7 @@
                         }
                         self.promoteOrCreateService(label, form.id, null, (this.highlightedHes || []).map(he => he.id), svc => {
                             let c = self.getOrCreateContent(svc, this.language);
-                            if (c && c.fuzzyDateValue !== this.api.moment(value).format("YYYYMMDD000000")) {
+                            if (value && c && c.fuzzyDateValue !== this.api.moment(value).format("YYYYMMDD000000")) {
                                 c.fuzzyDateValue = this.api.moment(value).format("YYYYMMDD000000");
                                 save && this.scanServicesAndScheduleSave(this.currentContact);
                             }
@@ -820,9 +825,16 @@
                     },
                     getSubForms: function (key) {
                         return (form.children || []).filter(f => !key || f.descr === key).map((subForm, idx) => {
-                            return self.subFormsMap[[subForm.id, subForm.descr, idx]] || ((self.subFormsMap[[subForm.id, key, idx]] = {
-                                dataMap: _.fromPairs(_.flatten(_.flatten(subForm.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList)).map(f => [f.name, 1])),
-                                dataProvider: this.getDataProvider(subForm, (rootPath.length ? rootPath + '.' : '') + key + '.' + idx),
+							const subDataProvider = this.getDataProvider(subForm, (rootPath.length ? rootPath + '.' : '') + key + '.' + idx)
+							if (!subForm.hasBeenInitialized) {
+								subForm.hasBeenInitialized = true
+								this.api.form().modifyForm(subForm).then(f => subForm.rev = f.rev)
+								subDataProvider.computeFormulas(['OnCreate'])
+							}
+
+							return self.subFormsMap[[subForm.id, subForm.descr, idx]] || ((self.subFormsMap[[subForm.id, key, idx]] = {
+							dataMap: _.fromPairs(_.flatten(_.flatten(subForm.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList)).map(f => [f.name, 1])),
+                                dataProvider: subDataProvider,
                                 template: subForm.template.layout,
 								reportsPromises: Promise.all((this.form && this.form.template && this.form.template.reports || [])
 									.concat(_.compact(this.form.template.layout.sections.flatMap(s => s.formColumns.flatMap(c => c.formDataList.map(fdl => fdl.type === 'TKAction' && null || null)))))
@@ -914,7 +926,7 @@
 
                                     this.root.querySelector('#dynamic-form').notify((rootPath.length ? rootPath + '.' : '') + key + '.*');
                                     this.scanServicesAndScheduleSave(this.currentContact);
-                                });
+								});
                             }
                         });
                     },
