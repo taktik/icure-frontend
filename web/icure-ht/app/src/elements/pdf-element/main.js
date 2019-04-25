@@ -89,8 +89,8 @@
   Reader.prototype.loadPDF = function() {
     this.setSize();
     var self = this;
-
-    PDFJS.getDocument({url: this.SRC, withCredentials: true}).then(function(pdf) {
+    const docSrc = validURL(this.SRC) ? {url: this.SRC, withCredentials: true} : {data: atob(this.SRC)}
+    PDFJS.getDocument(docSrc).then(function(pdf) {
       self.PDF = pdf;
       self.queueRenderPage(1);
 
@@ -120,6 +120,16 @@
       self.createDownloadLink();
     });
   };
+
+  function validURL(str) {
+    var regex = /(http|https):\/\/(\w+:{0,1}\w*)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%!\-\/]))?/;
+    if(!regex .test(str)) {
+      //alert("Please enter valid URL.");
+      return false;
+    } else {
+      return true;
+    }
+  }
 
   Reader.prototype.renderPDF = function(pageNum, resize, isFull) {
     var self = this;

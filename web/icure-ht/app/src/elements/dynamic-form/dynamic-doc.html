@@ -237,7 +237,7 @@
                     <template is="dom-if" if="[[_pdfMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                         <span class="title">[[_title(document.name, title)]]</span>
                         <template is="dom-if" if="[[isLoading]]"><ht-spinner active></ht-spinner></template>
-                        <pdf-element src="[[dataUrl]]" elevation="5" downloadable fit-width fit-height enable-text-selection></pdf-element>
+                        <pdf-element src="[[_selectData(dataUrl, data)]]" elevation="5" downloadable fit-width fit-height enable-text-selection></pdf-element>
                     </template>
                     <template is="dom-if" if="[[_xmlMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                         <span>[[_title(document.name, title)]]</span>
@@ -391,7 +391,7 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
             preview:{
                 type: Boolean
             },
-			document: {
+            document: {
 				type: Object,
 				value: null
 			},
@@ -532,7 +532,7 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	}
 
 	_pdfMimeType(uti, utis, dataUrl, data) {
-		return (data || dataUrl) && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m === 'application/pdf');
+		return data && data.mediatype ? data.mediatype === "APPLICATION_PDF" : (data || dataUrl) && (uti && [uti] || []).concat(utis || []).map(u=>this.mimeType(u)).find(m=>m === 'application/pdf');
 	}
 
     _xmlMimeType(uti, utis) {
@@ -580,35 +580,18 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     _dataChanged(data) {
-        if (dataUrl && dataUrl.length) {
-            this.api.crypto()
-                .extractKeysFromDelegationsForHcpHierarchy(
-                    this.user.healthcarePartyId,
-                    this.document.id,
-                    _.size(this.document.encryptionKeys) ? this.document.encryptionKeys : this.document.delegations
-                )
-                .then(({extractedKeys: enckeys}) => {
-                    this.api.beresultimport().canHandle(this.document.id, enckeys.join(',')).then(isResult => {
-                        if (isResult) {
-                            this.set('isLabOrProtocol', true)
-                            this.api.beresultimport().getInfos(this.document.id, true, this.language || 'fr', enckeys.join(','))
-                                .then(res => {
-                                    this.set('labOrProtocolContent', res)
-                                })
-                        } else {
-                            this.set('isLabOrProtocol', false)
-                            this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'})
-                                .then(response => response.text()))
-                                .then(text => {
-                                    this.set('attachmentContent', text)
-                                })
-
-                        }
-                    })
-                })
+        if (data) {
+            console.log(data);
+            this.set('isLabOrProtocol', false)
+            this.set('attachmentContent', data && data.value ? data.value : data)
         } else {
             this.set('isLabOrProtocol', false)
         }
+    }
+
+    _selectData(dataUrl, data){
+	    //data.value: kmehr lnk element
+	    return dataUrl ? dataUrl : (data.value ? data.value : data);
     }
 
     mimeType(u){
