@@ -560,7 +560,7 @@
 				<ht-spinner class="center" active="[[isLoadingDoc]]"></ht-spinner>
 				<template is="dom-if" if="[[list]]">
                     <div class="ctc-header">
-						<span class="contact-title"> [[_selectedContactsHeaderLabel(contacts)]]
+						<span class="contact-title"> [[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
                         </span>
                     </div>
 					<ht-services-list id="dynamicallyListForm" api="[[api]]" user="[[user]]" patient="[[patient]]" contact="[[dof.ctc]]" health-elements="[[healthElements]]"
@@ -568,7 +568,7 @@
 				</template>
 				<template is="dom-if" if="[[table]]">
                     <div class="ctc-header">
-						<span class="contact-title"> [[_selectedContactsHeaderLabel(contacts)]]
+						<span class="contact-title"> [[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
                         </span>
                     </div>
 					<ht-pat-detail-table id="dynamicallyTableForm" api="[[api]]" user="[[user]]" patient="[[patient]]" contact="[[dof.ctc]]" health-elements="[[healthElements]]"
@@ -576,7 +576,7 @@
 				</template>
 				<template is="dom-if" if="[[graphique]]">
                     <div class="ctc-header">
-						<span class="contact-title">[[_selectedContactsHeaderLabel(contacts)]]
+						<span class="contact-title">[[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
                             <template is="dom-if" if="[[_hasCurrentContact()]]">
                                 <dynamic-subcontact-type-selector id="subctc-type-c" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
                             </template>
@@ -593,7 +593,7 @@
 					<div class="contact-card-frame">
 						<template is="dom-if" if="[[!contactsFormsAndDocuments.length]]">
 							<div class="ctc-header">
-                                <span class="contact-title">[[_contactHeaderLabel(currentContact)]]
+                                <span class="contact-title">[[_contactHeaderLabel(currentContact, currentContact.tags.*)]]
                                     <template is="dom-if" if="[[_hasCurrentContact(contacts)]]">
                                         <dynamic-subcontact-type-selector id="subctc-type-b" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
                                     </template>
@@ -608,7 +608,7 @@
 						</template>
 						<template is="dom-repeat" items="[[contactsFormsAndDocuments]]" as="dof">
 							<div class="ctc-header">
-                            <span class="contact-title">[[_contactHeaderLabel(dof.ctc)]]
+                            <span class="contact-title">[[_contactHeaderLabel(dof.ctc, currentContact.tags.*)]]
 								<template is="dom-if" if="[[_isCurrentContact(dof.ctc)]]">
                                     <dynamic-subcontact-type-selector id="subctc-type-d" subcontact-type="[[contactTypeList]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
 								</template>
@@ -1358,7 +1358,8 @@
 
             _contactHeaderLabel(ctc) {
 			    if(ctc) {
-                    return this.contactTypeLabel(ctc) + " " + ctc.descr + "(" + this._dateFormat(ctc.openingDate) + ")"
+			        const cod = this._isCurrentContact(ctc) && (this.localize('contact_of_the_day', "contact du jour", this.language) + " : ") || ""
+                    return cod + this.contactTypeLabel(ctc) + " " + (ctc.descr || "") + " (" + this._dateFormat(ctc.openingDate) + ")"
 				} else {
 			        return ""
 				}
@@ -1366,16 +1367,14 @@
 
             contactTypeLabel(ctc) {
                 if(ctc) {
-					console.log("ctclab", ctc)
-                    return ctc.tags && ctc.tags.filter(tag=> tag.type == "BE-CONTACT-TYPE").map(tag=> {
-                        const code = this.contactTypeList.find(sct => sct.code == tag.code)
-                        if(code && code.label) {
-                            return code.label[this.language || "fr"]
-                        } else {
-                            console.log("invalid contact type", ctc, code)
-                            return ""
-                        }
-                    })
+					const tag = ctc.tags && ctc.tags.find(tag=> tag.type == "BE-CONTACT-TYPE")
+                    const code = tag && this.contactTypeList.find(sct => sct.code == tag.code)
+                    if(code && code.label) {
+                        return code.label[this.language || "fr"]
+                    } else {
+                        console.log("invalid contact type", ctc, code)
+                        return ""
+                    }
 				} else {
                     return ""
 				}
@@ -1388,6 +1387,7 @@
                         this.currentContact.tags.splice(idx, 1);
                     }
                     this.currentContact.tags.push(e.detail.type);
+                    this.notifyPath('currentContact.tags')
                     this.saveCurrentContact()
 							.then(ctc => this.dispatchEvent(new CustomEvent('contact-saved', { detail: {contact :ctc} , bubbles:true })))
 
@@ -1399,7 +1399,7 @@
 			}
 
 			_hasCurrentContact() {
-                console.log("_hasCurrentContact: ", this.contacts.find(c => !c.closingDate) && true);
+                //console.log("_hasCurrentContact: ", this.contacts.find(c => !c.closingDate) && true);
 				return this.contacts.find(c => !c.closingDate) && true;
 			}
 
