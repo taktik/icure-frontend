@@ -205,20 +205,55 @@
                     </div>
                     <div class="hub-doc">
                         <template is="dom-repeat" items="[[message.folders]]" as="folder">
-                            <div>[[folder.patient.firstnames.0]] [[folder.patient.familyname]] °[[dateFormat(folder.patient.birthdate)]] ([[folder.patient.sex]])</div>
+                            <div>[[folder.patient.firstnames.0]] [[folder.patient.familyname]] [[dateFormat(folder.patient.birthdate)]]([[folder.patient.sex.value]])</div>
                             <template is="dom-repeat" items="[[folder.transactions]]" as="trn">
-                                [[dateFormat(trn.date)]] - [[trn.author.hcparties.0.name]]  [[trn.author.hcparties.0.firstnames.0]] [[trn.author.hcparties.0.lastname]]
+                                <template is="dom-repeat" items="[[_getHcpInfo(trn.author.hcparties)]]" as="hcp">
+                                    <div>Author: [[hcp.name]] [[hcp.firstName]] [[hcp.familyName]] / [[hcp.type]] <b>Nihii</b> [[hcp.nihii]] <b>Inss</b> [[hcp.inss]]</div>
+                                </template>
+                                <template is="dom-repeat" items="[[_getHcpInfo(trn.redactor.hcparties)]]" as="hcp">
+                                    <div>Redactor: [[hcp.name]] [[hcp.firstName]] [[hcp.familyName]] / [[hcp.type]] <b>Nihii</b> [[hcp.nihii]] <b>Inss</b> [[hcp.inss]]</div>
+                                </template>
+
+
+                                [[dateFormat(trn.date)]]
                                 <pre>[[trn.text.value]]</pre>
+
+                                <template is="dom-repeat" items=[[trn.textWithLayout]] as="txtWL">
+                                    [[txtWL.content]]
+                                </template>
+
                                 <template is="dom-repeat" items="[[_txts(trn)]]" as="txt">
                                     <p>-[[txt.value]]</p>
                                 </template>
+
                                 <template is="dom-repeat" items="[[_formattedTxts(trn)]]" as="ftxt">
                                     <p>[[ftxt]]</p>
                                 </template>
+
                                 <template is="dom-repeat" items="[[_lnks(trn)]]" as="lnk">
                                     <dynamic-doc api="[[api]]" user="[[user]]" patient="[[patient]]" data="[[_linkData(lnk)]]" i18n="[[i18n]]" language="[[language]]"
                                                  resources="[[resources]]" title="[[lnk.mediatype]]" downloadable="true" preview="true" is-pat-detail="false"></dynamic-doc>
                                 </template>
+
+                                <template is="dom-repeat" items="[[_processItem(trn.item)]]" as="item">
+                                    <div><b>[[item.type]]</b></div>
+                                    <div><b>Begin moment: </b>[[item.beginMoment]]</div>
+                                    <div>[[item.lifeCycle]]</div>
+                                    <template is="dom-repeat" items="[[item.contents]]" as="content">
+                                        <template is="dom-repeat" items="[[content.authors]]" as="hcp">
+                                            <div>
+                                                <b>Author:</b> [[hcp.name]] [[hcp.firstName]] [[hcp.familyName]] / [[hcp.type]] <b>Nihii</b> [[hcp.nihii]] <b>Inss</b> [[hcp.inss]]
+                                            </div>
+                                        </template>
+                                        <template is="dom-repeat" items="[[content.cds]]" as="cd">
+                                            <div>[[cd.s]] [[cd.value]]</div>
+                                        </template>
+                                        <template is="dom-repeat" items="[[content.texts]]" as="txt">
+                                            <div>[[txt.txtValue]]</div>
+                                        </template>
+                                    </template>
+                                </template>
+
                             </template>
                         </template>
                     </div>
@@ -541,6 +576,74 @@
 
             close() {
                 this.$.dialog.close();
+            }
+
+            _getHcpInfo(hcps){
+                let hcpInfo = []
+
+                if(hcps){
+                    hcps.map(hcp => {
+                        hcpInfo.push({
+                            name: hcp.name || null,
+                            firstName: hcp.firstname || null,
+                            familyName: hcp.familyname || null,
+                            inss: hcp && hcp.ids && hcp.ids.find(id => id && id.s === 'INSS') && hcp.ids.find(id => id && id.s === 'INSS') ? hcp.ids.find(id => id && id.s === 'INSS').value : null,
+                            nihii: hcp && hcp.ids && hcp.ids.find(id => id && id.s === 'ID_HCPARTY') && hcp.ids.find(id => id && id.s === 'ID_HCPARTY').value ? hcp.ids.find(id => id && id.s === 'ID_HCPARTY').value : null,
+                            type: hcp && hcp.cds && hcp.cds.find(cd => cd && cd.s === "CD_HCPARTY") && hcp.cds.find(cd => cd && cd.s === "CD_HCPARTY").value ? hcp.cds.find(cd => cd && cd.s === "CD_HCPARTY").value : null,
+                            addresses: hcp.addresses || [],
+                            telecoms: hcp.telecoms || []
+                        })
+                    })
+                }
+
+                return hcpInfo
+            }
+
+            _processItem(listOfItem){
+
+                let newListOfItem = []
+
+                if(listOfItem){
+                    listOfItem.map(item => newListOfItem.push({
+                        type: item && item.cds && item.cds.find(cd => cd && cd.s === "CD_ITEM") && item.cds.find(cd => cd && cd.s === "CD_ITEM").value ? item.cds.find(cd => cd && cd.s === "CD_ITEM").value : null,
+                        contents: this._getItemsContents(item.contents),
+                        beginMoment: item && item.beginmoment && item.beginmoment.date || null,
+                        lifeCycle: item && item.lifecycle && item.lifecycle.cd && item.lifecycle.cd.value || null,
+                        isRelevant: item && item.isrelevant || null
+                    }))
+                }
+
+                return _.orderBy(newListOfItem, ['type'])
+
+            }
+
+            _getItemsContents(contents){
+                let contentInfo = []
+
+                if(contents){
+                    contents.map(c => {
+                        contentInfo.push({
+                            authors: this._getHcpInfo(c.hcparty ? [c.hcparty] : null),
+                            cds: this._getContentCds(c.cds),
+                            texts: this._getContentTexts(c.texts)
+                        })
+
+
+                    })
+                }
+                return contentInfo
+            }
+
+            _getContentCds(cds){
+                let cdsInfo = []
+                cds ? cds.map(cd => { cdsInfo.push({ s: cd.s, value: cd.value }) }) : null
+                return cdsInfo
+            }
+
+            _getContentTexts(texts){
+                let textInfo = []
+                texts ? texts.map(txt => {textInfo.push({txtValue: txt.value,lang: txt.l}) }) : null
+                return textInfo
             }
 
 
