@@ -1187,7 +1187,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </div>
 
-        <ht-import-mf-dialog id="import-mf-dialog" language="[[language]]"></ht-import-mf-dialog>
+        <ht-import-mf-dialog id="import-mf-dialog" on-add-patient="_addPatientNoOpen" added-patient="{{addedPatient}}" api="[[api]]" user="[[user]]" language="[[language]]"></ht-import-mf-dialog>
 
         <paper-dialog id="patient-import-dialog">
             <h2 class="modal-title">[[localize('upl_mffil','Upload SMF/PMF files',language)]]<span class="extra-info">[[localize('xml_files', '(XML files)', language)]]</span></h2>
@@ -1201,7 +1201,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
-        <paper-dialog id="add-patient-dialog" class="dialog add-pat-dialog">
+        <paper-dialog id="add-patient-dialog" class="dialog add-pat-dialog" on-opened-changed="_addPatientDialogOpenedChanged">
             <h2 class="modal-title">[[localize('add_pat','Add a patient',language)]]</h2>
             <div class="administrative-panel" style="width:100%">
                 <paper-tabs selected="{{tabs}}" style="background: var(--app-secondary-color); --paper-tabs-selection-bar-color: var(--app-text-color-disabled)">
@@ -1336,7 +1336,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
             <div class="buttons">
                 <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="confirm" disabled="[[!canAddPat]]">[[localize('cre','Create',language)]]</paper-button>
+                <template is="dom-if" if="[[openAddedPatient]]">
+                    <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="confirmAddAndOpenPatient" disabled="[[!canAddPat]]">[[localize('cre','Create',language)]]</paper-button>
+                </template>
+                <template is="dom-if" if="[[!openAddedPatient]]">
+                    <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="confirmAddPatient" disabled="[[!canAddPat]]">[[localize('cre','Create',language)]]</paper-button>
+                </template>
             </div>
             </div>
         </paper-dialog>
@@ -1892,7 +1897,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     onElectron : {
                         type : Boolean,
                         value : false
+                    },
+                    openAddedPatient: {
+                        type: Boolean,
+                        value: true
                     }
+
                 }
             }
 
@@ -2242,6 +2252,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set('valueGender', null)
 
                 this.$['add-patient-dialog'].open()
+            }
+
+            _addPatientNoOpen() {
+                this.set('openAddedPatient', false)
+                this._addPatient()
+            }
+
+            _addPatientDialogOpenedChanged(e) {
+                if(e.detail.value === false) {
+                    // reset to default state when closed
+                    this.set('openAddedPatient', true)
+                }
             }
 
             _readEid() {
@@ -2634,7 +2656,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return
             }
 
-            confirm() {
+            confirmAddPatient() {
                 if (this.lastName.length && this.firstName.length && this.dateAsString.length) { // name and birthdate are needed
                     // Trigger update
                     let newPatient = {
@@ -2681,11 +2703,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         p => this.api.register(p, 'patient')
                     ).then(
                         p => {
+                            this.set("addedPatient", p)
                             this.resetNewPatientDialog()
-                            this.set('selectedPatient', p)
+                            return p
                         }
                     )
                 }
+            }
+
+            confirmAddAndOpenPatient() {
+                confirmAddPatient().then(p => {
+                    this.set('selectedPatient', p)
+                })
             }
 
             _canAddPat() {
