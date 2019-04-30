@@ -260,6 +260,11 @@
                     <template is="dom-if" if="[[isLoading]]"><ht-spinner active></ht-spinner></template>
                     <pdf-element src="[[pdfData]]" elevation="5" downloadable fit-width fit-height enable-text-selection></pdf-element>
                 </template>
+                <template is="dom-if" if="[[_urlMimeType(document.mainUti, document.otherUtis.*, null, data)]]">
+                    <span class="title">URL [[_title(document.name, title)]]</span>
+                    <template is="dom-if" if="[[isLoading]]"><ht-spinner active></ht-spinner></template>
+                    <p><a href="[[data.url]]" target="_blank">External link</a></p>
+                </template>
                 <template is="dom-if" if="[[_plainMimeType(document.mainUti, document.otherUtis.*, null, data)]]">
                     <template is="dom-if" if="[[attachmentContent.length]]">
                         <template is="dom-if" if="[[_isEqual(document.documentLocation,'body')]]">
@@ -500,19 +505,47 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
     _downloadAnnex(){
 	    const doc = this.document
-	    if (_.size(doc.encryptionKeys) || _.size(doc.delegations)) {
+	    if (doc && (_.size(doc.encryptionKeys) || _.size(doc.delegations))) {
             this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, doc.id, _.size(doc.encryptionKeys) ? doc.encryptionKeys : doc.delegations
             ).then(({extractedKeys: enckeys}) => {
                 const url = doc && this.api.document().getAttachmentUrl(doc.id,doc.attachmentId,enckeys,this.api.sessionId,doc.name)
                 let a = document.createElement("a");
                 document.body.appendChild(a);
+                this.appendChild(a);
                 a.style = "display: none";
                 a.download = doc.name // optional
                 a.setAttribute('href', url);
                 a.click();
                 window.URL.revokeObjectURL(url);
             })
+        } else {
+	        if(this.data && this.data.value){
+                let image_data = atob(this.data.value);
+                let arraybuffer = new ArrayBuffer(image_data.length);
+                let view = new Uint8Array(arraybuffer);
+                for (let i=0; i<image_data.length; i++) {
+                    view[i] = image_data.charCodeAt(i) & 0xff;
+                }
+                let blob = new Blob([arraybuffer], {type: 'application/octet-stream'});
+
+                let url = window.URL.createObjectURL(blob)
+                let a = document.createElement("a");
+                this.appendChild(a);
+                a.style = "display: none";
+                a.href = url;
+                if(this.data && this.data.mediatype && this.data.mediatype === "IMAGE_JPEG"){
+                    a.download = `${"image"}_${moment()}.jpeg`;
+                }else {
+                    a.download = `${"image"}_${moment()}.png`;
+                }
+                a.click();
+                this.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } else if(this.dataUrl){
+	            console.log("dataUrl : ", this.dataUrl)
+            }
         }
+
     }
 
     _print(e) {
@@ -551,15 +584,21 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     _plainMimeType(uti, utis, isLabOrProtocol, data) {
-        return data && data.content && data.l ? data.content.length : !isLabOrProtocol && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m === 'text/plain');
+        return !isLabOrProtocol && (uti && [uti] || []).concat(utis || []).map(u => this.mimeType(u)).find(m => m === 'text/plain');
     }
 
     _pdfRenderableMimeType(uti, utis, isLabOrProtocol, data){
-	    return this._plainMimeType(uti, utis, isLabOrProtocol, data);
+	    return data && data.content && (data.l || data.l === null) ? data.content.length : false;//this._plainMimeType(uti, utis, isLabOrProtocol, data);
+    }
+
+    _urlMimeType(uti, utis, isLabOrProtocol, data){
+        return data && data.mediatype ? data.mediatype === "TEXT_HTML" : false
     }
 
     _unknownMimeType(uti, utis, dataUrl, data) {
-        return (!this._imageMimeType(uti, utis, dataUrl, data) && !this._pdfMimeType(uti, utis, dataUrl, data) && !this._xmlMimeType(uti, utis) && !this._plainMimeType(uti, utis))
+        return (!this._imageMimeType(uti, utis, dataUrl, data) && !this._pdfMimeType(uti, utis, dataUrl, data) && !this._xmlMimeType(uti, utis)
+            && !this._plainMimeType(uti, utis)&& !this._pdfRenderableMimeType(uti, utis, null, data)
+            && !this._urlMimeType(uti, utis, null, data))
     }
 
     _dataUrlChanged(dataUrl) {
@@ -600,7 +639,7 @@ class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
             this.set('isLabOrProtocol', false)
             this.set('attachmentContent', data && data.value ? data.value : data)
             this.set('isLoading',false)
-            if(data && data.content && data.l){
+            if(data && data.content && (data.l || data.l === null)){
                 this._renderData(data);
             }
         } else {

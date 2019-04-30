@@ -1,7 +1,7 @@
 /* global PDFJS, URL */
 
 'use strict';
-
+import moment from 'moment/src/moment';
 (function(window, undefined) {
   var Reader = function(el) {
     this.element = el;
@@ -337,7 +337,7 @@
 
   Reader.prototype.download = function(context) {
     var a = document.createElement('a'),
-      filename = this.SRC.split('/');
+      filename = validURL(this.SRC) ? this.SRC.split('/') : [`${"document"}_${moment()}.pdf`];
 
     a.href = this.downloadLink;
     a.target = '_parent';
