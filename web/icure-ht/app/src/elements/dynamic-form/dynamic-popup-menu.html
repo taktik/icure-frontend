@@ -158,6 +158,9 @@
 				<paper-menu-button slot="suffix" horizontal-offset="[[listboxOffsetWidth]]">
 					<iron-icon icon="paper-dropdown-menu:arrow-drop-down" slot="dropdown-trigger"></iron-icon>
 					<paper-listbox id="dropdown-listbox" slot="dropdown-content" selected="{{selected}}">
+						<template is="dom-if" if="{{isFreeText}}">
+							<paper-item>[[localize('autre','Autre',language)]]</paper-item>
+						</template>
 						<paper-item>[[localize('auc','Aucun',language)]]</paper-item>
 						<template is="dom-repeat" items="[[options]]">
 							<paper-item>[[localize(item,item,language)]]</paper-item>
@@ -183,6 +186,9 @@
 				<paper-menu-button id="paper-menu-button" slot="suffix" horizontal-offset="[[listboxOffsetWidth]]">
 					<iron-icon icon="paper-dropdown-menu:arrow-drop-down" slot="dropdown-trigger"></iron-icon>
 					<paper-listbox id="dropdown-listbox" slot="dropdown-content" selected="{{selected}}">
+						<template is="dom-if" if="{{isFreeText}}">
+							<paper-item>[[localize('autre','Autre',language)]]</paper-item>
+						</template>
 						<paper-item>[[localize('auc','Aucun',language)]]</paper-item>
 						<template is="dom-repeat" items="[[options]]">
 							<paper-item>[[localize(item,item,language)]]</paper-item>
@@ -266,6 +272,14 @@ class DynamicPopupMenu extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([
 			displayAllAlways:{
 				type : Boolean,
 				value : false
+			},
+			isFreeText:{
+				type: Boolean,
+				value: false
+			},
+			hasFalseDataSource:{
+				type: Boolean,
+				value: false
 			}
 		};
 	}
@@ -301,7 +315,18 @@ class DynamicPopupMenu extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([
 		if (this.readOnly) {
 			return;
 		}
-		this.set('value', this.options[selected - 1] || null);
+		this.set("displayAllAlways",true)
+		selected===0 && this.isFreeText ? this.set("dataSource",{
+			filter: (text, uuid) => Promise.resolve(this.options.filter(x => text===" " || x.includes(text)).map(item => {
+				return({
+					id:item,
+					name:this.localize(item,item,this.language),
+					authentic:true
+				})})) || Promise.resolve([]),
+			get : (id) => Promise.resolve(this.options.find(x => x.id===id))
+		}) :""
+		this.set('value', this.options[selected - (this.isFreeText ? 2 : 1)] || "");
+		this.set("hasFalseDataSource",true)
 	}
 
 	_openPopupMenu() {
@@ -321,9 +346,9 @@ class DynamicPopupMenu extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([
 		if (value && this.dataSource) {
 			if (!this.items || !this.items.find(i => i.id === value)) {
 				this.dataSource.get(this.value).then(res => {
-					res = res || {name:this.localize(value,value,this.language), id:value}
+					res = res || {name:this.localize(value,value,this.language), id:value,authentic : false}
 					if (!this.items.map(x => x.id).includes(res.id)) {
-						this.set('items', [res].concat(this.items || []))
+						this.set('items', [res].concat(this.items.filter(item => item.authentic) || []))
 					}
 					this.set('comboBoxValue',value)
 				}).catch(()=>{
@@ -335,6 +360,11 @@ class DynamicPopupMenu extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([
 				})
 			} else {
 				this.set('comboBoxValue',value)
+				if(this.hasFalseDataSource && this.options.find(op => op===value)){
+					this.set("dataSource",null)
+					this.set("hasFalseDataSource",false)
+					this.set("selected",this.options.findIndex(op => op===value)+2)
+				}
 			}
 		} else {
 			this.set('comboBoxValue', null)
@@ -345,8 +375,12 @@ class DynamicPopupMenu extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([
 	}
 
 	_filterChanged(e) {
-		if(this.displayAllAlways)return;
 		const text = e.detail.value;
+		if(this.isFreeText && text!==""){
+			this.set("value",text)
+		}
+
+		if(this.displayAllAlways)return;
 
 		this.dataSource && this.dataSource.filter(text)
 				.then(items =>
