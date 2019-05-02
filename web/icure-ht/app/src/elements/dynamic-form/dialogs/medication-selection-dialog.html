@@ -420,41 +420,52 @@
                                 this.setGridSize(grid, res.totalSize)
                             }
                             grid.latestResults = _.slice(res.rows, startIndex, endIndex)
+                            if (grid.latestResults.length) {
+                                ;(grid.drugsCache || (grid.drugsCache = []))[startIndex] = null
+                                grid.drugsCache.splice(startIndex, grid.latestResults.length, ...grid.latestResults)
+                            }
                             callback(grid.latestResults)
                         }.bind(this))
                     }
                     else {
-                        const fillCache = (minSize) => grid.drugsCache && grid.drugsCache.allItemsLoaded ? Promise.resolve(grid.drugsCache) : Promise.all([this.api.bedrugs().getMedecinePackages(this.latestSearchValue, this.language, null, grid.drugsCacheUpperSearchIndex || 0, 100),
-                            this.api.bedrugs().getMedecinePackagesFromIngredients(this.latestSearchValue, this.language, null, grid.drugsCacheUpperSearchIndex || 0, 100)])
+                        const fillCache = (minSize) =>
+                            grid.drugsCache && grid.drugsCache.allItemsLoaded ?
+                                Promise.resolve(grid.drugsCache) :
+                                Promise.all([
+                                    this.api.dedup(() => this.api.bedrugs().getMedecinePackages(this.latestSearchValue, this.language, null, grid.drugsCacheUpperSearchIndex || 0, 100), 'getMedecinePackages', `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000),
+                                    this.api.dedup(() => this.api.bedrugs().getMedecinePackagesFromIngredients(this.latestSearchValue, this.language, null, grid.drugsCacheUpperSearchIndex || 0, 100), 'getMedecinePackagesFromIngredients', `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000)
+                                ])
                             .then(([packs, packsIng]) => {
-
+                                const allDone = (packs||[]).length < 100 && (packsIng||[]).length
                                 const newItems = _.unionBy(packs, packsIng, 'id.id') //what to do when there are no newitems ?
                                 if (newItems.length > 0) {
                                     grid.drugsCacheUpperSearchIndex = (grid.drugsCacheUpperSearchIndex || 0) + 100
                                 }
-                                return [(grid.drugsCache = _.sortBy(_.unionBy(grid.drugsCache || [], newItems, 'id.id'), 'name')), newItems.length]
+                                return [(grid.drugsCache = _.sortBy(_.unionBy(grid.drugsCache || [], newItems, 'id.id'), 'name')), newItems.length, allDone]
                             })
-                            .then(([cache, newItemsLength]) => {
-                                cache.allItemsLoaded = !newItemsLength
-                                return cache.length > minSize || !newItemsLength ? Promise.resolve(cache) : fillCache(minSize)
+                            .then(([cache, newItemsLength, allDone]) => {
+                                cache.allItemsLoaded = !newItemsLength || allDone
+                                return cache.length > minSize || !newItemsLength || allDone ? Promise.resolve(cache) : fillCache(minSize)
                             })
 
                         this.loadCheapAlternativesIfNeeded(this.selectedMedicationFromList).then(alternatives => {
-                            const cheapAlternativeSearchSeedIndex = this.cheapAlternativeSearchSeed ? grid.drugsCache.findIndex(mpp => mpp.id.id === this.cheapAlternativeSearchSeed.id.id) : -1
+                            const cheapAlternativeSearchSeedIndex = this.cheapAlternativeSearchSeed ? grid.drugsCache.findIndex(mpp => this._id(mpp) === this._id(this.cheapAlternativeSearchSeed)) : -1
                             const cacheEndIndex = cheapAlternativeSearchSeedIndex === -1 ? endIndex :
                                 (cheapAlternativeSearchSeedIndex < endIndex ? endIndex - alternatives.length : endIndex)
                             ;((grid.drugsCache && grid.drugsCache.length >= cacheEndIndex) ? Promise.resolve(grid.drugsCache) : fillCache(cacheEndIndex)).then(cache => {
                                 this.setGridSize(grid, cache.length + alternatives.length)
 
+                                let fullVirtualDataSet = cache.map(it => it)
                                 if (cheapAlternativeSearchSeedIndex === -1 || endIndex <= cheapAlternativeSearchSeedIndex) {
-                                    callback(cache.slice(startIndex, endIndex))
+                                    fullVirtualDataSet = cache.slice(startIndex, endIndex)
                                 } else if (cheapAlternativeSearchSeedIndex + alternatives.length < startIndex) {
-                                    callback(cache.slice(startIndex - alternatives.length, endIndex - alternatives.length))
+                                    fullVirtualDataSet = cache.slice(startIndex - alternatives.length, endIndex - alternatives.length)
                                 } else {
-                                    const fullVirtualDataSet = cache.map(it => it)
                                     fullVirtualDataSet.splice(cheapAlternativeSearchSeedIndex + 1, 0, ...alternatives)
-                                    callback(fullVirtualDataSet.slice(startIndex, endIndex))
+                                    fullVirtualDataSet = fullVirtualDataSet.slice(startIndex, endIndex)
                                 }
+                                grid.fullVirtualDataSet = fullVirtualDataSet
+                                callback(grid.fullVirtualDataSet)
                             })
                         })
                     }
@@ -471,6 +482,10 @@
                 return column.key.indexOf("price") !== -1 ? accounting.formatMoney(_.get(item, column.key) / 100, "€", 2, " ", ",") :
                     (column.key.indexOf("name") !== -1 && _.get(item, "cheap") && _.get(item, "cheap") === 'cheap' ? '\u2794 ' + _.get(item, column.key) :
                         _.get(item, column.key));
+            }
+
+            _id(item) {
+                return item && (item.id && (item.id.id || item.id) || item.inncluster || item.name)
             }
 
             _columnWidth(column) {
