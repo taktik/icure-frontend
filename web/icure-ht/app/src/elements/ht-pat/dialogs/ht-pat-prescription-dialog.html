@@ -168,6 +168,20 @@
             .presc-dialog .error-message{
                 padding-bottom: 16px;
             }
+            .spinnerbox {
+                position: absolute;
+                width: 100%;
+                height: calc(100vh - 86px);
+                display: flex;
+                justify-content: space-around;
+            }
+            ht-spinner {
+                position: relative;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 42px;
+                height: 42px;
+            }
         </style>
 
         <paper-dialog id="loading">
@@ -237,6 +251,11 @@
                 </paper-tab>
             </paper-tabs>
             <template is="dom-if" if="[[_isSentView(prescriptionTab)]]">
+                <template is="dom-if" if="[[_isFetchingRecipeList]]">
+                    <div class="spinnerbox">
+                        <ht-spinner active></ht-spinner>
+                    </div>
+                </template>
                 <div class="content sent">
                     <vaadin-grid id="sent-entities-list" class="material" overflow="bottom" items="[[ridSentListExtended]]">
                         <vaadin-grid-column width="80px">
@@ -448,7 +467,11 @@
                     prescriptionTab: {
                         type: String,
                         value: 'toSend'
-                    }
+                    },
+                    _isFetchingRecipeList: {
+                        type: Boolean,
+                        value: false
+                    },
                 }
             }
 
@@ -572,8 +595,12 @@
                             )
                         }
                     } else {
-                        console.log("no ehealth")
-                        this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
+                        console.log("no niss or no recip-e", this.patient.ssin, this.api.tokenId)
+                        if(!this.patient.ssin) {
+                            this.set('_printError', this.localize("the_ni_of_the_pat_is_not_val_or_mis", "no niss", this.language))
+                        } else {
+                            this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
+                        }
                         this.set('_printErrorDetails', "")
                         this.set('_revokeTryAgainCallback', () => this._revokeRID(rid))
                         this.$.loading.close();
@@ -614,6 +641,8 @@
                     console.log("skip fetch recipe")
                     return
                 }
+
+                this._isFetchingRecipeList = true
 
                 // local RIDs
                 const groupObj = _.groupBy(this._drugsAlreadyPrescribed(), svc => this.api.contact().medicationValue(svc, this.language).prescriptionRID)
@@ -670,13 +699,16 @@
                                 }
                             })
                             .then(() => {
+                                this._isFetchingRecipeList = false
                                 extend_list(endlist)
                             })
                     ).catch(error => {
                         console.log(error)
                         extend_list([])
+                        this._isFetchingRecipeList = false
                     })
                 } else {
+                    this._isFetchingRecipeList = false
                     extend_list([])
                 }
 
@@ -802,8 +834,12 @@
                             }
                         })
                 } else {
-                    console.log("no recip-e")
-                    this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
+                    console.log("no niss or no recip-e", this.patient.ssin, this.api.tokenId)
+                    if(!this.patient.ssin) {
+                        this.set('_printError', this.localize("the_ni_of_the_pat_is_not_val_or_mis", "no niss", this.language))
+                    } else {
+                        this.set('_printError', this.localize('no_ehe_con', "You have no ehealth session.", this.language))
+                    }
                     this.set('_printErrorDetails', "")
                     this.$.loading.close();
                     setTimeout(() => this.$.confirmNoRecipe.open(),10) // dialog doesn't open a second time without setTimeout
