@@ -40,6 +40,7 @@
 <link rel="import" href="../ht-spinner/ht-spinner.html">
 
 <link rel="import" href="../dynamic-form/dynamic-subcontact-type-selector.html">
+<link rel="import" href="../../elements/ht-msg/ht-msg-new.html">
 
 <dom-module id="ht-pat-detail-ctc-detail-panel">
 	<template>
@@ -532,7 +533,98 @@
 				width : 300px
 			}
 
+            .modalDialog{
+                height: 300px;
+                width: 500px;
+            }
+
+            .modalDialogContent{
+                height: 250px;
+                width: auto;
+                margin: 10px;
+            }
+
+            .m-t-40 {
+                margin-top:40px;
+            }
+
+            .m-t-50 {
+                margin-top:50px!important;
+            }
+
+            .m-t-20 {
+                margin-top:20px!important;
+            }
+
+            .m-t-25 {
+                margin-top:25px!important;
+            }
+
+            .textAlignCenter {
+                text-align: center;
+            }
+
+            .bold {
+                font-weight: 700;
+            }
+
+            .smallIcon { width:16px; height:16px; }
+
+            #loadingContainer, #loadingContainerSmall {
+                position:absolute;
+                width: 100%;
+                height: 100%;
+                top: 0;left: 0;
+                background-color: rgba(0,0,0,.3);
+                z-index: 10;
+                text-align: center;
+            }
+
+            #loadingContentContainer, #loadingContentContainerSmall {
+                position:relative;
+                width: 400px;
+                min-height: 200px;
+                background-color: #ffffff;
+                padding:20px;
+                border:3px solid var(--app-secondary-color);
+                margin:40px auto 0 auto;
+                text-align: center;
+            }
+
+            #loadingContentContainerSmall {
+                width: 250px;
+                min-height: 1px;
+            }
+
+            #loadingContent {
+                text-align: left;
+            }
+
+            .dialogButtons {
+                position: absolute;
+                bottom: 40px;
+                margin: 0;
+                width:100%;
+                text-align:center;
+            }
+
+            .dialogButtons .modal-button{
+                --paper-button-ink-color: var(--app-secondary-color);
+                background-color: var(--app-secondary-color);
+                color: var(--app-text-color);
+                font-weight: 700;
+                font-size: 14px;
+                height: 40px;
+                min-width: 100px;
+                padding: 10px 1.2em;
+                text-transform: capitalize;
+            }
+
 		</style>
+
+        <template is="dom-if" if="[[_bodyOverlay]]">
+            <div id="loadingContainer"></div>
+        </template>
 
 		<paper-item id="prescriptionError" class="notification-panel prescriptionError">
 			<template is="dom-if" if="[[!api.tokenId]]">[[localize('you_mus_be_con_to_ehe_to_be_all_to_pre','You must be connected to eHealth to be allowed to prescribe',language)]]<br></template>
@@ -631,8 +723,21 @@
 															 on-data-change="_refreshFromServices" on-new-report="newReport" on-print-subform="printSubForm" subcontact-type="[[subcontactType]]"></dynamically-loaded-form>
 								</template>
 								<template is="dom-repeat" items="[[form.docs]]">
-									<dynamic-doc api="[[api]]" user="[[user]]" patient="[[patient]]" document-id="[[_documentId(item)]]" i18n="[[i18n]]" language="[[language]]"
-												 resources="[[resources]]" title="[[item.label]]" downloadable="true" preview="true" is-pat-detail="true"></dynamic-doc>
+									<dynamic-doc
+									    api="[[api]]"
+									    user="[[user]]"
+									    patient="[[patient]]"
+									    document-id="[[_documentId(item)]]"
+									    i18n="[[i18n]]"
+									    language="[[language]]"
+									    resources="[[resources]]"
+									    title="[[item.label]]"
+									    downloadable="true"
+									    forwardable="true"
+									    preview="true"
+									    is-pat-detail="true"
+									    on-forward-document="_forwardDocument"
+                                    ></dynamic-doc>
 								</template>
 							</template>
 							<template is="dom-if" if="[[dof.unmappedServices.length]]">
@@ -768,6 +873,20 @@
         </paper-dialog>
 
 		<template is="dom-if" if="[[busySpinner]]"><div id="busySpinner"><div id="busySpinnerContainer"><ht-spinner class="spinner" active></ht-spinner></div></div></template>
+
+        <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox yet',language)]]</h3>
+                <p class="textAlignCenter m-t-20 bold">[[localize('pleaseConnecteHealthBoxFirst','Please connect your eHealthBox first',language)]].</p>
+            </div>
+            <div class="dialogButtons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
+        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"></ht-msg-new>
+
 	</template>
 	<script>
 
@@ -936,12 +1055,25 @@
 						type : Number,
 						value : 0,
 						observer: 'sizePrintSubFormChanged'
-					}
+					},
+                    credentials:{
+                        type: Object
+                    },
+                    _bodyOverlay: {
+                        type: Boolean,
+                        value: false
+                    },
 				};
 			}
 
 			static get observers() {
-				return ['ifRecipeAvailable(user)','_filesChanged(files.*)','_servicesFilter(serviceFilters)','_allContactsChanged(allContacts.*, currentContact, currentContact._rev)'];
+				return [
+				    'ifRecipeAvailable(user)',
+				    '_filesChanged(files.*)',
+				    '_servicesFilter(serviceFilters)',
+				    '_allContactsChanged(allContacts.*, currentContact, currentContact._rev)',
+				    '_isConnectedToEhbox(api.tokenId)'
+                ];
 			}
 
 			constructor() {
@@ -1509,9 +1641,10 @@
 				climbFormHierarchy(_.chain(formGroups).map(fg => fg.forms.filter(f => f.id).map(f => f.id)).flatten().uniq().value(), {}).then(() => {
 					formGroups.forEach(fg => {
 						fg.forms = _.chain(fg.forms.reduce((acc, form) => {
-							const slot = acc.find(f => f.id === form.id);
+							let slot = acc.find(f => f.id === form.id);
 							if (slot) {
-								_.concat(slot.docs, form.docs);
+								// _.concat(slot.docs, form.docs);
+								slot.docs = _.uniqBy(_.concat( slot.docs, form.docs), 'id')
 							} else {
 								acc.push(form);
 							}
@@ -2282,7 +2415,7 @@
                     }
                 })
 
-                this._getPdfPrintingCommonData({
+                this._getPatAndHcpCommonData({
                     downloadFileName: _.kebabCase([ this.localize("certificate_stop_activity",this.language), _.get(this.patient, "lastName", ""), _.get(this.patient, "firstName", ""), +new Date()].join(" ")) + ".pdf",
                     todayDate: moment().format("DD/MM/YYYY"),
                     incapacityStart: _.get(_.filter(subFormFieldsAndValues,{name:"du"}), "[0].value", false),
@@ -2409,7 +2542,7 @@
                     }
                 )
 
-                this._getPdfPrintingCommonData({
+                this._getPatAndHcpCommonData({
                     downloadFileName: _.kebabCase([ this.localize("requestForImagingExam_header1",this.language), _.get(this.patient, "lastName", ""), _.get(this.patient, "firstName", ""), +new Date()].join(" ")) + ".pdf",
                     subFormData: _.compact(
                         _.map(
@@ -2485,7 +2618,7 @@
                     })
                 )
 
-                this._getPdfPrintingCommonData({
+                this._getPatAndHcpCommonData({
                     downloadFileName: _.kebabCase([ this.localize("requestForImagingExam_header1",this.language), _.get(this.patient, "lastName", ""), _.get(this.patient, "firstName", ""), +new Date()].join(" ")) + ".pdf",
                     subFormData: _.compact(
                         _.map(
@@ -2600,7 +2733,7 @@
                     }
                 })
 
-                this._getPdfPrintingCommonData({
+                this._getPatAndHcpCommonData({
                     downloadFileName: _.kebabCase([ this.localize("requestForKineCare_header1",this.language), _.get(this.patient, "lastName", ""), _.get(this.patient, "firstName", ""), +new Date()].join(" ")) + ".pdf",
                     healthCarTypeData: [
                         _.get(_.filter(subFormFieldsAndValues,{name:"Prescription de kinésithérapie"}), "[0]", {}),
@@ -2832,7 +2965,7 @@
                     )
                 }
 
-                this._getPdfPrintingCommonData({
+                this._getPatAndHcpCommonData({
                     downloadFileName: _.kebabCase([ this.localize("requestForNurseCare_header1",this.language), _.get(this.patient, "lastName", ""), _.get(this.patient, "firstName", ""), +new Date()].join(" ")) + ".pdf",
                     formsData: formsData,
                     documentMetas : {
@@ -2993,7 +3126,7 @@
                 `
             }
 
-            _getPdfPrintingCommonData( inputData ) {
+            _getPatAndHcpCommonData( inputData ) {
 
 			    let pdfPrintingData = {
 			        patientData : {
@@ -3005,15 +3138,15 @@
                            _.chain(_.get(this.patient, "addresses", {})).filter({addressType:"work"}).head().value() ||
                            _.chain(_.get(this.patient, "addresses", {})).head().value() ||
                            {},
-                       	ssin: this.api.formatSsinNumber(_.get(this.patient, "ssin", "")),
+                       	ssinRaw: _.trim(_.get(this.patient, "ssin", "")),
+                       	ssin: this.api.formatSsinNumber(_.trim(_.get(this.patient, "ssin", ""))),
                        	insuranceData: _
                            .chain(_.get(this.patient, "insurabilities",{}))
                            .filter((i)=>{
                                return i &&
                                    !!moment( _.trim(_.get(i, "startDate", "0") ), "YYYYMMDD" ).isBefore(moment()) &&
                                    (!!moment( _.trim(_.get(i, "endDate", "0") ), "YYYYMMDD" ).isAfter(moment()) || !_.trim(_.get(i, "endDate", "") ) ) &&
-                                   !!_.trim( _.get( i, "insuranceId", "" ) ) &&
-                                   !!_.trim( _.get( i, "identificationNumber", "" ) )
+                                   !!_.trim( _.get( i, "insuranceId", "" ) )
                            })
                            .head()
                            .value(),
@@ -3029,6 +3162,7 @@
                            {},
                        	lastName: _.trim( _.get(this.globalHcp, "lastName", "") ).toUpperCase(),
                        	firstName: _.trim( _.get(this.globalHcp, "firstName", "") ),
+                       	nihiiRaw: _.trim(_.get(this.globalHcp, "nihii", "")),
                        	nihii: this.api.formatInamiNumber(_.trim(_.get(this.globalHcp, "nihii", ""))),
                        	telecoms: _.assign(
                            {},
@@ -3305,7 +3439,7 @@
 
             _createLinkingLettersProseTemplate() {
 				const templateContent = '{"type":"doc","content":[{"type":"page","attrs":{"id":0},"content":[{"type":"heading","attrs":{"level":1,"align":"center"},"content":[{"type":"text","marks":[{"type":"strong"},{"type":"color","attrs":{"color":"rgb(13, 71, 161)"}},{"type":"font","attrs":{"font":"Roboto"}},{"type":"size","attrs":{"size":"24px"}}],"text":"LETTRE DE LIAISON"}]},{"type":"heading","attrs":{"level":5,"align":"center"},"content":[{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"todaysDate\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"}},{"type":"table","content":[{"type":"table_row","content":[{"type":"table_cell","attrs":{"colspan":1,"rowspan":1,"colwidth":null,"borderColor":null,"background":null},"content":[{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"MÉDECIN ÉMETEUR"}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"variable","attrs":{ "expr":"dataProvider.getLocalizedText(\\"doctorAbreviation\\")" },"content":[]},{ "type":"text", "text":" " },{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpFirstName\\")" },"content":[]},{ "type":"text", "text":" " },{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpLastName\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpAddress\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpZipCity\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","text":"INAMI: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpNihii\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","text":"Tel: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpTelOrMobile\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","text":"E-mail: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpEmail\\")" },"content":[]}]}]},{"type":"table_cell","attrs":{"colspan":1,"rowspan":1,"colwidth":null,"borderColor":null,"background":null},"content":[{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"MÉDECIN RECEVEUR"}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","text":" "}]}]}]}]},{"type":"paragraph","attrs":{"align":"inherit"}},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"IDENTIFICATION DU PATIENT"}]},{"type":"table","content":[{"type":"table_row","content":[{"type":"table_cell","attrs":{"colspan":1,"rowspan":1,"colwidth":null,"borderColor":null,"background":null},"content":[{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"Nom et prénom: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientLastName\\")" },"content":[]},{"type":"text","text":" "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientFirstName\\")" },"content":[]},{"type":"text","marks":[{"type":"strong"}],"text":" - Adresse: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientAddress\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"N° nat: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientNiss\\")" },"content":[]},{"type":"text","marks":[{"type":"strong"}],"text":" - Ct1/Ct2: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientCt1Ct2\\")" },"content":[]},{"type":"text","marks":[{"type":"strong"}],"text":" - N° mut: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientInsCodeAndName\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"inherit"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"N° aff mut: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientInsMembershipNumber\\")" },"content":[]},{"type":"text","marks":[{"type":"strong"}],"text":" - Sexe: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientSex\\")" },"content":[]},{"type":"text","marks":[{"type":"strong"}],"text":" - Date de naissance: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"patientBirthDate\\")" },"content":[]}]}]}]}]},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{ "align":"inherit" }},{"type":"paragraph","attrs":{"align":"right"},"content":[{"type":"variable","attrs":{ "expr":"dataProvider.getLocalizedText(\\"doctorAbreviation\\")" },"content":[]},{ "type":"text", "text":" " },{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpFirstName\\")" },"content":[]},{ "type":"text", "text":" " },{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpLastName\\")" },"content":[]}]},{"type":"paragraph","attrs":{"align":"right"},"content":[{"type":"text","marks":[{"type":"strong"}],"text":"INAMI: "},{"type":"variable","attrs":{ "expr":"dataProvider.getVariableValue(\\"senderHcpNihii\\")" },"content":[]}]}]}]}'
-                this.api.doctemplate().createDocumentTemplate({
+                return this.api.doctemplate().createDocumentTemplate({
                     created: ""+ +new Date(),
                     documentType: "template",
                     mainUti:"proseTemplate.linkingLetter." + this.language,
@@ -3414,7 +3548,7 @@
                 const proseEditor = this.root.querySelector("#prose-editor-linking-letter")
                 proseEditor.set("additionalCssClasses", "linkingLetter" );
 
-                this._getPdfPrintingCommonData({})
+                this._getPatAndHcpCommonData({})
                     .then(dpData=>_.assign({dpData:dpData}, {}))
                     .then(resourceObject => {
 
@@ -3423,10 +3557,10 @@
 
 						return this.api.doctemplate().findDocumentTemplatesByDocumentType('template')
 							.then(docTemplates =>_.get( _.filter(docTemplates,i=> _.get(i, "mainUti", "") === "proseTemplate.linkingLetter." + this.language ), "[0]", false) || _.get( _.filter(docTemplates,i=> _.get(i, "mainUti", "") === "proseTemplate.linkingLetter.fr" ), "[0]", {}))
-							.then(dt =>{ return (dt && dt.id && dt.attachmentId) ? this.api.doctemplate().getAttachmentText(dt.id, dt.attachmentId).then(proseTemplate =>{
-							    this.proseEditorLinkingLetterTemplateAlreadyApplied = true;
-							    proseEditor.setJSONContent(this.api.crypto().utils.ua2utf8(proseTemplate)||{})
-							}) : {} })
+							.then(dt =>{ return (dt && dt.id && dt.attachmentId) ?
+							    this.api.doctemplate().getAttachmentText(dt.id, dt.attachmentId).then(proseTemplate =>{ this.proseEditorLinkingLetterTemplateAlreadyApplied = true; proseEditor.setJSONContent(this.api.crypto().utils.ua2utf8(proseTemplate)||{}) }).catch(e=>{}) :
+							    this._createLinkingLettersProseTemplate().then(createdTemplate => { this.api.doctemplate().getAttachmentText(createdTemplate.id, createdTemplate.attachmentId).then(proseTemplate =>{ this.proseEditorLinkingLetterTemplateAlreadyApplied = true; proseEditor.setJSONContent(this.api.crypto().utils.ua2utf8(proseTemplate)||{}) }).catch(e=>{}) }).catch(e=>{})
+							})
 							.catch(e=>console.log(e))
 
 					})
@@ -3490,6 +3624,34 @@
 			sizePrintSubFormChanged(value){
 				const tab = ["DL","A5"]
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
+			}
+
+            _isConnectedToEhbox() {
+                this.set("ehealthSession", !!this.api.tokenId)
+            }
+
+            _closeDialogs() {
+                this.set("_bodyOverlay", false);
+                _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
+            }
+
+			_forwardDocument(e) {
+
+			    // Some wrong ?
+			    const documentId = _.get(e,"detail.documentId", false); if (!documentId) return;
+			    
+			    // eHealthBox connection has to be
+			    if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+
+			    this._getPatAndHcpCommonData().then(hcpAndPatData=>{
+                    console.log(documentId);
+                    console.log(this.user);
+                    console.log(this.patient);
+                    console.log(this.currentContact);
+                    console.log(hcpAndPatData);
+                    this.$['new-msg'].open(/*e.detail.params*/)
+			    })
+
 			}
 
         }
