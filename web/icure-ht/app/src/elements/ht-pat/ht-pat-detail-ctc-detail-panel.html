@@ -713,8 +713,14 @@
 		<paper-dialog id="upload-dialog">
 			<h2>[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
 			<!--<paper-fab class="close-button-icon" icon="icons:close" dialog-dismiss></paper-fab>-->
+			<template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
+				<div class="buttons">
+					<vaadin-combo-box id="scannerList" filtered-items="[[scannerList]]" item-label-path="label" item-value-path="id" label="[[localize('scanners','Scanners',language)]]" value="{{selectedScanner}}"></vaadin-combo-box>
+					<paper-button class="modal-button" on-tap="_launchScan">[[localize('scan','Scan',language)]]</paper-button>
+				</div>
+			</template>
 			<vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUploaded"></vaadin-upload>
-            <div class="buttons">
+			<div class="buttons">
                 <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
             </div>
 		</paper-dialog>
@@ -936,6 +942,23 @@
 						type : Number,
 						value : 0,
 						observer: 'sizePrintSubFormChanged'
+					},
+					selectedScanner:{
+						type : String,
+						value : ""
+					},
+					scannerList:{
+						type: Array,
+						value : ()=> []
+					},
+					hasElectron:{
+						type: Boolean,
+						value : false,
+						observer: '_hasElectronChanged'
+					},
+					scannedDocName:{
+						type : String,
+						value : "test"
 					}
 				};
 			}
@@ -953,7 +976,23 @@
                 this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(tempHcp => {
                     this.set('globalHcp',tempHcp)
                 })
+				this.api.isElectronAvailable().then(electron => this.set("hasElectron",electron))
             }
+
+			_hasElectronChanged(){
+				if(!this.hasElectron)return;
+				fetch("http://localhost:16042/scanning",{
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
+					body: JSON.stringify({
+						request : "list"
+					})
+				}).then(response => response.json()).then(data =>{
+					if(!data.ok)return;
+					this.set("selectedScanner",data.data.default.id)
+					this.set("scannerList",data.data.all)
+				})
+			}
 
             _servicesFilter() {
                 if(!this.contacts) {
@@ -3490,6 +3529,53 @@
 			sizePrintSubFormChanged(value){
 				const tab = ["DL","A5"]
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
+			}
+
+			_hasScanners(){
+				return this.hasElectron && this.scannerList && this.scannerList.length;
+			}
+
+			_launchScan(){
+				fetch("http://localhost:16042/scanning",{
+					method: "POST",
+					headers: {"Content-Type": "application/json"},
+					body: JSON.stringify({
+						request : "scan",
+						scanner : this.selectedScanner
+					})
+				}).then(response => response.json()).then(response => {
+					if (!response.ok) return;
+
+					let myObject = {
+						downloadFileName: _.kebabCase(_.compact([
+							moment().format('YYYY-MM-DD-HH[h]-mm[m]-ss[s]'),
+							this.scannedDocName || "new_scanned_document",
+						]).join(" ")) + ".pdf",
+						scannedFileBlob: response.data.buffer,
+						scanDate : "08-05-2019"
+					}
+					this.api.document().newInstance(this.user, null, {
+						documentType: 'result',
+						mainUti: this.api.document().uti("application/pdf"),
+						name: _.trim(myObject.downloadFileName)
+					}).then(newDocumentInstance => this.api.document().createDocument(newDocumentInstance))
+						.then(createdDocument => {
+							_.merge(myObject, {documentId: createdDocument.id})
+							return createdDocument
+						})
+						.then((createdDocument) => {
+							return this.api.document().setAttachment(createdDocument.id, null, myObject.scannedFileBlob).then(setAttachmentResponse => _.assign({setAttachmentResponse: setAttachmentResponse}, myObject))
+						})
+						.then(resourcesObject => this._saveDocumentAsService({
+							documentId: _.trim(_.get(resourcesObject, "documentId", "")),
+							stringValue: _.trim(resourcesObject.downloadFileName),
+							formId: "",
+							contactId: _.trim(this.currentContact.id)
+						}))
+						.catch((e) => {
+							console.log("---error upload attachment---");
+						})
+					})
 			}
 
         }
