@@ -596,7 +596,6 @@
                 this.$['new-msg'].open()
             }
 
-
             _cancel() {
 				this.clearField();
                 this.$['new-msg'].close()
@@ -606,28 +605,63 @@
                 if( _.trim(recipientFilter).length < 3 ) { this.set("hcpFilteredRecipientsList",[]); return; }
                 const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
                 setTimeout(() => {
+
                     if (reqIdx !== this.recipientReqIdx) return;
                     this.set('busySpinner', true)
 
-                    getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, NIHII + '*')
-                    getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, SSIN + '*')
-                    getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, CBE + '*')
-                    getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, ORGEHP + '*')
-                    getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, ORGNIHII + '*')
-                    searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, LAST + '*', FIRST + '*')
-                    searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, ORGNAME + '*')
+                    const numericSearchQuery = _.trim(_.trim(recipientFilter).replace( /([^\d]*)/gi, '' ))
+                    const patternsValidation = { 8: /^([0-9]){8}$/gi, 10: /^([0-9]){10}$/gi, 11: /^([0-9]){11}$/gi }
 
-                    this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*')
-                        .then(recipients => { if (reqIdx === this.recipientReqIdx) {
-                            const existingRecipientNihiis = _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>i.nihii)))
-                            this.set("hcpFilteredRecipientsList", recipients.filter(recipient => !!_.get(recipient, "nihii", false) && existingRecipientNihiis.indexOf(_.trim(_.get(recipient, "nihii", ""))) === -1 ).map(recipient => {
-                                recipient.displayName = _.compact([
-                                    _.upperFirst(_.trim(_.get(recipient, "lastName", "")).toLowerCase()),
-                                    _.upperFirst(_.trim(_.get(recipient, "firstName", "")).toLowerCase()),
-                                    "(" + this.api.formatInamiNumber(_.trim(_.get(recipient, "nihii", ""))) + ")"
-                                ]).join(" ");
-                                return recipient;
-                            }))
+                    const isValidNihii = !!patternsValidation[8].test(numericSearchQuery) || !!patternsValidation[11].test(numericSearchQuery)
+                    const isValidBce = !!patternsValidation[10].test(numericSearchQuery)
+                    const isValidEhp = !!patternsValidation[10].test(numericSearchQuery)
+                    const isValidSsin = !!patternsValidation[11].test(numericSearchQuery)
+
+                    let searchProm = recipientType === 'CBE' ?
+                        Promise.all([
+                            !isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'cbe',false)).uniqBy('cbe').value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType === 'EHP' ? Promise.all([
+                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType === 'INSS' ? Promise.all([
+                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ssin',false)).uniqBy('ssin').value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
+                        ]) :
+                        (recipientType === 'NIHII-HOSPITAL' || recipientType === 'NIHII-PHARMACY')  ? Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
+                        ]) :
+                        // Default type = NIHII
+                        Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
+                        ])
+
+                    searchProm
+                        .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
+                            this.set("hcpFilteredRecipientsList", _
+                                .chain(searchResults)
+                                .flatMap()
+                                .filter( singleSearchResult => { return (
+                                    ( !!_.get(singleSearchResult, "ehp", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ehp)))).indexOf(_.trim(_.get(singleSearchResult, "ehp", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "ssin", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ssin)))).indexOf(_.trim(_.get(singleSearchResult, "ssin", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "cbe", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.cbe)))).indexOf(_.trim(_.get(singleSearchResult, "cbe", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "nihii", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.nihii)))).indexOf(_.trim(_.get(singleSearchResult, "nihii", ""))) === -1 )
+                                )})
+                                .map(singleRecipient => _.assign({displayName : _.compact([
+                                    _.upperFirst(_.trim(_.get(singleRecipient, "lastName", "")).toLowerCase()),
+                                    _.upperFirst(_.trim(_.get(singleRecipient, "firstName", "")).toLowerCase()),
+                                    "(" + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")"
+                                    ]).join(" ")
+                                },singleRecipient))
+                                .orderBy(['lastName','firstName'],['asc','asc'])
+                                .value()
+                            )
                         }})
                         .catch(e=>{console.log(e);})
                         .finally(() => this.set('busySpinner', false))
@@ -773,11 +807,14 @@
             }
 
 			_addRecipient(){
-                let newMsgTo = this.shadowRoot.querySelector('#newMsg-To')
-                let typeTo = this.shadowRoot.querySelector('#type-To')
+                const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
+                const typeTo = this.shadowRoot.querySelector('#type-To')||false;
+                if( !newMsgTo || !typeTo || !_.get(newMsgTo,"selectedItem",false) ) return;
 
-				if(newMsgTo.selectedItem || (!newMsgTo.selectedItem && parseInt(newMsgTo.value))) {
-				    console.log('addDest',newMsgTo.selectedItem)
+                console.log("newMsgTo.selectedItem", newMsgTo.selectedItem);
+                console.log("newMsgTo.value", newMsgTo.value);
+                console.log("typeTo.value", typeTo.value);
+
                     let hcp = {}
                     if(newMsgTo.selectedItem) {
                     	hcp = newMsgTo.selectedItem
@@ -791,7 +828,7 @@
                     hcp.type = typeTo.value
                     this.push('newMessage.recipients', hcp)
 					newMsgTo.value = ""
-				}
+
             }
 
 			_removeRecipients(e){
