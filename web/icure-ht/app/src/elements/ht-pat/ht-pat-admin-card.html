@@ -488,6 +488,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <paper-tooltip for="print-vignette" position="left">[[localize('print_mutual_vignette','Print mutual vignette',language)]]</paper-tooltip>
                 </div>
                 <div class="print-vignette">
+                    <iron-icon id="print-vignette-grid" icon="av:library-books" on-tap="printMutualVignetteGrid"></iron-icon>
+                    <paper-tooltip for="print-vignette-grid" position="left">[[localize('print_mutual_vignette_grid','Print mutual vignette grid',language)]]</paper-tooltip>
+                </div>
+                <div class="print-vignette">
                     <iron-icon id="fill-with-card" icon="vaadin:health-card" on-tap="fillWithCard"></iron-icon>
                     <paper-tooltip for="fill-with-card" position="left">[[localize('fill_with_eid','Fill with eid',language)]]</paper-tooltip>
                 </div>
@@ -961,9 +965,6 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 const ssin = this.patient.ssin
                 const addr = home ? home.street+" "+home.houseNumber+((home.postboxNumber && home.postboxNumber.length) ? (!home.postboxNumber.startsWith('/')?"/":"")+home.postboxNumber:"") : "no Addr"
                 const cp = home ? home.postalCode+" "+home.city : "no CP"
-                const sps = JSON.parse(localStorage.getItem('selectedPrinter'))
-                const paperWidth = sps && sps.stickers && sps.stickers.w || 62 // 80
-                const paperHeight = sps && sps.stickers && sps.stickers.h || 29 // 40
                 const vignetteBody =`<html><head>
                     <style>
                         * {margin:0;padding:0;font-size:12px;}
@@ -981,9 +982,77 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                         </div>
                     </body></html>`
                 this.api.pdfReport(vignetteBody,{
-                    paperWidth: paperWidth,
-                    paperHeight: paperHeight,
+                    type : "sticker-mut",
+                    paperWidth: 90,
+                    paperHeight: 29,
                     marginLeft: 0,marginRight: 0,marginTop: 0,marginBottom: 0
+                }).then(({pdf:data, printed:printed}) =>{
+                    if (!printed) {
+                        let blob = new Blob([data],{type :'application/pdf'});
+
+                        let url = window.URL.createObjectURL(blob)
+
+                        let a = document.createElement("a");
+                        document.body.appendChild(a);
+                        a.style = "display: none";
+
+                        a.href = url;
+                        a.download = this.patient.firstName+"-"+this.patient.lastName+"-"+moment()+".pdf";
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                    }
+                }).catch(e=>{console.log('Print error ',e)})
+            }).catch(e=>{console.log('cannot resolve insurance',e)})
+        } else {console.log('cannot find insurance')}
+    }
+
+    printMutualVignetteGrid() {
+        const rowCount = 13
+        const columnCount = 3
+        const insur = ((this.patient || {}).insurabilities || []).find(a => !a.endDate && a.insuranceId && a.insuranceId !== "") || null
+        if (insur) {
+            this.api.insurance().getInsurance(insur.insuranceId).then(ins=>{
+                const home = this.patient.addresses.find(a=>a.addressType === "home") || null
+                const mutName = this.localizeContent(ins.name)
+                const mutCode = this.localizeContent(ins.code)
+                const patName = _.get(this,"patient.lastName","")+" "+_.get(this,"patient.firstName","")+" "+this.api.moment(_.trim(_.get(this,"patient.dateOfBirth",0))).format('DD/MM/YYYY')
+                const oa = mutCode && insur.parameters && insur.parameters.tc1 && insur.parameters.tc2 && mutName && mutName.length ? mutCode+" "+insur.parameters.tc1+"-"+insur.parameters.tc2 : "no OA"
+                const ssin = this.patient.ssin
+                const addr = home ? home.street+" "+home.houseNumber+((home.postboxNumber && home.postboxNumber.length) ? (!home.postboxNumber.startsWith('/')?"/":"")+home.postboxNumber:"") : "no Addr"
+                const cp = home ? home.postalCode+" "+home.city : "no CP"
+                const vignetteCard = `
+                        <div class="sticker">
+                            <p class="patName">${patName}</p>
+                            <pre class="oa"><b>OA${oa}</b> ${mutName}</pre>
+                            <pre class="ssin">   ${ssin}</pre>
+                            <pre class="addr">   ${addr}</pre>
+                            <pre class="cp">   ${cp}</pre>
+                        </div>
+                `
+                const cells = _.times(columnCount, cellidx => {
+                    return `<td>${vignetteCard}</td>`
+                }).join("\n")
+                const rows = _.times(rowCount, rowidx=> {
+                    return `<tr>${cells}</tr>`
+                }).join("\n")
+                const vignetteBody =`<html><head>
+                    <style>
+                        * {margin:0;padding:0;font-size:12px;}
+                        /*div.sticker {transform:rotate(-90deg);transform-origin:bottom;}*/
+                        td { padding: 15px; }
+                        p.patName {font-size:14px;font-weight:bold;}
+                        p, pre {overflow: hidden; text-overflow: ellipsis; white-space: nowrap;} /* inverted size for rotation */
+                    </style></head>
+                    <body>
+                        <table>
+                            ${rows}
+                        </table>
+                    </body></html>`
+                this.api.pdfReport(vignetteBody,{
+                    type : "sticker-mut-a4",
+                    paperWidth: 210,
+                    paperHeight: 297,
+                    marginLeft: 5,marginRight: 5,marginTop: 10,marginBottom: 0
                 }).then(({pdf:data, printed:printed}) =>{
                     if (!printed) {
                         let blob = new Blob([data],{type :'application/pdf'});

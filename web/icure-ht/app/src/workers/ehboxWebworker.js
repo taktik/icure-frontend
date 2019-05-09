@@ -4,6 +4,7 @@ import * as iccXApi from 'icc-api/dist/icc-x-api/index'
 import {UtilsClass} from "icc-api/dist/icc-x-api/crypto/utils"
 
 import moment from 'moment/src/moment'
+import levenshtein from 'js-levenshtein'
 
 onmessage = e => {
     if(e.data.action === "loadEhboxMessage"){
@@ -16,6 +17,7 @@ onmessage = e => {
         const tokenId           = e.data.tokenId
         const keystoreId        = e.data.keystoreId
         const user              = e.data.user
+        const parentHcp         = e.data.parentHcp
         const ehpassword        = e.data.ehpassword
         const boxIds            = e.data.boxId
         const alternateKeystores= e.data.alternateKeystores
@@ -75,80 +77,103 @@ onmessage = e => {
             console.log('assignResult',message,docInfo,document)
             // assign to patient/contact the result matching docInfo from all the results of the document
             // return {id: contactId, protocolId: protocolIdString} if success else null (in promise)
-            if (textType(document.mainUti, document.otherUtis)) {
-                //TODO Better search based on merge
-                return iccPatientApi.findByNameBirthSsinAuto(user.healthcarePartyId, docInfo.lastName + " " + docInfo.firstName, null, null, 100, "asc").then(patients => {
-                    if (patients && patients.rows[0]) {
-                        let thisPat = patients.rows[0]
-                        if (patients.rows.length > 0) {
-                            // console.log('multiple match')
-                            patients.rows.map(pat=>{
-                                if (pat.lastName.toUpperCase() === docInfo.lastName.toUpperCase() &&
-                                    pat.firstName.toUpperCase() === docInfo.firstName.toUpperCase() &&
-                                    pat.dateOfBirth === docInfo.dateOfBirth) {
-                                    // console.log('occurence found',pat)
-                                    thisPat = pat
-                                }
-                            })
-                        }
-                        // console.log('pat > ',thisPat)
-                        return iccContactXApi.newInstance(user, thisPat, {
-                            groupId: message.id,
-                            created: new Date().getTime(),
-                            modified: new Date().getTime(),
-                            author: user.id,
-                            responsible: user.healthcarePartyId,
-                            openingDate: moment(docInfo.demandDate).format('YYYYMMDDHHmmss') || '',
-                            closingDate: moment().format('YYYYMMDDHHmmss') || '',
-                            encounterType: {
-                                type: docInfo.codes.type,
-                                version: docInfo.codes.version,
-                                code: docInfo.codes.code
-                            },
-                            descr: docInfo.labo,
-                            tags:[{type:'CD-TRANSACTION',code:'labresult'}],
-                            subContacts: []
-                        }).then(c => {
-                            c.services.push({
-                                id: iccCryptoXApi.randomUuid(),
-                                label: 'labResult',
-                                valueDate: parseInt(moment().format('YYYYMMDDHHmmss')),
-                                content: _.fromPairs([[language, {stringValue:docInfo.labo}]]),
-                                tags:[{type:'CD-TRANSACTION',code:'labresult'}]
-                            })
-                            console.log('c services',c.services)
-                            return iccContactXApi.createContactWithUser(user, c)
-                        }).then(c => {
-                            console.log('createContact',c)
-                            return iccFormXApi.newInstance(user, thisPat, {
-                                contactId: c.id,
-                                descr: "Lab " + new Date().getTime(),
-                            }).then(f => {
-                                return iccFormXApi.createForm(f).then(f =>
-                                    iccCryptoXApi
-                                        .extractKeysFromDelegationsForHcpHierarchy(
-                                            user.healthcarePartyId,
-                                            document.id,
-                                            _.size(document.encryptionKeys) ? document.encryptionKeys : document.delegations
-                                        )
-                                        .then(({extractedKeys: enckeys}) => beResultApi.doImport(document.id, user.healthcarePartyId, language, docInfo.protocol, f.id, null, enckeys.join(','), c))
-                                )
-                            })
-                        }).then(c => {
-                            console.log("did import ", c, docInfo);
-                            return {id: c.id, protocolId: docInfo.protocol}
-                        }).catch(err => {
-                            console.log(err)
-                        })
-                    } else {
-                        console.log("pat not found:", docInfo.lastName + " " + docInfo.firstName)
-                        return Promise.resolve()
+
+
+            const filter = docInfo.ssin && docInfo.ssin.match(/[0-9]{11}/) ? {
+                '$type': 'PatientByHcPartyAndSsinFilter',
+                'healthcarePartyId': parentHcp.id,
+                'ssin': docInfo.ssin
+            } : {
+                '$type': 'UnionFilter',
+                'healthcarePartyId': parentHcp.id,
+                'filters': [
+                    {
+                        '$type': 'IntersectionFilter',
+                        'healthcarePartyId': parentHcp.id,
+                        'filters': [{
+                            '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            'healthcarePartyId': parentHcp.id,
+                            'searchString': docInfo.lastName
+                        },{
+                            '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            'healthcarePartyId': parentHcp.id,
+                            'searchString': docInfo.firstName
+                        }]
+                    }, {
+                        '$type': 'PatientByHcPartyDateOfBirthFilter',
+                        'healthcarePartyId': parentHcp.id,
+                        'dateOfBirth': docInfo.dateOfBirth
                     }
-                })
-            } else {
-                // console.log("message not text type")
-                return Promise.resolve()
+
+                ]
             }
+
+            return iccPatientApi.filterByWithUser(user, null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => {
+                const candidates = rows.filter(p => {
+                    const pFn =  p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").split(/\s+/)[0]
+                    const lFn =  docInfo.firstName && docInfo.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/,'')
+                    const pLn =  p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").split(/\s+/)[0]
+                    const lLn =  docInfo.lastName && docInfo.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/,'')
+
+                    return (docInfo.ssin && p.ssin && docInfo.ssin === p.ssin) ||
+                        (pFn && lFn && pLn && lLn && p.dateOfBirth && docInfo.dateOfBirth && (levenshtein(pFn,lFn) < 2 && levenshtein(pLn,lLn) < 3 && p.dateOfBirth === docInfo.dateOfBirth)) ||
+                        (pFn && lFn && p.dateOfBirth && docInfo.dateOfBirth && (pFn === lFn && p.dateOfBirth === docInfo.dateOfBirth)) ||
+                        (pLn && lLn && p.dateOfBirth && docInfo.dateOfBirth && (pLn === lLn && p.dateOfBirth === docInfo.dateOfBirth)) ||
+                        (pFn && lFn && pLn && lLn && (pLn === lLn && pFn === lFn))
+                })
+
+                return (candidates.length !== 1)  ?
+                    Promise.resolve(null) :
+                    iccContactXApi.newInstance(user, candidates[0], {
+                        groupId: message.id,
+                        created: new Date().getTime(),
+                        modified: new Date().getTime(),
+                        author: user.id,
+                        responsible: user.healthcarePartyId,
+                        openingDate: moment(docInfo.demandDate).format('YYYYMMDDHHmmss') || '',
+                        closingDate: moment().format('YYYYMMDDHHmmss') || '',
+                        encounterType: {
+                            type: docInfo.codes.type,
+                            version: docInfo.codes.version,
+                            code: docInfo.codes.code
+                        },
+                        descr: docInfo.labo,
+                        tags: [{type: 'CD-TRANSACTION', code: 'labresult'}],
+                        subContacts: []
+                    }).then(c => {
+                        c.services.push({
+                            id: iccCryptoXApi.randomUuid(),
+                            label: 'labResult',
+                            valueDate: parseInt(moment().format('YYYYMMDDHHmmss')),
+                            content: _.fromPairs([[language, {stringValue: docInfo.labo}]]),
+                            tags: [{type: 'CD-TRANSACTION', code: 'labresult'}]
+                        })
+                        console.log('c services', c.services)
+                        return iccContactXApi.createContactWithUser(user, c)
+                    }).then(c => {
+                        console.log('createContact', c)
+                        return iccFormXApi.newInstance(user, candidates[0], {
+                            contactId: c.id,
+                            descr: "Lab " + new Date().getTime(),
+                        }).then(f => {
+                            return iccFormXApi.createForm(f).then(f =>
+                                iccCryptoXApi
+                                    .extractKeysFromDelegationsForHcpHierarchy(
+                                        user.healthcarePartyId,
+                                        document.id,
+                                        _.size(document.encryptionKeys) ? document.encryptionKeys : document.delegations
+                                    )
+                                    .then(({extractedKeys: enckeys}) => beResultApi.doImport(document.id, user.healthcarePartyId, language, docInfo.protocol, f.id, null, enckeys.join(','), c))
+                            )
+                        })
+                    }).then(c => {
+                        console.log("did import ", c, docInfo)
+                        return {id: c.id, protocolId: docInfo.protocol}
+                    }).catch(err => {
+                        console.log(err)
+                    })
+
+            })
         } // assignResult end
 
         const createDbMessageWithAppendicesAndTryToAssign =  (message,boxId) => {
@@ -168,7 +193,8 @@ onmessage = e => {
                         console.log('boxId',boxId)
                         registerNewMessage(fullMessage, boxId)
                             .then(([createdMessage, annexDocs]) => {
-                                return tryToAssignAppendices(createdMessage, fullMessage, annexDocs, boxId)
+                               // return tryToAssignAppendices(createdMessage, fullMessage, annexDocs, boxId)
+                                return Promise.resolve()
                             })
                     }
                 })
