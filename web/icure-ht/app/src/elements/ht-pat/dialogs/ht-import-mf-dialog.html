@@ -135,7 +135,7 @@
 
 
             vaadin-grid {
-                height: 10%;
+                height: 100%;
                 max-height:100%;
                 overflow-y: auto;
                 border: none;
@@ -148,6 +148,8 @@
                     color: white;
                 };
             }
+
+
 
             .supercontent{
                 height:80%;
@@ -249,12 +251,22 @@
                                     [[item.existing_patients]]
                                 </template>
                             </vaadin-grid-column>
+                            <vaadin-grid-column width="70px">
+                                <template class="header">
+                                    [[localize('import_in_new_patient','Import dans nouveau patient',language)]]
+                                </template>
+                                <template>
+                                    <paper-button class="row-button modal-button--save" docid="[[item.document.id]]" on-click="_renameSmfPatient">
+                                        <iron-icon icon="vaadin:plus-circle-o" docid="[[item.document.id]]" on-click="_renameSmfPatient"></iron-icon>
+                                    </paper-button>
+                                </template>
+                            </vaadin-grid-column>
                             <vaadin-grid-column width="70px" id="checkboxColumn">
                                 <template class="header">
                                     <template is="dom-if" if="[[!equal(patientCheckStatuses.length, 1)]]">
-                                        <paper-checkbox  on-checked-changed="_toggleAllCheckboxes"> </paper-checkbox>
+                                        <paper-checkbox id="checkboxToggleAll"  on-checked-changed="_toggleAllCheckboxes"> </paper-checkbox>
                                     </template>
-                                    [[localize('fusion','Fusionner',language)]]
+                                    [[localize('import_in_existing_patient','Import dans patient existant',language)]]
                                 </template>
                                 <template>
                                     <template is="dom-if" if="[[equal(patientCheckStatuses.length, 1)]]">
@@ -267,14 +279,6 @@
                                     </template>
                                 </template>
                             </vaadin-grid-column>
-                            <vaadin-grid-column width="70px">
-                                <template class="header">
-                                    [[localize('rename','Renommer',language)]]
-                                </template>
-                                <template>
-                                    <iron-icon icon="vaadin:pencil" docid="[[item.document.id]]" on-click="_renameSmfPatient"></iron-icon>
-                                </template>
-                            </vaadin-grid-column>
                         </vaadin-grid>
                     </div>
                     <div class="midbuttons">
@@ -282,14 +286,14 @@
                         <template is="dom-if" if="[[!equal(patientCheckStatuses.length, 1)]]">
                             <paper-button class="modal-button modal-button--save" on-click="acceptImport" disabled="[[!_hasPatientToFusion]]">
                                 <iron-icon icon="vaadin:compress"></iron-icon>
-                                [[localize('accept_fusion','Fusionner les patients existants',language)]]
+                                [[localize('accept_fusion','Importer dans les patients existants',language)]]
                             </paper-button>
                         </template>
                     </div>
 
                 </template>
 
-                <h2 class="modal-title">[[localize("pat_import_sta","Patient import status",language)]] <span>([[remainingPatientImports.length]] [[localize("file_import_remaining", "remaining files")]])</span></h2>
+                <h2 class="modal-title">[[localize("pat_import_sta","Patient import status",language)]] <span class="extra-info">([[remainingPatientImports.length]] [[localize("file_import_remaining", "remaining files")]])</span></h2>
                 <div  class="subcontent">
                     <vaadin-grid items="[[patientImportStatuses]]">
                         <vaadin-grid-column width="150px">
@@ -352,7 +356,7 @@
                         -->
                         <vaadin-grid-column width="70px">
                             <template class="header">
-                                Progress
+                                [[localize('import_sta','Statut d import',language)]]
                             </template>
                             <template>
                                 <template is="dom-if" if="[[_progressIsState(item.progress, 'pending')]]">
@@ -371,6 +375,7 @@
                 </div>
                 <div class="buttons">
                     <ht-spinner class="import-spinner" active="[[_isBusy(isImportingPatient, isCheckingPatient, isUploadingFile)]]"></ht-spinner>
+                    <paper-button class="modal-button" on-click="cleanImportList" >[[localize('reset','Remise a zero',language)]]</paper-button>
                     <paper-button class="modal-button" on-click="abortImport" >[[localize('abort','Abort',language)]]</paper-button>
                     <paper-button class="modal-button" on-click="saveImportLog" >[[localize('save_import_log','Save import log',language)]]</paper-button>
                     <paper-button class="modal-button modal-button--save" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
@@ -525,12 +530,7 @@
                 const vaadinUpload = this.$['vaadin-upload']
                 const f = e.detail.file
                 const d = f.doc
-                this.push('remainingPatientImports', d)
-                this.push('importPromisePool',
-                    this.checkLimit(() =>
-                        this.checkIfPatientExists(d)
-                    )
-                )
+                this.push('importPromisePool', this.checkIfPatientExists(d))
                 this.isUploadingFile = false
                 console.log("file uploaded: " + d.name)
             }
@@ -563,14 +563,11 @@
                 const ids = []
                 this.patientCheckStatuses.forEach(p => {
                     if(p.check) {
-                        this.push('importPromisePool',
-                            this.importLimit(() =>
-                                this.importPatientFromSmfItem(p)
-                            )
-                        )
+                        this.push('importPromisePool', this.importPatientFromSmfItem(p))
                         ids.push(p.document.id)
                     }
                 })
+                this.$.dialog.querySelector("#checkboxToggleAll").checked = false
                 this.set('patientCheckStatuses', this.patientCheckStatuses.filter(pat=> !ids.includes(pat.document.id)))
             }
 
@@ -578,11 +575,7 @@
                 const docid = e.target.docid
                 const item = this.patientCheckStatuses.find(stat => stat.document.id === docid)
                 if(item) {
-                    this.push('importPromisePool',
-                        this.importLimit(() =>
-                            this.importPatientFromSmfItem(item)
-                        )
-                    )
+                    this.push('importPromisePool', this.importPatientFromSmfItem(item) )
                     this.set('patientCheckStatuses', this.patientCheckStatuses.filter(pat=> docid !== pat.document.id))
                 } else {
                     console.log("can't find document", docid)
@@ -590,95 +583,104 @@
             }
 
             checkIfPatientExists(document) {
-                this.isCheckingPatient = true
-                return this.api.bekmehr().checkIfSMFPatientsExists(document.id, null, null, this.user.language, {})
-                    .then(results => {
-                        return Promise.all(results.map(res => {
-                            if(res.existingPatientId) {
-                                return this.api.patient().getPatientWithUser(this.user, res.existingPatientId).then(pat => {
-                                    res.existingPatient = pat
+                this.checkLimit(() => {
+                    this.isCheckingPatient = true
+                    return this.api.bekmehr().checkIfSMFPatientsExists(document.id, null, null, this.user.language, {})
+                        .then(results => {
+                            return Promise.all(results.map(res => {
+                                if(res.existingPatientId) {
+                                    return this.api.patient().getPatientWithUser(this.user, res.existingPatientId).then(pat => {
+                                        res.existingPatient = pat
+                                        return res
+                                    })
+                                } else {
                                     return res
-                                })
-                            } else {
-                                return res
-                            }
-                        }))
-                    })
-                    .then(results => {
-                        if(!this.forceImport && _.some(results, (pat => pat.exists))) {
-                            if(results.length > 1) {
-                                // backend currently accept only one destination patient as argument to importSmf call
-                                const status = {
-                                    patient: {},
-                                    smf_patients: this._formatPatientsDetails(results),
-                                    existing_patients: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
-                                    patientsLabel: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
-                                    filename: document.name,
-                                    document: document,
-                                    progress: -1,
-                                    statuses: {
-                                        contacts: {success: null, error: null},
-                                        healthElements: {success: null, error: null},
-                                        invoices: {success: null, error: null},
-                                        documents: {success: null, error: null},
-                                        patient: {success: false, error: {message:"Can't import more than one patient per file"}}
-                                    }
                                 }
-                                this.push('patientImportStatuses', status)
-                                this.splice('files', this.files.indexOf(document.name), 1)
-                                this.removeFromRemainingPatientImports(document)
+                            }))
+                        })
+                        .then(results => {
+                            if(!this.forceImport && _.some(results, (pat => pat.exists))) {
+                                if(results.length > 1) {
+                                    //// Case 1: refused due to multiple pat per file and at least one exists
+                                    // backend currently accept only one destination patient as argument to importSmf call
+                                    const status = {
+                                        patient: {},
+                                        smf_patients: this._formatPatientsDetails(results),
+                                        existing_patients: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
+                                        patientsLabel: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
+                                        filename: document.name,
+                                        document: document,
+                                        progress: -1,
+                                        statuses: {
+                                            contacts: {success: null, error: null},
+                                            healthElements: {success: null, error: null},
+                                            invoices: {success: null, error: null},
+                                            documents: {success: null, error: null},
+                                            patient: {success: false, error: {message:"Can't import more than one patient per file"}}
+                                        }
+                                    }
+                                    this.removeFromRemainingPatientImports(document)
+                                    this.push('patientImportStatuses', status)
+                                    this.splice('files', this.files.indexOf(document.name), 1)
+                                } else {
+                                    //// Case 2: patient exists, ask user what to do
+                                    this.push('patientCheckStatuses', {
+                                        filename: document.name,
+                                        smf_patients: this._formatPatientsDetails(results),
+                                        existing_patients: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
+                                        patientsLabel: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)), // will use existing pat
+                                        document: document,
+                                        check:false,
+                                    })
+                                    this.removeFromRemainingPatientImports(document)
+                                    this.splice('files', this.files.indexOf(document.name), 1)
+                                    console.log('files', this.files)
+                                }
                             } else {
-                                this.push('patientCheckStatuses', {
-                                    filename: document.name,
-                                    smf_patients: this._formatPatientsDetails(results),
-                                    existing_patients: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
-                                    patientsLabel: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)), // will use existing pat
-                                    document: document,
-                                    check:false,
-                                })
-                                this.splice('files', this.files.indexOf(document.name), 1)
-                                console.log('files', this.files)
-                            }
-                        } else {
-                            this.push('importPromisePool',
-                                this.importLimit(() =>
+                                //// Case 3: patient doesnt exists, continue import
+                                this.push('importPromisePool',
                                     this.importPatientFromSmfItem({
                                         document,
                                         filename:document.name,
                                         smf_patients: this._formatPatientsDetails(results),
                                         existing_patients: this._formatPatientsDetails(results.filter(pat=>pat.exists).map(pat=>pat.existingPatient)),
                                         patientsLabel: this._formatPatientsDetails(results), // no existing pat
-                                    })
+                                    }),
+                                    false // don't add, already added to remaining
                                 )
-                            )
-                            this.splice('files', this.files.indexOf(document.name), 1)
-                        }
-                        this.isCheckingPatient = false
-                    })
-                    .catch(err => {
-                        const status = {
-                            patient: {},
-                            filename: document.name,
-                            progress: -1,
-                            statuses: {
-                                contacts: {success: null, error: null},
-                                healthElements: {success: null, error: null},
-                                invoices: {success: null, error: null},
-                                documents: {success: null, error: null},
-                                patient: {success: false, error: {message:err}}
+                                this.splice('files', this.files.indexOf(document.name), 1)
                             }
-                        }
-                        console.log("checkIfPatientExists", err)
-                        this.push('patientImportStatuses', status)
-                        this.splice('files', this.files.indexOf(document.name), 1)
-                        this.removeFromRemainingPatientImports(document)
-                        this.isCheckingPatient = false
-                    })
+                            this.isCheckingPatient = false
+                        })
+                        .catch(err => {
+                            //// Case 4: something went wrong
+                            const status = {
+                                patient: {},
+                                filename: document.name,
+                                progress: -1,
+                                statuses: {
+                                    contacts: {success: null, error: null},
+                                    healthElements: {success: null, error: null},
+                                    invoices: {success: null, error: null},
+                                    documents: {success: null, error: null},
+                                    patient: {success: false, error: {message:err}}
+                                }
+                            }
+                            console.log("checkIfPatientExists", err)
+                            this.push('patientImportStatuses', status)
+                            this.splice('files', this.files.indexOf(document.name), 1)
+                            this.removeFromRemainingPatientImports(document)
+                            this.isCheckingPatient = false
+                        })
+                })
             }
 
 
-            importPatientFromSmfItem(smfitem) {
+            importPatientFromSmfItem(smfitem, addToRemaining=true) {
                 const document = smfitem.document
+                if(addToRemaining) {
+                    this.push('remainingPatientImports', document);
+                }
                 const status = {
                     patient: {},
                     smf_patients: smfitem.smf_patients,
@@ -721,94 +723,96 @@
                 this.set('isImportingPatient', true)
                 console.log("importing: " + document.name)
                 this.dispatchEvent(new CustomEvent('idle', {bubbles: true, composed: true}))
-
-
                 this.startTime = Date.now()
-                return this.api.bekmehr().importSmf(document.id, null, smfitem.renameTo ? smfitem.renameTo.id : null, this.user.language, {}).then(results => {
-                    console.log("done importSmf", (Date.now() - this.startTime) / 1000)
 
-                    const idxOfStatus =  this.patientImportStatuses.indexOf(status)
-                    this.set(['patientImportStatuses',idxOfStatus, 'progress'], 0.5)
-                    this.set(['patientImportStatuses', idxOfStatus, 'smf_patients'], this._formatPatientsDetails(results.map(r=>r.patient)))
-                    let patpromises = results.map(result => {
-                        return this.api.patient().modifyPatientWithUser(this.user, result.patient).then(pat => {
-                            let prolist = [
-                                Promise.all(result.forms.map(form => {
-                                    return this.api.form().newInstance(this.user, pat, form)
-                                })).then(forms => this.api.form().modifyForms(forms)),
-                                Promise.all(result.ctcs.map(ctc => {
-                                    return this.api.contact().newInstance(this.user, pat, ctc)
-                                })).then(c => {
-                                    return this.api.contact().modifyContactsWithUser(this.user, c)
-                                }),
-                                Promise.all(result.hes.map(he => {
-                                    return this.api.helement().newInstance(this.user, pat, he)
-                                })).then(h => {
-                                    return this.api.helement().modifyHealthElements(h)
-                                }),
-                                Promise.all(result.documents.map(doc => {
-                                    return this.api.document().newInstance(this.user, pat, doc)
-                                })).then(d => {
-                                    return this.api.document().modifyDocuments(d)
-                                })
-                            ]
-                            return prolist.reduce((acc, prom) => acc.then(res => prom.then(innerRes => res.concat(innerRes))), Promise.resolve([]))
-                                .then(
-                                    datastatus => {
-                                        console.log("done import: " + document.name + ":" + pat.firstName + " " + pat.lastName + "; " + pat.id)
-                                        console.log(datastatus)
+                return this.importLimit(() => {
 
-                                        this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'progress'], 1/results.length) // handle multiple pat per file
-                                        this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'statuses.patient.success'], true)
-                                        return Promise.resolve()
-                                    },
-                                    // patient imported but error importing patient data
-                                    err => {
-                                        // TODO: check specific error for contacts, he, etc
-                                        console.log(err)
-                                        this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'statuses'],
-                                            {
-                                                contacts: {success: null, error: null},
-                                                healthElements: {success: null, error: null},
-                                                invoices: {success: null, error: null},
-                                                documents: {success: null, error: null},
-                                                patient: {success: false, error: {message:err}}
-                                            }
-                                        )
-                                        this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'progress'], -1)
-                                        return Promise.resolve()
-                                    }
-                                )
+                    return this.api.bekmehr().importSmf(document.id, null, smfitem.renameTo ? smfitem.renameTo.id : null, this.user.language, {}).then(results => {
+                        console.log("done importSmf", (Date.now() - this.startTime) / 1000)
+
+                        const idxOfStatus = this.patientImportStatuses.indexOf(status)
+                        this.set(['patientImportStatuses', idxOfStatus, 'progress'], 0.5)
+                        this.set(['patientImportStatuses', idxOfStatus, 'smf_patients'], this._formatPatientsDetails(results.map(r => r.patient)))
+                        let patpromises = results.map(result => {
+                            return this.api.patient().modifyPatientWithUser(this.user, result.patient).then(pat => {
+                                let prolist = [
+                                    Promise.all(result.forms.map(form => {
+                                        return this.api.form().newInstance(this.user, pat, form)
+                                    })).then(forms => this.api.form().modifyForms(forms)),
+                                    Promise.all(result.ctcs.map(ctc => {
+                                        return this.api.contact().newInstance(this.user, pat, ctc)
+                                    })).then(c => {
+                                        return this.api.contact().modifyContactsWithUser(this.user, c)
+                                    }),
+                                    Promise.all(result.hes.map(he => {
+                                        return this.api.helement().newInstance(this.user, pat, he)
+                                    })).then(h => {
+                                        return this.api.helement().modifyHealthElements(h)
+                                    }),
+                                    Promise.all(result.documents.map(doc => {
+                                        return this.api.document().newInstance(this.user, pat, doc)
+                                    })).then(d => {
+                                        return this.api.document().modifyDocuments(d)
+                                    })
+                                ]
+                                return prolist.reduce((acc, prom) => acc.then(res => prom.then(innerRes => res.concat(innerRes))), Promise.resolve([]))
+                                    .then(
+                                        datastatus => {
+                                            console.log("done import: " + document.name + ":" + pat.firstName + " " + pat.lastName + "; " + pat.id)
+                                            console.log(datastatus)
+
+                                            this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'progress'], 1 / results.length) // handle multiple pat per file
+                                            this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'statuses.patient.success'], true)
+                                            return Promise.resolve()
+                                        },
+                                        // patient imported but error importing patient data
+                                        err => {
+                                            // TODO: check specific error for contacts, he, etc
+                                            console.log(err)
+                                            this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'statuses'],
+                                                {
+                                                    contacts: {success: null, error: null},
+                                                    healthElements: {success: null, error: null},
+                                                    invoices: {success: null, error: null},
+                                                    documents: {success: null, error: null},
+                                                    patient: {success: false, error: {message: err}}
+                                                }
+                                            )
+                                            this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'progress'], -1)
+                                            return Promise.resolve()
+                                        }
+                                    )
+                            })
                         })
-                    })
-                    return Promise.all(patpromises)
-                }).then(
-                    () => {
-                        // import status already pushed at patient level
-                        this.removeFromRemainingPatientImports(document)
-                        console.log("done encrypt", (Date.now() - this.startTime) / 1000)
-                        return Promise.resolve()
-                    },
-                    err => {
-                        console.log(err)
-                        let fakepat = {
-                            firstName: "Document",
-                            lastName: document.name
-                        }
-                        this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'statuses'],
-                            {
-                                contacts: {success: null, error: null},
-                                healthElements: {success: null, error: null},
-                                invoices: {success: null, error: null},
-                                documents: {success: null, error: null},
-                                patient: {success: false, error: {message:err}}
+                        return Promise.all(patpromises)
+                    }).then(
+                        () => {
+                            // import status already pushed at patient level
+                            this.removeFromRemainingPatientImports(document)
+                            console.log("done encrypt", (Date.now() - this.startTime) / 1000)
+                            return Promise.resolve()
+                        },
+                        err => {
+                            console.log(err)
+                            let fakepat = {
+                                firstName: "Document",
+                                lastName: document.name
                             }
-                        )
-                        this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'progress'], -1)
-                        this.removeFromRemainingPatientImports(document)
-                        return Promise.resolve()
-                    }
-                )
+                            this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'statuses'],
+                                {
+                                    contacts: {success: null, error: null},
+                                    healthElements: {success: null, error: null},
+                                    invoices: {success: null, error: null},
+                                    documents: {success: null, error: null},
+                                    patient: {success: false, error: {message: err}}
+                                }
+                            )
+                            this.set(['patientImportStatuses', this.patientImportStatuses.indexOf(status), 'progress'], -1)
+                            this.removeFromRemainingPatientImports(document)
+                            return Promise.resolve()
+                        }
+                    )
+                })
             }
 
             removeFromRemainingPatientImports(doc) {
@@ -829,6 +833,12 @@
                 if (this.remainingPatientImports.length) {
                     this.importAborted = true
                 }
+            }
+
+            cleanImportList() {
+                this.patientImportStatuses = []
+                this.patientCheckStatuses = []
+
             }
 
             _renameSmfPatient(e) {
@@ -853,11 +863,7 @@
                     if(item) {
                         item.renameTo = this.addedPatient
                         item.patientsLabel = this._formatPatientsDetails([this.addedPatient]) // existing pat destination changed
-                        this.push('importPromisePool',
-                            this.importLimit(() =>
-                                this.importPatientFromSmfItem(item)
-                            )
-                        )
+                        this.push('importPromisePool', this.importPatientFromSmfItem(item))
                         this.set('patientCheckStatuses', this.patientCheckStatuses.filter(pat=> this.docIdBeingRenamed !== pat.document.id))
                     } else {
                         console.log("can't find document", docid)
@@ -875,7 +881,7 @@
                     return {
                         filename: stat.filename,
                         patient: stat.patientsLabel,
-                        status: this._statusDetail(stat.statuses.patient),
+                        status: this._statusDetail(stat.statuses.patient).toString(),
                     }
                 }))
             }
