@@ -1337,12 +1337,12 @@
 
 			_drugsToBePrescribed() {
 
-				let tbp = this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags.find(t => t.type === 'CD-ITEM' && t.code === 'treatment') && !s.endOfLife && !s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
+				let tbp = this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags && s.tags.find(t => (t.type === 'CD-ITEM' && t.code ==='treatment') || (t.type === 'ICURE' && t.code ==='PRESC')) && !s.endOfLife && !s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
 				return tbp.length > 0 ? tbp : this._drugsAlreadyPrescribed();
 			}
 
 			_drugsAlreadyPrescribed() {
-				return this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags.find(t => t.type === 'CD-ITEM' && t.code === 'treatment') && !s.endOfLife && s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
+				return this.api && this.currentContact && this.currentContact.services && this.currentContact.services.filter(s => s.tags && s.tags.find(t => (t.type === 'CD-ITEM' && t.code ==='treatment') || (t.type === 'ICURE' && t.code ==='PRESC')) && !s.endOfLife && s.tags.find(t => t.type === 'CD-LIFECYCLE' && ['ordered', 'completed', 'delivered'].includes(t.code)) && this.api.contact().medicationValue(s, this.language)) || [];
 			}
 
 			_prescribe(e) {
@@ -1419,45 +1419,13 @@
             }
 
             _reportTemplateSelected(e, reportTemplate) {
-
                 this.savedDocTemplateId = reportTemplate.id;
                 this.$.templateDescription.value = _.trim( _.get(reportTemplate,"descr", _.get(reportTemplate, "name", this.localize('rep',this.language) ) ) )
 
         	    this.api.doctemplate().getAttachmentText(reportTemplate.id, reportTemplate.attachmentId).then(attach => {
                     const prose = this.root.querySelector("#prose-editor")
                     prose.setJSONContent(this.api.crypto().utils.ua2utf8(attach))
-                    prose.applyContext((expr, template, ctx, cache) => {
-                        return new Promise(function (resolve, reject) {
-                            try {
-                                const env = new evaljs.Environment(_.assign(ctx, {resolve, reject}));
-                                const gen = (env.gen(expr)())
-                                let status = {done: false}
-                                while (!status.done) {
-                                    status = gen.next() //Execute lines one by one
-                                }
-
-                                if (status.value && status.value.asynchronous) {
-                                    //Wait for internal resolution
-                                } else {
-                                    // resolve(status.value)
-                                    resolve({ctx:status.value})
-                                }
-                            } catch (e) {
-                                reject(e)
-                            }
-                        })
-                    }, {
-                        patient:this.patient,
-                        contacts:this.contacts,
-                        healthElements:this.healthElements,
-                        subContact:this.currentContact.subContacts,
-                        form:this.contactsFormsAndDocuments,
-                        servicesMap:this.servicesMap,
-                        user:this.user,
-                        hcp:this.user.healthcarePartyId,
-                        language: this.language,
-                       dataProvider: this.editedReportDataProvider
-                    })
+                    this._applyContext(prose, this.editedReportDataProvider)
                 })
             }
 
@@ -1804,8 +1772,36 @@
 
             }
 
-            _refreshContext(e,eventDetails) {
+            _refreshContext() {
                 const prose = this.root.querySelector("#prose-editor")
+                this._applyContext(prose, this.editedReportDataProvider)
+            }
+
+            _applyContext(prose, dataProvider) {
+			    //This fn creates the function that return the subContexts (like the context but corresponding to a subForm)
+                const makeSubContexts = (ctx) => ((key) =>
+                        ctx.dataProvider.getSubForms(key).map(sf => {
+                                const subCtx = _.assign({}, ctx, {dataProvider: sf.dataProvider})
+                                subCtx.subContexts = makeSubContexts(subCtx)
+                                return subCtx
+                            }
+                        )
+                )
+
+				const ctx = {
+                    formatDate: (date) => this.api.moment(date).format('DD/MM/YYYY'),
+                    patient: this.patient,
+                    user: this.user,
+                    hcp: this.globalHcp,
+                    contact: this.currentContact,
+                    contacts: this.contacts,
+                    healthElements: this.healthElements,
+                    servicesMap: this.servicesMap,
+                    language: this.language,
+                    dataProvider: dataProvider
+                }
+                ctx.subContexts = makeSubContexts(ctx)
+
                 prose.applyContext((expr, template, ctx, cache) => {
                     return new Promise(function (resolve, reject) {
                         try {
@@ -1814,7 +1810,12 @@
                             const gen = (env.gen(expr)())
                             let status = {done: false}
                             while (!status.done) {
-                                status = gen.next() //Execute lines one by one
+                                try {
+                                    status = gen.next() //Execute lines one by one
+                                } catch (e) {
+                                    reject(e)
+									return
+                                }
                             }
 
                             if (status.value && status.value.asynchronous) {
@@ -1826,60 +1827,17 @@
                             reject(e)
                         }
                     })
-                }, {
-                    patient:this.patient,
-                    contacts:this.contacts,
-                    healthElements:this.healthElements,
-                    subContact:this.currentContact.subContacts,
-                    form:this.contactsFormsAndDocuments,
-                    servicesMap:this.servicesMap,
-                    user:this.user,
-                    hcp:this.user.healthcarePartyId,
-                    language: this.language,
-                    dataProvider: this.editedReportDataProvider
-                })
-            }
+                }, ctx)
+			}
 
             _refreshContextLinkingLetter(e,eventDetails) {
-
 			    if(!_.size(this.linkingLetterDataProvider)) this._getLinkingLetterDataProvider();
 
                 // Something is really wrong here...
                 if(!this.linkingLetterDataProvider && !_.size(this.linkingLetterDataProvider)) return
 
                 const prose = this.root.querySelector("#prose-editor-linking-letter")
-                prose.applyContext((expr, template, ctx, cache) => {
-                    return new Promise(function (resolve, reject) {
-                        try {
-                            const env = new evaljs.Environment(_.assign(ctx, {resolve, reject}));
-
-                            const gen = (env.gen(expr)())
-                            let status = {done: false}
-                            while (!status.done) {
-                                status = gen.next() //Execute lines one by one
-                            }
-
-                            if (status.value && status.value.asynchronous) {
-                                //Wait for internal resolution
-                            } else {
-                                resolve({ctx:status.value})
-                            }
-                        } catch (e) {
-                            reject(e)
-                        }
-                    })
-                }, {
-                    patient:this.patient,
-                    contacts:this.contacts,
-                    healthElements:this.healthElements,
-                    subContact:this.currentContact.subContacts,
-                    form:this.contactsFormsAndDocuments,
-                    servicesMap:this.servicesMap,
-                    user:this.user,
-                    hcp:this.user.healthcarePartyId,
-                    language: this.language,
-                    dataProvider: this.linkingLetterDataProvider||{}
-                })
+                this._applyContext(prose, this.linkingLetterDataProvider||{})
             }
 
             _openTemplateDescriptionDialog() {
@@ -1890,7 +1848,86 @@
                 this.editedReportDataProvider = e.detail.dataProvider
                 this.$['prose-editor-dialog'].open()
                 const prose = this.root.querySelector("#prose-editor")
-                prose.set("dynamicVars", _.sortBy( _.map(this.servicesMap, (v,k)=>{ return {name:k, expr: `dataProvider.getValue("${k}")`} }), "name" ) );
+
+				const globalVars = [{
+					type:'global',
+					name:'Healthcare party',
+					nodes: [
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [
+                                {type: 'text', marks: [{type: 'strong'}], text: 'Docteur '},
+                                {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'hcp.firstName'}},
+                                {type: 'text', marks: [{type: 'strong'}], text: ' '},
+                                {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'hcp.lastName'}}
+                            ]
+                        },
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [{type: 'variable', attrs: {expr: 'hcp.addresses[0].street'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '},{type: 'variable', attrs: {expr: 'hcp.addresses[0].houseNumber'}}]
+                        },
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [{type: 'variable', attrs: {expr: 'hcp.addresses[0].postalCode'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '},{type: 'variable', attrs: {expr: 'hcp.addresses[0].city'}}]
+                        },
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [{type: 'text', text: 'INAMI: '}, {type: 'variable', attrs: {expr: 'hcp.nihii'}}]
+                        }
+                    ],
+					subVars: [
+					    {name:'First name', nodes: [{type: 'variable', attrs: {expr: 'hcp.firstName'}}]},
+                        {name:'Last name', nodes: [{type: 'variable', attrs: {expr: 'hcp.lastName'}}]},
+                        {name:'Nihii', nodes: [{type: 'variable', attrs: {expr: 'hcp.nihii'}}]}
+                    ]
+				}]
+                const patientVars = [{
+                    type:'patient',
+                    name:'Patient',
+                    nodes: [
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [
+                                {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'patient.firstName'}},
+                                {type: 'text', marks: [{type: 'strong'}], text: ' '},
+                                {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'patient.lastName'}},
+                                {type: 'text', text: '°'},
+                                {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'formatDate(patient.dateOfBirth)'}},
+                            ]
+                        },
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [{type: 'variable', attrs: {expr: 'patient.addresses[0].street'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '},{type: 'variable', attrs: {expr: 'patient.addresses[0].houseNumber'}}]
+                        },
+                        {
+                            type: 'paragraph',
+                            attrs: {},
+                            content: [{type: 'variable', attrs: {expr: 'patient.addresses[0].postalCode'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '},{type: 'variable', attrs: {expr: 'patient.addresses[0].city'}}]
+                        }
+                    ],
+                    subVars: [
+                        {name:'First name', nodes: [{type: 'variable', attrs: {expr: 'patient.firstName'}}]},
+                        {name:'Last name', nodes: [{type: 'variable', attrs: {expr: 'patient.lastName'}}]},
+						{name:'Date of birth', nodes: [{type: 'variable', attrs: {expr: 'formatDate(patient.dateOfBirth)'}}]}
+
+                    ]
+                }]
+                const formVars = _.sortBy( _.map(e.detail.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), k => {
+				    return {
+				        type:'form',
+						name:k.label,
+						nodes: [{ type: k.isSubForm ? 'template' : 'variable', attrs: { expr: k.isSubForm ? `subContexts("${k.name}")`:`dataProvider.getValue("${k.name}")`} }]
+				    }
+				}), "name" )
+
+				prose.set("dynamicVars", globalVars.concat(patientVars).concat(formVars) );
+
                 this._refreshContext();
             }
 
