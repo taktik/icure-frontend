@@ -758,7 +758,54 @@
                     color: var(--app-secondary-color);
                 }
 
+                .grid-btn-small {
+                    margin: 0;
+                    padding:10px 10px;
+                    box-sizing: border-box;
+                    --paper-button-ink-color: var(--app-secondary-color-dark);
+                    display: inline-block;
+                    text-align: center;
+                    --paper-button: {
+                        background: var(--app-secondary-color);
+                        color: var(--app-text-color);
+                        width: auto;
+                        margin: 0 auto;
+                        font-size: 12px;
+                        font-weight: 400;
+                        padding:10px;
+                    };
+                }
 
+                .modal-button-rejected {
+                    --paper-button-ink-color: var(--app-status-color-nok);
+                    background-color: var(--app-status-color-nok);
+                    color: var(--app-text-color-light);
+                    text-transform: uppercase;
+                    height: 40px;
+                }
+
+                .modalDialog{
+                    height: 350px;
+                    width: 600px;
+                }
+
+                .modalDialogContent{
+                    height: 250px;
+                    width: auto;
+                    margin: 10px;
+                }
+
+                .m-t-50 {
+                    margin-top:50px!important;
+                }
+
+                .textAlignCenter {
+                    text-align: center;
+                }
+
+                .bold {
+                    font-weight: 700!important;
+                }
 
             </style>
         </custom-style>
@@ -1391,7 +1438,10 @@
                             </div>
                             <template is="dom-if" if="[[ifInvoiceSelected]]">
                                 <template is="dom-if" if="[[isToBeCorrected(invoicesStatus.*)]]">
-                                    <h4 class="mb0">Détail de la facture n°[[activeGridItem.invoice.invoiceReference]]<paper-button on-tap="_openInvoicingDialog" class="modal-button alignRight" id="[[activeGridItem.invoice.id]]">Corriger</paper-button></h4>
+                                    <h4 class="mb0">Détail de la facture n°[[activeGridItem.invoice.invoiceReference]]
+                                        <paper-button on-tap="_openInvoicingDialog" class="modal-button alignRight" id="[[activeGridItem.invoice.id]]">Corriger</paper-button>
+                                        <paper-button class="grid-btn-small modal-button-rejected alignRight" on-tap="_flagInvoiceAsLostConfirmationDialog" data-invoice-id$="[[activeGridItem.invoice.id]]" ><iron-icon icon="error" class="force-left" data-invoice-id$="[[activeGridItem.invoice.id]]"></iron-icon> &nbsp; [[localize('invoiceIsUnrecoverable',"Unrecoverable invoice",language)]]</paper-button>
+                                    </h4>
                                     <template is="dom-if" if="[[activeGridItem.invoice.error]]">
                                         <h6 class="invoice-error-msg">[[activeGridItem.invoice.error]]</h6>
                                     </template>
@@ -1729,6 +1779,18 @@
                 </template>
             </div>
         </paper-dialog>
+
+        <paper-dialog class="modalDialog" id="flagInvoiceAsLostConfirmationDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('areYouSureFlagInvoiceAsLost','Are you sure you wish to flag invoice as permanently lost?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold">[[localize('unrecoverableAction','This action is unrecoverable',language)]].</p>
+            </div>
+            <div class="buttons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="modal-button" on-tap="_flagInvoiceAsLost"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
     </template>
 
     <script>
@@ -1985,6 +2047,10 @@
                     _isLoadingSmall: {
                         type: Boolean,
                         value: false
+                    },
+                    flagInvoiceAsLostId: {
+                        type: String,
+                        value: ""
                     }
                 };
             }
@@ -2031,8 +2097,8 @@
                 this.set("_isLoadingMessages",true)
 
                 if(this.shadowRoot.getElementById("messagesGridContainer") && this.shadowRoot.getElementById("messagesGridContainer").classList.contains("half")){
-                    this.shadowRoot.getElementById("messagesGridContainer").classList.remove("half")
-                    this.shadowRoot.getElementById("invoiceDetailContainer").classList.remove("open")
+                    this.shadowRoot.getElementById("messagesGridContainer").classList.contains("half") ? this.shadowRoot.getElementById("messagesGridContainer").classList.remove("half") : null
+                    this.shadowRoot.getElementById("invoiceDetailContainer") && this.shadowRoot.getElementById("invoiceDetailContainer").classList.contains("open") ? this.shadowRoot.getElementById("invoiceDetailContainer").classList.remove("open") : null
                 }
 
                 this.api.invoice().listToInsurancesUnsent(this.user.id)
@@ -3348,6 +3414,45 @@
 
             _resetLoadingMessage() {
                 this._loadingMessages = [];
+            }
+
+            _flagInvoiceAsLostConfirmationDialog(e) {
+                this.flagInvoiceAsLostId = _.get(e, "target.dataset.invoiceId", "")
+                this.set("_bodyOverlay", true);
+                this.$["flagInvoiceAsLostConfirmationDialog"].open()
+            }
+
+            _flagInvoiceAsLost() {
+
+                this.set('_isLoadingSmall', true );
+
+                this.api.invoice().getInvoice(this.flagInvoiceAsLostId)
+                    .then(invoice => {
+                        invoice.invoicingCodes.map(ic => {
+                            ic.canceled = true;
+                            ic.lost = true;
+                            ic.accepted = false;
+                            ic.pending = false;
+                            ic.resent = false;
+                            ic.archived = false;
+                            return ic;
+                        })
+                        invoice.error = "Flagged as lost"
+                        return this.api.invoice().modifyInvoice(invoice).then(invoice => this.api.register(invoice,'invoice'))
+                    })
+                    .catch((e)=>{console.log(e)})
+                    .finally(() => {
+                        this.flagInvoiceAsLostId = "";
+                        this._closeDialogs()
+                        this.set('_isLoadingSmall', false );
+                        this.fetchMessageToBeSendOrToBeCorrected()
+                    })
+
+            }
+
+            _closeDialogs() {
+                this.set("_bodyOverlay", false);
+                _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
             }
 
         }
