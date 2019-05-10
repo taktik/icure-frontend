@@ -3608,14 +3608,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 return acc
                             }, {})
 
-                            const noCodeMedications = this.medications.filter(m => !m.codes || !m.codes.length).map(m => {
-                                const medValue = this.api.contact().medicationValue(m)
-                                const codes = (medValue && medValue.medicinalProduct && medValue.medicinalProduct.intendedcds || []).reduce((map, cds) => (cds.code && cds.type && map.concat([{code: cds.code, type: cds.type, version: "1"}]) || map), [])
-                                return Object.assign(m, { codes })
-                            })
+                            if (this.currentContact && this.user) {
+                                const noCodeMedications = _.compact(this.medications.filter(m => !m.codes || !m.codes.length).map(m => {
+                                    const medValue = this.api.contact().medicationValue(m)
+                                    const codes = (medValue && medValue.medicinalProduct && medValue.medicinalProduct.intendedcds || []).reduce((map, cds) => (cds.code && cds.type && map.concat([{
+                                        code: cds.code,
+                                        type: cds.type,
+                                        version: "1"
+                                    }]) || map), [])
+                                    return codes && codes.length ? Object.assign(m, {codes}) : null
+                                }))
 
-                            if(noCodeMedications && noCodeMedications.length) {
-                                this._updateServices( {detail: {services: noCodeMedications}} )
+                                if (noCodeMedications && noCodeMedications.length) {
+                                    const allContacts = [this.currentContact].concat(this.contacts || [])
+                                    noCodeMedications.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, []))
+                                    this.saveContact(this.currentContact)
+                                }
                             }
 
                             console.log("Before ctcs years"+(+new Date() - start))
@@ -4855,7 +4863,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
                 const contacttype = ctc.tags.find(tag => tag.type === "BE-CONTACT-TYPE")
                 if(contacttype) {
-                    ctc.userDescr = this.contactTypeList.find(sct => sct.code === contacttype.code).label[this.language || "fr"] + " : " + ctc.userDescr
+                    ctc.userDescr = ((this.contactTypeList.find(sct => sct.code === contacttype.code) || {label:{}}).label[this.language || "fr"] || "") + " : " + ctc.userDescr
                 }
 
                 return ctc.userDescr
