@@ -1,0 +1,259 @@
+<link rel="import" href="../dynamic-form/dynamic-subcontact-type-selector.html">
+
+<dom-module id="ht-msg-import-doc-dialog">
+    <template>
+        <style>
+
+        </style>
+        <paper-dialog id="upload-dialog">
+        <h2>[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
+        <!--<paper-fab class="close-button-icon" icon="icons:close" dialog-dismiss></paper-fab>-->
+        <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
+        <div class="buttons">
+        <vaadin-text-field id="scanTextField" label="[[localize('doc-title','Titre du document',language)]]" value="{{scannedDocName}}"></vaadin-text-field>
+        <vaadin-date-picker id="scanPicker" label="[[localize('doc_dat','Date du document',language)]]" value="{{scanDate}}" i18n="[[i18n]]"></vaadin-date-picker>
+        <vaadin-combo-box id="scannerList" filtered-items="[[scannerList]]" item-label-path="label" item-value-path="id" label="[[localize('scanners','Scanners',language)]]" value="{{selectedScanner}}"></vaadin-combo-box>
+        <paper-button class="modal-button" on-tap="_launchScan">[[localize('scan','Scan',language)]]</paper-button>
+        </div>
+        </template>
+        <vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUploaded"></vaadin-upload>
+        <div class="buttons">
+        <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+        </div>
+        </paper-dialog>
+    </template>
+    <script>
+
+        import _ from 'lodash/lodash';
+        import moment from 'moment/src/moment';
+
+        class HtMsgImportDocDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+            static get is() {
+                return 'ht-msg-import-doc-dialog';
+            }
+
+            static get properties() {
+                return {
+                    api: {
+                        type: Object
+                    },
+                    doc: {
+                        type: Boolean,
+                        value: true
+                    },
+                    user: {
+                        type: Object
+                    },
+                    patient: {
+                        type: Object
+                    },
+                    files: {
+                        type: Array
+                    },
+                    isLoadingDoc: {
+                        type: Boolean,
+                        value: false
+                    },
+                    documentMetas: {
+                        type: Object,
+                        value: null
+                    },
+                    savedDocTemplateId: {
+                        type: String,
+                        value: ""
+                    },
+                    selectedScanner:{
+                        type : String,
+                        value : ""
+                    },
+                    scannerList:{
+                        type: Array,
+                        value : ()=> []
+                    },
+                    hasElectron:{
+                        type: Boolean,
+                        value : false,
+                        observer: '_hasElectronChanged'
+                    },
+                    scannedDocName:{
+                        type : String,
+                        value : ""
+                    },
+                    scanDate: {
+                        type : String,
+                        value: ""
+                    }
+                };
+            }
+
+            static get observers() {
+                return ['_filesChanged(files.*)'];
+            }
+
+            constructor() {
+                super();
+            }
+
+            ready() {
+                super.ready();
+                this.api.isElectronAvailable().then(electron => this.set("hasElectron",electron))
+            }
+
+            _hasElectronChanged(){
+                if(!this.hasElectron)return;
+                Promise.all([fetch("http://localhost:16042/scanning",{
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        request : "list"
+                    })
+                }), fetch('http://localhost:16042/getPrinterSetting', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json; charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                        userId: this.user.id
+                    })
+                })
+                ]).then(response => Promise.all(response.map(rep=>rep.json()))).then(([data, settings])=>{
+                    if(!data.ok)return;
+                    const scanner = settings && settings.data && settings !== 'error' && JSON.parse(settings.data).find(set => set.type==="scanner")
+                    this.set("selectedScanner", scanner && data.data.all.find(scan => scan.id===scanner.printer || scan.label===scanner.printer) ? scanner.printer :data.data.default.id)
+                    this.set("scannerList",data.data.all)
+                })
+            }
+
+            _onDrag(e) {
+                if (this._hasCurrentContact(this.contacts) && e && e.dataTransfer && e.dataTransfer.items && _.find(e.dataTransfer.items, i => i.kind === 'file')) {
+                    this.addDocument();
+                }
+            }
+
+            _filesChanged() {
+                if (!this.currentContact) {
+                    return;
+                }
+                const files = _.clone(this.files);
+                const vaadinUpload = this.$['vaadin-upload'];
+
+                Promise.all(files.filter(f => !f.attached).map(f => {
+                    f.attached = true;
+                    console.log(f)
+                    return this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
+                        .then(d => this.api.document().createDocument(d))
+
+                        .then(createdDocument => {
+                            return this.api.crypto()
+                                .extractKeysFromDelegationsForHcpHierarchy(
+                                    this.user.healthcarePartyId,
+                                    createdDocument.id,
+                                    _.size(createdDocument.encryptionKeys) ? createdDocument.encryptionKeys : createdDocument.delegations
+                                )
+                                .then(({extractedKeys: enckeys}) => [createdDocument,enckeys])
+                        })
+                        .then(([d,enckeys]) => {
+                            f.doc = d;
+                            f.uploadTarget = (f.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, d.id) + "?ts=" + new Date().getTime() + (enckeys ? "&enckeys=" + enckeys : "");
+                            return f;
+                        });
+                })).then(files => {
+                    files.length && vaadinUpload.uploadFiles(files);
+                });
+            }
+
+            _fileUploaded(e) {
+                if (!this.currentContact) {
+                    return;
+                }
+                const vaadinUpload = this.$['vaadin-upload'];
+                const f = e.detail.file;
+                const d = f.doc;
+
+                let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
+                if (!sc) {
+                    sc = { status: 64, services: [] };
+                    this.currentContact.subContacts.push(sc);
+                }
+                const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: d.id, stringValue: f.name }]]), label: 'document' });
+                this.currentContact.services.push(svc);
+                sc.services.push({ serviceId: svc.id });
+                if (!vaadinUpload.files.find(f => !f.complete && !f.error)) {
+                    this.saveCurrentContact().then(c => this._contactsChanged());
+                }
+                console.log(vaadinUpload.files)
+            }
+
+            addDocument() {
+                this.set('showAddFormsContainer', false);
+                const vaadinUpload = this.$['vaadin-upload'];
+                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
+                vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
+                this.set('files',[])
+                this.$['upload-dialog'].open();
+            }
+
+            _validSsin(ssin) {
+                return ssin && ssin.length > 9;
+            }
+
+            _hasScanners(){
+                return this.hasElectron && this.scannerList && this.scannerList.length;
+            }
+
+            _launchScan(){
+                fetch("http://localhost:16042/scanning",{
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        request : "scan",
+                        scanner : this.selectedScanner
+                    })
+                }).then(response => response.json()).then(response => {
+                    if (!response.ok) return;
+
+                    let myObject = {
+                        downloadFileName: _.kebabCase(_.compact([
+                            this.scanDate || moment().format("DD-MM-YYYY"),
+                            this.scannedDocName || "new_scanned_document",
+                        ]).join(" ")) + ".pdf",
+                        scannedFileBlob: this.api.crypto().utils.base64toArrayBuffer(response.data.base64)
+                    }
+
+                    this.api.document().newInstance(this.user, null, {
+                        documentType: 'result',
+                        mainUti: this.api.document().uti("application/pdf"),
+                        name: _.trim(myObject.downloadFileName)
+                    }).then(newDocumentInstance => this.api.document().createDocument(newDocumentInstance))
+                        .then(createdDocument => {
+                            _.merge(myObject, {createdDocument:createdDocument})
+                            return createdDocument
+                        })
+                        .then((createdDocument) => {
+                            return this.api.document().setAttachment(createdDocument.id, null, myObject.scannedFileBlob).then(setAttachmentResponse => _.assign({setAttachmentResponse: setAttachmentResponse}, myObject))
+                        })
+                        .then(resourcesObject => this._saveDocumentAsService({
+                            documentId: _.trim(_.get(resourcesObject, "createdDocument.id", "")),
+                            stringValue: _.trim(resourcesObject.downloadFileName),
+                            formId: "",
+                            contactId: _.trim(this.currentContact.id)
+                        }))
+                        .catch((e) => {
+                            console.log("---error upload attachment---");
+                        })
+                })
+            }
+
+            open() {
+                const vaadinUpload = this.$['vaadin-upload'];
+                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
+                vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
+                this.set('files', []);
+                this.$['upload-dialog'].open();
+            }
+
+        }
+
+        customElements.define(HtMsgImportDocDialog.is, HtMsgImportDocDialog);
+    </script>
+</dom-module>
