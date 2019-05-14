@@ -3,23 +3,80 @@
 <dom-module id="ht-msg-import-doc-dialog">
     <template>
         <style>
+            .buttons{
+                display: flex;
+                flex-grow: 1;
+                box-sizing: border-box;
+                justify-content: flex-end;
+                padding: 16px 12px 8px 16px;
+            }
 
+            paper-dialog {
+                width: 50%;
+                min-width:30%;
+                margin: 0;
+            }
+
+            .input-form{
+                width : calc(100% - 40px);
+                height: 40px;
+            }
+
+            vaadin-upload{
+                margin:16px;
+                margin-bottom: 0;
+                min-height:280px;
+                background: var(--app-background-color);
+                --vaadin-upload-buttons-primary: {
+                    padding:16px;
+                };
+                --vaadin-upload-button-add: {
+                    background: var(--app-secondary-color);
+                    color:var(--app-text-color);
+                };
+                --vaadin-upload-file-progress: {
+                    --paper-progress-active-color:var(--app-secondary-color);
+                };
+                --vaadin-upload-file-commands: {
+                    color: var(--app-primary-color);
+                }
+
+            }
+
+            vaadin-text-field{
+                height: 40px;
+                margin-top: -20px;
+            }
+            #importTextField,#hcpCombo,#typeCombo{
+                width: 100%;
+            }
+            #importPicker,#docPicker,#PatCombo,#NissTextField{
+                width: calc(50% - 2px);
+            }
         </style>
         <paper-dialog id="upload-dialog">
             <h2>[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
             <!--<paper-fab class="close-button-icon" icon="icons:close" dialog-dismiss></paper-fab>-->
-            <div>
+            <div class="input-form">
                 <vaadin-text-field id="importTextField" label="[[localize('doc-title','Titre du document',language)]]" value="{{importDocName}}"></vaadin-text-field>
             </div>
-            <div>
-                <vaadin-date-picker id="importPicker" label="[[localize('doc_dat','Date de l\'import',language)]]" value="{importDate}}" i18n="[[i18n]]"></vaadin-date-picker>
+            <div class="input-form">
+                <vaadin-date-picker id="importPicker" label="[[localize('doc_dat','Date d\'importation',language)]]" value="{{importDate}}" i18n="[[i18n]]"></vaadin-date-picker>
                 <vaadin-date-picker id="docPicker" label="[[localize('doc_dat','Date du document',language)]]" value="{{docDate}}" i18n="[[i18n]]"></vaadin-date-picker>
             </div>
-            <div>
-                <vaadin-combo-box id="hcpCombo" filtered-items="[[listHcp]]" on-filter-changed="_filterChanged" item-label-path="name" item-value-path="id" label="[[localize('hcp','Medecin',language)]]" value="[[importHcp]]">
+            <div class="input-form">
+                <vaadin-combo-box id="hcpCombo" filtered-items="[[listHcp]]" on-filter-changed="_filterHcpChanged" item-label-path="name" item-value-path="id" label="[[localize('hcp','Medecin',language)]]" value="{{selectedHcp}}">
                 </vaadin-combo-box>
             </div>
-                <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
+            <div class="input-form">
+                <vaadin-combo-box id="typeCombo" filtered-items="[[listType]]" item-label-path="name" item-value-path="id" label="[[localize('type-doc','Type de document',language)]]" value="{{selectedtypeDoc}}">
+                </vaadin-combo-box>
+            </div>
+            <div class="input-form">
+                <vaadin-combo-box id="PatCombo" filter="{{filterPatient}}" label="[[localize('pat-name','Nom du patient',language)]]" filtered-items="[[listPat]]" item-label-path="name" item-value-path="id" value="{{patientId}}"></vaadin-combo-box>
+                <vaadin-text-field id="NissTextField" label="[[localize('ssin','NISS',language)]]" value="{{patientNiss}}"></vaadin-text-field>
+            </div>
+            <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
                 <div class="buttons">
                     <vaadin-combo-box id="scannerList" filtered-items="[[scannerList]]" item-label-path="label" item-value-path="id" label="[[localize('scanners','Scanners',language)]]" value="{{selectedScanner}}"></vaadin-combo-box>
                     <paper-button class="modal-button" on-tap="_launchScan">[[localize('scan','Scan',language)]]</paper-button>
@@ -44,7 +101,8 @@
             static get properties() {
                 return {
                     api: {
-                        type: Object
+                        type: Object,
+                        observer: "apiReady"
                     },
                     doc: {
                         type: Boolean,
@@ -55,7 +113,8 @@
                         observer : "_userChanged"
                     },
                     patient: {
-                        type: Object
+                        type: Object,
+                        observer : "_patientChanged"
                     },
                     files: {
                         type: Array
@@ -97,19 +156,44 @@
                         type : String,
                         value: moment().format("YYYY-MM-DD")
                     },
-                    importHcp :{
+                    selectedHcp :{
                         type: String,
                         value : ""
                     },
                     listHcp :{
                         type : Array,
                         value: ()=>[]
+                    },
+                    patientId:{
+                        type: String,
+                        value : "",
+                        observer : "_patientIdChanged"
+                    },
+                    patientNiss:{
+                        type: String,
+                        value : ""
+                    },
+                    listPat:{
+                        type : Array,
+                        value: ()=>[]
+                    },
+                    filterPatient:{
+                        type:String,
+                        value:""
+                    },
+                    selectedtypeDoc:{
+                        type: String,
+                        value:""
+                    },
+                    listType:{
+                        type: Array,
+                        value: ()=>[]
                     }
                 };
             }
 
             static get observers() {
-                return ['_filesChanged(files.*)'];
+                return ['_filesChanged(files.*)',"_filterPatChanged(filterPatient)"];
             }
 
             constructor() {
@@ -118,7 +202,12 @@
 
             ready() {
                 super.ready();
+            }
+
+            apiReady(){
                 this.api.isElectronAvailable().then(electron => this.set("hasElectron",electron))
+                this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
+                    .then(codes => this.set("listType",codes.rows.filter(code=>["careplan","contactreport","diarynote","labrequest","labresult","mea","note","prescription","referral","report","request","result"].find(keyWord=>code.code.includes(keyWord))).map(code => {return{id:code.id,name:code.label[this.language]||code.label["en"]||""}})))
             }
 
             _hasElectronChanged(){
@@ -152,16 +241,49 @@
                     this.push("listHcp",{
                         id:tempHcp.id,
                         name:tempHcp.name || tempHcp.firstName+" "+tempHcp.lastName || tempHcp.id})
-                    this.set("importHcp",this.user.healthcarePartyId)
+                    this.set("selectedHcp",this.user.healthcarePartyId)
                 })
             }
 
-            _filterChanged(e){
-                this.api.hcparty().findByName(e.target,null,null,100,"desc").then(hcps =>{
-                    this.set("listHcp",hcps.map(hcp =>{
+            _patientChanged(){
+                if(!this.patient)return;
+                this.push("listPat",{
+                    id:this.patient.id,
+                    name:this.patient.firstName+" "+this.patient.lastName || this.patient.id,
+                    ssin : this.patient.ssin})
+                this.set("patientId",this.patient.id)
+            }
+
+            _patientIdChanged(){
+                this.set("patientNiss",(this.listPat.find(pat => pat.id===this.patientId)||{ssin:""}).ssin)
+            }
+
+            _filterHcpChanged(e){
+                if(!e.detail.value)return;
+                this.api.hcparty().findByName(e.detail.value,null,null,100,"desc").then(hcps =>{
+                    this.set("listHcp",hcps.rows.map(hcp =>{
                         return {
                             id : hcp.id,
                             name : hcp.name ||  hcp.firstName+" "+hcp.lastName || hcp.id
+                        }
+                    }))
+                })
+            }
+
+            _filterPatChanged(e){
+                if(!this.filterPatient || !this.selectedHcp)return;
+                this.api.patient().filterByWithUser(this.user, null, null, 50, null, null, true, {
+                    filter: {
+                        '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                        'healthcarePartyId': this.selectedHcp,
+                        'searchString': this.filterPatient
+                    }
+                }).then(pats =>{
+                    this.set("listPat",pats.rows.map(pat =>{
+                        return {
+                            id : pat.id,
+                            name : pat.firstName+" "+pat.lastName || pat.id,
+                            ssin : pat.ssin
                         }
                     }))
                 })
@@ -172,6 +294,7 @@
                     this.addDocument();
                 }
             }
+
 
             /*_filesChanged() {
                 if (!this.currentContact) {
