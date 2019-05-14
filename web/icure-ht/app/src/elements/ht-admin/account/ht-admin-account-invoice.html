@@ -176,10 +176,29 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 padding-top: 16px;
             }
 
-            #agendaListDialog{
-                height: 250px;
-                overflow: auto;
+            .modalDialog{
+                height: 350px;
+                width: 600px;
             }
+
+            .modalDialogContent{
+                height: 176px;
+                width: auto;
+                margin: 10px;
+            }
+
+            .m-t-50 {
+                margin-top:50px!important;
+            }
+
+            .textAlignCenter {
+                text-align: center;
+            }
+
+            .bold {
+                font-weight: 700!important;
+            }
+
 
         </style>
 
@@ -188,7 +207,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             <div class="efactContainer" id="efactContainer">
                 <h4>[[localize('list_of_bat_num', 'List of batch number', language)]]</h4>
                 <div>
-                    <vaadin-grid id="batchList" class="material" items="[[listOfBatchNumber]]">
+                    <vaadin-grid id="batchList" class="material" items="[[listOfBatchReference]]">
                         <vaadin-grid-column>
                             <template class="header">
                                 [[localize('Oa','Oa',language)]]
@@ -219,6 +238,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </div>
 
+        <paper-dialog class="modalDialog" id="modifyInvoiceReference" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:create"></iron-icon> [[localize('mod-bat-ref','Modify batch reference',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter"></h3>
+                <p class="textAlignCenter m-t-50 bold">
+                    <paper-input type="number" id="nxtInvoiceRef" label="[[localize('nxt-bat-num','Next batch number',language)]]" value="{{selectedNextInvoiceRef}}"></paper-input>
+                </p>
+            </div>
+            <div class="buttons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="modal-button" on-tap="_confirmNewNumber"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
 
     </template>
 
@@ -245,6 +278,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     listOfBatchReference: {
                         type: Array,
                         value: () => []
+                    },
+                    selectedNextInvoiceRef:{
+                        type: Number,
+                        value: 0
+                    },
+                    selectedBatchReference:{
+                        type: Object,
+                        value: () => {}
                     }
                 }
             }
@@ -261,26 +302,47 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 super.ready()
             }
 
-            _modifyBatchNumber(){
-
+            _modifyBatchNumber(e){
+                e.stopPropagation()
+                if(e.target.dataset && e.target.dataset.item){
+                    const selectedItem = JSON.parse(e.target.dataset.item)
+                    this.$["modifyInvoiceReference"].open()
+                    this.set('selectedNextInvoiceRef', selectedItem.batchReference)
+                    this.set('selectedBatchReference', selectedItem)
+                }
             }
 
             _dataProvider(){
-
+                this.set('selectedNextInvoiceRef', 0)
+                this.set('selectedBatchReference', null)
                 const listOfOa = [100, 200, 300, 400, 500, 600, 900]
 
-                let prom = Promise.resolve({})
+                let prom = Promise.resolve()
 
                 listOfOa.map(oa =>
                     prom = prom.then(batchReferences => this.api.invoice().getNextInvoiceReference('efact:'+this.user.healthcarePartyId+':'+oa+':', this.api.entityRef())
-                        .then(ref => _.concat(batchReferences, [{batchReference: ref, oa: oa}]))
+                        .then(ref => _.concat(batchReferences, {batchReference: ref, oa: oa, prefix: 'efact:'+this.user.healthcarePartyId+':'+oa+':'}))
                     )
                 )
 
-                prom.then(batchReferences => {
-                    console.log(batchReferences)
-                    this.set("listOfBatchReference", batchReferences)
-                })
+                prom.then(batchReferences => this.set("listOfBatchReference", _.compact(batchReferences)))
+            }
+
+            _closeDialogs(){
+                this.$["modifyInvoiceReference"].close()
+                this.set('selectedNextInvoiceRef', 0)
+                this.set('selectedBatchReference', null)
+            }
+
+            _confirmNewNumber(){
+                if(this.selectedNextInvoiceRef && this.selectedBatchReference.prefix){
+                    this.api.invoice().createInvoiceReference(this.selectedNextInvoiceRef, null, this.selectedBatchReference.prefix, this.api.entityRef())
+                        .then(nxtRef => {
+                            this.$["modifyInvoiceReference"].close()
+                            this._dataProvider()
+                        })
+                }
+
             }
 
 
