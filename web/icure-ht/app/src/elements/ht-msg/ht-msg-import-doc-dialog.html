@@ -73,8 +73,8 @@
                 </vaadin-combo-box>
             </div>
             <div class="input-form">
-                <vaadin-combo-box id="PatCombo" filter="{{filterPatient}}" label="[[localize('pat-name','Nom du patient',language)]]" filtered-items="[[listPat]]" item-label-path="name" item-value-path="id" value="{{patientId}}"></vaadin-combo-box>
-                <vaadin-text-field id="NissTextField" label="[[localize('ssin','NISS',language)]]" value="{{patientNiss}}"></vaadin-text-field>
+                <vaadin-combo-box id="PatCombo" filter="{{filterPatient}}" label="[[localize('pat-name','Nom du patient',language)]]" filtered-items="[[listPat]]" item-label-path="name" item-value-path="id" value="{{patientId}}" disabled="[[patientDisabled]]"></vaadin-combo-box>
+                <vaadin-text-field id="NissTextField" label="[[localize('ssin','NISS',language)]]" value="{{patientNiss}}" disabled="[[patientDisabled]]"></vaadin-text-field>
             </div>
             <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
                 <div class="buttons">
@@ -171,7 +171,8 @@
                     },
                     patientNiss:{
                         type: String,
-                        value : ""
+                        value : "",
+                        observer:"_patientNissChanged"
                     },
                     listPat:{
                         type : Array,
@@ -188,6 +189,10 @@
                     listType:{
                         type: Array,
                         value: ()=>[]
+                    },
+                    patientDisabled:{
+                        type: Boolean,
+                        value:false
                     }
                 };
             }
@@ -252,10 +257,36 @@
                     name:this.patient.firstName+" "+this.patient.lastName || this.patient.id,
                     ssin : this.patient.ssin})
                 this.set("patientId",this.patient.id)
+                this.set("patientDisabled",true)
             }
 
             _patientIdChanged(){
-                this.set("patientNiss",(this.listPat.find(pat => pat.id===this.patientId)||{ssin:""}).ssin)
+                (this.listPat.find(pat =>  pat.id===this.patientId)||{ssin:""}).ssin!==this.patientNiss && this.set("patientNiss",(this.listPat.find(pat => pat.id===this.patientId)||{ssin:""}).ssin)
+            }
+
+            _patientNissChanged(){
+                if(!this.patientNiss || !this._validSsin(this.patientNiss)) return;
+                const found =this.listPat.find(pat => pat.ssin===this.patientNiss)
+                if(found){
+                    this.patientId!==found.id && this.set("patientId",found.id)
+                }
+                else{
+                    this.api.patient().filterByWithUser(this.user,null,null,10,null,null,"desc",{
+                        filter: {
+                            '$type': 'PatientByHcPartyAndSsinFilter',
+                            'healthcarePartyId': this.selectedHcp,
+                            'ssin': this.patientNiss
+                        }
+                    }).then(pats => {
+
+                        pats.rows.map(pat => this.push("listPat",{
+                            id: pat.id,
+                            name: pat.firstName + " " + pat.lastName || pat.id,
+                            ssin: pat.ssin
+                        }))
+                        this.set("patientId",this.listPat.find(pat => pat.ssin===this.patientNiss).id)
+                    })
+                }
             }
 
             _filterHcpChanged(e){
