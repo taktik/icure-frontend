@@ -90,16 +90,11 @@
 			}
 
 			.details-panel {
-				/*width: calc(50% + 1px);*/
 				height: 100%;
 				background: var(--app-background-color-light);
-				/*position: fixed;*/
-				top: 64px;
 				width:100%;
-				/*left: calc(50% - 1px);
-				grid-column: 3 / 3;
-				grid-row:1 / 1;*/
 				z-index:1;
+                position: relative;
 			}
 
 			.contact-card-frame {
@@ -195,27 +190,6 @@
 				color:var(--app-text-color-disabled);
 				font-style: italic;
 				font-size: 80%;
-			}
-
-			vaadin-upload{
-				margin:16px;
-                margin-bottom: 0;
-				min-height:280px;
-				background: var(--app-background-color);
-				--vaadin-upload-buttons-primary: {
-					padding:16px;
-				};
-				--vaadin-upload-button-add: {
-					background: var(--app-secondary-color);
-					color:var(--app-text-color);
-				};
-				--vaadin-upload-file-progress: {
-					--paper-progress-active-color:var(--app-secondary-color);
-				};
-				--vaadin-upload-file-commands: {
-					color: var(--app-primary-color);
-				}
-
 			}
 
 			.close-button-icon{
@@ -318,7 +292,7 @@
 				border-radius: 3px;
 				grid-column: 3/3;
 				grid-row: 1/1;
-				z-index: 10;
+				z-index: 20;
 				left: 50%;
 				transform: translate(-50%, 0);
 				box-shadow: var(--app-shadow-elevation-2);
@@ -387,7 +361,14 @@
 				box-sizing: border-box;
 				padding: 2px;
 				margin-right: 8px;
-			}
+            }
+            
+            .floating-action-bar.mobile span{
+                display: none;
+            }
+            .floating-action-bar.mobile paper-button{
+                min-width: 0;
+            }
 
 			.horizontal{
 				flex-flow: row nowrap;
@@ -442,6 +423,7 @@
             .mobile-only {
                 display: none;
             }
+
 
             @media screen and (max-width: 952px) {
                 paper-dialog#prescriptionDialog {
@@ -813,19 +795,6 @@
 		</div>
 
 		<entity-selector id="load-template-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[reportTemplatesSelectorColumns()]]" data-provider="[[reportCustomTemplatesSelectorDataProvider()]]" entity-icon="vaadin:doctor" entity-type="[[localize('template','Template',language)]]" on-entity-selected="_reportTemplateSelected"></entity-selector>
-		<entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
-
-		<paper-dialog id="upload-dialog">
-			<h2>[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
-			<!--<paper-fab class="close-button-icon" icon="icons:close" dialog-dismiss></paper-fab>-->
-			<vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUploaded"></vaadin-upload>
-            <div class="buttons">
-                <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
-            </div>
-		</paper-dialog>
-
-        <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" global-hcp=[[globalHcp]] on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"></ht-pat-prescription-dialog>
-
 		<ht-pat-invoicing-dialog id="invoicingForm" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-invoicing-dialog>
 
 		<paper-dialog id="prose-editor-dialog" no-cancel-on-outside-click no-cancel-on-esc-key>
@@ -1194,60 +1163,6 @@
 				this.dispatchEvent(new CustomEvent("plan-action", {composed: true, bubbles: true,detail: this.currentContact.services.filter(svc => svc.label==="Actes")[0]}))
 			}
 
-			_filesChanged() {
-				if (!this.currentContact) {
-					return;
-				}
-				const files = _.clone(this.files);
-				const vaadinUpload = this.$['vaadin-upload'];
-
-				Promise.all(files.filter(f => !f.attached).map(f => {
-                    f.attached = true;
-                    console.log(f)
-                    return this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
-                    .then(d => this.api.document().createDocument(d))
-
-                    .then(createdDocument => {
-                        return this.api.crypto()
-                            .extractKeysFromDelegationsForHcpHierarchy(
-                                this.user.healthcarePartyId,
-                                createdDocument.id,
-                                _.size(createdDocument.encryptionKeys) ? createdDocument.encryptionKeys : createdDocument.delegations
-                            )
-                            .then(({extractedKeys: enckeys}) => [createdDocument,enckeys])
-                    })
-                    .then(([d,enckeys]) => {
-						f.doc = d;
-						f.uploadTarget = (f.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, d.id) + "?ts=" + new Date().getTime() + (enckeys ? "&enckeys=" + enckeys : "");
-						return f;
-					});
-				})).then(files => {
-					files.length && vaadinUpload.uploadFiles(files);
-				});
-			}
-
-			_fileUploaded(e) {
-				if (!this.currentContact) {
-					return;
-				}
-				const vaadinUpload = this.$['vaadin-upload'];
-				const f = e.detail.file;
-				const d = f.doc;
-
-				let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
-				if (!sc) {
-					sc = { status: 64, services: [] };
-					this.currentContact.subContacts.push(sc);
-				}
-				const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: d.id, stringValue: f.name }]]), label: 'document' });
-				this.currentContact.services.push(svc);
-				sc.services.push({ serviceId: svc.id });
-				if (!vaadinUpload.files.find(f => !f.complete && !f.error)) {
-					this.saveCurrentContact().then(c => this._contactsChanged());
-				}
-				console.log(vaadinUpload.files)
-			}
-
 			_invoicing(){
 				this.$.invoicingForm.open()
 			}
@@ -1304,16 +1219,18 @@
 
 			addOther() {
 				this.set('showAddFormsContainer', false);
-				this.$['add-form-dialog'].open();
+				// this.$['add-form-dialog'].open();
+                this.dispatchEvent(new CustomEvent("add-other", {composed: true, bubbles: true}))
 			}
 
 			addDocument() {
 				this.set('showAddFormsContainer', false);
-                const vaadinUpload = this.$['vaadin-upload'];
-                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-                vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
-                this.set('files',[])
-				this.$['upload-dialog'].open();
+                // const vaadinUpload = this.$['vaadin-upload'];
+                // vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
+                // vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
+                // this.set('files',[])
+				// this.$['upload-dialog'].open();
+                this.dispatchEvent(new CustomEvent('add-document', {detail: {currentContact: this.currentContact}, composed: true, bubbles: true}))
 			}
 
 			_validSsin(ssin) {
@@ -1348,7 +1265,8 @@
 
 			_prescribe(e) {
 				e.stopPropagation();
-				this.$.prescriptionDialog.open();
+				// this.$.prescriptionDialog.open();
+                this.dispatchEvent(new CustomEvent("prescribe", {detail:{currentContact: this.currentContact, servicesMaps: this.servicesMap, globalHcp: this.globalHcp}, composed: true, bubbles: true}))
             }
 
             _handlePdfReport(e) {
@@ -1687,29 +1605,7 @@
                 };
             }
 
-            formTemplatesSelectorColumns() {
-                return [{ key: 'group.name', title: 'Groupe' }, { key: 'name', title: 'Nom' }, { key: 'guid', title: 'GUID' }];
-            }
 
-            formTemplatesSelectorDataProvider() {
-                return {
-                    filter: function (filterValue, limit, offset, sortKey, descending) {
-                        const regExp = filterValue && new RegExp(filterValue, "i");
-
-                        const all = this.allTemplates || (this.allTemplates = Promise.all([
-                            this.api.form().findFormTemplates(),
-                            /**@Todo :  add .code and tags on forms*/
-                            this.api.form().findFormTemplatesBySpeciality(((this.api.hcParties[this.user.healthcarePartyId]||{}).specialityCodes||[])[0] || 'deptgeneralpractice')
-                        ]).then( res => _.chain(res[0].concat(res[1])).uniqBy(x=>x.id).sortBy(['group','name']).value()))
-
-                        return all
-                                .then(fts => {
-                                    const filtered = fts.filter(ft => (!regExp || ft.name && ft.name.match(regExp) || ft.group && ft.group.name && ft.group.name.match(regExp) || ft.guid && ft.guid.match(regExp)) && ft.disabled !== "true");
-                                    return { totalSize: filtered.length, rows: (descending ? _.reverse(_.sortBy(filtered, sortKey)) : _.sortBy(filtered, sortKey)).slice(0, limit) };
-                                });
-                    }.bind(this)
-                };
-            }
 
             refreshIcons() {
                 Polymer.dom(this.root).querySelector("#serviceFilterPanel").refreshIcons();
@@ -3664,6 +3560,12 @@
 				const tab = ["DL","A5"]
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
 			}
+
+            resizeFloatingBar(isTooSmall){
+                isTooSmall ? this.root.querySelector('.floating-action-bar').classList.add('mobile') : this.root.querySelector('.floating-action-bar').classList.remove('mobile')
+            }
+
+
 
             _isConnectedToEhbox() {
                 this.set("ehealthSession", !!this.api.tokenId)
