@@ -307,7 +307,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 .table-top > div.indicators > div > * {
                     margin: 0 auto;
                 }
-                .table-top > div.indicators > div#stamp-indicator.hasNew span {color: var(--app-secondary-color);}
+                .table-top > div.indicators > div#stamp-indicator.hasNew span {color: var(--app-error-color);}
                 .table-top > div.indicators > div#capacity-indicator > * {
                     display: inline-block;
                 }
@@ -344,6 +344,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 paper-progress.full {
                     --paper-progress-active-color: var(--app-error-color);
+                }
+
+                .errorColor {
+                    color: var(--app-error-color);
                 }
 
                 #actions-spinner {
@@ -605,7 +609,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <paper-tooltip for="del-button" offset="2">[[localize('del_sel','Delete selected',language)]]</paper-tooltip>
                         </template>
                         <template is="dom-if" if="[[_isEqual(selectList.selection.item,'trash')]]">
-                            <paper-icon-button id="restore-button" icon="undo" on-tap="_outOfBin"></paper-icon-button>
+                            <paper-icon-button id="restore-button" icon="undo" on-tap="_restoreDeletedMessages"></paper-icon-button>
                             <paper-tooltip for="restore-button" offset="2">[[localize('restore','Restore',language)]]</paper-tooltip>
                             <paper-icon-button id="del-for-button" icon="delete-forever" on-tap="_deleteMsgsForever"></paper-icon-button>
                             <paper-tooltip for="del-for-button" offset="2">[[localize('del_forever','Delete forever',language)]]</paper-tooltip>
@@ -627,26 +631,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </div>
 
                 <div class="indicators">
-                    <template is="dom-if" if="[[!_isEqual(bufferedMsgs,0)]]">
-                        <div id="stamp-indicator" class="stamp-indicator hasNew"><iron-icon icon="warning"></iron-icon><span class="label">[[bufferedMsgs]]</span></div>
-                        <paper-tooltip for="stamp-indicator" offset="0">[[localize('buff_msgs','buffered msgs',language)]]</paper-tooltip>
+                    <template is="dom-if" if="[[!_isEqual(nbrMessagesInStandBy,0)]]">
+                        <div id="stamp-indicator" class="stamp-indicator hasNew errorColor"><iron-icon icon="warning" class="errorColor"></iron-icon><span class="label errorColor">[[nbrMessagesInStandBy]] [[localize('pendingMessages','Pending messages',language)]]</span></div>
+                        <paper-tooltip for="stamp-indicator" offset="0">[[localize('becauseEhBoxIsFull','Because your e-Health Box is full',language)]]</paper-tooltip>
                     </template>
 
                     <div id="capacity-indicator">
                         <div class="mb4"><iron-icon icon="cloud"></iron-icon>
                             <span>
                                 <template is="dom-if" if="[[ehealthSession]]">
-                                    [[localize('mail_cap','mailbox capacity',language)]] ([[capacityPercent]]%)
+                                    [[localize('mail_cap','mailbox capacity',language)]] ([[currentCapacityPercentage]]%)
                                 </template>
                                 <template is="dom-if" if="[[!ehealthSession]]">
                                     <span class="warn">[[localize('ehe_is_not_con','eHealth is not connected',language)]]</span>
                                 </template>
                             </span>
                         </div>
-                        <template is="dom-if" if="[[ehealthSession]]"><paper-progress value$="[[capacityPercent]]" min="0" max="100" class$="[[_mailBoxCapacityColor]]"></paper-progress></template>
+                        <template is="dom-if" if="[[ehealthSession]]"><paper-progress value$="[[currentCapacityPercentage]]" min="0" max="100" class$="[[_ehBoxCurrentSizeColor]]"></paper-progress></template>
                     </div>
                     <template is="dom-if" if="[[ehealthSession]]">
-                        <paper-tooltip for="capacity-indicator" offset="0">[[actualCapacity]]%</paper-tooltip>
+                        <paper-tooltip for="capacity-indicator" offset="0">[[currentStorageCapacity]]%</paper-tooltip>
                     </template>
                 </div>
 
@@ -683,34 +687,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 <vaadin-grid-sorter path="received" direction="asc">[[localize('dat','Date',language)]]</vaadin-grid-sorter>
                             </template>
                             <template>
-                                <div class$="cell frozen [[_boldIfIsUnread(item)]]">[[_timeFormat(item.received)]]</div>
+                                <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.received)]]</div>
+                                <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToHHIISS(item.received)]]</div>
                             </template>
                         </vaadin-grid-column>
-                        <!--
-                        <vaadin-grid-column flex-grow="0" width="48px">
-                            <template class="header">
-                                <iron-icon icon="mail" id="unread-icon"></iron-icon>
-                                <paper-tooltip position="right" for="unread-icon">[[localize('is_read','read',language)]]/[[localize('is_not_read','not read',language)]]</paper-tooltip>
-                            </template>
-                            <template>
-                                <template is="dom-if" if="[[!_isUnread(item)]]">
-                                    <iron-icon icon="done" id="read-[[item.id]]"></iron-icon>
-                                    <paper-tooltip position="right" for="read-[[item.id]]">[[localize('is_read','read',language)]]</paper-tooltip>
-                                </template>
-                                <template is="dom-if" if="[[_isUnread(item)]]">
-                                    <iron-icon icon="mail" id="unread-[[item.id]]"></iron-icon>
-                                    <paper-tooltip position="right" for="unread-[[item.id]]">[[localize('is_not_read','not read',language)]]</paper-tooltip>
-                                </template>
-                            </template>
-                        </vaadin-grid-column>
-                        -->
                         <vaadin-grid-column flex-grow="1">
                             <template class="header">
                                 <vaadin-grid-sorter path="fromAddress"><b>[[localize('sen','Sender',language)]]</b>
                                 </vaadin-grid-sorter>
                             </template>
                             <template>
-                                <div class$="cell frozen [[_boldIfIsUnread(item)]]">
+                                <div class$="cell [[_boldIfIsUnread(item)]]">
                                     <template is="dom-if" if="[[!_isUnread(item)]]">
                                         [[item.fromAddress]]
                                     </template>
@@ -727,7 +714,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 </vaadin-grid-sorter>
                             </template>
                             <template>
-                                <div class$="cell frozen [[_boldIfIsUnread(item)]]">
+                                <div class$="cell [[_boldIfIsUnread(item)]]">
                                     [[item.subject]]
                                 </div>
                             </template>
@@ -811,7 +798,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     activeItem: {
                         type: Object,
-                        observer: '_activeItemChanged'
+                        value: null
                     },
                     messages: {
                         type: Array,
@@ -870,19 +857,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Array,
                         value: []
                     },
-                    bufferedMsgs: {
+                    nbrMessagesInStandBy: {
                         type: Number,
                         value: 0
                     },
-                    mailboxCapacity: {
+                    ehBoxCurrentSize: {
                         type: Number,
                         value: 0
                     },
-                    mailboxMaxCapacity: {
+                    ehboxMaxStorageCapacity: {
                         type: Number,
-                        value: 0
+                        value: 10485760 // 1024^2 - 10Mb
                     },
-                    capacityPercent: {
+                    currentCapacityPercentage: {
                         type: Number,
                         value: 0
                     },
@@ -898,7 +885,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Number,
                             value: 0
                     },
-                    actualCapacity: {
+                    currentStorageCapacity: {
                         type: Number,
                         value: 0
                     },
@@ -945,6 +932,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     _pageSize: {
                         type: Number,
                         value: 50
+                    },
+                    _ehBoxCurrentSizeColor: {
+                        type: String,
+                        value: ""
                     }
                 };
             }
@@ -959,7 +950,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     '_messagesChanged(messages, page)',
                     '_getBoxCapacity(messages)',
                     '_isConnectedToEhbox(api.tokenId)',
-                    '_getBoxCapacity(messages,page)',
                     '_deselectAll(messages,page)',
                     '_setRefreshIsAllowed(messages,page)',
                     '_pageChanged(page)'
@@ -977,35 +967,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 // this.set('refreshAllowed',allowed)
                 this.set('refreshAllowed',!!( ((parseInt(localStorage.getItem('lastEhboxRefresh'))||0) + (10*60000)) <= Date.now() ) )
             }            
-
-			_deleteMessages() {
-
-                const selectedMessages = this.checkedMessages
-                if(!_.size(selectedMessages)) return
-
-                let prom = Promise.resolve([]);
-                selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(deletedAndModifiedMessages => {
-                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
-                        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : false
-                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
-                        return !eHealthBoxMessageId || !sourceBox || !destinationBox ?
-                            false :
-                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
-                                .then(()=>_.concat(deletedAndModifiedMessages, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(x=>x).catch(e=>console.log("ERROR with modifyMessage: ", e))))
-                                .catch(e=>console.log("ERROR with moveMessagesUsingPOST: ",e))
-                    })
-                })
-
-                return prom
-                    .then(x=>x)
-                    .catch(e=>console.log("ERROR with _deleteMessages: ",e))
-                    .finally(()=>{
-                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
-                        this._refresh()
-                    })
-
-            }
 
             _loadingStatusChanged() {
                 if(!this._isLoading) this._resetLoadingMessage();
@@ -1150,20 +1111,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return this.api.message().findMessagesByToAddress('SENTBOX', null, null, 1000)
                     .then(messages => _
                         .chain(messages.rows)
-                        .filter(msg=>!msg.transportGuid.startsWith('BIN') && !((msg.status&1<<14)!==0))
+                        .filter(msg=>!_.trim(_.get(m,"transportGuid","")).startsWith('BIN') && !((msg.status&1<<14)!==0))
                         .orderBy(['received'],['desc'])
                         .value()
                     )
             }
             
-            _getHidden(){
-                return this.findMessagesByTransportGUIDs(['INBOX:*','SENTBOX:*','HIDDEN'], null, null, 1000)
-                    .then(messages => _.orderBy(messages,['received','transportGuid'],['desc','desc']).filter(m=>(((m.status&(1<<14)) !== 0) || m.transportGuid.startsWith('HIDDEN'))))
+            _getHidden() {
+                return this.findMessagesByTransportGUIDs(['INBOX:*','SENTBOX:*','HIDDEN']).then(messages => _.filter(messages, m=>(((m.status&(1<<14)) !== 0) || _.trim(_.get(m,"transportGuid","")).startsWith('HIDDEN'))))
             }
 
-            _getTrash(){
-				return this.findMessagesByTransportGUIDs(['BININBOX:*','BINSENTBOX:*'], null, null, 1000)
-					.then(messages => _.orderBy(messages,['received','transportGuid'],['desc','desc']));
+            _getTrash() {
+				return this.findMessagesByTransportGUIDs(['BININBOX:*','BINSENTBOX:*'])
             }
 
             _refresh() {
@@ -1192,12 +1151,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         .catch(e=>{ console.log(e); })
                         .finally(()=>{
                             this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                            this.updateGridElementsSize()
+                            this.triggerGridResize()
                         })
 
                 } else {
                     this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                    this.updateGridElementsSize()
+                    this.triggerGridResize()
                 }
 
             }
@@ -1261,59 +1220,147 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set('checkedMessages',[])
             }
 
-            
+            _isEqual(a,b) {
+                return !!(a === b)
+            }
 
-
-
-
-
-            
-            
-            
-
-
-
-
-
-
-
-            
-            
-            
-            
-            
-            
-            
-
-
-
-
-
-
-
+            findMessagesByTransportGUIDs(transportGuids) {
+                return Promise.all(_.map(transportGuids, singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 1000).then(messages =>_.orderBy(messages.rows,['received','transportGuid'],['desc','desc']))))
+                    .then(promisesResults => Promise.resolve(
+                        _
+                            .chain(promisesResults)
+                            .flatMap()
+                            .uniqBy('id')
+                            .orderBy(['received','transportGuid'],['desc','desc'])
+                            .value()
+                        )
+                    )
+            }
 
             _getBoxCapacity() {
-                if (this.api.keystoreId && this.api.tokenId && this.api.credentials.ehpassword) {
+                if ( _.get(this,"api.keystoreId",false) && _.get(this,"api.tokenId",false) && _.get(this,"api.credentials.ehpassword",false) ) {
                     this.api.fhc().Ehboxcontroller().getInfosUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword)
                         .then(boxInfo=>{
-                            this.set('bufferedMsgs',boxInfo.nbrMessagesInStandBy)
-                            this.set('mailboxCapacity',boxInfo.currentSize)
-                            this.set('mailboxMaxCapacity',boxInfo.maxSize)
-                            this.set('actualCapacity',((this.mailboxCapacity / this.mailboxMaxCapacity)*100).toFixed(2))
-                            if (this.actualCapacity >= 100) this.set('_mailBoxCapacityColor','full')
-                            this.set('capacityPercent', this.actualCapacity <= 100 ? this.actualCapacity : '+100')
+                            this.set('nbrMessagesInStandBy',parseInt(_.get(boxInfo,"nbrMessagesInStandBy",0)))
+                            this.set('ehBoxCurrentSize',parseInt(_.get(boxInfo,"currentSize",0)))
+                            this.set('ehboxMaxStorageCapacity',parseInt(_.get(boxInfo,"maxSize",10485760))) // 1024^2 - 10 Mb
+                            this.set('currentStorageCapacity',((this.ehBoxCurrentSize / this.ehboxMaxStorageCapacity)*100).toFixed(2))
+                            if (this.currentStorageCapacity > 99) this.set('_ehBoxCurrentSizeColor','full')
+                            this.set('currentCapacityPercentage', this.currentStorageCapacity <= 100 ? this.currentStorageCapacity : '100+')
                         })
                 }
             }
 
             _scrollToTop() {
                 const grid = this.shadowRoot.getElementById('vaadinMessagesGrid')
-                if (grid) {
-                    // grid.style.opacity = 0
-                    setTimeout(()=>grid._scrollToIndex(0),250) // timeOut for css transition
-                    // setTimeout(()=>grid.style.opacity = 1,500)
-                }
+                return grid && setTimeout(()=>grid._scrollToIndex(0),250)
             }
+
+            triggerGridResize() {
+                const grid = this.shadowRoot.getElementById('vaadinMessagesGrid')
+                return grid && grid.notifyResize()
+            }
+
+            setListTitle(listTitle){
+                this.set( "listTitle", this.localize("boxtitle." + _.trim(listTitle), 'List', this.language) )
+            }
+
+            _msTstampToDDMMYYYY(msTstamp) {
+                return parseInt(msTstamp) ? this.api.moment(parseInt(msTstamp)).format('DD/MM/YYYY') : ""
+            }
+
+            _msTstampToHHIISS(msTstamp) {
+                return parseInt(msTstamp) ? this.api.moment(parseInt(msTstamp)).format('HH:mm:ss') : ""
+            }
+
+            _deleteMessages() {
+
+                const selectedMessages = this.checkedMessages
+                if(!_.size(selectedMessages)) return
+
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(deletedAndModifiedMessages => {
+                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
+                        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : false
+                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
+                        return !eHealthBoxMessageId || !sourceBox || !destinationBox ?
+                            false :
+                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
+                                .then(()=>_.concat(deletedAndModifiedMessages, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(x=>x).catch(e=>console.log("ERROR with modifyMessage: ", e))))
+                                .catch(e=>console.log("ERROR with moveMessagesUsingPOST: ",e))
+                    })
+                })
+
+                return prom
+                    .then(x=>x)
+                    .catch(e=>console.log("ERROR with _deleteMessages: ",e))
+                    .finally(()=>{
+                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
+                        this._refresh()
+                    })
+
+            }            
+
+            _restoreDeletedMessages() {
+
+                const selectedMessages = this.checkedMessages
+                if(!_.size(selectedMessages)) return
+
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(restoreddAndModifiedMessages => {
+                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
+                        const destinationBox = sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
+                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
+                        return !eHealthBoxMessageId || !sourceBox || !destinationBox ?
+                            false :
+                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
+                                .then(()=>_.concat(restoreddAndModifiedMessages, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(x=>x).catch(e=>console.log("ERROR with modifyMessage: ", e))))
+                                .catch(e=>console.log("ERROR with moveMessagesUsingPOST: ",e))
+                    })
+                })
+
+                return prom
+                    .then(x=>x)
+                    .catch(e=>console.log("ERROR with _restoreDeletedMessages: ",e))
+                    .finally(()=>{
+                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
+                        this._refresh()
+                    })                
+
+            }
+
+
+
+
+            
+            
+            
+
+
+
+
+
+
+
+            
+            
+            
+            
+            
+            
+            
+
+
+
+
+
+
+
+
+
+
 
 
             hasLabResult(m) {
@@ -1370,24 +1417,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 });
             }
 
-            // FZ: Delete this one
-            findMessagesByTransportGUID(guid){
-                return this.api.message().findMessagesByTransportGuid(guid, null, null, 1000).then(messages =>_.orderBy(messages.rows,['received','transportGuid'],['desc','desc']))
-            }
-
-            // FZ rewrite with promise.all
-            findMessagesByTransportGUIDs(guids){
-				let p = []
-				guids.forEach(guid => {
-					p.push(this.findMessagesByTransportGUID(guid))
-				});
-                return Promise.all(p).then(items =>{
-                	let results = [];
-                	items.forEach(item => results = results.concat(item));
-                    return results;
-                });
-            }
-
             _messagesChanged(messages,page) {
                 const grid = this.shadowRoot.getElementById('vaadinMessagesGrid')
                 if (grid && messages && page && !this._messagesBeingChanged) {
@@ -1441,31 +1470,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            _outOfBin() {
-                let checkedMsgs = this.checkedMessages
-                if(checkedMsgs.length) {
-                    checkedMsgs.forEach(msg => {
-                        const id = msg.transportGuid.substring(msg.transportGuid.indexOf(':') + 1)
-                        if (msg.transportGuid.includes('INBOX')) {
-                            msg.transportGuid = 'INBOX:' + id
-                            this.api.message().modifyMessage(msg).then((m)=>{
-                                _.assign(msg,m)
-                                this.dispatchEvent(new CustomEvent('item-delete', { detail: { selection: { item: "Refresh" } } }))
-                                this._refresh()
-                            })
-                        }
-                        if (msg.transportGuid.includes('SENTBOX')) {
-                            msg.transportGuid = 'SENTBOX:' + id
-                            this.api.message().modifyMessage(msg).then((m)=>{
-                                _.assign(msg,m)
-                                this.dispatchEvent(new CustomEvent('item-delete', { detail: { selection: { item: "Refresh" } } }))
-                                this._refresh()
-                            })
-                        }
-                    }) // foreach end
-                }
-            }
-
             _deleteMsgsForever() {
                 const checkedMsgs = this.checkedMessages
                 if (checkedMsgs.length) {
@@ -1493,30 +1497,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         // })
                     }
                 }
-            }
-
-            _isEqual(a,b) {return (a === b)}
-
-            _timeFormat(date) {
-                return date && this.api.moment(date).format('DD/MM/YYYY') || '';
-            }
-
-			_activeItemChanged(item){
-                let mailList = this.shadowRoot.querySelector('#vaadinMessagesGrid');
-                if(mailList) mailList.selectedItems = item ? [item] : [];
-            }
-
-            setListTitle(title){
-            	this.set("listTitle",this.localize("boxtitle." + title,'List',this.language))
-            }
-
-            _displayRestoreButton(){
-                return (this.selectList.selection.item == 'trash')
-            }
-
-            updateGridElementsSize() {
-                const grid = this.shadowRoot.getElementById('vaadinMessagesGrid')
-                grid && grid.notifyResize()
             }
 
 		}
