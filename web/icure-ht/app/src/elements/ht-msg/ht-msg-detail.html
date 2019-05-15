@@ -951,12 +951,12 @@
                     <div class="buttons">
                         <template is="dom-if" if="[[ehealthSession]]">
                             <template is="dom-if" if="[[!isSentbox]]">
-                                <paper-button class="msg-detail-btn" on-tap="_replyMsgs" msgId$='[[msg.id]]'><iron-icon id="reply-msg" icon="reply"></iron-icon>
+                                <paper-button class="msg-detail-btn" on-tap="_replyMsgs" msgId$='[[selectedMessage.id]]'><iron-icon id="reply-msg" icon="reply"></iron-icon>
                                     <span class="nomobile-wide">[[localize('reply','Reply',language)]]</span>
                                     <paper-tooltip class="wide-only" for="reply-msg">[[localize('reply','Reply',language)]]</paper-tooltip>
                                 </paper-button>
                             </template>
-                            <!--<paper-button class="msg-detail-btn" on-tap="_forwardMsgs"  msgId$='[[msg.id]]'><iron-icon id="forward-msg" icon="forward"></iron-icon>-->
+                            <!--<paper-button class="msg-detail-btn" on-tap="_forwardMsgs"  msgId$='[[selectedMessage.id]]'><iron-icon id="forward-msg" icon="forward"></iron-icon>-->
                                 <!--<span class="nomobile-wide">[[localize('fw','Forward',language)]]</span>-->
                                 <!--<paper-tooltip class="wide-only" for="forward-msg">[[localize('fw','Forward',language)]]</paper-tooltip>-->
                             <!--</paper-button>-->
@@ -981,20 +981,21 @@
                                     <span class="nomobile-wide">[[localize('restore','Restore',language)]]</span>
                                     <paper-tooltip class="wide-only" for="undo-msg">[[localize('restore','Restore',language)]]</paper-tooltip>
                                 </paper-button>
-                                <!--<paper-button class="msg-detail-btn" on-tap="_deleteMsgForever"  msgId$='[[msg.id]]' ><iron-icon icon="delete-forever"></iron-icon>[[localize('del','Delete',language)]]</paper-button>-->
+                                <!--<paper-button class="msg-detail-btn" on-tap="_deleteMsgForever"  msgId$='[[selectedMessage.id]]' ><iron-icon icon="delete-forever"></iron-icon>[[localize('del','Delete',language)]]</paper-button>-->
                             </template>
                             <template is="dom-if" if="[[!isDeleted]]">
-                                    <!--<paper-button class="msg-detail-btn" on-tap="_hideMsg"  msgId$='[[msg.id]]' ><iron-icon icon="visibility-off"></iron-icon>[[localize('del','Delete',language)]]</paper-button>-->
-                                <paper-button class="msg-detail-btn" on-tap="_msgToBin"  msgId$='[[msg.id]]' ><iron-icon id="delete-msg" icon="delete"></iron-icon>
-                                    <span class="nomobile-wide">[[localize('del','Delete',language)]]</span>
+                                <!--<paper-button class="msg-detail-btn" on-tap="_hideMsg"  msgId$='[[selectedMessage.id]]' ><iron-icon icon="visibility-off"></iron-icon>[[localize('del','Delete',language)]]</paper-button>-->
+                                <paper-button class="msg-detail-btn" on-tap="_deleteSingleMessage"  data-message-id$="[[selectedMessage.id]]"><iron-icon id="delete-msg" icon="delete" data-message-id$="[[selectedMessage.id]]"></iron-icon>
+                                    <span class="nomobile-wide" data-message-id$="[[selectedMessage.id]]">[[localize('del','Delete',language)]]</span>
                                     <paper-tooltip class="wide-only" for="delete-msg">[[localize('del','Delete',language)]]</paper-tooltip>
                                 </paper-button>
+
                             </template>
                         </div>
                     </div>
                     
                     <div>
-                        <paper-button class="msg-detail-btn" on-tap="close">
+                        <paper-button class="msg-detail-btn" on-tap="_closeSingleMessageComponent">
                             <iron-icon icon="clear"></iron-icon> [[localize('clo','Close',language)]]
                         </paper-button>
                     </div>
@@ -1322,7 +1323,7 @@ class HtMsgDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.set("ehealthSession", this.api.tokenId ? true : false)
     }
 
-	close() {
+	_closeSingleMessageComponent() {
 	    this.set('selectedMessage',null)
         this._focusChanged()
         this.classList.remove('selected')
@@ -1762,14 +1763,24 @@ class HtMsgDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         }
     }
 
-    _msgToBin(param){
-        let msg = this.messages[0]
-        if (msg) {
-            const id = msg.transportGuid.substring(msg.transportGuid.indexOf(':') + 1)
-            if (msg.transportGuid.includes('INBOX')) msg.transportGuid = 'BININBOX:'+id
-            if (msg.transportGuid.includes('SENTBOX')) msg.transportGuid = 'BINSENTBOX:'+id
-            this.api.message().modifyMessage(msg).then((m)=>{_.assign(msg,m);this.dispatchEvent(new CustomEvent('item-delete', { detail: { selection: { item: "Refresh" } } }))})
-        }
+    _deleteSingleMessage(e){
+
+        const messageId = _.trim(_.get(e,"target.dataset.messageId"))
+        const messageObject = messageId === _.trim(_.get(this,"selectedMessage.id","")) ? _.get(this,"selectedMessage",{}) : false
+
+        const sourceBox = _.trim(_.get(_.trim(_.get(messageObject,"transportGuid","")).split(':'), "[0]", ""))
+        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : false
+        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(messageObject,"transportGuid","")).split(':'), "[1]", ""))
+
+        return !_.trim(messageId) || !_.size(messageObject) || !eHealthBoxMessageId || !sourceBox || !destinationBox ?
+            false :
+            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
+                .then(()=>this.api.message().modifyMessage(_.merge(messageObject, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(x=>x).catch(e=>console.log("ERROR withmodifyMessage: ", e)))
+                .catch(e=>console.log("ERROR with _deleteSingleMessage: ",e))
+                .finally(()=>{
+                    this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
+                    this._closeSingleMessageComponent();
+                })
     }
 
     _restoreMsgs(){
