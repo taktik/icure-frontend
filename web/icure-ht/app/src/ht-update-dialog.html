@@ -1,0 +1,231 @@
+
+
+<link rel="import" href="../bower_components/polymer/polymer.html">
+<link rel="import" href="../bower_components/app-route/app-route.html">
+
+<link rel="import" href="elements/icc-api/icc-api.html">
+<link rel="import" href="./shared-styles.html">
+<link rel="import" href="./scrollbar-style.html">
+<link rel="import" href="./elements/ht-spinner/ht-spinner.html">
+
+
+<script src="../bower_components/moment/moment.js"></script>
+
+<dom-module id="ht-update-dialog">
+
+    <template>
+        <style include="shared-styles scrollbar-style">
+            :host {
+                display: block;
+                height: calc(100% - 20px);
+                /*padding: 10px;*/
+            }
+
+            .modalDialog{
+                height: 500px;
+                width: 1024px;
+            }
+
+            .modalDialogContent{
+                height: 340px;
+                width: auto;
+                margin: 10px;
+                max-height: 340px;
+                overflow: auto;
+            }
+
+            .m-t-50 {
+                margin-top:50px!important;
+            }
+
+            .textAlignCenter {
+                text-align: center;
+            }
+
+            .bold {
+                font-weight: 700!important;
+            }
+
+            .loadingContainer{
+                position:absolute;
+                width: 100%;
+                height: 100%;
+                top: 0;left: 0;
+                background-color: rgba(0,0,0,.3);
+                z-index: 10;
+                text-align: center;
+            }
+
+            .versionTitle{
+                height: 24px;
+                width: auto;
+                font-size: 20px;
+                color: var(--app-secondary-color);
+                border-bottom: 1px solid var(--app-secondary-color);
+                margin-top: 20px;
+                margin-bottom: 10px;
+            }
+
+            .moduleTitle{
+                height: 15px;
+                width: auto;
+            }
+
+            .blockUpdate{
+                height: auto;
+                width: auto;
+                margin: 1%;
+            }
+
+            .releaseNoteTitle{
+                display: block;
+                font-weight:bold;
+            }
+
+            .modal-button--save{
+                box-shadow: var(--shadow-elevation-2dp_-_box-shadow);
+                background: var(--app-secondary-color);
+                color: var(--app-primary-color-dark);
+                font-weight: 700;
+
+            }
+
+            .modal-button{
+                color: var(--app-text-color);
+                font-weight: 700;
+                font-size: 14px;
+                height: 40px;
+                min-width: 100px;
+                padding: 10px 1.2em;
+                text-transform: inherit;
+            }
+
+            ol li{
+                padding-left: 10px;
+                margin-bottom: 5px;
+            }
+
+            .mr5{
+                margin-right: 5px;
+            }
+
+        </style>
+
+        <template is="dom-if" if="[[_bodyOverlay]]">
+            <div class="loadingContainer"></div>
+        </template>
+
+        <paper-dialog class="modalDialog" id="updateMessageDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:speaker-notes"></iron-icon> [[localize('upd-info','Informations',language)]]</h2>
+            <div class="modalDialogContent">
+                <template is="dom-repeat" items="[[displayedUpdate]]" as="news">
+                    <div class="blockUpdate">
+                        <div class="versionTitle bold">
+                            Version: [[news.version]]
+                        </div>
+                        <ol>
+                            <template is="dom-repeat" items="[[news.modules]]" as="module">
+                                <li>
+                                    <span class="releaseNoteTitle">[[_localizeContent(module.areaCode)]] - [[_localizeContent(module.title)]]</span>
+                                    [[_localizeContent(module.description)]]
+                                </li>
+                            </template>
+                        </ol>
+                    </div>
+                </template>
+
+            </div>
+            <div class="buttons">
+                <paper-button class="modal-button" on-tap="_closeDialog"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('read-later','Read later',language)]]</paper-button>
+                <paper-button class="modal-button modal-button--save" on-tap="_confirmUpdate"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
+    </template>
+
+    <script>
+        import moment from 'moment/src/moment';
+        import _ from 'lodash/lodash';
+        import * as models from 'icc-api/dist/icc-api/model/models'
+
+        class HtUpdateDialog extends Polymer.TkLocalizerMixin(Polymer.Element)  {
+        static get is() {
+            return 'ht-update-dialog';
+        }
+
+        static get properties() {
+            return {
+                api: {
+                    type: Object,
+                    noReset: true
+                },
+                user: {
+                    type: Object
+                },
+                _bodyOverlay: {
+                    type: Boolean,
+                    value: false
+                },
+                updateVersion:{
+                    type: String,
+                    value: ""
+                },
+                updates: {
+                    type: Object,
+                    value: function () {
+                        return require('../updates.json');
+                    }
+                },
+                displayedUpdate:{
+                    type: Object,
+                    value: () => {}
+                }
+            };
+        }
+
+        static get observers() {
+            return [];
+        }
+
+        constructor() {
+            super();
+        }
+
+        ready() {
+            super.ready();
+        }
+
+        _openDialog(){
+            this.set('displayedUpdate', _.orderBy(this.updates.updates.filter(u => moment().isBetween(u.startDate, u.endDate) === true), ['startDate'], ['desc']))
+            const dateOfNewUpdate = _.get(this, 'displayedUpdate[0].updateDate', moment().format('YYYY-MM-DD'))
+
+            if((localStorage && !localStorage.getItem('last_update_confirm')) || (localStorage && localStorage.getItem('last_update_confirm') && (moment(localStorage.getItem('last_update_confirm')).format("YYYY-MM-DD") < moment(dateOfNewUpdate).format("YYYY-MM-DD")))){
+                this.set('_bodyOverlay', true)
+                this.$['updateMessageDialog'].open()
+            }
+
+        }
+
+        _closeDialog(){
+            this.set('_bodyOverlay', false)
+            this.$['updateMessageDialog'].close()
+        }
+
+
+        _localizeContent(content){
+            return content && content[this.language] ? content[this.language] : null
+        }
+
+        _confirmUpdate(){
+            localStorage.setItem('last_update_confirm', _.get(this, 'displayedUpdate[0].updateDate', moment().format('YYYY-MM-DD')))
+            this.set('_bodyOverlay', false)
+            this.$['updateMessageDialog'].close()
+        }
+
+
+
+    }
+
+    customElements.define(HtUpdateDialog.is, HtUpdateDialog);
+    </script>
+</dom-module>
