@@ -3428,114 +3428,34 @@
 			_saveDoc(e){
 			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length && this.currentContact))return;
 
-                (e.detail.documents || []).map( doc => {
-                    return this.api.document().newInstance(this.user, null, {
-                        documentType: 'result',
-                        mainUti: this.api.document().uti(doc.isScanned ? "application/pdf" : doc.extension),
-                        name: _.trim(doc.title)+"."+(doc.isScanned ? "pdf" : doc.extension)});
-                })
-				/*
-
-				this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
-                this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti("application/pdf"), name: _.trim(myObject.downloadFileName) })
-
-
-
-
-				_filesChanged() {
-					const vaadinUpload = this.$['vaadin-upload'];
-
-					Promise.all(files.filter(f => !f.attached).map(f => {
-						f.attached = true;
-						console.log(f)
-						return this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
-								.then(d => this.api.document().createDocument(d))
-
-								.then(createdDocument => {
-									return this.api.crypto()
-											.extractKeysFromDelegationsForHcpHierarchy(
-													this.user.healthcarePartyId,
-													createdDocument.id,
-													_.size(createdDocument.encryptionKeys) ? createdDocument.encryptionKeys : createdDocument.delegations
-											)
-											.then(({extractedKeys: enckeys}) => [createdDocument,enckeys])
-								})
-								.then(([d,enckeys]) => {
-									f.doc = d;
-									f.uploadTarget = (f.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, d.id) + "?ts=" + new Date().getTime() + (enckeys ? "&enckeys=" + enckeys : "");
-									return f;
-								});
-					})).then(files => {
-						files.length && vaadinUpload.uploadFiles(files);
-					});
-				}
-
-				_fileUploaded(e) {
-					if (!this.currentContact) {
-						return;
-					}
-					const vaadinUpload = this.$['vaadin-upload'];
-					const f = e.detail.file;
-					const d = f.doc;
-
-					let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
-					if (!sc) {
-						sc = { status: 64, services: [] };
-						this.currentContact.subContacts.push(sc);
-					}
-					const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: d.id, stringValue: f.name }]]), label: 'document' });
-					this.currentContact.services.push(svc);
-					sc.services.push({ serviceId: svc.id });
-					if (!vaadinUpload.files.find(f => !f.complete && !f.error)) {
-						this.saveCurrentContact().then(c => this._contactsChanged());
-					}
-					console.log(vaadinUpload.files)
-				}
-
-            _launchScan(){
-                fetch("http://localhost:16042/scanning",{
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        request : "scan",
-                        scanner : this.selectedScanner
-                    })
-                }).then(response => response.json()).then(response => {
-                    if (!response.ok) return;
-
-                    let myObject = {
-                        downloadFileName: _.kebabCase(_.compact([
-                            this.scanDate || moment().format("DD-MM-YYYY"),
-                            this.scannedDocName || "new_scanned_document",
-                        ]).join(" ")) + ".pdf",
-                        scannedFileBlob: this.api.crypto().utils.base64toArrayBuffer(response.data.base64)
-                    }
-
-                    this.api.document().newInstance(this.user, null, {
-                        documentType: 'result',
-                        mainUti: this.api.document().uti("application/pdf"),
-                        name: _.trim(myObject.downloadFileName)
-                    }).then(newDocumentInstance => this.api.document().createDocument(newDocumentInstance))
-                        .then(createdDocument => {
-                            _.merge(myObject, {createdDocument:createdDocument})
-                            return createdDocument
-                        })
-                        .then((createdDocument) => {
-                            return this.api.document().setAttachment(createdDocument.id, null, myObject.scannedFileBlob).then(setAttachmentResponse => _.assign({setAttachmentResponse: setAttachmentResponse}, myObject))
-                        })
-                        .then(resourcesObject => this._saveDocumentAsService({
-                            documentId: _.trim(_.get(resourcesObject, "createdDocument.id", "")),
-                            stringValue: _.trim(resourcesObject.downloadFileName),
-                            formId: "",
-                            contactId: _.trim(this.currentContact.id)
-                        }))
-                        .catch((e) => {
-                            console.log("---error upload attachment---");
-                        })
-                    })
-            }
-
-				*/
+                Promise.all((e.detail.documents || []).map( doc =>{
+                    this.api.message().newInstance(this.user).then(msg => [doc,msg])
+                }))
+                    .then( docsAndMsgs => Promise.all(docsAndMsgs.map(([doc,msg]) => this.api.message().createMessage(_.merge(msg,{
+                        transportGuid : _.concat((doc.isScanned ? "SCAN:" :"DOC:"),doc.type),
+                        recipients :[doc.hcp,this.user.healthElementId || this.hcp.id],
+                        recipientsType : "org.taktik.icure.entities.HealthcareParty",
+                        metas :{
+                            filename : doc.title,
+                            importDate : doc.importDate,
+                            documentDate : doc.docDate
+                        },
+                        toAddresses : [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', _.trim(this.hcp.id)))],
+                        subject : "imported doc in patient folder",
+                        status : 0
+                    })).then(message => [doc,message]))))
+                    .then( docsAndMsgs => docsAndMsgs.map(([doc,msg])=>
+                        Promise.all(this.api.document().newInstance(this.user, msg, {
+                            documentType: doc.type,
+                            mainUti: this.api.document().uti("application/"+doc.extension),
+                            name: _.trim(doc.title)+"."+(doc.isScanned ? "pdf" : doc.extension)}).then(newDoc => [doc,newDoc,msg]))
+                    ))
+                    .then( docsAndMsgs =>Promise.all(docsAndMsgs.map(([doc,newDoc,msg]) =>this.api.document().createDocument(newDoc).then(createdDoc => [doc,createdDoc,msg]))))
+                    .then( docsAndMsgs =>Promise.all(
+                        docsAndMsgs.map(([doc,createdDoc,msg]) =>
+                            this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
+                                .then(encryptedFileContent => ({doc,createdDoc,msg,encryptedFileContent})))))
+                    .then(docsAndMsgs => Promise.all(docsAndMsgs.map(([doc,createdDoc,msg,encryptedFileContent]) =>this.api.document().setAttachment(createdDoc.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))))
 			}
         }
 
