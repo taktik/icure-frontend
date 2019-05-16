@@ -713,8 +713,7 @@
 		<entity-selector id="load-template-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[reportTemplatesSelectorColumns()]]" data-provider="[[reportCustomTemplatesSelectorDataProvider()]]" entity-icon="vaadin:doctor" entity-type="[[localize('template','Template',language)]]" on-entity-selected="_reportTemplateSelected"></entity-selector>
 		<entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
 
-		<ht-msg-import-doc-dialog id="import-doc-dialog" api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" patient="[[patient]]"></ht-msg-import-doc-dialog>
-
+		<ht-msg-import-doc-dialog id="import-doc-dialog" api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" patient="[[patient]]" on-save-documents="_saveDoc"></ht-msg-import-doc-dialog>
 
         <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" global-hcp=[[globalHcp]] on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"></ht-pat-prescription-dialog>
 
@@ -935,7 +934,7 @@
 			}
 
 			static get observers() {
-				return ['ifRecipeAvailable(user)','_filesChanged(files.*)','_servicesFilter(serviceFilters)','_allContactsChanged(allContacts.*, currentContact, currentContact._rev)'];
+				return ['ifRecipeAvailable(user)','_servicesFilter(serviceFilters)','_allContactsChanged(allContacts.*, currentContact, currentContact._rev)'];
 			}
 
 			constructor() {
@@ -1051,60 +1050,6 @@
 
 			_planAction() {
 				this.dispatchEvent(new CustomEvent("plan-action", {composed: true, bubbles: true,detail: this.currentContact.services.filter(svc => svc.label==="Actes")[0]}))
-			}
-
-			_filesChanged() {
-				if (!this.currentContact) {
-					return;
-				}
-				const files = _.clone(this.files);
-				const vaadinUpload = this.$['vaadin-upload'];
-
-				Promise.all(files.filter(f => !f.attached).map(f => {
-                    f.attached = true;
-                    console.log(f)
-                    return this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
-                    .then(d => this.api.document().createDocument(d))
-
-                    .then(createdDocument => {
-                        return this.api.crypto()
-                            .extractKeysFromDelegationsForHcpHierarchy(
-                                this.user.healthcarePartyId,
-                                createdDocument.id,
-                                _.size(createdDocument.encryptionKeys) ? createdDocument.encryptionKeys : createdDocument.delegations
-                            )
-                            .then(({extractedKeys: enckeys}) => [createdDocument,enckeys])
-                    })
-                    .then(([d,enckeys]) => {
-						f.doc = d;
-						f.uploadTarget = (f.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, d.id) + "?ts=" + new Date().getTime() + (enckeys ? "&enckeys=" + enckeys : "");
-						return f;
-					});
-				})).then(files => {
-					files.length && vaadinUpload.uploadFiles(files);
-				});
-			}
-
-			_fileUploaded(e) {
-				if (!this.currentContact) {
-					return;
-				}
-				const vaadinUpload = this.$['vaadin-upload'];
-				const f = e.detail.file;
-				const d = f.doc;
-
-				let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
-				if (!sc) {
-					sc = { status: 64, services: [] };
-					this.currentContact.subContacts.push(sc);
-				}
-				const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: d.id, stringValue: f.name }]]), label: 'document' });
-				this.currentContact.services.push(svc);
-				sc.services.push({ serviceId: svc.id });
-				if (!vaadinUpload.files.find(f => !f.complete && !f.error)) {
-					this.saveCurrentContact().then(c => this._contactsChanged());
-				}
-				console.log(vaadinUpload.files)
 			}
 
 			_invoicing(){
@@ -3478,6 +3423,119 @@
 			sizePrintSubFormChanged(value){
 				const tab = ["DL","A5"]
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
+			}
+
+			_saveDoc(e){
+			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length && this.currentContact))return;
+
+                (e.detail.documents || []).map( doc => {
+                    return this.api.document().newInstance(this.user, null, {
+                        documentType: 'result',
+                        mainUti: this.api.document().uti(doc.isScanned ? "application/pdf" : doc.extension),
+                        name: _.trim(doc.title)+"."+(doc.isScanned ? "pdf" : doc.extension)});
+                })
+				/*
+
+				this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
+                this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti("application/pdf"), name: _.trim(myObject.downloadFileName) })
+
+
+
+
+				_filesChanged() {
+					const vaadinUpload = this.$['vaadin-upload'];
+
+					Promise.all(files.filter(f => !f.attached).map(f => {
+						f.attached = true;
+						console.log(f)
+						return this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type, f.name && f.name.replace(/.+\.(.+)/, '$1')), name: f.name })
+								.then(d => this.api.document().createDocument(d))
+
+								.then(createdDocument => {
+									return this.api.crypto()
+											.extractKeysFromDelegationsForHcpHierarchy(
+													this.user.healthcarePartyId,
+													createdDocument.id,
+													_.size(createdDocument.encryptionKeys) ? createdDocument.encryptionKeys : createdDocument.delegations
+											)
+											.then(({extractedKeys: enckeys}) => [createdDocument,enckeys])
+								})
+								.then(([d,enckeys]) => {
+									f.doc = d;
+									f.uploadTarget = (f.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, d.id) + "?ts=" + new Date().getTime() + (enckeys ? "&enckeys=" + enckeys : "");
+									return f;
+								});
+					})).then(files => {
+						files.length && vaadinUpload.uploadFiles(files);
+					});
+				}
+
+				_fileUploaded(e) {
+					if (!this.currentContact) {
+						return;
+					}
+					const vaadinUpload = this.$['vaadin-upload'];
+					const f = e.detail.file;
+					const d = f.doc;
+
+					let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
+					if (!sc) {
+						sc = { status: 64, services: [] };
+						this.currentContact.subContacts.push(sc);
+					}
+					const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: d.id, stringValue: f.name }]]), label: 'document' });
+					this.currentContact.services.push(svc);
+					sc.services.push({ serviceId: svc.id });
+					if (!vaadinUpload.files.find(f => !f.complete && !f.error)) {
+						this.saveCurrentContact().then(c => this._contactsChanged());
+					}
+					console.log(vaadinUpload.files)
+				}
+
+            _launchScan(){
+                fetch("http://localhost:16042/scanning",{
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        request : "scan",
+                        scanner : this.selectedScanner
+                    })
+                }).then(response => response.json()).then(response => {
+                    if (!response.ok) return;
+
+                    let myObject = {
+                        downloadFileName: _.kebabCase(_.compact([
+                            this.scanDate || moment().format("DD-MM-YYYY"),
+                            this.scannedDocName || "new_scanned_document",
+                        ]).join(" ")) + ".pdf",
+                        scannedFileBlob: this.api.crypto().utils.base64toArrayBuffer(response.data.base64)
+                    }
+
+                    this.api.document().newInstance(this.user, null, {
+                        documentType: 'result',
+                        mainUti: this.api.document().uti("application/pdf"),
+                        name: _.trim(myObject.downloadFileName)
+                    }).then(newDocumentInstance => this.api.document().createDocument(newDocumentInstance))
+                        .then(createdDocument => {
+                            _.merge(myObject, {createdDocument:createdDocument})
+                            return createdDocument
+                        })
+                        .then((createdDocument) => {
+                            return this.api.document().setAttachment(createdDocument.id, null, myObject.scannedFileBlob).then(setAttachmentResponse => _.assign({setAttachmentResponse: setAttachmentResponse}, myObject))
+                        })
+                        .then(resourcesObject => this._saveDocumentAsService({
+                            documentId: _.trim(_.get(resourcesObject, "createdDocument.id", "")),
+                            stringValue: _.trim(resourcesObject.downloadFileName),
+                            formId: "",
+                            contactId: _.trim(this.currentContact.id)
+                        }))
+                        .catch((e) => {
+                            console.log("---error upload attachment---");
+                        })
+                    })
+            }
+
+				*/
 			}
         }
 
