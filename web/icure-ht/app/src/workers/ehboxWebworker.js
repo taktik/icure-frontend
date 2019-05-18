@@ -6,8 +6,13 @@ import {UtilsClass} from "icc-api/dist/icc-x-api/crypto/utils"
 import moment from 'moment/src/moment'
 import levenshtein from 'js-levenshtein'
 
+
+
 onmessage = e => {
     if(e.data.action === "loadEhboxMessage"){
+
+
+
         const iccHost           = e.data.iccHost
         const iccHeaders        = JSON.parse(e.data.iccHeaders)
 
@@ -24,19 +29,16 @@ onmessage = e => {
         const language          = e.data.language
 
         const ehboxApi          = new fhcApi.fhcEhboxcontrollerApi(fhcHost, fhcHeaders)
-
         const docApi            = new iccApi.iccDocumentApi(iccHost, iccHeaders)
         const msgApi            = new iccApi.iccMessageApi(iccHost, iccHeaders)
         const beResultApi       = new iccApi.iccBeresultimportApi(iccHost, iccHeaders)
-
         const iccHcpartyApi     = new iccApi.iccHcpartyApi(iccHost, iccHeaders)
         const iccPatientApi     = new iccApi.iccPatientApi(iccHost, iccHeaders)
         const iccContactApi		= new iccApi.iccContactApi(iccHost, iccHeaders)
         const iccCryptoXApi     = new iccXApi.IccCryptoXApi(iccHost, iccHeaders, iccHcpartyApi)
-
         const iccUtils          = new UtilsClass()
 
-        //Avoid the hit to the local storage to load the key pair
+        //Avoid hitting local storage to load key pairs
         Object.keys(e.data.keyPairs).forEach( k => iccCryptoXApi.cacheKeyPair(e.data.keyPairs[k], k) )
 
         const iccDocumentXApi   = new iccXApi.IccDocumentXApi(iccHost, iccHeaders, iccCryptoXApi)
@@ -45,39 +47,24 @@ onmessage = e => {
         const iccMessageXApi    = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi)
 
 
-        const textType = (uti, utis) =>{
-			//return (uti && [uti] || []).concat(utis && utis.value || []).map(u => iccDocumentXApi.mimeType(u)).find(m => m === 'text/plain');
-            // NOTE: mime type and extension from ehbox are not reliable, the ResultImport API can detect if it's the correct type
-			return true
-		}
 
         const removeMsgFromEhboxServer = (msg) => {
             if (msg) {
                 const thisBox = msg.transportGuid.substring(0,msg.transportGuid.indexOf(':'))
                 const delBox = thisBox === 'INBOX' ? 'BININBOX' : thisBox === 'SENTBOX' ? 'BINSENTBOX' : null
                 const idOfMsg = msg.transportGuid.substring(msg.transportGuid.indexOf(':')+1)
-                // console.log('remove from server',idOfMsg,thisBox,delBox)
                 if (thisBox.transportGuid && !thisBox.transportGuid.startsWith("BIN")) { // if it was not in bin
-                    // console.log('move to bin',idOfMsg,thisBox,delBox)
                     return ehboxApi.moveMessagesUsingPOST(keystoreId, tokenId, ehpassword, [idOfMsg], thisBox, delBox)
-                        .then(()=>{
-                            // console.log('move to bin done',idOfMsg,thisBox,delBox)
-                        })
-                        .catch(err => {
-                            // console.log('ERROR: move to bin',idOfMsg,thisBox,delBox, err)
-                        })
-                } else { // if already in bin, del forever
-                    // console.log('delete',idOfMsg,thisBox)
+                        .then(()=>{})
+                        .catch(e=>console.log("ERROR with moveMessagesUsingPOST: ",e))
+                } else {
                     return ehboxApi.deleteMessagesUsingPOST(keystoreId, tokenId, ehpassword, [idOfMsg], thisBox)
                 }
             }
         }
 
 		const assignResult = (message,docInfo,document) => {
-            console.log('assignResult',message,docInfo,document)
-            // assign to patient/contact the result matching docInfo from all the results of the document
             // return {id: contactId, protocolId: protocolIdString} if success else null (in promise)
-
 
             const filter = docInfo.ssin && docInfo.ssin.match(/[0-9]{11}/) ? {
                 '$type': 'PatientByHcPartyAndSsinFilter',
@@ -148,10 +135,8 @@ onmessage = e => {
                             content: _.fromPairs([[language, {stringValue: docInfo.labo}]]),
                             tags: [{type: 'CD-TRANSACTION', code: 'labresult'}]
                         })
-                        console.log('c services', c.services)
                         return iccContactXApi.createContactWithUser(user, c)
                     }).then(c => {
-                        console.log('createContact', c)
                         return iccFormXApi.newInstance(user, candidates[0], {
                             contactId: c.id,
                             descr: "Lab " + new Date().getTime(),
@@ -257,7 +242,6 @@ onmessage = e => {
         }
 
         const registerNewMessage = (fullMessage, boxId) => {
-            // console.log('registerNewMessage',fullMessage,boxId)
             let createdDate = moment(fullMessage.publicationDateTime, "YYYYMMDD").valueOf()
             let receivedDate = new Date().getTime()
 
@@ -274,7 +258,14 @@ onmessage = e => {
 
             let newMessage = {
                 created: createdDate,
-                fromAddress: getFromAddress(fullMessage.sender),
+                fromAddress: !_.size(_.get(fullMessage,"sender",{})) ? "" : _.trim(_.compact([
+                    _.trim(_.get(fullMessage,"sender.lastName","")),
+                    _.trim(_.get(fullMessage,"sender.firstName","")),
+                    _.trim(_.get(fullMessage,"sender.organizationName","")),
+                    _.trim(_.get(fullMessage,"sender.identifierType.type","")),
+                    ":",
+                    _.trim(_.get(fullMessage,"sender.id","")),
+                ]).split(" ")),
                 subject: (fullMessage.document && fullMessage.document.title) || fullMessage.errorCode + " " + fullMessage.title,
                 metas: fullMessage.customMetas,
                 toAddresses: [boxId],
@@ -336,28 +327,30 @@ onmessage = e => {
         }
 
 
-        boxIds && boxIds.forEach(boxId =>{
-            ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, boxId, 100, alternateKeystores)
+        _.map((boxIds||[]), singleBoxId => {
+            ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 100, alternateKeystores)
                 .then(messages => {
                     let p = Promise.resolve([])
-                    messages.forEach(m => {
-                        p = p.then(() => {
-                            return createDbMessageWithAppendicesAndTryToAssign(m, boxId)
-                                .catch(e => {console.log("Error processing message "+m.id,e); return Promise.resolve()})
-                        })
-                    })
+
+                    console.log("[loadMessagesUsingPOST] messages of box "+singleBoxId+": ", messages);
+
+                    // messages.forEach(m => {
+                    //     p = p.then(() => {
+                    //         return createDbMessageWithAppendicesAndTryToAssign(m, singleBoxId)
+                    //             .catch(e => {
+                    //                 console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", m,e);
+                    //                 return Promise.resolve()
+                    //             })
+                    //     })
+                    // })
+
+
                     return p
                 })
-                .catch(err => console.log("Error while fetching messages: " + err))
+                .catch(e=>console.log("ERROR with loadMessagesUsingPOST: ",e))
         })
+
+
+
     }
 };
-
-function getFromAddress(sender){
-    if (!sender) { return "" }
-    return (sender.lastName ? sender.lastName : "") +
-        (sender.firstName ? ' '+sender.firstName : "") +
-        (sender.organizationName ? ' '+sender.organizationName : "") +
-        (' ' + sender.identifierType.type + ':' + sender.id)
-
-}
