@@ -7,6 +7,7 @@
 <link rel="import" href="../../../bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../../../bower_components/paper-styles/shadow.html">
 <link rel="import" href="../../../bower_components/vaadin-combo-box/vaadin-combo-box.html">
+<link rel="import" href="../../../bower_components/paper-dialog/paper-dialog.html">
 
 <link rel="import" href="dynamic-number-field.html">
 <link rel="import" href="dynamic-token-field.html">
@@ -20,12 +21,14 @@
 <link rel="import" href="dynamic-medication-field.html">
 <link rel="import" href="dynamic-subcontact-type-selector.html">
 <link rel="import" href="../../icpc-styles.html">
+<link rel="import" href="../../dialog-style.html">
+
 
 <link rel="import" href="ckmeans-grouping.html">
 
 <dom-module id="dynamic-form">
 	<template>
-		<style include="icpc-styles">
+		<style include="icpc-styles dialog-style">
 			ht-spinner.center {
 				position: absolute;
 				left: calc(50% - 14px);
@@ -128,6 +131,22 @@
 				padding: 2px;
 			}
 
+			.form-title-bar-btn paper-listbox{
+				padding: 0;
+			}
+
+			.form-title-bar-btn paper-listbox paper-item{
+				padding: 0 8px;
+				font-size: var(--font-size-normal);
+			}
+
+			.form-title-bar-btn paper-listbox paper-item iron-icon{
+				height: 12px;
+				width: 12px;
+				padding: 0;
+				margin-right: 4px;
+			}
+
 			.colour-code {
 				font-size: 12px;
 				white-space: nowrap;
@@ -161,6 +180,16 @@
 				padding: 4px;
 			}
 
+			#delete-confirmation-dialog{
+				height: 160px;
+				width: 300px;
+			}
+
+			#delete-confirmation-dialog .modal-button--save{
+				background: var(--app-status-color-nok);
+				color: white;
+			}
+
 
 		</style>
 
@@ -177,11 +206,27 @@
                             <!--
                             <dynamic-subcontact-type-selector id="linktosub" subcontact-type="[[subcontactType]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_linkToSubcontactType"></dynamic-subcontact-type-selector>
                             <paper-tooltip position="bottom" for="linktosub">[[localize('link_sub','Link to sub',language)]]</paper-tooltip>
-                            -->
-                            <paper-icon-button id="delform" class="form-title-bar-btn" icon="icons:delete" on-tap="_deleteForm"></paper-icon-button>
-                            <paper-tooltip position="bottom" for="delform">[[localize('del_form','Delete form',language)]]</paper-tooltip>
+							-->
+							<template is="dom-if" if="[[_none(showEdit,noPrint)]]">
+				
+								<template is="dom-if" if="[[!isSubForm]]">
+									<paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
+										<paper-icon-button class="form-title-bar-btn" slot="dropdown-trigger" alt="menu" icon="icons:file-upload"></paper-icon-button>
+										<paper-listbox slot="dropdown-content" >
+											<template is="dom-repeat" items="[[reports]]" as="report">
+												<paper-item class="link" on-tap="newReport" id="report"><iron-icon icon="vaadin:file-o"></iron-icon>[[_getReportTrad(report.name)]]</paper-item>
+											</template>
+										</paper-listbox>
+									</paper-menu-button>
+								</template>
+							   
+								<template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
+									<paper-icon-button icon="print" on-tap="printSubForm" id="printSubForm" class="form-title-bar-btn"></paper-icon-button>
+									<paper-tooltip position="bottom" for="printSubForm">[[localize('print','Print',language)]]</paper-tooltip>
+								</template>
+							</template>
                             <paper-tooltip position="bottom" for="linkhe">[[localize('link_he','Link Health Element',language)]]</paper-tooltip>
-                            <paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true">
+                            <paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
                                 <paper-icon-button id="linkhe" class="form-title-bar-btn" icon="icons:link" slot="dropdown-trigger" alt="menu"></paper-icon-button>
                                 <paper-listbox slot="dropdown-content">
                                     <template is="dom-repeat" items="[[linkableHealthElements]]" as="he">
@@ -199,7 +244,9 @@
                                         </template>
                                     </template>
                                 </paper-listbox>
-                            </paper-menu-button>
+							</paper-menu-button>
+							<paper-icon-button id="delform" class="form-title-bar-btn" icon="icons:delete" on-tap="_deleteConfirmation"></paper-icon-button>
+                            <paper-tooltip position="bottom" for="delform">[[localize('del_form','Delete form',language)]]</paper-tooltip>
                         </template>
 					</div>
 				</div>
@@ -245,7 +292,7 @@
 										 i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" data-source="[[_popupDataSource(layoutItem, layoutItem.editor.menuOptions)]]"
 										 linkables="[[linkableHealthElements]]" last-modified="[[_lastModified(layoutItem)]]" value="[[_value(layoutItem,dataMap.*)]]"
 										 width="[[layoutItem.editor.flow]]" options="[[layoutItem.editor.menuOptions]]" on-field-changed="_valueChanged"
-										 read-only="[[readOnly]]" display-all-always="[[layoutItem.editor.displayAllAlways]]"></dynamic-popup-menu>
+										 read-only="[[readOnly]]" display-all-always="[[layoutItem.editor.displayAllAlways]]" is-free-text="[[layoutItem.editor.isFreeText]]"></dynamic-popup-menu>
 									</template>
 									<template is="dom-if" if="[[_isDateField(layoutItem)]]">
 										<dynamic-date-field id="[[_sanitizeId(layoutItem.name)]]" api="[[api]]" label="[[layoutItem.label]]" key="[[layoutItem.name]]" was-modified="[[_wasModified(layoutItem)]]" is-modified-after="[[_isModifiedAfter(layoutItem)]]"
@@ -288,21 +335,18 @@
 			<template is="dom-if" if="[[showEdit]]">
                 <paper-icon-button class="edit-print-pat-details-btn" icon="create" on-tap="editForm"></paper-icon-button>
 			</template>
-			<template is="dom-if" if="[[_none(showEdit,noPrint)]]">
-				<!--
-                <template is="dom-if" if="[[!isSubForm]]">
-                    <paper-icon-button class="edit-print-pat-details-btn" icon="print" on-tap="toggleReportsList"></paper-icon-button>
-                    <div class="reports-list-container" hidden$="[[!reportsListDisplayed]]">
-                        <template is="dom-repeat" items="[[reports]]" as="report">
-                            <paper-fab-speed-dial-action icon="vaadin:file-o" on-tap="newReport" id="report">[[report.name]]</paper-fab-speed-dial-action>
-                        </template>
-                    </div>
-                </template>
-                -->
-                <template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
-                    <paper-fab-speed-dial-action icon="print" on-tap="printSubForm" id="printSubForm">[[localize('print','Print',language)]]</paper-fab-speed-dial-action>
-                </template>
-            </template>
+
+			<paper-dialog id="delete-confirmation-dialog">
+				<h2 class="modal-title">Delete form</h2>
+				<div class="content">
+					<p>Are you sure you want to delete this form ?</p>
+				</div>
+				<div class="buttons">
+					<paper-button dialog-confirm autofocus on-tap="cancel" class="modal-button">Cancel</paper-button>
+					<paper-button dialog-confirm class="modal-button modal-button--save" on-tap="_deleteForm">Delete</paper-button>
+				</div>
+			</paper-dialog>
+			
 		</paper-card>
 	</template>
 	<script>
@@ -458,6 +502,10 @@
                 // const card = this.root.querySelector('.pat-details-card')
                 // if (card) {card.style.display = 'none'} // prevent user to click delete twice
             }
+
+			_deleteConfirmation() {
+				this.$['delete-confirmation-dialog'].open();
+			}
 
 
             _patCardClass(isSubForm) {
@@ -744,6 +792,10 @@
                     _.get(template, "sections", false) && Array.isArray(template.sections) && template.sections.length &&
                     _.size(_.head(_.filter( _.get(template, "sections[0].formColumns[0].formDataList", {}), {type:"TKAction"})))
             }
+
+            _getReportTrad(reportName){
+			    return reportName && reportName === "Report" ? this.localize('out-doc', 'Outgoing document', this.language) : reportName
+			}
 		}
 
 		customElements.define(DynamicForm.is, DynamicForm);
