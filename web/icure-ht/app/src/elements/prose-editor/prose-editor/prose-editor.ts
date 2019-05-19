@@ -105,26 +105,42 @@ export class ProseEditor extends Polymer.Element {
     }]
   }
 
-  templateNodeSpec: NodeSpec = {
+  templateInstanceNodeSpec: NodeSpec = {
     inline: false,
     draggable: false,
+    isolating: true,
+    attrs: {},
+    content: "block+",
+
+    toDOM: () => {
+      return ["div", {class: "template-instance"}, 0]
+    },
+    parseDOM: [{
+      tag: "div.template-instance", getAttrs() { return {} }
+    }]
+  }
+
+  templateNodeSpec: NodeSpec = {
+    group: "block",
+    inline: false,
+    draggable: true,
     isolating: true,
     attrs: {
       expr: {default: ''},
       template: {default: ''},
       renderTimestamp: {default: 0}
     },
-    content: "block+",
+    content: "ti*",
 
     toDOM: (node: any) => {
       const {expr, template, renderTimestamp} = node.attrs
-      return ["div", {class: "template", 'data-expr': expr, 'data-template': template, 'data-ts': renderTimestamp.toString()}, 0]
+      return ["div", {class: "template", 'data-expr': expr, 'data-template': JSON.stringify(template), 'data-ts': renderTimestamp.toString()}, 0]
     },
     parseDOM: [{
       tag: "div.template", getAttrs(dom) {
         return (dom instanceof HTMLDivElement) && {
           expr: dom.dataset.expr,
-          template: dom.dataset.template,
+          template: dom.dataset.template && JSON.parse(dom.dataset.template) || null,
           renderTimestamp: Number(dom.dataset.ts || 0)
         } || {}
       }
@@ -171,7 +187,7 @@ export class ProseEditor extends Polymer.Element {
   @property({type: Object})
   editorSchema = new Schema({
     nodes: (schema.spec.nodes as any)
-      .remove("doc").addToStart("template", this.templateNodeSpec).addToStart("page", this.pageNodeSpec).addToStart("doc", this.docNodeSpec)
+      .remove("doc").addToStart("page", this.pageNodeSpec).addToStart("doc", this.docNodeSpec)
       .update("paragraph", Object.assign((schema.spec.nodes as any).get("paragraph"), {
         attrs: { align: {default: 'inherit'} },
         parseDOM: [{tag: "p", getAttrs(value : HTMLElement) { return {align: value.style && value.style.textAlign || 'inherit'}}}],
@@ -186,6 +202,8 @@ export class ProseEditor extends Polymer.Element {
           return ["h" + node.attrs.level, {style: "text-align: "+(node.attrs.align || 'inherit')}, 0]
         }
       }))
+      .append({"template":this.templateNodeSpec})
+      .append({"ti":this.templateInstanceNodeSpec})
       .append({"variable":this.variableNodeSpec})
       .append(tableNodes({
         tableGroup: "block",
@@ -203,7 +221,8 @@ export class ProseEditor extends Polymer.Element {
           }
         }
       }))
-      .addBefore("image", "tab", this.tabNodeSpec),
+      //.addBefore("image", "tab", this.tabNodeSpec)
+    ,
     marks: (schema.spec.marks as any)
       .addToEnd("underlined", {
         attrs: {
@@ -447,6 +466,24 @@ export class ProseEditor extends Polymer.Element {
       })
     });
 
+    let templateTrackerPlugin = new Plugin({
+      appendTransaction(tr, oldState, newState) {
+        if (tr[0] && tr[0].steps && tr[0].steps.length) {
+          const a = tr[0].selection.$anchor
+          for (let l = a.depth - 1; l > 0; l--) {
+            let ti = a.node(l)
+            if (ti.type.name === 'ti') {
+              let tplt = a.node(l - 1)
+              const newTemplate = Object.assign({}, tplt.attrs.template)
+              newTemplate[ti.attrs.tid] = ti.toJSON()['content']
+              return newState.tr.replaceWith(a.start(l - 1) - 1, a.end(l - 1) + 1, newState.schema.nodes.template.create({expr: tplt.attrs.expr, template: newTemplate, renderTimestamp: tplt.attrs.renderTimestamp}, tplt.content))
+            }
+          }
+        }
+      },
+      props: {}
+    });
+
     let state = EditorState.create({
       doc: DOMParser.fromSchema(this.editorSchema).parse(this.$.content),
       plugins: [
@@ -469,7 +506,8 @@ export class ProseEditor extends Polymer.Element {
         })),
         selectionTrackingPlugin,
         paginationPlugin,
-        paragraphPlugin
+        paragraphPlugin,
+        templateTrackerPlugin
       ]
     })
 
@@ -526,7 +564,7 @@ export class ProseEditor extends Polymer.Element {
     }
   }
 
-  applyContext(ctxFn:(expr:string, template?:string, ctx?:any, cache?:any) => Promise<{rendered:string, ctx:any}>, ctx: { [key: string] : any }) {
+  applyContext(ctxFn:(expr:string, ctx?:any, cache?:any) => Promise<any>, ctx: { [key: string] : any }) {
     if (this.editorView) {
       const ts = +new Date()
       const state = this.editorView.state
@@ -537,19 +575,29 @@ export class ProseEditor extends Polymer.Element {
           const detect = (node: Node, absPos: number, lazyCtx: () => Promise<{ [key: string] : any }>) : Promise<{node: Node, pos: number, ctx:{ [key: string] : any }} | undefined> => {
             if (node.type === this.editorSchema.nodes.template) {
               if (node.attrs.renderTimestamp < ts) {
-                return Promise.resolve({node: node, pos: absPos, ctx: lazyCtx()})
+                return lazyCtx().then(ctx => ({node: node, pos: absPos, ctx: ctx}))
               } else {
                 let prom : Promise<{node: Node, pos: number, ctx:{ [key: string] : any }} | undefined> = Promise.resolve(undefined)
                 node.forEach((child, pos, idx) => {
                   prom = prom.then(selected => {
-                    return selected || detect(child, absPos+1+pos, () => lazyCtx().then(ctx => ctxFn(node.attrs.expr, undefined, ctx).catch(e => {console.log(`Error during expression ${node.attrs.expr} evaluation`, e)})) //Execute template function on current ctx
-                      .then((subCtx:any) => subCtx && (subCtx[0] ? subCtx[idx] : subCtx))) //and select idxth element from the result
+                    return selected || detect(child, absPos+1+pos, () => lazyCtx()
+                      .then(ctx => {
+                        //If possible drill down in contexts
+                        return ctxFn(node.attrs.expr, ctx)
+                          .catch(e => {
+                            console.log(`Error during expression ${node.attrs.expr} evaluation`, e)
+                            return ctx
+                          }) //Execute template function on current ctx
+                      }).then((subCtx:any) => {
+                        console.log(`Select ${idx}th element in `, subCtx)
+                        return subCtx && (subCtx[0] ? subCtx[idx] : subCtx)
+                      })) //and select idxth element from the result
                   })
                 })
                 return prom
               }
             } else if (node.type === this.editorSchema.nodes.variable && (node.attrs.renderTimestamp || 0)  < ts) {
-              return Promise.resolve({node: node, pos: absPos, ctx: ctx})
+              return lazyCtx().then(ctx => ({node: node, pos: absPos, ctx: ctx}))
             } else if (node.childCount) {
               let prom : Promise<{node: Node, pos: number, ctx:{ [key: string] : any }} | undefined> = Promise.resolve(undefined)
               node.forEach((child, pos) => {
@@ -567,16 +615,22 @@ export class ProseEditor extends Polymer.Element {
             .then(selected => {
               if (selected) {
                 if (selected.node.type === this.editorSchema.nodes.template) {
-                  return visit(ctxFn(selected.node.attrs.expr, selected.node.attrs.template, ctx).catch(e => {console.log(`Error during expression ${selected.node.attrs.expr} evaluation`, e); return {rendered:null}})
-                    .then(({rendered}) => {
-                      return rendered && tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize,
-                          this.editorSchema.nodes.template.create({expr: selected.node.attrs.expr, template: selected.node.attrs.template, renderTimestamp: ts},
-                            Node.fromJSON(this.editorSchema, JSON.parse(rendered)))) || tr
-                    })
+                  return visit(
+                    ctxFn(selected.node.attrs.expr, selected.ctx)
+                      .catch(e => {console.log(`Error during expression ${selected.node.attrs.expr} evaluation`, e); return null})
+                      .then((ctx) => {
+                        return tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize,
+                            this.editorSchema.nodes.template.create({expr: selected.node.attrs.expr, template: selected.node.attrs.template, renderTimestamp: ts},
+                              ctx && ctx[0] && ctx.map((ctxi:any, i:number) => this.editorSchema.nodes.ti.create({idx:i,d:ctxi.dataProvider.form().template.id},
+                              (selected.node.attrs.template[ctxi.dataProvider.form().template.id] || selected.node.attrs.template['default'])
+                                .map((aNode:{ [key: string]: any }) => Node.fromJSON(this.editorSchema, aNode)))) || []))
+                      })
                   )
                 } else {
-                  return visit(ctxFn(selected.node.attrs.expr, undefined, ctx).catch(e => {console.log(`Error during expression ${selected.node.attrs.expr} evaluation`, e); return {ctx:null}})
-                    .then(({ctx}) => {
+                  return visit(
+                    ctxFn(selected.node.attrs.expr, selected.ctx)
+                      .catch(e => {console.log(`Error during expression ${selected.node.attrs.expr} evaluation`, e); return null})
+                      .then((ctx) => {
                       return tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize, this.editorSchema.nodes.variable.create({expr: selected.node.attrs.expr, renderTimestamp: ts, rendered: ctx && ctx.toString() || " "}))
                     })
                   )
