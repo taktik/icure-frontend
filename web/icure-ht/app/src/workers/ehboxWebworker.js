@@ -5,6 +5,7 @@ import {UtilsClass} from "icc-api/dist/icc-x-api/crypto/utils"
 
 import moment from 'moment/src/moment'
 import levenshtein from 'js-levenshtein'
+import * as models from "fhc-api/model/AcknowledgeType";
 
 
 
@@ -49,7 +50,7 @@ onmessage = e => {
 
 
         const createDbMessageWithAppendicesAndTryToAssign =  (message,boxId) => {
-            return ehboxApi.getFullMessageUsingGET(keystoreId, tokenId, ehpassword, boxId, _.trim(_.get(message,"id","")))
+            return ehboxApi.getFullMessageUsingPOST(keystoreId, tokenId, ehpassword, boxId, _.trim(_.get(message,"id","")), alternateKeystores)
                 .then(fullMessageFromEHealthBox => !_.trim(_.get(fullMessageFromEHealthBox,"id","")) ? Promise.resolve([]) : msgApi.findMessagesByTransportGuid(boxId+":"+message.id, null, null, null, 1).then(foundExistingMessage => [fullMessageFromEHealthBox, foundExistingMessage]).catch(e=>{console.log("ERROR with findMessagesByTransportGuid: ",e);}))
                 .then(([fullMessageFromEHealthBox, foundExistingMessage]) => {
 
@@ -101,42 +102,30 @@ onmessage = e => {
                     _.trim(_.trim(_.get(fullMessage,"sender.lastName","")?_.trim(_.get(fullMessage,"sender.lastName","")):_.get(fullMessage,"customMetas.CM-AuthorLastName",""))),
                     _.trim(_.trim(_.get(fullMessage,"sender.firstName","")?_.trim(_.get(fullMessage,"sender.firstName","")):_.get(fullMessage,"customMetas.CM-AuthorFirstName",""))),
                     (!_.trim(_.get(fullMessage,"sender.lastName",""))&& !_.trim(_.get(fullMessage,"customMetas.CM-AuthorLastName",""))?_.trim(_.get(fullMessage,"sender.organizationName","")):""),
-                    _.trim(_.trim(_.get(fullMessage,"sender.identifierType.type","")?_.trim(_.get(fullMessage,"sender.identifierType.type","")):_.get(fullMessage,"customMetas.CM-SenderIDType",""))),
-                    ":",
-                    _.trim(_.trim(_.get(fullMessage,"sender.id","")?_.trim(_.get(fullMessage,"sender.id","")):_.get(fullMessage,"customMetas.CM-SenderID",""))),
+                    "(" + _.compact([
+                        _.trim(_.trim(_.get(fullMessage,"sender.identifierType.type","")?_.trim(_.get(fullMessage,"sender.identifierType.type","")):_.get(fullMessage,"customMetas.CM-SenderIDType",""))),
+                        _.trim(_.trim(_.get(fullMessage,"sender.id","")?_.trim(_.get(fullMessage,"sender.id","")):_.get(fullMessage,"customMetas.CM-SenderID","")))
+                    ]).join(": ") + ")"
                 ]).join(" ")),
                 subject: _.trim(_.get(fullMessage,"document.title",_.trim(_.get(fullMessage,"document.textContent",_.trim(_.get(fullMessage,"id","")))).substring(0,26)+"...")),
                 metas: _.get(fullMessage,"customMetas",{}),
                 toAddresses: [boxId],
                 transportGuid: boxId + ":" + _.get(fullMessage,"id",""),
                 fromHealthcarePartyId: _.trim(_.get(fullMessage,"fromHealthcarePartyId", _.get(fullMessage,"sender.id",""))),
-                received: new Date().getTime(),
+                received: +new Date,
                 status: finalMessageStatus
             })
                 .then(messageInstance => msgApi.createMessage(messageInstance))
                 .then(createdMessage => {
                     const documentAndAnnexesPromises = _.compact(_.concat(_.get(fullMessage,"document",[]),_.get(fullMessage,"annex",[]))).map(documentAndAnnexes => _.size(documentAndAnnexes) ? registerNewDocument(documentAndAnnexes, createdMessage, fullMessage) : Promise.resolve([])).filter(x=>!!x)
-
-                    console.log("createdMessage", createdMessage);
-                    console.log("documentAndAnnexesPromises", documentAndAnnexesPromises);
-
                     return Promise.all(documentAndAnnexesPromises)
-                        .then(annexDocs => [createdMessage, annexDocs])
-                        .catch(e => {
-                            console.log("ERROR with registerNewDocument: ", e)
-                            return iccMessageXApi.message().deleteMessages(createdMessage.id).then((x)=>x).catch(e => { console.log("ERROR with deleteMessages: ", e); return Promise.resolve([]) })
-                        })
+                    .then(annexDocs => [createdMessage, annexDocs])
+                    .catch(e => iccMessageXApi.message().deleteMessages(createdMessage.id).then((x)=>x).catch(e => { console.log("ERROR with deleteMessages: ", e); return Promise.resolve([]) }))
                 })
 
         }
 
         const registerNewDocument = (documentAndAnnexes, createdMessage, fullMessage) => {
-
-            console.log("--- registerNewDocument ---");
-            console.log(documentAndAnnexes);
-            console.log(createdMessage);
-            console.log(fullMessage);
-
             return !_.size(documentAndAnnexes) || !_.size(createdMessage) || !_.size(fullMessage) ?
                 Promise.resolve([]) :
                 iccDocumentXApi.newInstance(user, createdMessage, {
@@ -214,8 +203,8 @@ onmessage = e => {
                     Promise.resolve(null) :
                     iccContactXApi.newInstance(user, candidates[0], {
                         groupId: message.id,
-                        created: new Date().getTime(),
-                        modified: new Date().getTime(),
+                        created: +new Date,
+                        modified: +new Date,
                         author: user.id,
                         responsible: user.healthcarePartyId,
                         openingDate: moment(docInfo.demandDate).format('YYYYMMDDHHmmss') || '',
@@ -240,7 +229,7 @@ onmessage = e => {
                     }).then(c => {
                         return iccFormXApi.newInstance(user, candidates[0], {
                             contactId: c.id,
-                            descr: "Lab " + new Date().getTime(),
+                            descr: "Lab " + +new Date,
                         }).then(f => {
                             return iccFormXApi.createForm(f).then(f =>
                                 iccCryptoXApi

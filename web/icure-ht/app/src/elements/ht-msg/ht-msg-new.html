@@ -307,7 +307,7 @@
                 background: var(--app-status-color-nok);
             }
 
-            .displayNotif {
+            .displayNotification {
                 animation: displaySent 7.5s cubic-bezier(0.075, 0.82, 0.165, 1);
             }
 
@@ -544,7 +544,7 @@
 
                 <div class="attachmentsContainer m-t-50">
                     <div class="modal-subtitle">[[localize('attachments','Attachments',language)]]:</div>
-                    <vaadin-upload id="vaadin-upload" class="m-t-8" no-auto files="{{files}}" target$="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUpload" on-file-remove="_fileUploadRemove"></vaadin-upload>
+                    <vaadin-upload id="vaadin-upload" class="m-t-8" no-auto files="{{files}}" target$="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileGotSuccessFullyUploaded" on-file-remove="_fileUploadRemove"></vaadin-upload>
                 </div>
 
             </div>
@@ -554,7 +554,7 @@
                 </div>
                 <div class="fright">
                     <paper-button class="modal-button--cancel" on-tap="_closeComponent">[[localize('clo','Close',language)]]</paper-button>
-                    <paper-button class="modal-button--save" on-tap="_sendMessage">[[localize('send','Send',language)]]</paper-button>
+                    <paper-button class="modal-button--save" on-tap="_doSendMessageWithEhBox">[[localize('send','Send',language)]]</paper-button>
 
                     <!-- FABIEN -->
                     <paper-button class="modal-button--save" on-tap="_debugMessage">DEBUG MESSAGE - NOT FOR PROD</paper-button>
@@ -661,7 +661,7 @@
                                 filename: ''
                             },
                             important: false,
-                            encrypted: true,
+                            encrypted: false,
                             patientInss: '',
                             annex: [],
                             recipients:[],
@@ -690,10 +690,6 @@
                         type: Array,
                         value: () => []
                     },
-                    customMetas:{
-                        type: Array,
-                        value: () => []
-                    },
                     busySpinner: {
                         type: Boolean,
                         value: false
@@ -704,14 +700,6 @@
                             subContacts: [],
                             services: []
                         }
-                    },
-                    files: {
-                        type: Array,
-                        value: () => []
-                    },
-                    uploadedFiles: {
-                        type: Array,
-                        value: () => []
                     },
                     recipientReqIdx: {
                         type: Number,
@@ -746,6 +734,18 @@
                         type: Boolean,
                         value: false,
                         observer: '_loadingStatusChanged'
+                    },
+                    files: {
+                        type: Array,
+                        value: () => []
+                    },
+                    uploadedFiles: {
+                        type: Array,
+                        value: () => []
+                    },
+                    uploadFileReqIdx: {
+                        type: Number,
+                        value: 0
                     }
                 }
             }
@@ -756,7 +756,7 @@
                     '_loadRecipientTypesTranslations(language)',
                     '_recipientsFilterChanged(recipientType, recipientFilter)',
                     '_patientFilterChanged(patientFilter)',
-                    '_uploadedFilesChanged(files.*)',
+                    '_fileToBeUploadedChanged(files.*)',
                 ];
             }
 
@@ -885,15 +885,15 @@
                     identifierType: {type: _.trim(_.get(recipientObject,"type",""))},
                     id: (
                         _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'cbe' ? _.trim( _.get(recipientObject, "cbe", "")) :
-                            _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'ehp' ? _.trim( _.get(recipientObject, "ehp", "")) :
-                                _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'inss' ? _.trim( _.get(recipientObject, "ssin", "")) :
-                                    _.trim( _.get(recipientObject, "nihii", ""))
+                        _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'ehp' ? _.trim( _.get(recipientObject, "ehp", "")) :
+                        _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'inss' ? _.trim( _.get(recipientObject, "ssin", "")) :
+                        _.trim( _.get(recipientObject, "nihii", ""))
                     ),
-                    quality: _.trim(_.get(recipientObject,"quality","DOCTOR")).toUpperCase(),
+                    quality: _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase(),
                     applicationId: _.trim(_.get(recipientObject,"applicationID","")),
                     lastName: _.trim(_.get(recipientObject,"lastName","")),
                     firstName: _.trim(_.get(recipientObject,"firstName","")),
-                    organizationName: _.trim(_.get(recipientObject,"name","")),
+                    organizationName: (!_.trim(_.get(recipientObject,"lastName","")) && !_.trim(_.get(recipientObject,"firstName",""))) ? _.trim(_.get(recipientObject, "name", _.get(recipientObject, "companyName", ""))) : "",
                     personInOrganisation: ""
                 }
             }
@@ -1021,8 +1021,8 @@
                 if(this.shadowRoot.querySelector('#linkedPatientComboxBox')) this.shadowRoot.querySelector('#linkedPatientComboxBox').value = "";
                 this.shadowRoot.querySelector('#recipientsList') && this.shadowRoot.querySelector('#recipientsList').render()
 
-                this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotif')
-                this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotif')
+                this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotification')
+                this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotification')
 
             }
 
@@ -1111,72 +1111,201 @@
                 },100)
             }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            _uploadedFilesChanged() {
-
-                const files = _.clone(this.files);
-                // console.log('cloned files',files)
-                const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload');
-
-                Promise.all(_.filter(files, f => !f.attached).map(f => {
-                    f.attached = true;
-                    return this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(f.type), name: f.name }).then(d => this.api.document().createDocument(d)).then(d => {
-                        f.doc = d;
-                        f.uploadTarget = (f.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, d.id);
-                        return f;
-                    })
-                })).then(files => {
-                    files.map(file=>{
-                        console.log('enters in map',file)
-                        const fr = new FileReader();
-                        fr.onload = function (se) {
-                            let fileByteArray = [];
-                            new Uint8Array(se.target.result).forEach(int8 => fileByteArray.push(int8));
-                            this.set('newMessage.annex',[{
-                                "content": fileByteArray,
-                                "filename": file.name,
-                                "mimeType": file.type ? file.type : 'text/plain',
-                                "title": file.name,
-                                "size": file.size>1024?(file.size/1024).toFixed(2) + " ko":file.size + " o"
-                            }]);
-                            console.log('annexes',this.newMessage.annex)
-                            this.dispatchEvent(new CustomEvent('file-received', file));
-                        }.bind(this);
-                        fr.readAsArrayBuffer(file);
-                    })
-                    files.length && vaadinUpload.uploadFiles(files);
-                });
+            _showSendingMessagePreload() {
+                this._resetLoadingMessage(); 
+                this.set('_isLoading', true ); 
+                this._setLoadingMessage({ message:this.localize('ehb.sendingMessage',this.language), icon:"arrow-forward"});
             }
 
-            saveCurrentContact() {
-                if(!this.currentContact.id ) {
-                    this.currentContact.id = this.api.crypto().randomUuid()
-                }
-                return (this.currentContact.rev ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
+            _doSendMessageWithEhBox(){
+
+                // Error scenarii
+                const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
+                    !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
+                        !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
+                            ( !_.trim(_.get(this,"newMessage.document.textContent", "")) && !_.size(_.get(this,"newMessage.annex", [])) ) ? "missingContentDialog" :
+                                ""
+                if( _.trim(errorScenarioDialog) ) { this.set("_bodyOverlay", true); this.$[errorScenarioDialog].open(); return; }
+
+                this._showSendingMessagePreload()
+                this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotification')
+                this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotification')
+
+                this.api.hcparty().getCurrentHealthcareParty().then(currentHcp =>{
+
+                    let sendMessageResponse = false
+                    const publicationId = +new Date
+                    const messageSubject = _.trim(_.get(this,"newMessage.document.title",""))
+                    const mainRecipient = this._wrapRecipientData(_.head(_.get(this,"newMessage.recipients", [])))
+                    const annexes = _.get(this,"newMessage.annex",[])
+                    const isImportant = !!_.get(this,"newMessage.important",false)
+                    const isEncrypted = !!_.get(this,"newMessage.encrypted",false)
+
+                    let customMetas = {
+                        "CM-AuthorID": _.trim(_.get(currentHcp, "nihii", _.get(currentHcp, "ssin", ""))),
+                        "CM-AuthorIDType": _.trim(_.get(currentHcp, "nihii", "")) ? "NIHII" : "SSIN",
+                        "CM-AuthorType": _.trim(_.get(currentHcp, "civility", "doctor")).toUpperCase(),
+                        "CM-AuthorLastName": _.trim(_.get(currentHcp, "lastName", "")).toUpperCase(),
+                        "CM-AuthorFirstName": _.trim(_.get(currentHcp, "firstName", "")),
+                        "CM-AuthorName": (!_.trim(_.get(currentHcp, "lastName", "")) && !_.trim(_.get(currentHcp, "firstName", ""))) ? _.trim(_.get(currentHcp, "name", _.get(currentHcp, "companyName", ""))) : "",
+
+                        "CM-RecipientID": _.trim(_.get(mainRecipient, "id", "")),
+                        "CM-RecipientIDType": _.trim(_.get(mainRecipient, "identifierType.type", "NIHII")),
+                        "CM-RecipientLastName": _.trim(_.get(mainRecipient, "lastName", "")).toUpperCase(),
+                        "CM-RecipientFirstName": _.trim(_.get(mainRecipient, "firstName", "")),
+                        "CM-RecipientName": (!_.trim(_.get(mainRecipient, "lastName", "")) && !_.trim(_.get(mainRecipient, "firstName", ""))) ? _.trim(_.get(mainRecipient, "name", _.get(mainRecipient, "companyName", ""))) : "",
+
+                        "CM-EhrMessage": false,
+                        "CM-EhrMessageType": "Functionnal",
+                        "CM-EtkApplicationID": _.trim(_.get(this, "api.tokenId", "")),
+                        "CM-Requestnumber": publicationId,
+                        "CM-SendDateTime": moment().format('YYYY-MM-DD HH:mm:ss'),
+                    }
+
+                    // Sender = author
+                    customMetas = _.merge({
+                        "CM-SenderID": _.get(customMetas, "CM-AuthorID",""),
+                        "CM-SenderIDType": _.get(customMetas, "CM-AuthorIDType",""),
+                        "CM-SenderType": _.get(customMetas, "CM-AuthorType",""),
+                        "CM-SenderLastName": _.get(customMetas, "CM-AuthorLastName",""),
+                        "CM-SenderFirstName": _.get(customMetas, "CM-AuthorFirstName",""),
+                        "CM-SenderName": _.get(customMetas, "CM-AuthorName",""),
+                    },customMetas)
+
+                    // Unread by default, then eval important, cyrpted & has annexes statuses
+                    let messageStatus = 1<<1
+                    messageStatus = isImportant ? messageStatus|1<<2 : messageStatus
+                    messageStatus = isEncrypted ? messageStatus|1<<3 : messageStatus
+                    messageStatus = !!_.size(annexes) ? messageStatus|1<<4 : messageStatus
+
+                    // The envelope itself
+                    const messageToBeSentWithEhbox = {
+                        id : this.api.crypto().randomUuid(),
+                        publicationId : publicationId,
+                        publicationDateTime : parseInt(moment().format('YYYYMMDD')),
+                        expirationDateTime : parseInt(moment().add(1,"years").format('YYYYMMDD')),
+                        customMetas : customMetas,
+                        document : { title: messageSubject, textContent: _.get(this,"newMessage.document.textContent",""), mimeType: 'text/plain', filename: messageSubject },
+                        freeText : _.get(this,"newMessage.document.textContent",""),
+                        freeInformationTableTitle : null,
+                        freeInformationTableRows : {},
+                        patientInss : _.get(this,"newMessage.patientInss",null),
+                        annex : annexes,
+                        copyMailTo : [],
+                        documentTitle : messageSubject,
+                        annexList : annexes,
+                        useReceivedReceipt : !!_.get(this,"newMessage.useReceivedReceipt",false),
+                        useReadReceipt : !!_.get(this,"newMessage.useReadReceipt",false),
+                        usePublicationReceipt : !!_.get(this,"newMessage.usePublicationReceipt",false),
+                        hasAnnex : !!_.size(annexes),
+                        hasFreeInformations : false,
+                        important : isImportant,
+                        encrypted : isEncrypted,
+                        destinations : _.map(_.get(this,"newMessage.recipients",[]), singleRecipient => this._wrapRecipientData(singleRecipient)),
+                        sender : {
+                            identifierType: "NIHII",
+                            id: _.trim(_.get(currentHcp, "nihii", "")),
+                            quality: _.trim(_.get(currentHcp,"quality","doctor")).toUpperCase(),
+                            applicationId: "",
+                            lastName: _.trim(_.get(currentHcp,"lastName","")),
+                            firstName: _.trim(_.get(currentHcp,"firstName","")),
+                            organizationName: (!_.trim(_.get(currentHcp,"lastName","")) && !_.trim(_.get(currentHcp,"firstName",""))) ? _.trim(_.get(currentHcp, "name", _.get(currentHcp, "companyName", ""))) : "",
+                            personInOrganisation: ""
+                        },
+                        fromHealthcarePartyId: _.get(currentHcp,"id",""),
+                        status: messageStatus
+                    };
+
+                    console.log( "this.newMessage", this.newMessage );
+                    console.log( "messageToBeSentWithEhbox", messageToBeSentWithEhbox );
+                    return;
+
+                    this.api.fhc().Ehboxcontroller().sendMessageUsingPOST( this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, messageToBeSentWithEhbox, messageToBeSentWithEhbox.usePublicationReceipt, messageToBeSentWithEhbox.useReceivedReceipt, messageToBeSentWithEhbox.useReadReceipt )
+                        .then(x=>sendMessageResponse=x)
+                        .catch(x=>sendMessageResponse=x)
+                        .finally(()=>{
+                            this._resetLoadingMessage();
+                            this.set('_isLoading', false );
+                            if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
+                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
+                        })
+
+                })
+                    .catch(e=>{
+                        this._resetLoadingMessage();
+                        this.set('_isLoading', false );
+                        this.$["failed"].classList.add('displayNotification')
+                        console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
+                    })
+
             }
 
-            _fileUpload(e){
+            _fileToBeUploadedChanged(filesToBeUploaded) {
+
+                const reqIdx = (this.uploadFileReqIdx = (this.uploadFileReqIdx || 0) + 1)
+                const haveFilesToUploaded = !!_.size(filesToBeUploaded) && !!_.size(_.get(this,"files",[]))
+
+                return !haveFilesToUploaded ? false : setTimeout(() => {
+
+                    if (reqIdx !== this.uploadFileReqIdx || !haveFilesToUploaded) return;
+                    const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload')||null;
+                    const filesToBeUploaded = _.clone(this.files);
+
+                    Promise.all(_.filter(filesToBeUploaded, singleFileToBeUploaded => !singleFileToBeUploaded.attached).map(singleFileToBeUploaded => this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(singleFileToBeUploaded.type), name: singleFileToBeUploaded.name })
+                        .then(documentInstance => this.api.document().createDocument(documentInstance))
+                        .then(createdDocument => {
+                            singleFileToBeUploaded.attached = true;
+                            singleFileToBeUploaded.doc = createdDocument;
+                            singleFileToBeUploaded.uploadTarget = (singleFileToBeUploaded.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, createdDocument.id);
+                            return singleFileToBeUploaded;
+                        })
+                    ))
+                        .then(filesToBeUploaded => {
+                            filesToBeUploaded.map(singleFileToBeUploaded => {
+                                const fileReaderInstance = new FileReader();
+                                fileReaderInstance.onload = function (se) {
+                                    let fileByteArray = [];
+                                    new Uint8Array(se.target.result).forEach(int8 => fileByteArray.push(int8));
+                                    this.push('newMessage.annex', [{
+                                        "content": fileByteArray,
+                                        "filename": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
+                                        "mimeType": _.trim(_.get(singleFileToBeUploaded,"type", "text/plain")),
+                                        "title": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
+                                        "size": _.get(singleFileToBeUploaded,"size",0) > 1024 ? (_.get(singleFileToBeUploaded,"size",0) / 1024).toFixed(2) + " ko" : _.get(singleFileToBeUploaded,"size",0) + " o"
+                                    }]);
+                                }.bind(this);
+                                fileReaderInstance.readAsArrayBuffer(singleFileToBeUploaded);
+                            })
+                            !!_.size(filesToBeUploaded) && vaadinUpload.uploadFiles(filesToBeUploaded);
+                        })
+
+                }, 300)
+
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            _fileGotSuccessFullyUploaded(e){
                 e.preventDefault();
 
                 if(e.detail && e.detail.file){
@@ -1204,268 +1333,32 @@
                         this.saveCurrentContact();
                     }
                     console.log('v-up.files',vaadinUpload.files)
-                    this.set('uploadedFiles',vaadinUpload.files)
+                    this.set('uploadFiles',vaadinUpload.files)
                 }
 
             }
+
+
+
+
+            saveCurrentContact() {
+
+                console.log("---saveCurrentContact---");
+                console.log("---CurrentContact---", _.get(this,"currentContact",false));
+
+                if(!this.currentContact.id ) {
+                    this.currentContact.id = this.api.crypto().randomUuid()
+                }
+                return (this.currentContact.rev ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
+
+            }
+
+
 
             _fileUploadRemove(e){
                 if(e.detail && e.detail.file) {
                     this.newMessage.annex.splice(this.newMessage.annex.indexOf(e.detail.file), 1);
                 }
-            }
-
-            _sendMessage(){
-
-                // Error scenarii
-                const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
-                    !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
-                    !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
-                    ( !_.trim(_.get(this,"newMessage.document.textContent", "")) && !_.size(_.get(this,"newMessage.annex", [])) ) ? "missingContentDialog" :
-                    ""
-                if( _.trim(errorScenarioDialog) ) { this.set("_bodyOverlay", true); this.$[errorScenarioDialog].open(); return; }
-
-                // Go for it, loading message
-                this._resetLoadingMessage();
-                this.set('_isLoading', true );
-                this._setLoadingMessage({ message:this.localize('ehb.sendingMessage',this.language), icon:"arrow-forward"});
-
-                console.log( this.newMessage );
-
-                this.$['success'].classList.remove('displayNotif')
-                this.$['failed'].classList.remove('displayNotif')
-
-                this.api.hcparty().getCurrentHealthcareParty().then(currentHcp =>{
-                    console.log('currentHcp',currentHcp)
-
-                    const forcedMetas = this._setMetaDatas(currentHcp,currentHcp,this._wrapRecipientData(this.newMessage.recipients[0]),this.newMessage.annex)
-                    let customMetas = this.newMessage.customMetas
-                    Object.keys(forcedMetas).forEach(k=>customMetas[k] = forcedMetas[k])
-                    console.log('newMessage',this.newMessage)
-
-                    let builtStatus = 0<<0 | 1<<1
-                    builtStatus = this.newMessage && this.newMessage.important ? builtStatus|1<<2 : builtStatus
-                    builtStatus = this.newMessage && this.newMessage.encrypted ? builtStatus|1<<3 : builtStatus
-                    builtStatus = this.newMessage && this.newMessage.annex.length ? builtStatus|1<<4 : builtStatus
-                    console.log('status',builtStatus)
-
-                    let message = {
-                        id : this.api.crypto().randomUuid(),
-                        publicationId : (new Date).getTime(),
-                        publicationDateTime : parseInt(moment().format('YYYYMMDD')),
-                        expirationDateTime : parseInt(moment().add(1,"years").format('YYYYMMDD')),
-                        customMetas : customMetas,
-                        document : {
-                            title: this.newMessage.document.title ? this.newMessage.document.title : 'No title',
-                            textContent: this.newMessage.document.textContent,
-                            mimeType: 'text/plain',
-                            filename: this.newMessage.document.title ? this.newMessage.document.title : 'No title'
-                        },
-                        freeText : this.newMessage.document.textContent ? this.newMessage.document.textContent : '',
-                        freeInformationTableTitle : null,
-                        freeInformationTableRows : {},
-                        patientInss : this.newMessage && this.newMessage.patientInss ? this.newMessage.patientInss : null,
-                        annex : this.newMessage.annex,
-                        copyMailTo : [],
-                        documentTitle : this.newMessage.document.title ? this.newMessage.document.title : 'No title',
-                        annexList : this.newMessage.annex,
-                        useReceivedReceipt : this.newMessage && this.newMessage.useReceivedReceipt ? this.newMessage.useReceivedReceipt : false,
-                        useReadReceipt : this.newMessage && this.newMessage.useReadReceipt ? this.newMessage.useReadReceipt : false,
-                        usePublicationReceipt : this.newMessage && this.newMessage.usePublicationReceipt ? this.newMessage.usePublicationReceipt : false,
-                        hasAnnex : this.newMessage.annex && this.newMessage.annex.length > 0,
-                        hasFreeInformations : false,
-                        important : this.newMessage && this.newMessage.important ? this.newMessage.important : false,
-                        encrypted : this.newMessage && this.newMessage.encrypted ? this.newMessage.encrypted : false,
-                        destinations : this.newMessage.recipients.map(recipient => this._wrapRecipientData(recipient)),
-                        sender : {
-                            identifierType: "NIHII",
-                            id: _.trim(_.get(currentHcp, "nihii", "")),
-                            quality: _.trim(_.get(currentHcp,"quality","DOCTOR")).toUpperCase(),
-                            applicationId: _.trim(_.get(currentHcp,"applicationID","")),
-                            lastName: _.trim(_.get(currentHcp,"lastName","")),
-                            firstName: _.trim(_.get(currentHcp,"firstName","")),
-                            organizationName: _.trim(_.get(currentHcp,"name","")),
-                            personInOrganisation: ""
-                        },
-                        fromHealthcarePartyId: currentHcp.id,
-                        status: builtStatus
-                    };
-
-                    console.log('request',this.api.keystoreId,this.api.tokenId,this.credentials.ehpassword,message,
-                        message.usePublicationReceipt,
-                        message.useReceivedReceipt,
-                        message.useReadReceipt)
-
-                    this.api.fhc().Ehboxcontroller().sendMessageUsingPOST(
-                        this.api.keystoreId,
-                        this.api.tokenId,
-                        this.credentials.ehpassword,
-                        message,
-                        ""+message.usePublicationReceipt,
-                        ""+message.useReceivedReceipt,
-                        ""+message.useReadReceipt)
-                        .then(response => {
-                            console.log(response);
-                            if(response) {
-                                this._resetComponentData();
-                                this.set('_isLoading', false );
-                                this.set('newMessage.annex',[]);
-                                this.set('uploadedFiles',[])
-                                this.$['success'].classList.add('displayNotif')
-                                this.$['new-msg'].close()
-                            }
-                        })
-                        .catch(ex =>{
-                            console.log(ex);
-                            this.$['failed'].classList.add('displayNotif')
-                            this.set('_isLoading', false );
-                        })
-
-                })
-            }
-
-            msgBodyFileInputSelected() {
-
-                let messageBodyFile = this.shadowRoot.querySelector('#messageBodyFile');
-                let messageBodyText = this.shadowRoot.querySelector('#messageBodyText');
-
-                messageBodyText.value = undefined;
-                messageBodyText.disabled = false;
-                messageBodyText.classList.remove("form-disabled");
-
-                if( messageBodyFile.inputElement && messageBodyFile.inputElement.inputElement &&
-                    messageBodyFile.inputElement.inputElement.files.length > 0){
-                    let file = messageBodyFile.inputElement.inputElement.files[0];
-
-                    const fr = new FileReader();
-                    fr.onload = function (e) {
-                        // let binfile = btoa(new Uint8Array(e.target.result).reduce((data, byte) => data + String.fromCharCode(byte), ""));
-                        let fileByteArray = [];
-                        new Uint8Array(e.target.result).forEach(int8 => fileByteArray.push(int8));
-
-                        this.set('newMessage.document.content', fileByteArray);
-                    }.bind(this)
-                    fr.readAsArrayBuffer(file)
-
-                    this.set('newMessage.document.filename', file.name);
-                    this.set('newMessage.document.mimeType', file.type);
-
-                    messageBodyText.disabled = true;
-                    messageBodyText.classList.add("form-disabled");
-                }
-                else{
-                    this.set('newMessage.document.content', null);
-                    this.set('newMessage.document.filename', null);
-                    this.set('newMessage.document.mimeType', null);
-                }
-            }
-
-            _isMedical(file) {
-                let fileInfos
-                // this.api.beresultimport().getInfos(file.doc.id).then(res=>fileInfos = res)
-                const ext = (/[^.]+$/.exec(file.filename ? file.filename : file.name)).toString().toUpperCase()
-                // const content = this._readFile(file)
-                return
-                ext.startsWith('DMA-') || ext.startsWith('HDM-') || ext.startsWith('ALA-') || ext.startsWith('CI-') || ext.startsWith('COG-') || ext == 'KMEHR' || ext == 'SUMEHR' ||
-                ext.includes('TEC') || ext.includes('REP') || ext.includes('REC') || ext.includes('LAB') || ext.includes('KOM') || ext.includes("IMA")
-                    ? true : false
-            }
-
-            _getMedicalFormat(file) {
-                const ext = (/[^.]+$/.exec(file.filename ? file.filename : file.name)).toString().toUpperCase()
-                // const content = this._readFile(file)z
-                return
-                ext.startsWith('DMA-') ? "Medidoc" :
-                    ext.startsWith('HDM-') ? "Health One" :
-                        ext.startsWith('ALA-') ? "Windoc/Medar" :
-                            ext.startsWith('CI-') ? "Medibase" :
-                                ext.startsWith('COG-') ? "Medigest" :
-                                    ext == 'KMEHR' ? ext :
-                                        ext == 'SUMEHR' ? ext :
-                                            ""
-            }
-
-            _getTransportType(file) {
-                const ext = (/[^.]+$/.exec(file.filename ? file.filename : file.name)).toString().toUpperCase()
-                // const content = this._readFile(file)
-                const format = this._getMedicalFormat(file)
-                const descr =
-                    ext.includes('TEC') ? " technical report" :
-                        ext.includes('REP') || ext.includes('REC') ? " medical report" :
-                            ext.includes('LAB') ? " lab result" :
-                                ext.includes('KOM') ? " comment file" :
-                                    ext.includes("IMA") ? " medical imaging" :
-                                        ""
-                return format+descr
-            }
-
-            _setMetaDatas(author,sender,recipient,files) {
-                const isPerson = (person) => {return person.lastName ? true : false},
-                    isText = (file) => {return file.mimeType === 'text/plain'},
-                    getMediaType = (file) => {
-                        const ext = (/[^.]+$/.exec(file.filename ? file.filename : file.name)).toString().toUpperCase()
-                        return 'TODO MediaType.'+ext
-                    },
-                    isTransaction = (isPerson(recipient) && this.uploadedFiles.length ? this._isMedical(this.uploadedFiles[0]) : false) // bool
-
-                // initialize metas //
-                let encodingMetas = {}
-                if (files.length) {
-                    files.forEach((f)=>{
-                        if (isText(file)) {
-                            const i = files.indexOf(f)
-                            encodingMetas["HC-AttachmentEncodingType"+(i==0 ? '' : `-${i+1}`)] =  "UTF-8"
-                        }
-                    }) // foreach end
-                }
-                // required
-                const neededMetas = {
-                        // "CM-MediaType" : files.length ? getMediaType(files[0]) : '', // https://www.ehealth.fgov.be/standards/kmehr/en/tables TODO
-                        "CM-AuthorID" : author.nihii ? author.nihii : author.ssin, // 12345625001
-                        "CM-AuthorIDType" : author.nihii ? "NIHII" : "SSIN", // NIHII
-                        "CM-AuthorType" : author.civility ? author.civility.toUpperCase() : 'NOTFOUND', // doctor
-                        "CM-SenderID" : sender.nihii ? sender.nihii : sender.ssin, // 12345625001
-                        "CM-SenderIDType" : sender.nihii ? "NIHII" : "SSIN", // NIHII
-                        "CM-RecipientID" : recipient.id, // 12345625001
-                        "CM-RecipientIDType" : recipient.identifierType.type, // NIHII
-                        "CM-SendDateTime" : moment().format('YYYY-MM-DD hh:mm:ss'), // 1997-01-01 12:34:56
-                        "CM-Requestnumber": parseInt(moment().format('YYMMDDhmmss')).toFixed(1), // 123456789.0
-                        "CM-EhrMessageType" : isTransaction ? "Transactionnal" : "Functionnal",
-                        "CM-EhrMessage" : isTransaction || false, // bool
-                        "CM-EtkApplicationID": this.api.tokenId ? this.api.tokenId : '', // certificate ID
-                        // "CM-AttachmentTransportType": files.length ? this._getTransportType(files[0]) : '' // main message format (first annex) TODO
-                    }
-                    // author
-                    , authorMetas = isPerson(author) ? {
-                        "CM-AuthorLastName" : author.lastName.toUpperCase(),
-                        "CM-AuthorFirstName" : author.firstName
-                    } : {
-                        "CM-AuthorName": author.organizationName
-                    }
-                    // sender
-                    , senderMetas = isPerson(sender) ? {
-                        "CM-SenderLastName": sender.lastName.toUpperCase(),
-                        "CM-SenderFirstName": sender.firstName
-                    } : {
-                        "CM-SenderName": sender.organizationName
-                    }
-                    // recipient
-                    , recipientMetas = isPerson(recipient) ? {
-                        "CM-RecipientLastName" : recipient.lastName.toUpperCase(),
-                        "CM-RecipientFirstName" : recipient.firstName,
-                    } : {
-                        "CM-RecipientName" : recipient.organizationName
-                    }
-
-                // join JSONs //
-                let finalMetas = {}
-                Object.keys(neededMetas).forEach(k=>finalMetas[k] = neededMetas[k])
-                Object.keys(authorMetas).forEach(k=>finalMetas[k] = authorMetas[k])
-                Object.keys(senderMetas).forEach(k=>finalMetas[k] = senderMetas[k])
-                Object.keys(recipientMetas).forEach(k=>finalMetas[k] = recipientMetas[k])
-                Object.keys(encodingMetas).forEach(k=>finalMetas[k] = encodingMetas[k])
-
-                return finalMetas
             }
 
         }
