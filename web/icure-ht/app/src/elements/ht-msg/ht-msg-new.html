@@ -557,7 +557,7 @@
                     <paper-button class="modal-button--save" on-tap="_doSendMessageWithEhBox">[[localize('send','Send',language)]]</paper-button>
 
                     <!-- FABIEN -->
-                    <paper-button class="modal-button--save" on-tap="_debugMessage">DEBUG MESSAGE - NOT FOR PROD</paper-button>
+                    <!--<paper-button class="modal-button--save" on-tap="_debugMessage">DEBUG MESSAGE - NOT FOR PROD</paper-button>-->
 
                 </div>
             </div>
@@ -736,10 +736,6 @@
                         observer: '_loadingStatusChanged'
                     },
                     files: {
-                        type: Array,
-                        value: () => []
-                    },
-                    uploadedFiles: {
                         type: Array,
                         value: () => []
                     },
@@ -1048,8 +1044,6 @@
                 if(_.size(dataFromPatDetail)) {
 
                     this.set("newMessage.important", true)
-                    this.set("newMessage.document.title", this.localize('documentTransfer', 'Document transfer', this.language))
-
                     if(_.trim(_.get(dataFromPatDetail,"patient.id",""))) {
                         dataFromPatDetail.patient = _.assign({displayName : _.compact([
                                 _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
@@ -1061,10 +1055,38 @@
                         // Changing value / selectedItem will call this._setLinkedPatient
                         if(linkedPatientComboxBox && !!_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.selectedItem = _.get(dataFromPatDetail, "patient", {})
                         if(linkedPatientComboxBox && !_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.value = _.get(dataFromPatDetail, "patient.displayName", "")
+                        setTimeout(()=>{ this.set("newMessage.document.title", _.compact([this.localize('documentTransfer', 'Document transfer', this.language), _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
                     }
 
-                    console.log("dataFromPatDetail, currentContact", dataFromPatDetail.currentContact);
-                    console.log("dataFromPatDetail, documentId", dataFromPatDetail.documentId);
+
+
+
+
+
+                    // this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
+                    //     .then(foundDocument => {
+                    //         console.log("foundDocument", foundDocument );
+                    //         if(_.trim(_.get(foundDocument,"[0].attachmentId"))) {
+                    //             this.api.document().getAttachment(_.trim(_.get(foundDocument,"[0].id")), _.trim(_.get(foundDocument,"[0].attachmentId")))
+                    //                 .then(attachmentResponse => {
+                    //                     console.log("attachmentResponse", attachmentResponse );
+                    //                     if(attachmentResponse) {
+                    //                         this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, foundDocument, attachmentResponse)
+                    //                             .then(decryptedFileContent =>{
+                    //                                 console.log("decryptedFileContent", decryptedFileContent );
+                    //                              }).catch(()=>{})
+                    //                     }
+                    //                 }).catch(()=>{})
+                    //         }
+                    //     })
+                    //
+                    // console.log("dataFromPatDetail, currentContact", dataFromPatDetail.currentContact);
+                    // console.log("dataFromPatDetail, documentId", dataFromPatDetail.documentId);
+
+
+
+
+
 
                 }
 
@@ -1086,6 +1108,81 @@
                 }
 
                 return this.$['new-msg'].open();
+
+            }
+
+
+            _fileToBeUploadedChanged(filesToBeUploaded) {
+
+                const reqIdx = (this.uploadFileReqIdx = (this.uploadFileReqIdx || 0) + 1)
+                const haveFilesToUploaded = !!_.size(filesToBeUploaded) && !!_.size(_.get(this,"files",[]))
+
+                return !haveFilesToUploaded ? false : setTimeout(() => {
+
+                    if (reqIdx !== this.uploadFileReqIdx || !haveFilesToUploaded) return;
+                    const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload')||null;
+                    const filesToBeUploaded = _.clone(this.files);
+
+
+
+                    // console.log("--- _fileToBeUploadedChanged ---");
+                    // console.log("filesToBeUploaded", filesToBeUploaded);
+
+
+
+                    Promise.all(_.filter(filesToBeUploaded, singleFileToBeUploaded => !singleFileToBeUploaded.attached).map(singleFileToBeUploaded => this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(singleFileToBeUploaded.type), name: singleFileToBeUploaded.name })
+                        .then(documentInstance => this.api.document().createDocument(documentInstance))
+                        .then(createdDocument => {
+                            singleFileToBeUploaded.attached = true;
+                            singleFileToBeUploaded.doc = createdDocument;
+                            singleFileToBeUploaded.uploadTarget = (singleFileToBeUploaded.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, createdDocument.id);
+                            return singleFileToBeUploaded;
+                        })
+                    ))
+                        .then(filesToBeUploaded => {
+                            filesToBeUploaded.map(singleFileToBeUploaded => {
+                                const fileReaderInstance = new FileReader();
+                                fileReaderInstance.onload = function (se) {
+                                    let fileByteArray = [];
+                                    new Uint8Array(se.target.result).forEach(int8 => fileByteArray.push(int8));
+                                    this.push('newMessage.annex', [{
+                                        "content": fileByteArray,
+                                        "filename": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
+                                        "mimeType": _.trim(_.get(singleFileToBeUploaded,"type", "text/plain")),
+                                        "title": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
+                                        "size": _.get(singleFileToBeUploaded,"size",0) > 1024 ? (_.get(singleFileToBeUploaded,"size",0) / 1024).toFixed(2) + " ko" : _.get(singleFileToBeUploaded,"size",0) + " o",
+                                        "documentId": _.trim(_.get(singleFileToBeUploaded,"doc.id",""))
+                                    }]);
+                                }.bind(this);
+                                fileReaderInstance.readAsArrayBuffer(singleFileToBeUploaded);
+                            })
+                            !!_.size(filesToBeUploaded) && vaadinUpload.uploadFiles(filesToBeUploaded);
+                        })
+
+                }, 300)
+
+            }
+
+            _fileGotSuccessFullyUploaded(e){
+
+                // console.log("--- _fileGotSuccessFullyUploaded ---");
+                // console.log("e", e);
+
+                const uploadedFileObject = _.get(e,"detail.file",false)
+                const uploadedFileDocumentId = _.trim(_.get(uploadedFileObject,"doc.id",""))
+                const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload')
+
+                if(!_.size(e.detail.file) || typeof _.get(e,"preventDefault",false) !== 'function' || !uploadedFileObject || !uploadedFileDocumentId || !vaadinUpload) return
+                e.preventDefault()
+
+                let currentSubContacts = _.get(this,"currentContact.subContacts",[]).find(sbc => (sbc.status || 0) & 64);
+                if (!_.size(currentSubContacts)) { currentSubContacts = { status: 64, services: [] }; this.push("currentContact.subContacts", currentSubContacts); }
+
+                const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: uploadedFileDocumentId, stringValue: _.trim(_.get(uploadedFileObject,"name","document.txt")) }]]), label: 'document' });
+                this.push("currentContact.services", svc);
+
+                currentSubContacts.services.push({ serviceId: svc.id });
+                if (!vaadinUpload.files.find(f => !f.complete && !f.error)) this.saveCurrentContact();
 
             }
 
@@ -1122,9 +1219,9 @@
                 // Error scenarii
                 const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
                     !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
-                        !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
-                            ( !_.trim(_.get(this,"newMessage.document.textContent", "")) && !_.size(_.get(this,"newMessage.annex", [])) ) ? "missingContentDialog" :
-                                ""
+                    !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
+                    ( !_.trim(_.get(this,"newMessage.document.textContent", "")) && !_.size(_.get(this,"newMessage.annex", [])) ) ? "missingContentDialog" :
+                    ""
                 if( _.trim(errorScenarioDialog) ) { this.set("_bodyOverlay", true); this.$[errorScenarioDialog].open(); return; }
 
                 this._showSendingMessagePreload()
@@ -1137,7 +1234,7 @@
                     const publicationId = +new Date
                     const messageSubject = _.trim(_.get(this,"newMessage.document.title",""))
                     const mainRecipient = this._wrapRecipientData(_.head(_.get(this,"newMessage.recipients", [])))
-                    const annexes = _.get(this,"newMessage.annex",[])
+                    const annexes = _.flatMap(_.get(this,"newMessage.annex",[]))
                     const isImportant = !!_.get(this,"newMessage.important",false)
                     const isEncrypted = !!_.get(this,"newMessage.encrypted",false)
 
@@ -1171,6 +1268,9 @@
                         "CM-SenderFirstName": _.get(customMetas, "CM-AuthorFirstName",""),
                         "CM-SenderName": _.get(customMetas, "CM-AuthorName",""),
                     },customMetas)
+
+                    // EhBox won't allow for empty values
+                    Object.keys(customMetas).forEach(k =>{ if(!_.trim(customMetas[k])) try { delete customMetas[k] } catch(e){} })
 
                     // Unread by default, then eval important, cyrpted & has annexes statuses
                     let messageStatus = 1<<1
@@ -1216,9 +1316,7 @@
                         status: messageStatus
                     };
 
-                    console.log( "this.newMessage", this.newMessage );
-                    console.log( "messageToBeSentWithEhbox", messageToBeSentWithEhbox );
-                    return;
+                    console.log("messageToBeSentWithEhbox", messageToBeSentWithEhbox);
 
                     this.api.fhc().Ehboxcontroller().sendMessageUsingPOST( this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, messageToBeSentWithEhbox, messageToBeSentWithEhbox.usePublicationReceipt, messageToBeSentWithEhbox.useReceivedReceipt, messageToBeSentWithEhbox.useReadReceipt )
                         .then(x=>sendMessageResponse=x)
@@ -1240,125 +1338,15 @@
 
             }
 
-            _fileToBeUploadedChanged(filesToBeUploaded) {
-
-                const reqIdx = (this.uploadFileReqIdx = (this.uploadFileReqIdx || 0) + 1)
-                const haveFilesToUploaded = !!_.size(filesToBeUploaded) && !!_.size(_.get(this,"files",[]))
-
-                return !haveFilesToUploaded ? false : setTimeout(() => {
-
-                    if (reqIdx !== this.uploadFileReqIdx || !haveFilesToUploaded) return;
-                    const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload')||null;
-                    const filesToBeUploaded = _.clone(this.files);
-
-                    Promise.all(_.filter(filesToBeUploaded, singleFileToBeUploaded => !singleFileToBeUploaded.attached).map(singleFileToBeUploaded => this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(singleFileToBeUploaded.type), name: singleFileToBeUploaded.name })
-                        .then(documentInstance => this.api.document().createDocument(documentInstance))
-                        .then(createdDocument => {
-                            singleFileToBeUploaded.attached = true;
-                            singleFileToBeUploaded.doc = createdDocument;
-                            singleFileToBeUploaded.uploadTarget = (singleFileToBeUploaded.uploadTarget || vaadinUpload.target).replace(/\{documentId\}/, createdDocument.id);
-                            return singleFileToBeUploaded;
-                        })
-                    ))
-                        .then(filesToBeUploaded => {
-                            filesToBeUploaded.map(singleFileToBeUploaded => {
-                                const fileReaderInstance = new FileReader();
-                                fileReaderInstance.onload = function (se) {
-                                    let fileByteArray = [];
-                                    new Uint8Array(se.target.result).forEach(int8 => fileByteArray.push(int8));
-                                    this.push('newMessage.annex', [{
-                                        "content": fileByteArray,
-                                        "filename": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
-                                        "mimeType": _.trim(_.get(singleFileToBeUploaded,"type", "text/plain")),
-                                        "title": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
-                                        "size": _.get(singleFileToBeUploaded,"size",0) > 1024 ? (_.get(singleFileToBeUploaded,"size",0) / 1024).toFixed(2) + " ko" : _.get(singleFileToBeUploaded,"size",0) + " o"
-                                    }]);
-                                }.bind(this);
-                                fileReaderInstance.readAsArrayBuffer(singleFileToBeUploaded);
-                            })
-                            !!_.size(filesToBeUploaded) && vaadinUpload.uploadFiles(filesToBeUploaded);
-                        })
-
-                }, 300)
-
-            }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            _fileGotSuccessFullyUploaded(e){
-                e.preventDefault();
-
-                if(e.detail && e.detail.file){
-
-                    console.log('form',form)
-                    if (!this.currentContact) {
-                        console.log('no currentContact, return;')
-                        this.push('currentContact.subContacts',{services: []}); // return;
-                        // return;
-                    }
-                    const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload');
-                    const f = e.detail.file;
-                    const d = f.doc;
-
-                    let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
-                    if (!sc) {
-                        sc = { status: 64, services: [] };
-                        this.currentContact.subContacts.push(sc);
-                    }
-                    const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: d.id, stringValue: f.name }]]), label: 'document' });
-                    this.currentContact.services.push(svc);
-                    console.log('currentContact',this.currentContact)
-                    sc.services.push({ serviceId: svc.id });
-                    if (!vaadinUpload.files.find(f => !f.complete && !f.error)) {
-                        this.saveCurrentContact();
-                    }
-                    console.log('v-up.files',vaadinUpload.files)
-                    this.set('uploadFiles',vaadinUpload.files)
-                }
-
-            }
-
-
-
-
             saveCurrentContact() {
-
-                console.log("---saveCurrentContact---");
-                console.log("---CurrentContact---", _.get(this,"currentContact",false));
-
-                if(!this.currentContact.id ) {
-                    this.currentContact.id = this.api.crypto().randomUuid()
-                }
-                return (this.currentContact.rev ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
-
+                this.currentContact.id = !_.trim(_.get(this, "currentContact.id", "")) ? this.api.crypto().randomUuid() : this.currentContact.id
+                return (!!_.trim(_.get(this, "currentContact.rev", "")) ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
             }
-
-
 
             _fileUploadRemove(e){
-                if(e.detail && e.detail.file) {
-                    this.newMessage.annex.splice(this.newMessage.annex.indexOf(e.detail.file), 1);
-                }
+                const fileDocumentId = _.trim(_.get(e,"detail.file.doc.id"))
+                const foundAnnexToRemove = _.find(_.get(this,"newMessage.annex",[]), i=> e.detail.file.doc.id === _.trim(_.get(i,"[0].documentId","")) )
+                return !_.size(_.get(this,"newMessage.annex",[])) || !_.trim(fileDocumentId) || !_.size(foundAnnexToRemove) ? false : _.remove( this.newMessage.annex, i=>i===foundAnnexToRemove)
             }
 
         }
