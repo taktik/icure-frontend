@@ -254,7 +254,8 @@
                 right: 7px !important;
                 left: initial !important;
                 position: fixed;
-                max-width: initial !important;
+                /*max-width: initial !important;*/
+                max-width: -webkit-fill-available!important;
                 width: 83vw !important;
                 max-height: initial !important;
                 height: calc(100vh - 78px);
@@ -542,6 +543,35 @@
                     <div class="bordered"><paper-input-container alway-float-label="true"><iron-autogrow-textarea slot="input" class="paper-input-input" id="messageBodyText" placeholder="[[localize('writeYourMessage', 'Write your message', language)]]" value="{{newMessage.document.textContent}}"></iron-autogrow-textarea></paper-input-container></div>
                 </div>
 
+
+
+
+
+
+
+
+
+
+                <template is="dom-if" if="[[[[_hasAdditionalAnnexesFromPatDetail]]]]">
+                    <div class="additionalAttachmentFromPatDetails m-t-50">
+                        <div class="modal-subtitle">[[localize('annexFromPatDetail','Annex of patient file',language)]]:</div>
+                        <template is="dom-repeat" items="[[_additionalAnnexesFromPatDetail]]" as="singleAnnexFromPatDetail" id="additionalAnnexesFromPatDetail">
+
+                            <paper-item class="destination-tag" id="[[singleAnnexFromPatDetail.documentId]]">
+                                <div class="one-line-menu list-title">[[singleAnnexFromPatDetail.filename]] ([[singleAnnexFromPatDetail.size]])</div>
+                                <paper-icon-button class="del-destination" icon="clear" on-tap="_removeAdditionalAnnexFromPatDetail"></paper-icon-button>
+                            </paper-item>
+
+                        </template>
+                    </div>
+                </template>
+
+
+
+
+
+
+
                 <div class="attachmentsContainer m-t-50">
                     <div class="modal-subtitle">[[localize('attachments','Attachments',language)]]:</div>
                     <vaadin-upload id="vaadin-upload" class="m-t-8" no-auto files="{{files}}" target$="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileGotSuccessFullyUploaded" on-file-remove="_fileUploadRemove"></vaadin-upload>
@@ -557,7 +587,7 @@
                     <paper-button class="modal-button--save" on-tap="_doSendMessageWithEhBox">[[localize('send','Send',language)]]</paper-button>
 
                     <!-- FABIEN -->
-                    <!--<paper-button class="modal-button--save" on-tap="_debugMessage">DEBUG MESSAGE - NOT FOR PROD</paper-button>-->
+                    <paper-button class="modal-button--save" on-tap="_debugMessage">DEBUG MESSAGE - NOT FOR PROD</paper-button>
 
                 </div>
             </div>
@@ -742,6 +772,14 @@
                     uploadFileReqIdx: {
                         type: Number,
                         value: 0
+                    },
+                    _additionalAnnexesFromPatDetail: {
+                        type: Array,
+                        value: () => []
+                    },
+                    _hasAdditionalAnnexesFromPatDetail: {
+                        type: Boolean,
+                        value: false,
                     }
                 }
             }
@@ -1016,16 +1054,10 @@
                 this.set("recipientType", this.recipientTypes.find(i=>i.id==="NIHII"))
                 if(this.shadowRoot.querySelector('#linkedPatientComboxBox')) this.shadowRoot.querySelector('#linkedPatientComboxBox').value = "";
                 this.shadowRoot.querySelector('#recipientsList') && this.shadowRoot.querySelector('#recipientsList').render()
+                this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail') && this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail').render()
 
                 this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotification')
                 this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotification')
-
-            }
-
-            _debugMessage() {
-
-                console.log(this.newMessage);
-                return;
 
             }
 
@@ -1037,13 +1069,11 @@
                 const dataFromPatDetail = _.get(componentOpenParameters, "dataFromPatDetail", false );
                 const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
 
-                vaadinUploadComponent.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-                vaadinUploadComponent.set('i18n.dropFiles.many', this.localize('dragDropFilesHere','Drag and drop your files here...',this.language))
-
                 // From ht-pat-detail-ctc-detail-panel
                 if(_.size(dataFromPatDetail)) {
 
                     this.set("newMessage.important", true)
+
                     if(_.trim(_.get(dataFromPatDetail,"patient.id",""))) {
                         dataFromPatDetail.patient = _.assign({displayName : _.compact([
                                 _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
@@ -1058,35 +1088,23 @@
                         setTimeout(()=>{ this.set("newMessage.document.title", _.compact([this.localize('documentTransfer', 'Document transfer', this.language), _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
                     }
 
-
-
-
-
-
-                    // this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
-                    //     .then(foundDocument => {
-                    //         console.log("foundDocument", foundDocument );
-                    //         if(_.trim(_.get(foundDocument,"[0].attachmentId"))) {
-                    //             this.api.document().getAttachment(_.trim(_.get(foundDocument,"[0].id")), _.trim(_.get(foundDocument,"[0].attachmentId")))
-                    //                 .then(attachmentResponse => {
-                    //                     console.log("attachmentResponse", attachmentResponse );
-                    //                     if(attachmentResponse) {
-                    //                         this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, foundDocument, attachmentResponse)
-                    //                             .then(decryptedFileContent =>{
-                    //                                 console.log("decryptedFileContent", decryptedFileContent );
-                    //                              }).catch(()=>{})
-                    //                     }
-                    //                 }).catch(()=>{})
-                    //         }
-                    //     })
-                    //
-                    // console.log("dataFromPatDetail, currentContact", dataFromPatDetail.currentContact);
-                    // console.log("dataFromPatDetail, documentId", dataFromPatDetail.documentId);
-
-
-
-
-
+                    this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
+                        .then(foundDocument => this.api.document().getAttachment(_.trim(_.get(foundDocument,"id")), _.trim(_.get(foundDocument,"attachmentId",""))).then(attachmentResponse => ({foundDocument, attachmentResponse })))
+                        .then(({foundDocument, attachmentResponse}) => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, foundDocument, attachmentResponse).then(decryptedFileContent => ({foundDocument, decryptedFileContent })))
+                        .then(({foundDocument, decryptedFileContent}) => {
+                            this.set("_hasAdditionalAnnexesFromPatDetail", true)
+                            this.push("_additionalAnnexesFromPatDetail", {
+                                content: decryptedFileContent,
+                                filename: _.kebabCase(_.trim(_.get(foundDocument,"name","")))+"."+"FZ", // FABIEN : eval file extension when missing
+                                mimeType: this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti",""))),
+                                title: _.trim(_.get(foundDocument,"name","")),
+                                size: _.get(decryptedFileContent,"byteLength",0) > 1024 ? (_.get(decryptedFileContent,"byteLength",0) / 1024).toFixed(2) + " ko" : _.get(decryptedFileContent,"byteLength",0) + " o",
+                                documentId: _.trim(_.get(foundDocument,"id",""))
+                            });
+                            this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail') && this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail').render()
+                        })
+                        .catch(e=>console.log("ERROR getting attachment from pat detail: ", e))
+                        // FABIEN : DISPLAY ERROR MESSAGE HERE SI any error ou si pas found
 
                 }
 
@@ -1111,7 +1129,6 @@
 
             }
 
-
             _fileToBeUploadedChanged(filesToBeUploaded) {
 
                 const reqIdx = (this.uploadFileReqIdx = (this.uploadFileReqIdx || 0) + 1)
@@ -1122,13 +1139,6 @@
                     if (reqIdx !== this.uploadFileReqIdx || !haveFilesToUploaded) return;
                     const vaadinUpload = this.shadowRoot.querySelector('#vaadin-upload')||null;
                     const filesToBeUploaded = _.clone(this.files);
-
-
-
-                    // console.log("--- _fileToBeUploadedChanged ---");
-                    // console.log("filesToBeUploaded", filesToBeUploaded);
-
-
 
                     Promise.all(_.filter(filesToBeUploaded, singleFileToBeUploaded => !singleFileToBeUploaded.attached).map(singleFileToBeUploaded => this.api.document().newInstance(this.user, null, { documentType: 'result', mainUti: this.api.document().uti(singleFileToBeUploaded.type), name: singleFileToBeUploaded.name })
                         .then(documentInstance => this.api.document().createDocument(documentInstance))
@@ -1164,9 +1174,6 @@
             }
 
             _fileGotSuccessFullyUploaded(e){
-
-                // console.log("--- _fileGotSuccessFullyUploaded ---");
-                // console.log("e", e);
 
                 const uploadedFileObject = _.get(e,"detail.file",false)
                 const uploadedFileDocumentId = _.trim(_.get(uploadedFileObject,"doc.id",""))
@@ -1347,6 +1354,13 @@
                 const fileDocumentId = _.trim(_.get(e,"detail.file.doc.id"))
                 const foundAnnexToRemove = _.find(_.get(this,"newMessage.annex",[]), i=> e.detail.file.doc.id === _.trim(_.get(i,"[0].documentId","")) )
                 return !_.size(_.get(this,"newMessage.annex",[])) || !_.trim(fileDocumentId) || !_.size(foundAnnexToRemove) ? false : _.remove( this.newMessage.annex, i=>i===foundAnnexToRemove)
+            }
+
+            _debugMessage() {
+
+                console.log(this.newMessage);
+                return;
+
             }
 
         }
