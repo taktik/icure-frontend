@@ -36,6 +36,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         <custom-style>
             <style include="shared-styles">
+
                 :host {
                     display: flex;
                     flex-direction: column;
@@ -597,10 +598,23 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     width: 600px;
                 }
 
+                .modalDialog.modalDialogLarge {
+                    height: 500px;
+                    width: 800px;
+                }
+
                 .modalDialogContent{
                     height: 250px;
                     width: auto;
                     margin: 10px;
+                }
+
+                .modalDialog.modalDialogLarge .modalDialogContent{
+                    height: 450px;
+                }
+                .modalDialog.modalDialogLarge .dialogButtons{
+                    bottom: 20px;
+                    text-align:left;
                 }
 
                 .m-t-40 {
@@ -668,6 +682,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     color:#a00000
                 }
 
+                .modal-title {
+                    background: var(--app-background-color-dark);
+                    margin-top: 0;
+                    padding: 16px 24px;
+                }
+
+                .eHealthBoxProcessErrorMessage {
+                    border: 1px dashed #999999;
+                    padding: 10px 10px 0 10px;
+                    margin-top: 10px;
+                    max-height: 240px;
+                    overflow: auto;
+                }
+
+                .eHealthBoxProcessErrorMessage p {
+                    margin:0 0 10px 0
+                }
+
             </style>
         </custom-style>
 
@@ -718,12 +750,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         </template>
 
                         <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'deleted')]]">
-                            <paper-icon-button id="del-button" icon="delete" on-tap="_deleteMessages"></paper-icon-button>
+                            <paper-icon-button id="del-button" icon="delete" on-tap="_deletedUndeleteMessages"></paper-icon-button>
                             <paper-tooltip for="del-button" offset="2">[[localize('del_sel','Delete selected',language)]]</paper-tooltip>
                         </template>
 
                         <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'deleted')]]">
-                            <paper-icon-button id="restore-button" icon="undo" on-tap="_restoreDeletedMessages"></paper-icon-button>
+                            <paper-icon-button id="restore-button" icon="undo" on-tap="_deletedUndeleteMessages"></paper-icon-button>
                             <paper-tooltip for="restore-button" offset="2">[[localize('restore','Restore',language)]]</paper-tooltip>
                             <paper-icon-button id="del-for-button" icon="delete-forever" on-tap="_confirmDeleteMessagesForEver"></paper-icon-button>
                             <paper-tooltip for="del-for-button" offset="2">[[localize('del_forever','Delete forever',language)]]</paper-tooltip>
@@ -879,12 +911,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="modal-button" on-tap="_deleteMessagesForEver"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
             </div>
         </paper-dialog>
-
         <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
             <div class="modalDialogContent m-t-50">
                 <h3 class="textAlignCenter">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox yet',language)]]</h3>
                 <p class="textAlignCenter m-t-20">[[localize('someFunctionalitiesAreDisabled','Some functionalities are disabled',language)]].</p>
+            </div>
+            <div class="dialogButtons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+        <paper-dialog class="modalDialog modalDialogLarge" id="errorWithEHealthBoxProcessing" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('errorDealingWithYourRequest','An error occurred while processing your request',language)]]</h2>
+            <div class="modalDialogContent m-t-25">
+                <div class="m-t-25 bold">[[localize('followingMessagesCouldNotBeDeletedRestored','Following message(s) could not be deleted / restored',language)]]:</div>
+
+                <div class="eHealthBoxProcessErrorMessage">
+                    <template is="dom-repeat" items="[[_eHealthBoxProcessErrorMessages]]" as="singleErrorMessage" id="eHealthBoxProcessErrorMessageDomRepeat">
+                        <p>[[singleErrorMessage.subject]]<br />[[singleErrorMessage.fromAddress]] - [[_msTstampToDDMMYYYY(singleErrorMessage.created)]]</p>
+                    </template>
+                </div>
+
+                <p class=" m-t-25">[[localize('pleaseContactUs','Please contact us',language)]]: <iron-icon icon="communication:phone" class="mr5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="tel:+3223192241" class="textDecorationNone">+32(0)2/319.22.41</a> - <iron-icon icon="icons:mail" class="mr5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="mailto:support@topaz.care" class="textDecorationNone">support@topaz.care</a>.</p>
             </div>
             <div class="dialogButtons">
                 <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
@@ -1060,6 +1108,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     _haveCheckedMessages: {
                         type: Boolean,
                         value: false
+                    },
+                    _eHealthBoxProcessErrorMessages: {
+                        type: Array,
+                        value: () => []
                     }
                 };
             }
@@ -1400,42 +1452,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            _restoreDeletedMessages() {
-
-                // No eHealthBox ?
-                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
-
-                const selectedMessages = this.checkedMessages
-                if(!_.size(selectedMessages)) return
-
-                this._toggleProcessingPopup();
-
-                // FABIEN : NE PLUS FAIRE EN BATCH ICI, un par un (tant ehbox que chez nous) et ne PLUS supprimer chez nous si error ehbox (sinon boite ehb uber full...)
-                // FABIEN : + display error message dialog
-                let prom = Promise.resolve([]);
-                selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(restoreddAndModifiedMessages => {
-                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
-                        const destinationBox = sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
-                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
-                        return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
-                            false :
-                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox).catch(e=>console.log("ERROR with moveMessagesUsingPOST: ",e))
-                                .then(()=>_.concat(restoreddAndModifiedMessages, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(x=>x).catch(e=>console.log("ERROR with modifyMessage: ", e))))
-                    })
-                })
-
-                return prom
-                    .then(x=>x)
-                    .catch(e=>console.log("ERROR with _restoreDeletedMessages: ",e))
-                    .finally(()=>{
-                        this._toggleProcessingPopup();
-                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
-                        this._refresh()
-                    })                
-
-            }
-            
             _hideUnHideMessages() {
 
                 const selectedMessages = this.checkedMessages
@@ -1462,9 +1478,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this._refresh()
                     })
 
-            }
-            
-            _deleteMessages() {
+            }            
+
+            _deletedUndeleteMessages() {
 
                 // No eHealthBox ?
                 if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
@@ -1472,31 +1488,40 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const selectedMessages = this.checkedMessages
                 if(!_.size(selectedMessages)) return
 
-                this._toggleProcessingPopup();
+                this._toggleProcessingPopup()
 
-                // FABIEN : NE PLUS FAIRE EN BATCH ICI, un par un (tant ehbox que chez nous) et ne PLUS supprimer chez nous si error ehbox (sinon boite ehb uber full...)
-                // FABIEN : + display error message dialog
                 let prom = Promise.resolve([]);
                 selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(deletedAndModifiedMessages => {
+                    prom = prom.then(promisesCarrier => {
                         const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
-                        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : false
+                        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
                         const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
                         return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
                             false :
-                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox).catch(e=>console.log("ERROR with moveMessagesUsingPOST: ",e))
-                                .then(()=>_.concat(deletedAndModifiedMessages, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(x=>x).catch(e=>console.log("ERROR with modifyMessage: ", e))))
+                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
+                                .then(()=>_.concat(promisesCarrier, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(()=>true).catch(()=>{})))
+                                .catch(()=>_.concat(promisesCarrier, singleSelectedMessage))
                     })
                 })
 
                 return prom
-                    .then(x=>x)
-                    .catch(e=>console.log("ERROR with _deleteMessages: ",e))
+                    .then(executionResult => {
+                        const failedExecutions = _.compact(_.filter( executionResult, i => !!_.trim(_.get(i,"id","")) ? i : false))
+                        if(_.size(failedExecutions)) {
+                            setTimeout(()=>{
+                                this.set("_bodyOverlay", true);
+                                this.$["errorWithEHealthBoxProcessing"].open();
+                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
+                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
+                            },200)
+                        }
+                    })
+                    .catch(e=>console.log("ERROR with _deletedUndeleteMessages: ",e))
                     .finally(()=>{
                         this._toggleProcessingPopup();
                         this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
                         this._refresh()
-                    })
+                    })                
 
             }
 
@@ -1519,23 +1544,39 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(!_.size(selectedMessages)) return
 
                 this._closeDialogs();
-                this._toggleProcessingPopup();
+                this._toggleProcessingPopup()
 
-                const sourceBox = _.trim(_.get(_.trim(_.get(selectedMessages,"[0].transportGuid","")).split(':'), "[0]", ""))
-                const eHealthBoxMessageIds = _.compact(_.uniq(_.map( selectedMessages, singleSelectedMessage => _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", "")) )))
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(promisesCarrier => {
+                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
+                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
+                        return !eHealthBoxMessageId || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
+                            false :
+                            this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox)
+                                .then(()=>_.concat(promisesCarrier, this.api.message().deleteMessages(_.trim(_.get(singleSelectedMessage,"id",""))).then(()=>true).catch(()=>{})))
+                                .catch(()=>_.concat(promisesCarrier, singleSelectedMessage))
+                    })
+                })
 
-                // FABIEN : NE PLUS FAIRE EN BATCH ICI, un par un (tant ehbox que chez nous) et ne PLUS supprimer chez nous si error ehbox (sinon boite ehb uber full...)
-                // FABIEN : + display error message dialog
-                return !_.size(eHealthBoxMessageIds) || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
-                    false :
-                    this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, eHealthBoxMessageIds, sourceBox).catch(e=>console.log("ERROR with deleteMessagesUsingPOST: ",e))
-                        .then(()=> this.api.message().deleteMessagesBatch(new models.ListOfIdsDto({ids: _.map(_.compact(selectedMessages), i=>i.id)})).catch(e=>console.log("ERROR with deleteMessagesBatch: ",e)))
-                        .catch(e=>console.log("ERROR with _deleteMessagesForEver: ",e))
-                        .finally(()=>{
-                            this._toggleProcessingPopup();
-                            this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
-                            this._refresh()
-                        })
+                return prom
+                    .then(executionResult => {
+                        const failedExecutions = _.compact(_.filter( executionResult, i => !!_.trim(_.get(i,"id","")) ? i : false))
+                        if(_.size(failedExecutions)) {
+                            setTimeout(()=>{
+                                this.set("_bodyOverlay", true);
+                                this.$["errorWithEHealthBoxProcessing"].open();
+                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
+                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
+                            },200)
+                        }
+                    })
+                    .catch(e=>console.log("ERROR with _deleteMessagesForEver: ",e))
+                    .finally(()=>{
+                        this._toggleProcessingPopup();
+                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
+                        this._refresh()
+                    })
 
             }
 
@@ -1635,6 +1676,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _menuSelectionChanged(menuSelectionObject) {
                 this.set('checkedMessages',[])
                 this.set('allSelected',false)
+                this.set('_haveCheckedMessages',false)
             }
 
             _createNewMessage(){
