@@ -38,7 +38,6 @@
 <link rel="import" href="../dynamic-form/dynamic-doc.html">
 <link rel="import" href="../dynamic-form/entity-selector.html">
 <link rel="import" href="../ht-spinner/ht-spinner.html">
-<link rel="import" href="../ht-msg/ht-msg-import-doc-dialog.html">
 
 
 
@@ -366,7 +365,7 @@
 				padding: 2px;
 				margin-right: 8px;
             }
-            
+
             .floating-action-bar.mobile span{
                 display: none;
             }
@@ -801,8 +800,6 @@
 		<entity-selector id="load-template-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[reportTemplatesSelectorColumns()]]" data-provider="[[reportCustomTemplatesSelectorDataProvider()]]" entity-icon="vaadin:doctor" entity-type="[[localize('template','Template',language)]]" on-entity-selected="_reportTemplateSelected"></entity-selector>
 		<entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
 
-		<ht-msg-import-doc-dialog id="import-doc-dialog" api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" patient="[[patient]]" on-save-documents="_saveDoc"></ht-msg-import-doc-dialog>
-
         <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" global-hcp=[[globalHcp]] on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"></ht-pat-prescription-dialog>
 
 		<ht-pat-invoicing-dialog id="invoicingForm" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-invoicing-dialog>
@@ -1232,13 +1229,7 @@
 
 			addDocument() {
 				this.set('showAddFormsContainer', false);
-                // const vaadinUpload = this.$['vaadin-upload'];
-                // vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-                // vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
-                // this.set('files',[])
-				// this.$['upload-dialog'].open();
-                //this.dispatchEvent(new CustomEvent('add-document', {detail: {currentContact: this.currentContact}, composed: true, bubbles: true}))
-				this.$['import-doc-dialog'].open();
+                this.dispatchEvent(new CustomEvent('add-document', {detail: {currentContact: this.currentContact}, composed: true, bubbles: true}))
 			}
 
 			_validSsin(ssin) {
@@ -3570,7 +3561,7 @@
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
 			}
 
-			_saveDoc(e){
+			saveDoc(e){
 			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length && this.currentContact))return;
 
                 (e.detail.documents || []).map( doc =>{
@@ -3600,17 +3591,18 @@
 								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
 							})
 							.then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))
+							.finally(x => {
+								let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
+								if (!sc) {
+									sc = { status: 64, services: [] };
+									this.currentContact.subContacts.push(sc);
+								}
 
-					let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
-					if (!sc) {
-						sc = { status: 64, services: [] };
-						this.currentContact.subContacts.push(sc);
-					}
-
-					const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'document' });
-					this.currentContact.services.push(svc);
-					sc.services.push({ serviceId: svc.id });
-					this.saveCurrentContact().then(c => this._contactsChanged());
+								const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'document' });
+								this.currentContact.services.push(svc);
+								sc.services.push({ serviceId: svc.id });
+								this.saveCurrentContact().then(c => this._contactsChanged());
+							})
 				})
 			}
             resizeFloatingBar(isTooSmall){
@@ -3632,7 +3624,7 @@
 
 			    const documentId = _.get(e,"detail.documentId", false);
 			    if (!documentId) return;
-			    
+
 			    // eHealthBox connection has to be
 			    if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
 
