@@ -285,6 +285,7 @@
             <paper-tabs class="tab-selector" selected="{{tabs}}" >
                 <paper-tab>[[localize('tra_vwr','Viewer',language)]]</paper-tab>
                 <paper-tab class="doNotDisplay" id="tabAttachments">[[_getAttachmentCount(attachmentCount)]] [[localize('att','Attachments',language)]]</paper-tab>
+                <paper-tab>[[localize('trans_acc_tra','Trace',language)]]</paper-tab>
                 <paper-tab>[[localize('json_vwr','JSON View',language)]]</paper-tab>
             </paper-tabs>
             <iron-pages selected="[[tabs]]">
@@ -469,6 +470,14 @@
                     </div>
                 </page>
                 <page>
+                    <div class="hub-cons"> <!-- Notification input -->
+                        <div>
+                            [[auditTrail]]
+                        </div>
+
+                    </div>
+                </page>
+                <page>
                     <div class="pageContent">
                         <div class="hub-cons"> <!-- Notification input -->
                             <div>
@@ -529,13 +538,13 @@
                         type:  Number,
                         value: 0
                     },
-                    selectedDocumentToImport:{
+                    auditTrail:{
                         type: Object,
-                        value: () => {}
+                        value: null
                     },
-                    selectedDocumentInfoToImport:{
-                        type: Object,
-                        value: () => {}
+                    parent:{
+                        type:Object,
+                        value: null
                     }
                 };
             }
@@ -669,11 +678,13 @@
             }
 
 
-            open(transInfo, tranRespPromise) {
+            open(htPatHubDetail, transInfo, tranRespPromise) {
+                this.set('parent', htPatHubDetail)
                 this.set('attachmentCount', 0);
                 this.set('message', null);
                 this.set('transInfo', transInfo);
                 this.set('isLoading',true);
+                this.set('auditTrail',this._getTrail(transInfo));
                 tranRespPromise.then(tranResp => {
                     this.set('message', tranResp);
                     this.set('isLoading',false);
@@ -686,6 +697,36 @@
 
             getJSON(obj){
                 return JSON.stringify(obj);
+            }
+
+            //getPatientAuditTrailUsingGET(
+            // endpoint, xFHCKeystoreId, xFHCTokenId, xFHCPassPhrase,
+            // hcpLastName, hcpFirstName, hcpNihii, hcpSsin, hcpZip,
+            // hubPackageId, from, to,
+            // authorNihii, authorSsin,
+            // isGlobal, breakTheGlassReason, ssin, sv, sl, id)
+            _getTrail(transaction){
+                if (this.patient.ssin && this.api.tokenId) {
+                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
+                        .then(hcp =>
+                            this.api.fhc().Hubcontroller().getPatientAuditTrailUsingGET(this.parent.hubEndPoint,
+                                this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
+                                hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.parent.hcpZip,
+                                this.hubPackageId, null, null,
+                                null, null,
+                                true, this.breakTheGlassReason, null,
+                                transaction.ids.find(id => id.s === 'LOCAL').sv, transaction.ids.find(id => id.s === 'LOCAL').sl, transaction.ids.find(id => id.s === 'LOCAL').value)
+                        ).then(trailResp => {
+                                if (trailResp) {
+                                    return trailResp;
+                                } else {
+                                    return null;
+                                }
+                            }
+                        ).catch(e => {console.log(e)})
+                } else {
+                    return Promise.resolve(null)
+                }
             }
 
             saveMedicationSchemeAsDocument(transactionSetId, sXml){
