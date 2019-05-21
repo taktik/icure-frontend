@@ -244,6 +244,41 @@
                 overflow: auto;
             }
 
+            .modal-title {
+                background: var(--app-background-color-dark);
+                margin-top: 0;
+                padding: 16px 24px;
+            }
+
+            .modal-button{
+                --paper-button-ink-color: var(--app-secondary-color);
+                background-color: var(--app-secondary-color);
+                color: var(--app-text-color);
+                font-weight: 700;
+                font-size: 14px;
+                height: 40px;
+                min-width: 100px;
+                padding: 10px 1.2em;
+            }
+
+            .selectedDocumentToImportContent{
+                height: 260px;
+                width: auto;
+                margin: 1%;
+            }
+
+            .buttons{
+                position: absolute;
+                right: 0;
+                bottom: 0;
+                margin: 8px 16px;
+            }
+
+            #documentImportDialog{
+                height: 400px;
+                width: 650px;
+            }
+
         </style>
 
             <!--<h2 class="modal-title">[[localize('hub_doc','Document',language)]]:[[_transactionId(transInfo)]]:[[_transactionType(transInfo)]]</h2>-->
@@ -425,7 +460,7 @@
                                         <template is="dom-repeat" items="[[_lnksWithCnt(trn)]]" as="lnk">
                                             <dynamic-doc api="[[api]]" user="[[user]]" patient="[[patient]]" data="[[_linkData(lnk)]]" i18n="[[i18n]]" language="[[language]]"
                                                          resources="[[resources]]" title="[[lnk.mediatype]]" downloadable="true" preview="true" is-pat-detail="false"></dynamic-doc>
-                                            <paper-button class="modal-button" on-tap="_importDocumentIntoPatient" data-item$=[[lnk]]><iron-icon icon="icons:assignment-returned" class="mr5 smallIcon" ></iron-icon> [[localize('imp-pat','Import',language)]]</paper-button>
+                                            <paper-button class="modal-button" on-tap="_importDocumentIntoPatient" data-document$=[[lnk]] data-transaction$="[[trn]]"><iron-icon icon="icons:assignment-returned" class="mr5 smallIcon" ></iron-icon> [[localize('imp-pat','Import',language)]]</paper-button>
                                         </template>
                                     </template>
                                 </template>
@@ -464,6 +499,9 @@
                         type: Object,
                         value: null
                     },
+                    patient:{
+                      type: Object
+                    },
                     language: {
                         type: String
                     },
@@ -490,6 +528,14 @@
                     attachmentCount: {
                         type:  Number,
                         value: 0
+                    },
+                    selectedDocumentToImport:{
+                        type: Object,
+                        value: () => {}
+                    },
+                    selectedDocumentInfoToImport:{
+                        type: Object,
+                        value: () => {}
                     }
                 };
             }
@@ -973,69 +1019,54 @@
                 return hcp && hcp.length > 0 ? true : false
             }
 
+
             _importDocumentIntoPatient(e){
-                if(e && e.target && e.target.dataset && e.target.dataset.item){
-                    console.log( e.target.dataset.item)
+                if(e && e.target && e.target.dataset && e.target.dataset.document && e.target.dataset.transaction){
+                    console.log( e.target.dataset)
+                    const transaction = JSON.parse(e.target.dataset.transaction)
+                    const document = JSON.parse(e.target.dataset.document)
 
-                   this.api.message().newInstance(this.user).then(newMessageInstance => this.api.message().createMessage(
-                       _.merge(newMessageInstance, {
-                           transportGuid: "HUB:DOCUMENT",
-                           recipient: [_.get(this.user, 'healthcarePartyId', _.trim(this.hcp.id))],
-                           metas: {filename: "hubDocument"},
-                           toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', _.trim(this.hcp.id)))],
-                           subject: "HUB: document download"
-                       })
-                   )).then(createdMessage => this.api.document().newInstance(this.user, createdMessage, {
-                       documentType: 'report',
-                       mainUti: this.api.document().uti("application/pdf"),
-                       name: "documentDownload_"+moment().format("YYYYMMDDHHIISS")
-                   })).then(newDocumentInstance => this.api.document().createDocument(newDocumentInstance))
-                       .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDocument, e.target.dataset.item.value).then(encryptedFileContent => ({createdDocument, encryptedFileContent })))
-                       .then(({createdDocument, encryptedFileContent}) => this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent))
-                       .then(resourcesObject => this._saveDocumentAsService({
-                           documentId: _.trim(_.get(resourcesObject, "documentId", "")),
-                           stringValue: _.trim(resourcesObject.downloadFileName),
-                           formId: "",
-                           contactId: _.trim(this.currentContact.id)
-                       })).catch((e) => {
-                       console.log("---error upload attachment---");
-                   })
-
-
+                    this.api.message().newInstance(this.user)
+                        .then(nmi => this.api.message().createMessage(_.merge(nmi, {
+                            transportGuid: "HUB:DOCUMENT",
+                            recipient: [this.user && this.user.healthcarePartyId],
+                            metas: {filename: "hubDocument"},
+                            toAddresses: [_.get(this.user, 'email', this.user && this.user.healthcarePartyId)],
+                            subject: "HUB: import document"
+                            }))
+                            .then(createdMessage => this.api.document().newInstance(this.user, createdMessage, {
+                                documentType: transaction && transaction.cds && transaction.cds.find(cd => cd.s === "CD_TRANSACTION") && transaction.cds.find(cd => cd.s === "CD_TRANSACTION").value ? transaction.cds.find(cd => cd.s === "CD_TRANSACTION").value : 'report',
+                                mainUti: this.api.document().uti("application/pdf"),
+                                name: "documentDownloadFromHub_"+moment().format("YYYYMMDDhhmmss")
+                            }))
+                            .then(newDocInstance => this.api.document().createDocument(newDocInstance))
+                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject('encrypt', this.user, createdDocument, this.api.crypto().utils.base64toArrayBuffer(document.value))
+                                .then(encryptedFileContent => ({createdDocument, encryptedFileContent })))
+                            .then(({createdDocument, encryptedFileContent}) => this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent))
+                            .then(resourcesObject => {
+                                this.api.contact().newInstance(this.user, this.patient, {
+                                    created: new Date().getTime() ,
+                                    modified: new Date().getTime() ,
+                                    author: this.user.id,
+                                    responsible: this.user.healthcarePartyId,
+                                    subContacts: []
+                                }).then(ctc=> {
+                                    if (resourcesObject && resourcesObject.id) {
+                                        const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: resourcesObject.id, stringValue: resourcesObject.name }]]), label: 'Hub document' });
+                                        ctc.services.push(svc);
+                                        ctc.subContacts = [{ status: 64, services: [{serviceId: svc.id }]}]
+                                        this.api.contact().createContactWithUser(this.user, ctc).then(c=>{
+                                            this.api.register(c,'contact')
+                                        })
+                                    }
+                                })
+                            }).catch(e => {
+                                console.log("---error upload attachment---", e)
+                            })
+                        )
                 }
             }
 
-            _saveDocumentAsService(inputConfig) {
-
-                const svc = this.api.contact().service().newInstance(
-                    this.user,
-                    {
-                        content: _.fromPairs([[this.language, { documentId: inputConfig.documentId, stringValue: inputConfig.stringValue }]]),
-                        label: 'document',
-                        formId: inputConfig.formId,
-                        contactId: inputConfig.contactId
-                    }
-                )
-
-                let newServiceData = {
-                    ctc: this.currentContact,
-                    svc: svc,
-                    scs: this.currentContact.subContacts.filter(sc => sc.formId === inputConfig.formId)
-                }
-
-                if( Array.isArray(_.get(newServiceData, "scs.services", false)) ) {
-                    newServiceData.scs.services.push({ serviceId: svc.id });
-                } else {
-                    newServiceData.scs["services"] = [{ serviceId: svc.id }];
-                }
-
-                this._newService({},newServiceData)
-
-                this.currentContact.services.push(svc);
-
-                this.saveCurrentContact().then(() => this._contactsChanged());
-
-            }
 
         }
         customElements.define(HtPatHubTransactionViewSecond.is, HtPatHubTransactionViewSecond);
