@@ -1100,6 +1100,21 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     _eHealthBoxProcessErrorMessages: {
                         type: Array,
                         value: () => []
+                    },
+                    _getEHealthBoxDataLastRefreshTstamp:{
+                        type: Number,
+                        value: +new Date()
+                    }
+                    _cachedMessagesData: {
+                        type: Object,
+                        value: () => {
+                            return {
+                                "inbox": [],
+                                "sent": [],
+                                "hidden": [],
+                                "deleted": []
+                            }
+                        }
                     }
                 };
             }
@@ -1114,9 +1129,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     '_setIsConnectedToEhbox(api.tokenId)',
 
 
+                    // '_refresh(menuSelectionObject,menuSelectionObject.*)',
+                    '_getEHealthBoxData(menuSelectionObject)',
 
 
-                    '_refresh(menuSelectionObject,menuSelectionObject.*)',
                     '_messagesChanged(_vaadinGridDataToShow, page)',
                     '_getBoxCapacity(_vaadinGridDataToShow)',
                     '_setRefreshIsAllowed(_vaadinGridDataToShow,page)',
@@ -1655,6 +1671,74 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
 
                 this.dispatchEvent(new CustomEvent('new-msg', { detail: {},params: null}));
+            }
+
+
+
+
+
+
+
+
+
+
+            _getEHealthBoxData(menuSelectionObject,forceRefresh=false) {
+
+                const cacheTTL = (10**3)*60
+                const eHealthBoxFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
+                const shouldRefreshData = !!forceRefresh || !!(parseInt(_.get(this,"_getEHealthBoxDataLastRefreshTstamp",0)) < (+new Date() - cacheTTL))
+
+                return !shouldRefreshData ? Promise.resolve()...
+
+                    _cachedMessagesData: {
+                        type: Object,
+                        value: () => {
+                            return {
+                                "inbox": [],
+                                "sent": [],
+                                "hidden": [],
+                                "deleted": []
+                            }
+                        }
+                    }
+
+                console.log("--- _getEHealthBoxData ---");
+                console.log("forceRefresh", forceRefresh)
+                console.log("eHealthBoxFolder",eHealthBoxFolder)
+                console.log("shouldRefreshData ",shouldRefreshData)
+                return;
+
+
+                if (this.menuSelectionObject && this.menuSelectionObject.selection) {
+
+                    this._resetLoadingMessage();
+                    this.set('_isLoading', true );
+                    this._setLoadingMessage({ message:this.localize('ehb.gettingMessages',this.language), icon:"arrow-forward"});
+
+                    const currentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
+
+                    this._getMessages(currentFolder)
+                        .then(foundMessages=>{
+                            this._setLoadingMessage({ message:this.localize('ehb.gettingMessages_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
+                            return this._enrichMessageWithPatientInfo(foundMessages)
+                                .then(enrichedData=> foundMessages = enrichedData)
+                                .catch(e=>{ console.log("Couldn't _enrichMessageWithPatientInfo: ", e); })
+                                .finally(()=>{
+                                    this.set("_vaadinGridDataToShow", foundMessages)
+                                    this.set('_isLoading', false );
+                                })
+                        })
+                        .catch(e=>{ console.log(e); })
+                        .finally(()=>{
+                            this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
+                            this.triggerGridResize()
+                        })
+
+                } else {
+                    this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
+                    this.triggerGridResize()
+                }
+
             }
 
 
