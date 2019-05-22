@@ -3565,9 +3565,11 @@
 			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length && this.currentContact))return;
 
                 (e.detail.documents || []).map( doc =>{
-                    this.api.message().newInstance(this.user)
-							.then(msg => this.api.message().createMessage(_.merge(msg,{
-								transportGuid : (doc.isScanned ? "SCAN:" :"DOC:")+doc.type,
+                	Promise.all([
+						this.api.user().findByHcpartyId(doc.hcp),
+                    	this.api.message().newInstance(this.user)])
+							.then(([user,msg]) => this.api.message().createMessage(_.merge(msg,{
+								transportGuid : "DOC:"+(doc.isScanned ? "SCAN" :"IMPORT")+":IN",
 								recipients :[doc.hcp,(this.user.healthcarePartyId || (this.hcp && this.hcp.id) || "")],
 								recipientsType : "org.taktik.icure.entities.HealthcareParty",
 								metas :{
@@ -3576,14 +3578,15 @@
 									documentDate : doc.docDate,
 									type : doc.type
 								},
-								toAddresses : [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', ""))],
+								toAddresses : [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")),_.get(user,"email",doc.hcp)],
 								subject : "imported doc in patient folder",
-								status : (doc.isScanned ? 1<<24 : 0) | 1<<25
+								//@ToDo test on persphysician ==> traited or not
+								status : (doc.isScanned ? 1<<24 : 0) | 1<<25 | (doc.patientId ? 1<<26 : 0)
 							})))
 							.then(msg => this.api.document().newInstance(this.user, msg, {
 									documentType: doc.type,
 									mainUti: this.api.document().uti("application/"+doc.extension),
-									name: _.trim(doc.title)+"."+doc.extension})
+									name: doc.title.includes(doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
 							)
 							.then(newDoc => this.api.document().createDocument(newDoc))
 							.then(createdDoc =>{
