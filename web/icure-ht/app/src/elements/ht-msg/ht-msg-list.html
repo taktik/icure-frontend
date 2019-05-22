@@ -1103,8 +1103,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     _getEHealthBoxDataLastRefreshTstamp:{
                         type: Number,
-                        value: +new Date()
-                    }
+                        value: 0
+                    },
                     _cachedMessagesData: {
                         type: Object,
                         value: () => {
@@ -1673,6 +1673,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.dispatchEvent(new CustomEvent('new-msg', { detail: {},params: null}));
             }
 
+            _closeReadMessageComponent() {
+                return this.dispatchEvent(new CustomEvent('selection-messages-change', { detail:{selection:{item:null}}}));
+            }
+
 
 
 
@@ -1684,60 +1688,59 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _getEHealthBoxData(menuSelectionObject,forceRefresh=false) {
 
-                const cacheTTL = (10**3)*60
+                const cacheTTL = (10**3)*120
                 const eHealthBoxFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
                 const shouldRefreshData = !!forceRefresh || !!(parseInt(_.get(this,"_getEHealthBoxDataLastRefreshTstamp",0)) < (+new Date() - cacheTTL))
 
-                return !shouldRefreshData ? Promise.resolve()...
+                this._resetLoadingMessage();
+                this.set('_isLoading', true );
+                this._setLoadingMessage({ message:this.localize('ehb.gettingMessages',this.language), icon:"arrow-forward"});
 
-                    _cachedMessagesData: {
-                        type: Object,
-                        value: () => {
-                            return {
-                                "inbox": [],
-                                "sent": [],
-                                "hidden": [],
-                                "deleted": []
-                            }
-                        }
-                    }
+                console.log("--- shouldRefreshData ---", shouldRefreshData);
 
-                console.log("--- _getEHealthBoxData ---");
-                console.log("forceRefresh", forceRefresh)
-                console.log("eHealthBoxFolder",eHealthBoxFolder)
-                console.log("shouldRefreshData ",shouldRefreshData)
-                return;
-
-
-                if (this.menuSelectionObject && this.menuSelectionObject.selection) {
-
-                    this._resetLoadingMessage();
-                    this.set('_isLoading', true );
-                    this._setLoadingMessage({ message:this.localize('ehb.gettingMessages',this.language), icon:"arrow-forward"});
-
-                    const currentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
-
-                    this._getMessages(currentFolder)
-                        .then(foundMessages=>{
-                            this._setLoadingMessage({ message:this.localize('ehb.gettingMessages_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                            return this._enrichMessageWithPatientInfo(foundMessages)
-                                .then(enrichedData=> foundMessages = enrichedData)
-                                .catch(e=>{ console.log("Couldn't _enrichMessageWithPatientInfo: ", e); })
-                                .finally(()=>{
-                                    this.set("_vaadinGridDataToShow", foundMessages)
-                                    this.set('_isLoading', false );
-                                })
-                        })
-                        .catch(e=>{ console.log(e); })
-                        .finally(()=>{
-                            this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                            this.triggerGridResize()
+                const promiseResolver = !shouldRefreshData ?
+                    Promise.resolve(_.get(this,"_cachedMessagesData",{})) :
+                    Promise.all(_.map(["INBOX:*","SENTBOX:*","BININBOX:*","BINSENTBOX:*"], singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 10000).then(messages=>messages.rows)))
+                        .then(promisesResults => _.chain(promisesResults).flatMap().uniqBy('id').orderBy(['created','transportGuid'],['desc','desc']).value())
+                        .then(foundMessages => {
+                            this.set("_getEHealthBoxDataLastRefreshTstamp",+new Date())
+                            Object.keys(this._cachedMessagesData).forEach(k => this._cachedMessagesData[k] = [] )
+                            return _.map(foundMessages, singleMessage => {
+                                const messageBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]",""))
+                                const isHidden = !!(_.get(singleMessage,"status",0)&(1<<14))
+                                return (
+                                    messageBox === "INBOX" && !isHidden ? this.push("_cachedMessagesData.inbox", singleMessage) :
+                                    messageBox === "SENTBOX" && !isHidden ? this.push("_cachedMessagesData.sent", singleMessage) :
+                                    messageBox === "BININBOX" && !isHidden ? this.push("_cachedMessagesData.deleted", singleMessage):
+                                    messageBox === "BINSENTBOX" && !isHidden ? this.push("_cachedMessagesData.deleted", singleMessage) :
+                                    this.push("_cachedMessagesData.hidden", singleMessage)
+                                )
+                            })
                         })
 
-                } else {
-                    this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                    this.triggerGridResize()
-                }
+                promiseResolver
+                    .then(() => {
+                        console.log("--- THEN cachedMessagesData ---", _.get(this,"_cachedMessagesData",{}));
+                        // FABIEN : retourner les messages % filtres || tous les messages
+                    })
+                    .catch(e=>{
+                        console.log("--- CATCH cachedMessagesData ---", _.get(this,"_cachedMessagesData",{}));
+                        console.log("ERROR with : ", e)
+                        // FABIEN : dialog pour en avertir l'utilisateur
+                    })
+                    .finally(()=>{
+                        console.log("--- FIANNLY cachedMessagesData ---", _.get(this,"_cachedMessagesData",{}));
+
+                        this._closeReadMessageComponent();
+                        this.triggerGridResize()
+
+                        // FABIEN cacher le preload
+                        // grid.clearCache()
+                        // grid.notifyResize()
+                        // grid.render()
+                        // updatecounts
+
+                    })
 
             }
 
