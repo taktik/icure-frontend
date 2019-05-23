@@ -938,6 +938,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
+        <paper-dialog class="modalDialog" id="errorGettingEHealthBoxMessages" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('errorGettingEHealthBoxMessages','An error occurred while getting your messages',language)]]</h3>
+                <p class="textAlignCenter m-t-20">[[localize('pleaseReloadPageOrApp','Please reload the page / the application',language)]]</p>
+            </div>
+            <div class="dialogButtons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
 
 
 
@@ -1115,6 +1125,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 "deleted": []
                             }
                         }
+                    },
+                    currentHcp: {
+                        type: Object,
+                        value: {}
+                    },
+                    parentHcp: {
+                        type: Object,
+                        value: {}
+                    },
+                    isAMedicalHouse: {
+                        type: Boolean,
+                        value: false
+                    },
+                    isParentAMedicalHouse: {
+                        type: Boolean,
+                        value: false
+                    },
+                    medicalHouseBillingTypeIsFlatRate: {
+                        type: Boolean,
+                        value: false
                     }
                 };
             }
@@ -1186,91 +1216,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if ( parseInt(_.get(this,"page",1)) < parseInt(_.size(_.get(this,"pages",[]))) ) this.set('page', ( parseInt(_.get(this,"page",1)) + 1 ) )
             }
 
-            _getMessages(currentFolder) {
-
-                if(!_.trim(currentFolder)) return Promise.resolve(null);
-
-                this.set('page',1);
-                let foundMessages = [];
-
-                return !_.trim(currentFolder) ?
-                    foundMessages :
-                    (
-                        _.trim(currentFolder) === "sent" ? this._getSentMessages() :
-                        // _.trim(currentFolder) === "labResult" ? this._getLabResult() :
-                        _.trim(currentFolder) === "deleted" ? this._getDeletedMessages() :
-                        _.trim(currentFolder) === "hidden" ? this._getHidden() :
-                        this._getInbox()
-                    )
-                        .then(data=>foundMessages=_.compact(data||[]))
-                        .catch(e=>{ console.log(e); })
-                        .finally(()=>foundMessages)
-
-            }
-            
-            _getInbox() {
-                return this.api.message().findMessagesByToAddress('INBOX', null, null, 1000)
-                    .then(messages => _.get(messages,"rows",[]).filter( msg => { return (
-                            msg.fromAddress !== 'EFACT' &&
-                            !msg.transportGuid.startsWith('BIN') &&
-                            !msg.transportGuid.startsWith('GMD') &&
-                            !msg.transportGuid.startsWith('PROSE:') &&
-                            !msg.transportGuid.startsWith('HIDDEN:') &&
-                            !((msg.status&1<<14)!==0)
-                        )}))
-                    .then(messages=>_.orderBy(messages,['created','transportGuid'],['desc','desc']))
-            }
-            
-            _debug(inputValue){
-                console.log("_debug", typeof inputValue, inputValue);
-            }
-            
-            _enrichMessageWithPatientInfo(messages) {
-
-                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language), icon:"arrow-forward"});
-
-                const startPostion = (parseInt(this.page)-1) * parseInt(this._pageSize)
-                const endPosition = parseInt(this.page) * parseInt(this._pageSize)
-
-                // Resolve additional pat infos, observing pagination size (slice passes along as reference)
-                let messagesToResolve = messages.slice(startPostion, endPosition).filter(singleMessge=>!_.get(singleMessge,"patientInfosBasedOnResultInfo",false));
-
-                let prom = Promise.resolve([]);
-                const totalMessages = _.size(messagesToResolve)||1;
-                messagesToResolve.map((singleMessage,loopIndex) => {
-                    prom = prom.then(resolvedMessages => {
-                        return this.api.document().findByMessage(_.get(this,"user.healthcarePartyId", null), singleMessage)
-                            .then(docs => docs.filter(doc => !!_.get(doc,"id",false) && !!_.get(doc,"attachmentId",false) && !!_.get(doc,"secretForeignKeys",false) ))
-                            .then(docs => Promise.all(docs.map(singleDocument => {
-                                return this.api.crypto()
-                                    .extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), singleDocument.id, _.size(singleDocument.encryptionKeys) ? singleDocument.encryptionKeys : singleDocument.delegations)
-                                    .then(({extractedKeys: enckeys}) =>
-                                        this.api.beresultimport().canHandle(singleDocument.id, enckeys.join(','))
-                                            .then(isResult => (isResult ? this.api.beresultimport().getInfos(singleDocument.id, true, null, enckeys.join(',')) : false))
-                                            .catch(e=>{ /* console.log("Couldn't exec beresultimport().canHandle, error: ", e); console.log("singleDocument ", singleDocument); */ })
-                                    )
-                                    .then(resultInfos => _.compact(_.map(resultInfos, ri=> {
-                                        return {
-                                            lastName: _.upperFirst(_.trim(_.get(ri, "lastName", "NA")).toLowerCase()),
-                                            firstName: _.upperFirst(_.trim(_.get(ri, "firstName", "NA")).toLowerCase()),
-                                            dateOfBirthHr: (_.parseInt(_.get(ri, "dateOfBirth", 0)) ? "(" + moment(_.trim(_.get(ri, "dateOfBirth", ""))).format("DD/MM/YYYY") + ")" : ""),
-                                            // isAssigned: !!(parseInt(singleMessage.modified)%2),
-                                            isAssigned: !!_.size(_.get(singleMessage,"assignedResults",[])),
-                                            uniqueId: _.uniqueId(_.trim(_.get(singleMessage, "id", _.uniqueId())))
-                                        }
-                                    })))
-                                    .catch(e=>{})
-                            })))
-                            .then(resultInfos => {
-                                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language) + " " + (parseInt(loopIndex)+1) + "/" + totalMessages, icon:"arrow-forward", updateLastMessage: true});
-                                return _.concat(resolvedMessages, [_.merge(singleMessage, {patientInfosBasedOnResultInfo: (_.compact(_.flatMap(resultInfos))||[])})])
-                            })
-                            .catch(e=>{})
-                    })
-                })
-                return prom.then(()=>messages)
-            }
-            
             _isUnread(m) {
                 return !!((m.status & (1 << 1)) !== 0)
             }
@@ -1291,58 +1236,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return !!((m.status & (1 << 4)) !== 0)
             }
             
-            _getSentMessages() {
-                return this.api.message().findMessagesByToAddress('SENTBOX', null, null, 1000)
-                    .then(messages => _
-                        .chain(messages.rows)
-                        .filter(msg=>!_.trim(_.get(msg,"transportGuid","")).startsWith('BIN') && ((msg.status&(1<<14))===0))
-                        .orderBy(['created'],['desc'])
-                        .value()
-                    )
-            }
-            
-            _getHidden() {
-                return this.findMessagesByTransportGUIDs(['INBOX:*','SENTBOX:*','HIDDEN']).then(messages => _.filter(messages, m=>(((m.status&(1<<14)) !== 0) || !!_.trim(_.get(m,"transportGuid","")).startsWith('HIDDEN'))))
-            }
-
-            _getDeletedMessages() {
-				return this.findMessagesByTransportGUIDs(['BININBOX:*','BINSENTBOX:*'])
-            }
-
-            _refresh() {
-
-                if (this.menuSelectionObject && this.menuSelectionObject.selection) {
-
-                    this._resetLoadingMessage();
-                    this.set('_isLoading', true );
-                    this._setLoadingMessage({ message:this.localize('ehb.gettingMessages',this.language), icon:"arrow-forward"});
-
-                	const currentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
-
-					this._getMessages(currentFolder)
-                        .then(foundMessages=>{
-                            this._setLoadingMessage({ message:this.localize('ehb.gettingMessages_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                            return this._enrichMessageWithPatientInfo(foundMessages)
-                                .then(enrichedData=> foundMessages = enrichedData)
-                                .catch(e=>{ console.log("Couldn't _enrichMessageWithPatientInfo: ", e); })
-                                .finally(()=>{
-                                    this.set("_vaadinGridDataToShow", foundMessages)
-                                    this.set('_isLoading', false );
-                                })
-                        })
-                        .catch(e=>{ console.log(e); })
-                        .finally(()=>{
-                            this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                            this.triggerGridResize()
-                        })
-
-                } else {
-                    this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                    this.triggerGridResize()
-                }
-
-            }
-
             _pageChanged() {
 
                 if( this._messagesBeingChanged || !_.size(this._vaadinGridDataToShow) ) return;
@@ -1378,25 +1271,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set('_haveGridSelectedMessages',false)
             }
 
+            _clearGridCache() {
+                const vaadinMessagesGrid = this.shadowRoot.querySelector('#vaadinMessagesGrid');
+                vaadinMessagesGrid && vaadinMessagesGrid.clearCache()
+            }
+
             _gridSelectedItemsChanged(e) {
                 this.set("_haveGridSelectedMessages", !!_.size(this._getGridSelectedItems()))
             }
 
             _isEqual(a,b) {
                 return !!(a === b)
-            }
-
-            findMessagesByTransportGUIDs(transportGuids) {
-                return Promise.all(_.map(transportGuids, singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 1000).then(messages =>_.orderBy(messages.rows,['created','transportGuid'],['desc','desc']))))
-                    .then(promisesResults => Promise.resolve(
-                        _
-                            .chain(promisesResults)
-                            .flatMap()
-                            .uniqBy('id')
-                            .orderBy(['created','transportGuid'],['desc','desc'])
-                            .value()
-                        )
-                    )
             }
 
             _getBoxCapacity() {
@@ -1418,7 +1303,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return grid && setTimeout(()=>grid._scrollToIndex(0),250)
             }
 
-            triggerGridResize() {
+            _triggerGridResize() {
                 const grid = this.shadowRoot.getElementById('vaadinMessagesGrid')
                 return grid && grid.notifyResize()
             }
@@ -1427,11 +1312,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return parseInt(msTstamp) ? this.api.moment(parseInt(msTstamp)).format('DD/MM/YYYY') : ""
             }
 
-            _toggleProcessingPopup() {
+            _toggleProcessingPopup( inputMessage="" ) {
                 if(!_.get(this,"_isLoading",false)) {
                     this._resetLoadingMessage();
                     this.set('_isLoading', true );
-                    this._setLoadingMessage({ message:this.localize('ongoingProcess',this.language), icon:"arrow-forward"});
+                    this._setLoadingMessage({ message: _.trim(inputMessage) ? _.trim(inputMessage) : this.localize('ongoingProcess',this.language), icon:"arrow-forward"});
                 } else {
                     this.set('_isLoading', false );
                 }
@@ -1599,7 +1484,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.set("_vaadinGridDataToShow", foundMessages)
                             this.set('_isLoading', false );
                             this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                            this.triggerGridResize()
+                            this._triggerGridResize()
                         })
                     })
 
@@ -1627,7 +1512,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.set("_vaadinGridDataToShow", foundMessages)
                             this.set('_isLoading', false );
                             this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                            this.triggerGridResize()
+                            this._triggerGridResize()
                         })
                     })
 
@@ -1655,7 +1540,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.set("_vaadinGridDataToShow", foundMessages)
                             this.set('_isLoading', false );
                             this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
-                            this.triggerGridResize()
+                            this._triggerGridResize()
                         })
                     })
 
@@ -1677,6 +1562,168 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return this.dispatchEvent(new CustomEvent('selection-messages-change', { detail:{selection:{item:null}}}));
             }
 
+            assignResolvedObjects(inputObjects) {
+                _.map(inputObjects, (v,k)=> this.set(k,v))
+                this._getEHealthBoxData()
+            }
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            _getMessages(currentFolder) {
+
+                if(!_.trim(currentFolder)) return Promise.resolve(null);
+
+                this.set('page',1);
+                let foundMessages = [];
+
+                return !_.trim(currentFolder) ?
+                    foundMessages :
+                    (
+                        _.trim(currentFolder) === "sent" ? this._getSentMessages() :
+                        // _.trim(currentFolder) === "labResult" ? this._getLabResult() :
+                        _.trim(currentFolder) === "deleted" ? this._getDeletedMessages() :
+                        _.trim(currentFolder) === "hidden" ? this._getHidden() :
+                        this._getInbox()
+                    )
+                        .then(data=>foundMessages=_.compact(data||[]))
+                        .catch(e=>{ console.log(e); })
+                        .finally(()=>foundMessages)
+
+            }
+            
+            _getInbox() {
+                return this.api.message().findMessagesByToAddress('INBOX', null, null, 1000)
+                    .then(messages => _.get(messages,"rows",[]).filter( msg => { return (
+                            msg.fromAddress !== 'EFACT' &&
+                            !msg.transportGuid.startsWith('BIN') &&
+                            !msg.transportGuid.startsWith('GMD') &&
+                            !msg.transportGuid.startsWith('PROSE:') &&
+                            !msg.transportGuid.startsWith('HIDDEN:') &&
+                            !((msg.status&1<<14)!==0)
+                        )}))
+                    .then(messages=>_.orderBy(messages,['created','transportGuid'],['desc','desc']))
+            }
+            
+            _enrichMessageWithPatientInfo(messages) {
+
+                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language), icon:"arrow-forward"});
+
+                const startPostion = (parseInt(this.page)-1) * parseInt(this._pageSize)
+                const endPosition = parseInt(this.page) * parseInt(this._pageSize)
+
+                // Resolve additional pat infos, observing pagination size (slice passes along as reference)
+                let messagesToResolve = messages.slice(startPostion, endPosition).filter(singleMessge=>!_.get(singleMessge,"patientInfosBasedOnResultInfo",false));
+
+                let prom = Promise.resolve([]);
+                const totalMessages = _.size(messagesToResolve)||1;
+                messagesToResolve.map((singleMessage,loopIndex) => {
+                    prom = prom.then(resolvedMessages => {
+                        return this.api.document().findByMessage(_.get(this,"user.healthcarePartyId", null), singleMessage)
+                            .then(docs => docs.filter(doc => !!_.get(doc,"id",false) && !!_.get(doc,"attachmentId",false) && !!_.get(doc,"secretForeignKeys",false) ))
+                            .then(docs => Promise.all(docs.map(singleDocument => {
+                                return this.api.crypto()
+                                    .extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), singleDocument.id, _.size(singleDocument.encryptionKeys) ? singleDocument.encryptionKeys : singleDocument.delegations)
+                                    .then(({extractedKeys: enckeys}) =>
+                                        this.api.beresultimport().canHandle(singleDocument.id, enckeys.join(','))
+                                            .then(isResult => (isResult ? this.api.beresultimport().getInfos(singleDocument.id, true, null, enckeys.join(',')) : false))
+                                            .catch(e=>{ /* console.log("Couldn't exec beresultimport().canHandle, error: ", e); console.log("singleDocument ", singleDocument); */ })
+                                    )
+                                    .then(resultInfos => _.compact(_.map(resultInfos, ri=> {
+                                        return {
+                                            lastName: _.upperFirst(_.trim(_.get(ri, "lastName", "NA")).toLowerCase()),
+                                            firstName: _.upperFirst(_.trim(_.get(ri, "firstName", "NA")).toLowerCase()),
+                                            dateOfBirthHr: (_.parseInt(_.get(ri, "dateOfBirth", 0)) ? "(" + moment(_.trim(_.get(ri, "dateOfBirth", ""))).format("DD/MM/YYYY") + ")" : ""),
+                                            // isAssigned: !!(parseInt(singleMessage.modified)%2),
+                                            isAssigned: !!_.size(_.get(singleMessage,"assignedResults",[])),
+                                            uniqueId: _.uniqueId(_.trim(_.get(singleMessage, "id", _.uniqueId())))
+                                        }
+                                    })))
+                                    .catch(e=>{})
+                            })))
+                            .then(resultInfos => {
+                                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language) + " " + (parseInt(loopIndex)+1) + "/" + totalMessages, icon:"arrow-forward", updateLastMessage: true});
+                                return _.concat(resolvedMessages, [_.merge(singleMessage, {patientInfosBasedOnResultInfo: (_.compact(_.flatMap(resultInfos))||[])})])
+                            })
+                            .catch(e=>{})
+                    })
+                })
+                return prom.then(()=>messages)
+            }            
+            
+            _getSentMessages() {
+                return this.api.message().findMessagesByToAddress('SENTBOX', null, null, 1000)
+                    .then(messages => _
+                        .chain(messages.rows)
+                        .filter(msg=>!_.trim(_.get(msg,"transportGuid","")).startsWith('BIN') && ((msg.status&(1<<14))===0))
+                        .orderBy(['created'],['desc'])
+                        .value()
+                    )
+            }
+            
+            _getHidden() {
+                return this.findMessagesByTransportGUIDs(['INBOX:*','SENTBOX:*','HIDDEN']).then(messages => _.filter(messages, m=>(((m.status&(1<<14)) !== 0) || !!_.trim(_.get(m,"transportGuid","")).startsWith('HIDDEN'))))
+            }
+
+            _getDeletedMessages() {
+				return this.findMessagesByTransportGUIDs(['BININBOX:*','BINSENTBOX:*'])
+            }
+
+            _refresh() {
+
+                if (this.menuSelectionObject && this.menuSelectionObject.selection) {
+
+                    this._resetLoadingMessage();
+                    this.set('_isLoading', true );
+                    this._setLoadingMessage({ message:this.localize('ehb.gettingMessages',this.language), icon:"arrow-forward"});
+
+                	const currentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
+
+					this._getMessages(currentFolder)
+                        .then(foundMessages=>{
+                            this._setLoadingMessage({ message:this.localize('ehb.gettingMessages_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
+                            return this._enrichMessageWithPatientInfo(foundMessages)
+                                .then(enrichedData=> foundMessages = enrichedData)
+                                .catch(e=>{ console.log("Couldn't _enrichMessageWithPatientInfo: ", e); })
+                                .finally(()=>{
+                                    this.set("_vaadinGridDataToShow", foundMessages)
+                                    this.set('_isLoading', false );
+                                })
+                        })
+                        .catch(e=>{ console.log(e); })
+                        .finally(()=>{
+                            this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
+                            this._triggerGridResize()
+                        })
+
+                } else {
+                    this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: null } } }));
+                    this._triggerGridResize()
+                }
+
+            }
+            
+            findMessagesByTransportGUIDs(transportGuids) {
+                return Promise.all(_.map(transportGuids, singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 1000).then(messages =>_.orderBy(messages.rows,['created','transportGuid'],['desc','desc']))))
+                    .then(promisesResults => Promise.resolve(
+                        _
+                            .chain(promisesResults)
+                            .flatMap()
+                            .uniqBy('id')
+                            .orderBy(['created','transportGuid'],['desc','desc'])
+                            .value()
+                        )
+                    )
+            }            
+            
+
 
 
 
@@ -1688,22 +1735,29 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _getEHealthBoxData(menuSelectionObject,forceRefresh=false) {
 
-                const cacheTTL = (10**3)*120
-                const eHealthBoxFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
+                // Not ready yet, wait for assignResolvedObjects
+                if(!_.size(_.get(this,"currentHcp",{}))) return;
+
+                const cacheTTL = (10**3)*3600 // Long TTL on purpose, ehboxWebWorker will force refresh (when new message hits inbox / sentbox)
+                const eHealthBoxType = _.trim(_.get(this,"menuSelectionObject.selection.item","personalInbox"))
+                const eHealthBoxCurrentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
                 const shouldRefreshData = !!forceRefresh || !!(parseInt(_.get(this,"_getEHealthBoxDataLastRefreshTstamp",0)) < (+new Date() - cacheTTL))
 
-                this._resetLoadingMessage();
-                this.set('_isLoading', true );
-                this._setLoadingMessage({ message:this.localize('ehb.gettingMessages',this.language), icon:"arrow-forward"});
-
-                console.log("--- shouldRefreshData ---", shouldRefreshData);
+                this._toggleProcessingPopup(this.localize('ehb.gettingMessages',this.language));
 
                 const promiseResolver = !shouldRefreshData ?
-                    Promise.resolve(_.get(this,"_cachedMessagesData",{})) :
-                    Promise.all(_.map(["INBOX:*","SENTBOX:*","BININBOX:*","BINSENTBOX:*"], singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 10000).then(messages=>messages.rows)))
-                        .then(promisesResults => _.chain(promisesResults).flatMap().uniqBy('id').orderBy(['created','transportGuid'],['desc','desc']).value())
+                    Promise.resolve() :
+                    Promise.all(_.map(["INBOX:*","SENTBOX:*","BININBOX:*","BINSENTBOX:*"], singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 2000).then(messages=>messages.rows).catch(()=>{})))
+                        .then(promisesResults => _
+                            .chain(promisesResults)
+                            .flatMap()
+                            .uniqBy('id')
+                            .filter(msg=>_.trim(_.get(msg,"responsible","")) === (eHealthBoxType==="personalInbox" ? _.trim(_.get(this,"user.healthcarePartyId","")) : _.trim(_.get(this,"parentHcp.id",""))))
+                            .orderBy(['created','transportGuid'],['desc','desc'])
+                            .value()
+                        )
                         .then(foundMessages => {
-                            this.set("_getEHealthBoxDataLastRefreshTstamp",+new Date())
+                            this.set("_getEHealthBoxDataLastRefreshTstamp",( _.size(foundMessages) ? +new Date() : 0 ))
                             Object.keys(this._cachedMessagesData).forEach(k => this._cachedMessagesData[k] = [] )
                             return _.map(foundMessages, singleMessage => {
                                 const messageBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]",""))
@@ -1716,29 +1770,30 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     this.push("_cachedMessagesData.hidden", singleMessage)
                                 )
                             })
+
                         })
 
                 promiseResolver
                     .then(() => {
+
+                        this.dispatchEvent(new CustomEvent('update-menu-folders-totals', { bubbles:true, composed:true, detail:_.fromPairs(_.map(_.get(this,"_cachedMessagesData",{}), (v,k)=>[k, _.size(v)])) }));
+
+                        this._resetGridSelectedItems()
+                        this._clearGridCache()
+
                         console.log("--- THEN cachedMessagesData ---", _.get(this,"_cachedMessagesData",{}));
-                        // FABIEN : retourner les messages % filtres || tous les messages
+                        this.set("_vaadinGridDataToShow", _.get(this,"_cachedMessagesData." + eHealthBoxCurrentFolder,[]));
+                        // FABIEN : retourner les messages % filtres || tous les messages ==> pour eHealthBoxCurrentFolder, % current grid page
+
                     })
-                    .catch(e=>{
-                        console.log("--- CATCH cachedMessagesData ---", _.get(this,"_cachedMessagesData",{}));
-                        console.log("ERROR with : ", e)
-                        // FABIEN : dialog pour en avertir l'utilisateur
-                    })
+                    .catch(e=>setTimeout(()=>{ console.log("ERROR with _getEHealthBoxData: ", e); this.set("_bodyOverlay", true); this.$["errorGettingEHealthBoxMessages"].open(); },200))
                     .finally(()=>{
-                        console.log("--- FIANNLY cachedMessagesData ---", _.get(this,"_cachedMessagesData",{}));
 
-                        this._closeReadMessageComponent();
-                        this.triggerGridResize()
+                        this._closeReadMessageComponent()
+                        this._triggerGridResize()
+                        this._toggleProcessingPopup()
 
-                        // FABIEN cacher le preload
-                        // grid.clearCache()
-                        // grid.notifyResize()
-                        // grid.render()
-                        // updatecounts
+                        // grid.clearCache() ?
 
                     })
 

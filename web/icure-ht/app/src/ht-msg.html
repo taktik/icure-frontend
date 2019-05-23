@@ -25,6 +25,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
 <dom-module id="ht-msg">
 
+
+
     <template>
 
         <style include="shared-styles">
@@ -184,18 +186,33 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-icon-button class="display-left-menu open" icon="chevron-left" on-tap="_closeColumn"></paper-icon-button>
             </template>
 
-            <ht-msg-menu id="msg-menu" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"on-selection-change="handleMenuChange"></ht-msg-menu>
+            <ht-msg-menu
+                id="msg-menu"
+                api="[[api]]"
+                i18n="[[i18n]]"
+                language="[[language]]"
+                resources="[[resources]]"
+                user="[[user]]"
+                on-selection-change="handleMenuChange"
+            ></ht-msg-menu>
 
             <template is="dom-if" if="[[isEHealthBox]]">
                 <div class="sub-container">
                     
-                    <ht-msg-list id="msg-list" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"
+                    <ht-msg-list
+                        id="msg-list"
+                        api="[[api]]"
+                        i18n="[[i18n]]"
+                        language="[[language]]"
+                        resources="[[resources]]"
+                        user="[[user]]"
                         menu-selection-object="[[selectList]]"
                         on-selection-messages-change="handleMessageChange"
                         on-new-msg="_newMsg"
                         on-fw-msg="_fwMsg"
                         on-re-msg="_reMsg"
                         class$="[[_selectedElem(selectedMessage)]]"
+                        on-update-menu-folders-totals="callPersonalInboxUpdateMenuFoldersTotals"
                     ></ht-msg-list>
 
                     <ht-msg-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" 
@@ -231,18 +248,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </template>
 
             <template is="dom-if" if="[[flatrateinvoicesLayout]]">
-                    <ht-msg-flatrate-invoice
-                        id="msg-flatrate-invoice"
-                        api="[[api]]"
-                        i18n="[[i18n]]"
-                        language="[[language]]"
-                        resources="[[resources]]"
-                        user="[[user]]"
-                        flatrate-menu-section="[[flatrateMenuSection]]"
-                        on-selection-messages-change="handleMessageChange"
-                        on-initialize-batch-counter-j20="callInitializeBatchCounterJ20"
-                        on-do-route="_doRouteFlatRate"
-                    ></ht-msg-flatrate-invoice>
+                <ht-msg-flatrate-invoice
+                    id="msg-flatrate-invoice"
+                    api="[[api]]"
+                    i18n="[[i18n]]"
+                    language="[[language]]"
+                    resources="[[resources]]"
+                    user="[[user]]"
+                    flatrate-menu-section="[[flatrateMenuSection]]"
+                    on-selection-messages-change="handleMessageChange"
+                    on-initialize-batch-counter-j20="callInitializeBatchCounterJ20"
+                    on-do-route="_doRouteFlatRate"
+                ></ht-msg-flatrate-invoice>
             </template>
 
             <template is="dom-if" if="[[mycarenetLayout]]">
@@ -259,7 +276,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
     </template>
 
+
+
     <script>
+
         class HtMsg extends Polymer.Element {
 
             static get is() {
@@ -318,12 +338,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     ehealthSession: {
                         type: Boolean,
                         value: false
+                    },
+                    currentHcp: {
+                        type: Object,
+                        value: {}
+                    },
+                    parentHcp: {
+                        type: Object,
+                        value: {}
+                    },
+                    isAMedicalHouse: {
+                        type: Boolean,
+                        value: false
+                    },
+                    isParentAMedicalHouse: {
+                        type: Boolean,
+                        value: false
+                    },
+                    medicalHouseBillingTypeIsFlatRate: {
+                        type: Boolean,
+                        value: false
                     }
                 }
             }
 
             static get observers() {
-                return ['_isConnectedToEhbox(api.tokenId)'];
+                return [
+                    '_isConnectedToEhbox(api.tokenId)',
+                    '_getCurrentAndParentHcps(user)'
+                ];
             }
 
             constructor() {
@@ -341,7 +384,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _triggerGotoInbox() {
-                this.$['msg-menu'].dispatchEvent(new CustomEvent('selection-change',{detail:{selection:{item:"inbox", folder:"inbox"}}}))
+                this.$['msg-menu'].dispatchEvent(new CustomEvent('selection-change',{detail:{selection:{item:"personalInbox", folder:"inbox"}}}))
             }
 
             _isConnectedToEhbox() {
@@ -408,7 +451,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _triggerGridResize() {
                 const msgList = this.shadowRoot.querySelector('#msg-list')|| false
-                return msgList && msgList.triggerGridResize()
+                return msgList && msgList._triggerGridResize()
             }
 
 			handleRefreshlist(e) {
@@ -449,6 +492,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.shadowRoot.querySelector("#msg-menu").initializeBatchCounterJ20(e)
             }
 
+            callPersonalInboxUpdateMenuFoldersTotals(e){
+                this.shadowRoot.querySelector("#msg-menu") && typeof _.get(this.shadowRoot.querySelector("#msg-menu"), "updatePersonalInboxMenuFoldersTotals", false) === "function" && this.shadowRoot.querySelector("#msg-menu").updatePersonalInboxMenuFoldersTotals(e)
+            }
+
             _doRouteFlatRate(e){
                 this.handleMenuChange({ detail: e.detail })
                 _.get(this, "$['msg-menu'].shadowRoot", false)
@@ -457,8 +504,41 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     && _.map(_.get(this, "$['msg-menu'].shadowRoot", false).querySelectorAll("[data-status='" + _.get(e, "detail.selection.status", "") + "']"),e=>{ try{e.click()}catch(e){}})
             }
 
+            _getCurrentAndParentHcps(user) {
+
+                const userId = _.trim(_.get(user,"id",""))
+                const userHealthcarePartyId = _.trim(_.get(user,"healthcarePartyId",""))
+                if(!userId || !userHealthcarePartyId) return;
+
+                this.api.hcparty().getHealthcareParty(userHealthcarePartyId)
+                    .then(currentHcp => {
+                        this.set("currentHcp",currentHcp)
+                        this.set("isAMedicalHouse",_.trim(_.get(currentHcp, "type", "")).toLowerCase() === 'medicalhouse')
+                        this.set("medicalHouseBillingTypeIsFlatRate",_.trim(_.get(currentHcp, "billingType", "")).toLowerCase() === 'flatrate')
+                        return currentHcp
+                    })
+                    .then(currentHcp => !_.trim(_.get(currentHcp, "parentId", "")) ? 
+                        false : 
+                        this.api.hcparty().getHealthcareParty(_.trim(_.get(currentHcp, "parentId", "")))
+                            .then(parentHcp => {
+                                this.set("parentHcp",parentHcp)
+                                this.set("isParentAMedicalHouse",_.trim(_.get(parentHcp, "type", "")).toLowerCase() === 'medicalhouse')
+                            })
+                    )
+                    .catch((e)=>console.log("ERROR with _getCurrentAndParentHcps:", e))
+                    .finally(()=> {
+                        this.shadowRoot.querySelector("#msg-menu") && typeof _.get(this.shadowRoot.querySelector("#msg-menu"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-menu").assignResolvedObjects({currentHcp:this.currentHcp, isAMedicalHouse:this.isAMedicalHouse, medicalHouseBillingTypeIsFlatRate:this.medicalHouseBillingTypeIsFlatRate, parentHcp:this.parentHcp, isParentAMedicalHouse:this.isParentAMedicalHouse})
+                        this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-list").assignResolvedObjects({currentHcp:this.currentHcp, isAMedicalHouse:this.isAMedicalHouse, medicalHouseBillingTypeIsFlatRate:this.medicalHouseBillingTypeIsFlatRate, parentHcp:this.parentHcp, isParentAMedicalHouse:this.isParentAMedicalHouse})
+                    })
+
+            }
+
         }
 
         customElements.define(HtMsg.is, HtMsg)
+
     </script>
+    
+    
+    
 </dom-module>
