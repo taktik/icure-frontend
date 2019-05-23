@@ -329,7 +329,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.title]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.metas.filename]]</div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="0" width="104px">
@@ -337,7 +337,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <vaadin-grid-sorter path="import_date" direction="asc">[[localize('import_date','Import Date',language)]]</vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.importDate)]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.metas.importDate)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="0" width="104px">
@@ -345,7 +345,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <vaadin-grid-sorter path="doc_date" direction="asc">[[localize('doc_date','Date',language)]]</vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.docDate)]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.metas.documentDate)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="1">
@@ -580,13 +580,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return !!(a === b)
             }
 
+            _decryptAll(messages) {
+                messages.map(docMessage => this.api.document().findByMessage(this.user.healthcarePartyId, docMessage)
+                    .then(found => {
+                        this.firstFound = found[0];
+                        return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys);
+                    })
+                    .then(attachmentResponse => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.firstFound, attachmentResponse))
+                    // .then(decryptedFileContent => this.api.triggerFileDownload(decryptedFileContent,"application/pdf", _.get(docMessage, "filename","my-scanned-document.pdf")))
+                    .catch(error=> console.log('error:', error)))
+            }
+
+
             _getDocMessages(documentSource, currentFolder) {
                 return this.api.message().findMessagesByTransportGuid('DOC:' + documentSource + ':IN', null, null, null, 1000)
                     .then(messages => {
-                        console.log('message count: ', messages.rows.length)
-                        return messages.rows.filter(m => currentFolder === 'todealwith' ? this._dealtWith(m) : !this._dealtWith(m)).map(m => m['source'] = documentSource)
+                        console.log('message count: ', messages.rows.length);
+                        return messages.rows.filter(m => currentFolder === 'todealwith' ? this._dealtWith(m) : !this._dealtWith(m)).map(m => { m['source'] = documentSource; return m; })
                     })
-                    .then(messages =>_.orderBy(messages, ['created','transportGuid'],['desc','desc']))
+                    .then(messages => _.orderBy(messages, ['created','transportGuid'],['desc','desc']))
+                    .then(messages => Promise.all(this._decryptAll(messages)))
             }
 
             _dealtWith(m) {
@@ -594,36 +607,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _getDocuments(currentFolder) {
-                return Promise.all(this._documentSources.map(documentSource => this._getDocMessages(documentSource, currentFolder)
-                        .then(docMessages => docMessages.map(docMessage => this.api.document().findByMessage(this.user.healthcarePartyId, docMessage)
-                            .then(found => {
-                                console.log('findByMessage', found.length);
-                                return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys)
-                            })
-                            .then(attachmentResponse => {
-                                console.log('getAttachment', attachmentResponse);
-                                return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, _.head(found), attachmentResponse)
-                            })
-                            .then(decryptedFileContent => {
-                                console.log('encryptDecryptFileContentByUserHcpIdAndCocumentObject', decryptedFileContent);
-                                return this.api.triggerFileDownload(decryptedFileContent,"application/pdf", _.get(docMessage, "filename","my-scanned-document.pdf"))
-                            })
-                            .catch(()=>{})))
-                        .then(docMessages => docMessages))
-                )
+                return Promise.all(this._documentSources.map(documentSource => this._getDocMessages(documentSource, currentFolder)))
                 .then(docMessages => _.compact(_.concat(docMessages[0], docMessages[1])))
                 .then(docMessages => {
                     return {
-                        rows:_.filter(docMessages.rows, m => {
-                            return m
-                                && !_.get(m,'patientId', false)
-                                && _.get(m, "recipients", []).indexOf(this.user.healthcarePartyId) > -1
-                        }),
+                        // rows:_.filter(docMessages.rows, m => {
+                        //     return m
+                        //         && !_.get(m,'patientId', false)
+                        //         && _.get(m, "recipients", []).indexOf(this.user.healthcarePartyId) > -1
+                        // }),
+                        rows:docMessages,
                     }
                 })
                 .catch(()=>{ return Promise.resolve(); })
             }
-
 
             _getMessages(currentFolder) {
                 if(!currentFolder) return Promise.resolve(null);
