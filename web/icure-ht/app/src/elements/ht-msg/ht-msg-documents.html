@@ -315,7 +315,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             <div class="second-panel col-right">
                 <ht-spinner class="center" active="[[isLoadingMailList]]"></ht-spinner>
                 <vaadin-grid id="vaadinDocumentsGrid" class="material" multi-sort="[[multiSort]]"
-                             active-item="{{activeItem}}" items="[[documents]]"
+                             active-item="{{activeItem}}" items="[[messages]]"
                              on-tap="_documentTapped"
                              selection-mode="multi" width="100%" pageSize="[[_pageSize]]">
                     <vaadin-grid-column flex-grow="0" width="46px">
@@ -356,20 +356,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class$="cell [[_boldIfIsUnread(item)]]">[[item.hcp]]</div>
                         </template>
                     </vaadin-grid-column>
-                    <vaadin-grid-column flex-grow="1">
+                    <!--<vaadin-grid-column flex-grow="1">
                         <template class="header">[[localize('pat','Patient',language)]]</template>
                         <template>
-                            <template is="dom-repeat" items="[[item.patientInfosBasedOnResultInfo]]" as="patientInfos">
-                                <div class$="singlePatientInfo [[_boldIfIsUnread(item)]]">
-                                    <template is="dom-if" if="[[patientInfos.isAssigned]]"><div id="hasLab-[[patientInfos.uniqueId]]" class="labicon"></div><paper-tooltip position="right" for="hasLab-[[patientInfos.uniqueId]]">[[localize('assigned_labresults','Assigned lab results',language)]]</paper-tooltip></template>
-                                    <template is="dom-if" if="[[!patientInfos.isAssigned]]"><div id="hasLab-[[patientInfos.uniqueId]]" class="labicon unassigned-true"></div><paper-tooltip position="right" for="hasLab-[[patientInfos.uniqueId]]">[[localize('unassigned_labresults','Unassigned lab results',language)]]</paper-tooltip></template>
-                                    [[patientInfos.lastName]]
-                                    [[patientInfos.firstName]]
-                                    [[patientInfos.dateOfBirthHr]]
-                                </div>
-                            </template>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.]]</div>
                         </template>
-                    </vaadin-grid-column>
+                    </vaadin-grid-column>-->
                     <vaadin-grid-column width="138px" flex-grow="0">
                         <template class="header">
                         </template>
@@ -499,7 +491,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         value: false,
                         observer: '_loadingStatusChanged'
                     },
-                    _documentSources: {
+                    _importedDocumentType: {
                         type: Array,
                         value: ['SCAN', 'IMPORT', 'HUB']
                     },
@@ -523,7 +515,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Object,
                         value: null
                     },
-                    documents: {
+                    messages: {
                         type: Array,
                         value: function () {
                             return [];
@@ -580,7 +572,34 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return !!(a === b)
             }
 
-            _decryptAll(messages) {
+            _getMessages(currentFolder) {
+                if(!currentFolder) return Promise.resolve(null);
+
+                this.set('page',1);
+                let foundMessages = [];
+
+                return !currentFolder ?
+                    foundMessages :
+
+                    Promise.all(this._importedDocumentType.map(importedDocumentType => this.api.message().findMessagesByTransportGuid('DOC:' + importedDocumentType + ':IN', null, null, null, 1000)
+                        .then(messages => {
+                            console.log('message count: ', messages.rows.length);
+                            return messages.rows.filter(m => currentFolder === 'todealwith' ? this._dealtWith(m) : !this._dealtWith(m))
+                        })
+                        .then(messages => _.orderBy(messages, ['created','transportGuid'],['desc','desc']))
+                    ))
+                    //.then(messages => Promise.all(this._decryptAll(messages)))))
+                    .then(messagesByType => _.flatten(messagesByType))
+                    .then(messages => foundMessages=_.compact(messages||[]))
+                    .catch(e=>{
+                        console.log(e);
+                        return []
+                    })
+                    .finally(()=>foundMessages)
+            }
+
+
+            /*_decryptAll(messages) {
                 messages.map(docMessage => this.api.document().findByMessage(this.user.healthcarePartyId, docMessage)
                     .then(found => {
                         this.firstFound = found[0];
@@ -589,54 +608,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     .then(attachmentResponse => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.firstFound, attachmentResponse))
                     // .then(decryptedFileContent => this.api.triggerFileDownload(decryptedFileContent,"application/pdf", _.get(docMessage, "filename","my-scanned-document.pdf")))
                     .catch(error=> console.log('error:', error)))
-            }
-
-
-            _getDocMessages(documentSource, currentFolder) {
-                return this.api.message().findMessagesByTransportGuid('DOC:' + documentSource + ':IN', null, null, null, 1000)
-                    .then(messages => {
-                        console.log('message count: ', messages.rows.length);
-                        return messages.rows.filter(m => currentFolder === 'todealwith' ? this._dealtWith(m) : !this._dealtWith(m)).map(m => { m['source'] = documentSource; return m; })
-                    })
-                    .then(messages => _.orderBy(messages, ['created','transportGuid'],['desc','desc']))
-                    .then(messages => Promise.all(this._decryptAll(messages)))
-            }
+            }*/
 
             _dealtWith(m) {
                 return !!((m.status & (1 << 26)) !== 0)
             }
 
-            _getDocuments(currentFolder) {
-                return Promise.all(this._documentSources.map(documentSource => this._getDocMessages(documentSource, currentFolder)))
-                .then(docMessages => _.compact(_.concat(docMessages[0], docMessages[1])))
-                .then(docMessages => {
-                    return {
-                        // rows:_.filter(docMessages.rows, m => {
-                        //     return m
-                        //         && !_.get(m,'patientId', false)
-                        //         && _.get(m, "recipients", []).indexOf(this.user.healthcarePartyId) > -1
-                        // }),
-                        rows:docMessages,
-                    }
-                })
-                .catch(()=>{ return Promise.resolve(); })
-            }
 
-            _getMessages(currentFolder) {
-                if(!currentFolder) return Promise.resolve(null);
 
-                this.set('page',1);
-                let foundDocuments = [];
-
-                return !currentFolder ?
-                    foundDocuments :
-                    (
-                        this._getDocuments(currentFolder)
-                    )
-                        .then(data=>foundDocuments=_.compact(data||[]))
-                        .catch(e=>{ console.log(e); })
-                        .finally(()=>foundDocuments)
-            }
 
             _refresh() {
                 if (this.menuSelectionObject && this.menuSelectionObject.selection) {
@@ -648,9 +627,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     const currentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","todealwith"))
 
                     this._getMessages(currentFolder)
-                        .then(foundDocuments=>{
+                        .then(foundMessages=>{
                             this._setLoadingMessage({ message:this.localize('ehb.gettingMessages_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
-                            this.set("documents", foundDocuments)
+                            this.set("messages", foundMessages)
                             this.set('_isLoading', false );
                         })
                         .catch(e=>{ console.log(e); })
