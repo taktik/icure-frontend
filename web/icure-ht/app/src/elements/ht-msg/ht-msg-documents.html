@@ -27,6 +27,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
 <link rel="import" href="../dynamic-form/ckmeans-grouping.html">
 <link rel="import" href="../ht-spinner/ht-spinner.html">
+<link rel="import" href="ht-msg-import-doc-dialog.html">
 
 
 <dom-module id="ht-msg-documents">
@@ -666,6 +667,64 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set("_haveCheckedMessages", !!totalCheckMessages);
                 return this.set('allSelected',( totalCheckMessages ===_.size(_.get(this,"messages",[])) || totalCheckMessages === parseInt(_.get(this,"_pageSize",50)) ))
 
+            }
+
+            _createNewDocument(){
+                this.dispatchEvent(new CustomEvent('open-new-doc', { detail: null, bubbles: true }))
+            }
+
+            saveDoc(e){
+                if(!(e && e.detail && e.detail.documents && e.detail.documents.length))return;
+
+                (e.detail.documents || []).map( doc =>{
+                    Promise.all([
+                        this.api.user().findByHcpartyId(doc.hcp),
+                        this.api.message().newInstance(this.user)])
+                        .then(([user,msg]) => this.api.message().createMessage(_.merge(msg,{
+                            transportGuid : "DOC:"+(doc.isScanned ? "SCAN" :"IMPORT")+":IN",
+                            recipients :[doc.hcp,(this.user.healthcarePartyId || (this.hcp && this.hcp.id) || "")],
+                            recipientsType : "org.taktik.icure.entities.HealthcareParty",
+                            metas :{
+                                filename : doc.title,
+                                importDate : doc.importDate,
+                                documentDate : doc.docDate,
+                                type : doc.type
+                            },
+                            toAddresses : [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")),_.get(user,"email",doc.hcp)],
+                            subject : "imported doc in message",
+                            //@ToDo test on persphysician ==> traited or not
+                            status : (doc.isScanned ? 1<<24 : 0) | 1<<25 | (doc.patientId ? 1<<26 : 0)
+                        })))
+                        .then(msg => this.api.document().newInstance(this.user, msg, {
+                            documentType: doc.type,
+                            mainUti: this.api.document().uti("application/"+doc.extension),
+                            name: doc.title.includes("."+doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
+                        )
+                        .then(newDoc => this.api.document().createDocument(newDoc))
+                        .then(createdDoc =>{
+                            doc.docId = createdDoc.id
+                            return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
+                        })
+                        .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))
+                        .finally(x => {
+                            if(!doc.patientId)return;
+
+                            this.api.contact().newInstance(this.user, doc.patientId, {
+                                created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+                                modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+                                author: this.user.id,
+                                responsible: this.user.healthcarePartyId,
+                                subContacts: []
+                            }).then(contact => {
+                                const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'imported document' });
+                                contact.services.push(svc);
+                                const sc = { status: 64, services: [{ serviceId: svc.id }] };
+                                contact.subContacts.push(sc);
+
+                                return this.api.contact().createContactWithUser(this.user,contact)
+                            }).then(contact => this.api.register(contact,"contact"))
+                        })
+                })
             }
 
         }
