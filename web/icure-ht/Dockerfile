@@ -29,7 +29,7 @@ ARG wpc=webpack.config.js
 ARG task=build
 RUN npm run $task
 
-FROM nginx:stable-alpine
+FROM nginx:1.14.2-alpine
 
 # nginx
 RUN apk add --no-cache nginx-mod-http-headers-more
