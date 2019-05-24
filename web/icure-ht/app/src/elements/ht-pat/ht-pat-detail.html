@@ -3602,14 +3602,30 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                     const now = moment()
 
-                    this.set('activeHealthElements', (this.activeHealthElements || []).concat(svcHes).filter(it => ( !it.closingDate || ( it.closingDate && this.api.moment(it.closingDate).isSameOrAfter(now) ) ) && (it.status & 1) === 0 && (( it.status & 2 ) === 0 || (it.openingDate && this.api.moment( it.openingDate ).isSameOrAfter( firstJanuary2018 ))) && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement'))))
-                    this.set('inactiveHealthElements', (this.inactiveHealthElements || []).concat(svcHes).filter(it => ( ( it.closingDate && this.api.moment(it.closingDate).isBefore(now) ) || (it.status & 1) === 1) && (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement'))))
-                    this.set('archivedHealthElements', (this.archivedHealthElements || []).concat(svcHes).filter(it => (it.status & 2) === 2))
-                    this.set('allergies', (this.allergies || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'allergy')))
-                    this.set('risks', (this.risks || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'risk' || c.code === 'socialrisk'))))
-                    this.set('familyrisks', (this.familyrisks || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'familyrisk')))
-                    this.set('surgicalHealthElements', (this.surgicalHealthElements || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'surgery')))
-                    this.filterEvents()
+                    const sorter = x => [
+                        ((x.codes || []).find(c => c.type === 'ICPC' || c.type === 'ICPC2') || {}).code || "\uff0f",
+                        -(x.valueDate || x.openingDate || 0),
+                        -(x.closingDate || 0)
+                    ]
+
+                    this.api.code().icpcChapters(_.compact(combinedHes.concat(svcHes).map(he => he.codes.find(c => c.type === 'ICPC' || c.type === 'ICPC2'))).map(x => x.code)).then(codes => {
+                        codes.forEach(cc => {
+                            cc.healthElements = _.sortBy(combinedHes.concat(svcHes).filter(he => {
+                                let heIcpc = he.codes.find(c => c.type === 'ICPC' || c.type === 'ICPC2')
+                                return (he.healthElementId || he.svc && he.svc.id) && heIcpc && cc.subCodes.includes(heIcpc.code)
+                            }), sorter)
+                            cc.healthElements.forEach(he => he.colour = cc.descr.colour)
+                        })
+                    }).then(() => {
+                        this.set('activeHealthElements', (this.activeHealthElements || []).concat(svcHes).filter(it => ( !it.closingDate || ( it.closingDate && this.api.moment(it.closingDate).isSameOrAfter(now) ) ) && (it.status & 1) === 0 && (( it.status & 2 ) === 0 || (it.openingDate && this.api.moment( it.openingDate ).isSameOrAfter( firstJanuary2018 ))) && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement'))))
+                        this.set('inactiveHealthElements', (this.inactiveHealthElements || []).concat(svcHes).filter(it => ( ( it.closingDate && this.api.moment(it.closingDate).isBefore(now) ) || (it.status & 1) === 1) && (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'healthissue' || c.code === 'healthcareelement'))))
+                        this.set('archivedHealthElements', (this.archivedHealthElements || []).concat(svcHes).filter(it => (it.status & 2) === 2))
+                        this.set('allergies', (this.allergies || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'allergy')))
+                        this.set('risks', (this.risks || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'risk' || c.code === 'socialrisk'))))
+                        this.set('familyrisks', (this.familyrisks || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'familyrisk')))
+                        this.set('surgicalHealthElements', (this.surgicalHealthElements || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'surgery')))
+                        this.filterEvents()
+                    })
                 }
             }
 
