@@ -3565,6 +3565,14 @@
 			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length))return;
 
                 (e.detail.documents || []).map( doc =>{
+                	const tab = [
+						(doc.patientId ? {
+							patientId : doc.patientId,
+							isAssigned: true
+						}: {})
+					]
+					let message = null
+
                 	Promise.all([
 						this.api.user().findByHcpartyId(doc.hcp),
                     	this.api.message().newInstance(this.user)])
@@ -3583,10 +3591,19 @@
 								//@ToDo test on persphysician ==> traited or not
 								status : (doc.isScanned ? 1<<24 : 0) | 1<<25 | (doc.patientId ? 1<<26 : 0)
 							})))
+							.then(msg =>{
+								message = msg
+								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, msg,new Uint8Array(this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(tab)))))
+							})
+							.then(cryptedMsg =>{
+								message.metas.cryptedInfo = btoa(cryptedMsg)
+								return this.api.message().modifyMessage(message)
+							})
+							.then(msg => this.api.register(msg,"message"))
 							.then(msg => this.api.document().newInstance(this.user, msg, {
-									documentType: doc.type,
-									mainUti: this.api.document().uti(_.toLower(doc.extension)==="pdf" ? "application/"+_.toLower(doc.extension) : "image/"+_.toLower(doc.extension)),
-									name: doc.title.includes("."+doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
+								documentType: doc.type,
+								mainUti: this.api.document().uti(_.toLower(doc.extension)==="pdf" ? "application/"+_.toLower(doc.extension) : "image/"+_.toLower(doc.extension)),
+								name: doc.title.includes("."+doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
 							)
 							.then(newDoc => this.api.document().createDocument(newDoc))
 							.then(createdDoc =>{
