@@ -3596,21 +3596,23 @@
 							.then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))
 							.finally(x => {
 								if(!doc.patientId)return;
+								(doc.patientId===this.patient.id ? Promise.resolve(this.patient) : this.api.patient().getPatientWithUser(this.user, doc.patientId))
+									//.then(patient  => this.api.register(patient,"patient"))
+									.then(patient => this.api.contact().newInstance(this.user, patient, {
+										created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+										modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+										author: this.user.id,
+										responsible: this.user.healthcarePartyId,
+										subContacts: []
+									}))
+									.then(contact => {
+										const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'imported document' });
+										contact.services =[svc];
+										const sc = { status: 64, services: [{ serviceId: svc.id }] };
+										contact.subContacts.push(sc);
 
-								this.api.contact().newInstance(this.user, doc.patientId, {
-									created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-									modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-									author: this.user.id,
-									responsible: this.user.healthcarePartyId,
-									subContacts: []
-								}).then(contact => {
-									const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'imported document' });
-									contact.services =[svc];
-									const sc = { status: 64, services: [{ serviceId: svc.id }] };
-									contact.subContacts.push(sc);
-
-									return this.api.contact().createContactWithUser(this.user,contact)
-								}).then(contact => this.api.register(contact,"contact"))
+										return this.api.contact().createContactWithUser(this.user,contact)
+									}).then(contact => this.api.register(contact,"contact"))
 							})
 				})
 			}
