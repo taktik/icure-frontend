@@ -1274,10 +1274,12 @@
                                         </template>
                                         <template><span class$="invoice-status [[_getIconStatusClass(item.messageInfo.invoiceStatusHr)]]"><iron-icon icon="vaadin:circle" class$="statusIcon [[_getIconStatusClass(item.messageInfo.invoiceStatusHr)]]"></iron-icon> [[item.messageInfo.invoiceStatusHr]]</span></template>
                                     </vaadin-grid-column>
+                                    <!--
                                     <vaadin-grid-column flex-grow="1" class="stat-col">
                                         <template class="header"><vaadin-grid-sorter path="id">[[localize('download',"Télécharger",language)]] PDF</vaadin-grid-sorter></template>
                                         <template><paper-button class="grid-btn-small noBg noPad" on-tap="_downloadParentOaPdf" data-message-id$="[[item.id]]"><iron-icon icon="image:picture-as-pdf" class="force-left textRed" data-message-id$="[[item.id]]"></iron-icon> &nbsp; PDF</paper-button></template>
                                     </vaadin-grid-column>
+                                    -->
                                     <vaadin-grid-column flex-grow="1" class="stat-col">
                                         <template class="header"><vaadin-grid-sorter path="id">[[localize('downloadArchive',"Télécharger l'archive",language)]]</vaadin-grid-sorter></template>
                                         <template><paper-button class="grid-btn-small" on-tap="_downloadParentOaArchive" data-message-id$="[[item.id]]"><iron-icon icon="icons:folder" class="force-left" data-message-id$="[[item.id]]"></iron-icon> &nbsp; ZIP</paper-button></template>
@@ -1371,10 +1373,12 @@
                                         <span class$="invoice-status [[_getIconStatusClass(item.invoiceStatusHr)]]"><iron-icon icon="vaadin:circle" class$="statusIcon [[_getIconStatusClass(item.invoiceStatusHr)]]"></iron-icon> [[item.invoiceStatusHr]]</span>
                                     </template>
                                 </vaadin-grid-column>
+                                <!--
                                 <vaadin-grid-column flex-grow="1" class="stat-col">
                                     <template class="header"><vaadin-grid-sorter path="id">[[localize('download',"Télécharger",language)]] PDF</vaadin-grid-sorter></template>
                                     <template><paper-button class="grid-btn-small noBg noPad" on-tap="_downloadOaPdfByMessageId" data-message-id$="[[item.id]]"><iron-icon icon="image:picture-as-pdf" class="force-left textRed" data-message-id$="[[item.id]]"></iron-icon> &nbsp; PDF</paper-button></template>
                                 </vaadin-grid-column>
+                                -->
                                 <vaadin-grid-column flex-grow="1" class="stat-col">
                                     <template><paper-button class$="grid-btn-small modal-button-rejected [[_showRejectInvoiceButton(item.messageOriginalStatus, item.invoiceFinalStatus)]]" on-tap="_rejectInvoice" data-message-id$="[[item.id]]" data-invoice-id$="[[item.invoiceData.id]]" ><iron-icon icon="cancel" class="force-left" data-message-id$="[[item.id]]" data-invoice-id$="[[item.invoiceData.id]]"></iron-icon> &nbsp; [[localize('rejectVerb',"Reject",language)]]</paper-button></template>
                                 </vaadin-grid-column>
@@ -3101,24 +3105,35 @@
                 let prom = Promise.resolve([])
                 const allPats = _.flatMap(this.flatRateInvoicingDataObject.listsData)
                 const patsCount = _.size(allPats)
-                const parentInsuranceIds = allPats.reduce((acc,pat) => { const parentId = this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent; if (!acc.includes(parentId)) { acc.push(parentId) }; return acc}, [])
+
+                // TOP-418
+                // const parentInsuranceIds = allPats.reduce((acc,pat) => { const parentId = this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent; if (!acc.includes(parentId)) { acc.push(parentId) }; return acc}, [])
+                const parentInsuranceIds = _.compact(_.uniq(_.map( this.flatRateInvoicingDataObject.insurancesData, i=>_.get(i,"parent", false ))))
+
+                // TOP-435
+                const childrenInsurancesData = _.compact(_.uniqBy(_.map( this.flatRateInvoicingDataObject.insurancesData, i=>i), 'id'))
+
                 return this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : parentInsuranceIds})).then(
                     parentInsurances => {
                         allPats.forEach((pat,loopIndex) => {
                             prom = prom.then(pats =>
                                 this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
                                     .then(secretForeignKeys => {
-                                            const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
-                                            return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
-                                                .then(invoices =>
-                                                    !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
-                                                        .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
-                                                        .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
-                                                .then(newInvoice => {
-                                                    pat.invoices = [newInvoice]
-                                                    this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
-                                                    return _.concat(pats, [pat])
-                                                })
+
+                                        // TOP-435
+                                        // const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
+                                        const insParent = _.get(_.filter( parentInsurances, parentIns=> _.trim(_.get(parentIns, "id", "")) === _.trim(_.get(_.get(_.filter(childrenInsurancesData, i=>_.trim(_.get(i,"id",""))===_.trim(_.get(pat,"finalInsurability.insuranceId", ""))), "[0]", {}), "parent", ""))), "[0]", {})
+
+                                        return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
+                                            .then(invoices =>
+                                                !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
+                                                    .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
+                                                    .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
+                                            .then(newInvoice => {
+                                                pat.invoices = [newInvoice]
+                                                this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
+                                                return _.concat(pats, [pat])
+                                            })
                                         }
                                     ))
                         })
@@ -3337,7 +3352,7 @@
                         itm.endDateCode = Number(this.api.moment(invCd.dateCode).endOf('month').format("YYYYMMDD"));
                         itm.reimbursedAmount = invCd.reimbursement * 100;
                         itm.units = 1;
-                        inv.items.push(itm);
+                        if(!invCd.pending) inv.items.push(itm);
                     })
                 });
 
@@ -5062,7 +5077,7 @@
                                             parentOaLabel: _.get(_.filter(this.messagesCachedData.parentInsurancesData, ins => ins.id === _.get(message, "metas.parentOaId", "")), "[0].finalName"),
                                             invoiceData: invoiceData,
                                             patientData: _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][1]", {} ),
-                                            invoicedAmount: this.api.hrFormatNumber( this.api._powRoundFloatByPrecision( _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ), i=>parseFloat(i.totalAmount) ) ) ),
+                                            invoicedAmount: this.api.hrFormatNumber( this.api._powRoundFloatByPrecision( _.sumBy( _.get( _.get(_.filter(invoicesAndPatient, i=>_.get(i, "[0].id", "")===invoiceId), "[0][0]", {} ), "invoicingCodes", [] ).filter(it => !it.pending), i=>parseFloat(i.totalAmount) ) ) ),
                                             acceptedAmount: this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(acceptedAmount)),
                                             refusedAmount: this.api.hrFormatNumber(this.api._powRoundFloatByPrecision(refusedAmount)),
                                             invoiceStatusHr: _.get(invoiceStatus, "hrLabel"),
