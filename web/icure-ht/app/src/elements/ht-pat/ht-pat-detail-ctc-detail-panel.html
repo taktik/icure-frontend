@@ -3562,7 +3562,7 @@
 			}
 
 			saveDoc(e){
-			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length && this.currentContact))return;
+			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length))return;
 
                 (e.detail.documents || []).map( doc =>{
                 	Promise.all([
@@ -3586,24 +3586,33 @@
 							.then(msg => this.api.document().newInstance(this.user, msg, {
 									documentType: doc.type,
 									mainUti: this.api.document().uti("application/"+doc.extension),
-									name: doc.title.includes(doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
+									name: doc.title.includes("."+doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
 							)
 							.then(newDoc => this.api.document().createDocument(newDoc))
 							.then(createdDoc =>{
 								doc.docId = createdDoc.id
-								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
+								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc,doc.fileBlob)
 							})
 							.then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))
 							.finally(x => {
-								let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
-								if (!sc) {
-									sc = { status: 64, services: [] };
-									this.currentContact.subContacts.push(sc);
-								}
-								const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'document' });
-								this.currentContact.services.push(svc);
-								sc.services.push({ serviceId: svc.id });
-								this.saveCurrentContact().then(c => this._contactsChanged());
+								if(!doc.patientId)return;
+								(doc.patientId===this.patient.id ? Promise.resolve(this.patient) : this.api.patient().getPatientWithUser(this.user, doc.patientId))
+									//.then(patient  => this.api.register(patient,"patient"))
+									.then(patient => this.api.contact().newInstance(this.user, patient, {
+										created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+										modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+										author: this.user.id,
+										responsible: this.user.healthcarePartyId,
+										subContacts: []
+									}))
+									.then(contact => {
+										const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'imported document' });
+										contact.services =[svc];
+										const sc = { status: 64, services: [{ serviceId: svc.id }] };
+										contact.subContacts.push(sc);
+
+										return this.api.contact().createContactWithUser(this.user,contact)
+									}).then(contact => this.api.register(contact,"contact"))
 							})
 				})
 			}
