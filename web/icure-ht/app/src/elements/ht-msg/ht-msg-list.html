@@ -595,6 +595,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
 
                 .mr5 {margin-right:5px}
+                .ml5 {margin-left:5px}
 
                 .smallIcon { width:16px; height:16px; }
 
@@ -702,7 +703,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
 
                 .eHealthBoxProcessErrorMessage p {
-                    margin:0 0 10px 0
+                    margin:0 0 5px 0;
+                    border-bottom:1px dashed #dddddd;
+                    padding-bottom:5px;
+                }
+
+                .eHealthBoxProcessErrorMessage p:last-child {
+                    border-bottom:0;
                 }
 
                 .italic {
@@ -711,6 +718,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 .fs9em {
                     font-size:.9em;
+                }
+
+                .fs8em {
+                    font-size:.8em;
                 }
 
                 .displayBlock {
@@ -742,8 +753,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     border-top: 1px dashed #aaaaaa;
                 }
 
+                .w20 {
+                    width:20px;
+                }
+                .h20 {
+                    height:20px;
+                }
                 .w22 {
                     width:22px;
+                }
+
+                .modal-button-right {
+                    float:right;
+                    margin-right:55px;
                 }
 
             </style>
@@ -962,16 +984,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <div class="eHealthBoxProcessErrorMessage">
                     <template is="dom-repeat" items="[[_eHealthBoxProcessErrorMessages]]" as="singleErrorMessage" id="eHealthBoxProcessErrorMessageDomRepeat">
                         <p>
-                            <span class="bold italic displayBlock "><iron-icon icon="icons:mail" class="m-r-5 errorColorDark"></iron-icon> [[singleErrorMessage.subject]]</span>
-                            <span class="fs9em displayBlock"><iron-icon icon="social:person" class="m-r-5 errorColorDark"></iron-icon> [[singleErrorMessage.fromAddress]] - [[_msTstampToDDMMYYYY(singleErrorMessage.created)]]</span>
+                            <span class="fs9em bold italic displayBlock "><iron-icon icon="icons:mail" class="errorColorDark"></iron-icon> [[singleErrorMessage.subject]]</span>
+                            <span class="fs8em displayBlock">[[[_msTstampToDDMMYYYY(singleErrorMessage.created)]]] [[singleErrorMessage.fromAddress]]</span>
                         </p>
                     </template>
                 </div>
 
-                <p class=" m-t-25 bold">[[localize('pleaseContactUs','Please contact us',language)]]: <iron-icon icon="communication:phone" class="mr5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="tel:+3223192241" class="textDecorationNone">+32(0)2/319.22.41</a> - <iron-icon icon="icons:mail" class="mr5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="mailto:support@topaz.care" class="textDecorationNone">support@topaz.care</a>.</p>
+                <p class=" m-t-25 bold">[[localize('toContactUs','To contact us',language)]]: <iron-icon icon="communication:phone" class="mr5 ml5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="tel:+3223192241" class="textDecorationNone">+32(0)2/319.22.41</a> - <iron-icon icon="icons:mail" class="mr5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="mailto:support@topaz.care" class="textDecorationNone">support@topaz.care</a>.</p>
             </div>
             <div class="dialogButtons">
                 <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="modal-button modal-button-right" on-tap="_moveErrorMessagesToHiddenFolder"><iron-icon icon="icons:visibility-off" class="mr5 smallIcon" ></iron-icon> [[localize('moveMessagesToHiddenFolder','Move messages to hidden box',language)]]</paper-button>
             </div>
         </paper-dialog>
         <paper-dialog class="modalDialog" id="errorGettingEHealthBoxMessages" no-cancel-on-outside-click no-cancel-on-esc-key>
@@ -1368,81 +1391,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            _hideUnHideMessages() {
-
-                const selectedMessages = this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return
-
-                this._toggleProcessingPopup();
-
-                let prom = Promise.resolve([]);
-                selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(modifiedMessages => {
-                        const newMessageStatus = (_.get(singleSelectedMessage,"status",0)&(1<<14)) ? (_.get(singleSelectedMessage,"status",0)^(1<<14)) : (_.get(singleSelectedMessage,"status",0)|(1<<14)) // Reads: already hidden ? unhide : hide
-                        return !_.trim(_.get(singleSelectedMessage,"id","")) ?
-                            false :
-                            _.concat(modifiedMessages, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {status:newMessageStatus})).then(x=>x).catch(e=>console.log("ERROR with modifyMessage: ", e)))
-                    })
-                })
-
-                return prom
-                    .then(x=>x)
-                    .catch(e=>console.log("ERROR with _hideMessages: ",e))
-                    .finally(()=>{
-                        this._toggleProcessingPopup();
-                        this._resetGridSelectedItems();
-                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
-                        this._refresh()
-                    })
-
-            }            
-
-            _deletedUndeleteMessages() {
-
-                // No eHealthBox ?
-                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
-
-                const selectedMessages = this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return
-
-                this._toggleProcessingPopup()
-
-                let prom = Promise.resolve([]);
-                selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(promisesCarrier => {
-                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
-                        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
-                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
-                        return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
-                            false :
-                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
-                                .then(()=>_.concat(promisesCarrier, this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(()=>true).catch(()=>{})))
-                                .catch(()=>_.concat(promisesCarrier, singleSelectedMessage))
-                    })
-                })
-
-                return prom
-                    .then(executionResult => {
-                        const failedExecutions = _.compact(_.filter( executionResult, i => !!_.trim(_.get(i,"id","")) ? i : false))
-                        if(_.size(failedExecutions)) {
-                            setTimeout(()=>{
-                                this.set("_bodyOverlay", true);
-                                this.$["errorWithEHealthBoxProcessing"].open();
-                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
-                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
-                            },200)
-                        }
-                    })
-                    .catch(e=>console.log("ERROR with _deletedUndeleteMessages: ",e))
-                    .finally(()=>{
-                        this._toggleProcessingPopup();
-                        this._resetGridSelectedItems();
-                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
-                        this._refresh()
-                    })                
-
-            }
-
             _confirmDeleteMessagesForEver() {
 
                 const selectedMessages = this._getGridSelectedItems()
@@ -1453,52 +1401,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
             
-            _deleteMessagesForEver() {
-
-                // No eHealthBox ?
-                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
-
-                const selectedMessages = this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return
-
-                this._closeDialogs();
-                this._toggleProcessingPopup()
-
-                let prom = Promise.resolve([]);
-                selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(promisesCarrier => {
-                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
-                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
-                        return !eHealthBoxMessageId || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
-                            false :
-                            this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox)
-                                .then(()=>_.concat(promisesCarrier, this.api.message().deleteMessages(_.trim(_.get(singleSelectedMessage,"id",""))).then(()=>true).catch(()=>{})))
-                                .catch(()=>_.concat(promisesCarrier, singleSelectedMessage))
-                    })
-                })
-
-                return prom
-                    .then(executionResult => {
-                        const failedExecutions = _.compact(_.filter( executionResult, i => !!_.trim(_.get(i,"id","")) ? i : false))
-                        if(_.size(failedExecutions)) {
-                            setTimeout(()=>{
-                                this.set("_bodyOverlay", true);
-                                this.$["errorWithEHealthBoxProcessing"].open();
-                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
-                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
-                            },200)
-                        }
-                    })
-                    .catch(e=>console.log("ERROR with _deleteMessagesForEver: ",e))
-                    .finally(()=>{
-                        this._toggleProcessingPopup();
-                        this._resetGridSelectedItems();
-                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
-                        this._refresh()
-                    })
-
-            }
-
             _closeDialogs() {
                 this.set("_bodyOverlay", false);
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
@@ -1612,9 +1514,177 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 _.map(inputObjects, (v,k)=> this.set(k,v))
             }
 
-            _resetMessagesFilters() {
-                this.shadowRoot.querySelector('#allMessagesFilter').click()
+            _moveErrorMessagesToHiddenFolder() {
+                this._closeDialogs();
+                const messagesToHide = _.cloneDeep(this._eHealthBoxProcessErrorMessages)
+                this.set("_eHealthBoxProcessErrorMessages",[])
+                this._hideUnHideMessages(messagesToHide, {metas:{deletionFromeHealthBoxFailed:true}});
             }
+
+            _resetMessagesFilters() {
+                if(this.shadowRoot.querySelector('#allMessagesFilter') && typeof _.get(this.shadowRoot.querySelector('#allMessagesFilter'),"click",false) === "function" ) { try { this.shadowRoot.querySelector('#allMessagesFilter').click() } catch(e){} }
+            }
+
+            _updateCachedMessagesDataStructure(modifiedMessages) {
+
+                const idsOfMessagesToRemove = _.compact(_.map(_.compact(modifiedMessages),i=>_.trim(_.get(i,"message.id",""))))
+                let cachedMessagesDataCopy = _.cloneDeep(_.get(this,"_cachedMessagesData",{}))
+                let newCachedMessagesData =_.fromPairs(_.map(_.keys(cachedMessagesDataCopy), i=>[i,[]]))
+
+                // Drop from current folder
+                _.map(cachedMessagesDataCopy, (messagesOfFolder,cacheFolderName)=> newCachedMessagesData[cacheFolderName] = _.compact(_.remove(messagesOfFolder, i=>idsOfMessagesToRemove.indexOf(_.trim(_.get(i,"id","")))===-1)))
+
+                // Assign to new folder
+                _.map(modifiedMessages,i=>{
+                    const modifyAction = _.trim(_.get(i,"action",""))
+                    const singleMessage = _.get(i,"message",{})
+                    const messageBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]",""))
+                    const isHidden = !!(_.get(singleMessage,"status",0)&(1<<14))
+                    return (
+                        modifyAction === "hide" ? newCachedMessagesData.hidden.push(singleMessage) :
+                        modifyAction === "unhide" && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
+                        modifyAction === "unhide" && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
+                        modifyAction === "delete" ? newCachedMessagesData.deleted.push(singleMessage) :
+                        modifyAction === "undelete" && isHidden ? newCachedMessagesData.hidden.push(singleMessage) :
+                        modifyAction === "undelete" && !isHidden && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
+                        modifyAction === "undelete" && !isHidden && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
+                        false
+                    )
+                })
+
+                _.map(newCachedMessagesData, (v,k) => newCachedMessagesData[k] = _.chain(v).compact().orderBy(['created','transportGuid'],['desc','desc']).value())
+                this.set("_cachedMessagesData", newCachedMessagesData)
+                return setTimeout(()=>{Promise.resolve()},100)
+
+            }
+
+            _hideUnHideMessages(givenMessages=null,additionalDataForMessagesToUpdate=null) {
+
+                let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
+                selectedMessages = !_.size(additionalDataForMessagesToUpdate) || !!_.size(_.get(additionalDataForMessagesToUpdate,"sourceEvent",false)) ? selectedMessages : _.map(selectedMessages, i=>_.merge(additionalDataForMessagesToUpdate,i))
+                if(!_.size(selectedMessages)) return
+
+                this._toggleProcessingPopup();
+
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(promisesCarrier => {
+                        const isAlreadyHidden = !!(_.get(singleSelectedMessage,"status",0)&(1<<14))
+                        const newMessageStatus = isAlreadyHidden ? (_.get(singleSelectedMessage,"status",0)^(1<<14)) : (_.get(singleSelectedMessage,"status",0)|(1<<14))
+                        return !_.trim(_.get(singleSelectedMessage,"id","")) ? Promise.resolve() : this.api.message().modifyMessage(_.merge(singleSelectedMessage, {status:newMessageStatus})).then(modifiedMessage=>_.concat(promisesCarrier, {action:isAlreadyHidden?"unhide":"hide", message:modifiedMessage})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();})
+                    })
+                })
+
+                return prom
+                    .then(promisesCarrier=>this._updateCachedMessagesDataStructure(promisesCarrier))
+                    .catch(e=>console.log("ERROR with _hideMessages: ",e))
+                    .finally(()=>{
+                        this._toggleProcessingPopup();
+                        this._getEHealthBoxData();
+                    })
+
+            }
+
+
+
+
+
+
+            _deletedUndeleteMessages() {
+
+                // No eHealthBox ?
+                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+
+                const selectedMessages = this._getGridSelectedItems()
+                if(!_.size(selectedMessages)) return
+
+                this._toggleProcessingPopup()
+
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(promisesCarrier => {
+                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
+                        const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
+                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
+                        const action = sourceBox === "INBOX" || sourceBox === "SENTBOX" ? "delete" : "undelete"
+                        return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
+                            false :
+                            this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
+                                .then(()=> this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(modifiedMessage=>_.concat(promisesCarrier, {action:action, message:modifiedMessage, success:true})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();}))
+                                .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
+                    })
+                })
+
+                return prom
+                    .then(promisesCarrier => {
+                        const failedExecutions = _.map(_.compact(_.filter(promisesCarrier, i=>!_.get(i,"success",false))),i=>_.get(i,"message",{}))
+                        const successfulExecutions = _.compact(_.filter(promisesCarrier, i=>!!_.get(i,"success",false)))
+                        if(_.size(failedExecutions)) {
+                            setTimeout(()=>{
+                                this.set("_bodyOverlay", true);
+                                this.$["errorWithEHealthBoxProcessing"].open();
+                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
+                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
+                            },200)
+                        }
+                        return this._updateCachedMessagesDataStructure(successfulExecutions)
+                    })
+                    .catch(e=>console.log("ERROR with _deletedUndeleteMessages: ",e))
+                    .finally(()=>{
+                        this._toggleProcessingPopup();
+                        this._getEHealthBoxData();
+                    })
+
+            }
+
+            _deleteMessagesForEver() {
+
+                // No eHealthBox ?
+                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+
+                const selectedMessages = this._getGridSelectedItems()
+                if(!_.size(selectedMessages)) return
+
+                this._closeDialogs();
+                this._toggleProcessingPopup()
+
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(promisesCarrier => {
+                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
+                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
+                        return !eHealthBoxMessageId || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
+                            false :
+                            this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox)
+                                .then(()=>_.concat(promisesCarrier, this.api.message().deleteMessages(_.trim(_.get(singleSelectedMessage,"id",""))).then(()=>true).catch(()=>{})))
+                                .catch(()=>_.concat(promisesCarrier, singleSelectedMessage))
+                    })
+                })
+
+                return prom
+                    .then(executionResult => {
+                        const failedExecutions = _.compact(_.filter( executionResult, i => !!_.trim(_.get(i,"id","")) ? i : false))
+                        if(_.size(failedExecutions)) {
+                            setTimeout(()=>{
+                                this.set("_bodyOverlay", true);
+                                this.$["errorWithEHealthBoxProcessing"].open();
+                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
+                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
+                            },200)
+                        }
+                    })
+                    .catch(e=>console.log("ERROR with _deleteMessagesForEver: ",e))
+                    .finally(()=>{
+                        this._toggleProcessingPopup();
+                        this._resetGridSelectedItems();
+                        this.dispatchEvent(new CustomEvent('item-delete', {detail: {selection: {item: "Refresh"}}}))
+                        this._refresh()
+                    })
+
+            }
+
+
+
 
 
 
