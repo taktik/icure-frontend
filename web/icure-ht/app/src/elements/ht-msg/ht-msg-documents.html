@@ -338,7 +338,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <vaadin-grid-sorter path="import_date" direction="asc">[[localize('import_date','Import Date',language)]]</vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.metas.importDate)]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_formatDate(item.metas.importDate)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="0" width="104px">
@@ -346,7 +346,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <vaadin-grid-sorter path="doc_date" direction="asc">[[localize('doc_date','Date',language)]]</vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.metas.documentDate)]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[_formatDate(item.metas.documentDate)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="1">
@@ -494,7 +494,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     _importedDocumentType: {
                         type: Array,
+                        notify: false,
                         value: ['SCAN', 'IMPORT', 'HUB']
+                    },
+                    hcpMap : {
+                        type: Object,
+                        notify: false,
+                        value: () => new Map()
                     },
                     page: {
                         type: Number,
@@ -531,7 +537,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             static get observers() {
-                return [];
+                return [
+                    '_refresh(menuSelectionObject,menuSelectionObject.*)',
+                ];
             }
 
             ready() {
@@ -560,8 +568,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }, 100)
             }
 
-            _msTstampToDDMMYYYY(msTstamp) {
-                return parseInt(msTstamp) ? this.api.moment(parseInt(msTstamp)).format('DD/MM/YYYY') : ""
+            _formatDate(date) {
+                let moment = this.api.moment(date);
+                return moment ? moment.format('DD/MM/YYYY') : date;
             }
 
             _closeDialogs() {
@@ -583,20 +592,41 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     foundMessages :
 
                     Promise.all(this._importedDocumentType.map(importedDocumentType => this.api.message().findMessagesByTransportGuid('DOC:' + importedDocumentType + ':IN', null, null, null, 1000)
-                        .then(messages => {
-                            console.log('message count: ', messages.rows.length);
-                            return messages.rows.filter(m => currentFolder === 'todealwith' ? this._dealtWith(m) : !this._dealtWith(m))
-                        })
+                        .then(messages => messages.rows.filter(m => currentFolder === 'todealwith' ? this._dealtWith(m) : !this._dealtWith(m)))
+                        .then(messages => Promise.all(messages.map(message => this._getHealthcarePartyName(message.fromHealthcarePartyId)
+                            .then(name => {
+                                message['hcp'] = name;
+                                return message;
+                            })
+                        )))
                         .then(messages => _.orderBy(messages, ['created','transportGuid'],['desc','desc']))
                     ))
                     //.then(messages => Promise.all(this._decryptAll(messages)))))
-                    .then(messagesByType => _.flatten(messagesByType))
-                    .then(messages => foundMessages=_.compact(messages||[]))
-                    .catch(e=>{
-                        console.log(e);
-                        return []
-                    })
-                    .finally(()=>foundMessages)
+                        .then(messagesByType => _.flatten(messagesByType))
+                        .then(messages => foundMessages=_.compact(messages||[]))
+                        .catch(e=>{
+                            console.log(e);
+                            return []
+                        })
+                        .finally(()=>foundMessages)
+            }
+
+            _getHealthcarePartyName(fromHealthcarePartyId) {
+                let prom = this.hcpMap.get(fromHealthcarePartyId)
+                if (prom === undefined) {
+                    prom = this.api.hcparty().getHealthcareParty(fromHealthcarePartyId)
+                        .then(hcp => {
+                            return hcp.firstName + ' ' + hcp.lastName
+                        })
+                    this.hcpMap.set(fromHealthcarePartyId, prom)
+                }
+                return prom
+            }
+
+            _documentTapped(e) {
+                if(_.get(e,"path[0].nodeName","") === 'TABLE') return
+                this.set('selectedMessages', _.get(this,"activeItem",null));
+                this.dispatchEvent(new CustomEvent('selection-messages-change', { detail: { selection: { item: this.selectedMessages } } }));
             }
 
 
@@ -614,9 +644,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _dealtWith(m) {
                 return !!((m.status & (1 << 26)) !== 0)
             }
-
-
-
 
             _refresh() {
                 if (this.menuSelectionObject && this.menuSelectionObject.selection) {
