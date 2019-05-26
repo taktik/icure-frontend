@@ -108,7 +108,7 @@ onmessage = e => {
                     ]).join(": ") + ")"
                 ]).join(" ")),
                 subject: _.trim(_.get(fullMessage,"document.title",_.trim(_.get(fullMessage,"document.textContent",_.trim(_.get(fullMessage,"id","")))).substring(0,26)+"...")),
-                metas: _.get(fullMessage,"customMetas",{}),
+                metas: _.merge(_.get(fullMessage,"customMetas",{}), {patientSsin: _.trim(_.get(fullMessage,"patientInss",""))}),
                 toAddresses: [boxId],
                 transportGuid: boxId + ":" + _.get(fullMessage,"id",""),
                 fromHealthcarePartyId: _.trim(_.get(fullMessage,"fromHealthcarePartyId", _.get(fullMessage,"sender.id",""))),
