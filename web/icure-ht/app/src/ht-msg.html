@@ -72,9 +72,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 overflow: hidden;
                 display: flex;
                 flex-direction: column;
-                border-left: 1px solid var(--app-background-color-dark);
                 background-color: var(--app-background-color-light);
                 padding: 0;
+                transition: all .5s cubic-bezier(0.075, 0.82, 0.165, 1);
+
+                position: fixed;
+                top: 72px;
+                left: 16.5%;
+                width: 83%;
+                height: calc(100% - 91px);
             }
 
             .display-left-menu{
@@ -101,7 +107,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             ht-msg-list.selected {
-                width: 152vw;
+                /*width: 152vw;*/
             }
 
             ht-msg-menu{
@@ -147,8 +153,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
 
                 ht-msg-list.selected {
-                    height: calc(40vh - 24px);
-                    width: initial;
+                    /*height: calc(40vh - 24px);*/
+                    /*width: initial;*/
                 }
 
                 ht-msg-detail {
@@ -216,11 +222,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         user="[[user]]"
                         menu-selection-object="[[selectList]]"
                         on-selected-message-changed="handleMessageChange"
-                        on-new-msg="_newMsg"
-                        on-fw-msg="_fwMsg"
-                        on-re-msg="_reMsg"
-                        class$="[[_selectedElem(selectedMessage)]]"
                         on-update-menu-folders-totals="callPersonalInboxUpdateMenuFoldersTotals"
+                        on-create-new-msg="_triggerCreateNewMessage"
+                        on-forward-message="_triggerForwardMessage"
+                        on-reply-to-message-msg="_triggerReplyToMessage"
+                        class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-list>
 
                     <ht-msg-detail
@@ -231,10 +237,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         resources="[[resources]]"
                         user="[[user]]"
                         credentials="[[credentials]]"
-                        selected-message="[[selectedMessage]]" 
-                        on-msg-detail-closed="_triggerGridResize" 
-                        on-item-delete="handleRefreshlist"
-                        on-item-restore="handleRefreshlist" 
+                        selected-message="[[selectedMessage]]"
+                        on-carry-out-action="_carryOutActionFromDetailComponent"
                         class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-detail>
                     
@@ -379,7 +383,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             static get observers() {
                 return [
-                    '_isConnectedToEhbox(api.tokenId)',
+                    '_setIsConnectedToEhbox(api.tokenId)',
                     '_getCurrentAndParentHcps(user)'
                 ];
             }
@@ -402,7 +406,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['msg-menu'].dispatchEvent(new CustomEvent('selection-change',{detail:{selection:{item:"personalInbox", folder:"inbox"}}}))
             }
 
-            _isConnectedToEhbox() {
+            _setIsConnectedToEhbox() {
                 this.set("ehealthSession", !!this.api.tokenId)
             }
 
@@ -467,16 +471,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.root.querySelector('.container').classList.remove('expanded');
             }
 
-            _newMsg() {
-                if (this.ehealthSession) this.$['new-msg'].open()
+            _triggerCreateNewMessage() {
+                return !!_.get(this,"ehealthSession",false) ? this.$['new-msg'].open() : false
             }
 
-            _fwMsg(e) {
-                if (this.ehealthSession) this.$['new-msg'].open(e.detail.params ? e.detail.params : null)
+            _triggerForwardMessage(e) {
+                return !!_.get(this,"ehealthSession",false) ? this.$['new-msg'].open(_.get(e,"detail.params",null)) : false
             }
 
-            _reMsg(e) {
-                if (this.ehealthSession) this.$['new-msg'].open(e.detail.params ? e.detail.params : null)
+            _triggerReplyToMessage(e) {
+                return !!_.get(this,"ehealthSession",false) ? this.$['new-msg'].open(_.get(e,"detail.params",null)) : false
             }
 
             callInitializeBatchCounter(e){
@@ -526,6 +530,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-list").assignResolvedObjects({currentHcp:this.currentHcp, isAMedicalHouse:this.isAMedicalHouse, medicalHouseBillingTypeIsFlatRate:this.medicalHouseBillingTypeIsFlatRate, parentHcp:this.parentHcp, isParentAMedicalHouse:this.isParentAMedicalHouse})
                     })
 
+            }
+
+            _carryOutActionFromDetailComponent(e) {
+                const actionToTake = _.trim(_.get(e,"detail.action",""))
+                const givenMessage = _.trim(_.get(e,"detail.message.id","")) ? _.get(e,"detail.message",{}) : {}
+                return !!actionToTake && !!givenMessage ? this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "takeActionForDetailMessage", false) === "function" && this.shadowRoot.querySelector("#msg-list").takeActionForDetailMessage(actionToTake,givenMessage) : false
             }
 
         }

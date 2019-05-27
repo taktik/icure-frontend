@@ -92,7 +92,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     box-sizing: border-box;
                     grid-column: 2 / span 1;
                     grid-row: 1 / span 1;
-                    background:var(--app-background-color);
+                    /*background:var(--app-background-color);*/
                     float:left;
                     padding: 12px 20px;
                     padding-top: 0;
@@ -100,7 +100,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     flex-flow: column nowrap;
                     align-items: flex-start;
                     height: calc(100% - 56px);
-                    width: calc(100vw - 38%)
+                    width: calc(100vw - 38%);
+                    /*width: calc(100vw - 19%)*/
                 }
 
                 .card-title-container{
@@ -299,6 +300,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 .table-top {
                     width: calc(100vw - 38%);
+                    /*width: calc(100vw - 19%);*/
                     min-height: 56px;
                     display: flex;
                     flex-direction: row;
@@ -1090,7 +1092,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     ehealthSession: {
                         type: Boolean,
-                        value: false
+                        value: false,
+                        noReset: true
                     },
                     pageStart: {
                         type: Number,
@@ -1329,12 +1332,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 // No eHealthBox ?
                 if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
 
-                this.dispatchEvent(new CustomEvent('new-msg', { detail: {},params: null}));
+                this.dispatchEvent(new CustomEvent('create-new-msg', { detail: {},params: null}));
             }
 
             _closeReadMessageComponent() {
                 this.set("_vaadinGridMessagesActiveItem",null)
                 this.dispatchEvent(new CustomEvent('selected-message-changed', { detail:{selection:{item:null}}}))
+                return Promise.resolve()
             }
 
             assignResolvedObjects(inputObjects) {
@@ -1390,7 +1394,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
                 selectedMessages = !_.size(additionalDataForMessagesToUpdate) || !!_.size(_.get(additionalDataForMessagesToUpdate,"sourceEvent",false)) ? selectedMessages : _.map(selectedMessages, i=>_.merge(i,additionalDataForMessagesToUpdate))
-                if(!_.size(selectedMessages)) return
+                if(!_.size(selectedMessages)) return Promise.resolve()
 
                 this._toggleProcessingPopup();
 
@@ -1409,6 +1413,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     .finally(()=>{
                         this._toggleProcessingPopup();
                         this._getEHealthBoxData();
+                        return Promise.resolve()
                     })
 
             }
@@ -1435,13 +1440,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
-            _deletedUndeleteMessages() {
+            _deletedUndeleteMessages(givenMessages=null) {
 
                 // No eHealthBox ?
-                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return Promise.resolve(); }
 
-                const selectedMessages = this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return
+                let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
+                if(!_.size(selectedMessages)) return Promise.resolve()
 
                 this._toggleProcessingPopup()
 
@@ -1478,17 +1483,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     .finally(()=>{
                         this._toggleProcessingPopup();
                         this._getEHealthBoxData();
+                        return Promise.resolve()
                     })
 
             }
 
-            _deleteMessagesForEver() {
+            _deleteMessagesForEver(givenMessages=null) {
 
                 // No eHealthBox ?
-                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return Promise.resolve(); }
 
-                const selectedMessages = this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return
+                let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
+                if(!_.size(selectedMessages)) return Promise.resolve()
 
                 this._closeDialogs();
                 this._toggleProcessingPopup()
@@ -1525,6 +1531,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     .finally(()=>{
                         this._toggleProcessingPopup();
                         this._getEHealthBoxData();
+                        return Promise.resolve()
                     })
 
             }
@@ -1567,6 +1574,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _gotoNextGridPage() {
                 if ( parseInt(_.get(this,"_currentPageNumber",1)) < parseInt(_.get(this,"_totalPagesForCurrentFolderAndCurrentFilter",1)) ) this.set('_currentPageNumber', ( parseInt(_.get(this,"_currentPageNumber",1)) + 1 ) )
             }
+
+
 
 
 
@@ -1628,17 +1637,31 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
 
 
+            takeActionForDetailMessage(givenAction,givenMessage) {
 
+                let prom = Promise.resolve([]);
 
+                prom = this._closeReadMessageComponent()
+                    .then(() => !_.trim(givenAction) || !_.trim(_.get(givenMessage,"id","")) ?
+                        Promise.resolve():
+                        (
+                            givenAction === "hideUnhide" ? this._hideUnHideMessages([givenMessage]) :
+                            givenAction === "deleteUndelete" ? this._deletedUndeleteMessages([givenMessage]) :
+                            givenAction === "deleteForEver" ? this._deleteMessagesForEver([givenMessage]) :
+                            Promise.resolve()
+                        )
+                    )
 
+                return prom
+                    .then(()=>{})
+                    .catch((e)=>console.log("ERROR with takeActionForDetailMessage: ", e))
+                    .finally(()=>prom)
 
+                // Fabien: faire "reply" & "forward"
+                // broadcast "forward-message"
+                // broadcast "reply-to-message-msg"
 
-
-
-
-
-
-
+            }
 
 
 
@@ -1761,13 +1784,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
 
             }
-
-
-
-
-
-
-
 
 
 
