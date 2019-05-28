@@ -1114,20 +1114,21 @@
 
                     // To improve: could be several attachments from pat (considering we only have one at the moment)
                     this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
-                        .then(foundDocument => this.api.document().getAttachment(_.trim(_.get(foundDocument,"id")), _.trim(_.get(foundDocument,"attachmentId",""))).then(attachmentResponse => ({foundDocument, attachmentResponse })))
-                        .then(({foundDocument, attachmentResponse}) => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, foundDocument, attachmentResponse).then(decryptedFileContent => ({foundDocument, decryptedFileContent })))
-                        .then(({foundDocument, decryptedFileContent}) => {
+                        .then(foundDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(foundDocument,"id","")), _.size(_.get(foundDocument,"encryptionKeys",[])) ? _.get(foundDocument,"encryptionKeys",[]) : _.get(foundDocument,"delegations",[]))
+                            .then(({extractedKeys: enckeys}) => !!_.trim(_.get(foundDocument,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(foundDocument,"id","")), _.trim(_.get(foundDocument,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>({foundDocument,decryptedContent})).catch(e=>{console.log("ERROR with getAttachment: ",e); return foundDocument;}) : foundDocument)
+                        )
+                        .then(({foundDocument, decryptedContent}) => {
                             const foundExtension = _.trim(_.get(foundDocument,"name","")).split(".").pop()
                             const fileExtension = _.trim(_.get( _.compact(_.map(this.api.document().utiExts, (v,k)=>_.trim(v).toLowerCase() ===_.trim(_.get(foundDocument,"mainUti","")).toLowerCase()?k:false)), "[0]", ( _.trim(_.get(foundDocument,"name","")).indexOf(".") > -1 && _.trim(foundExtension).length<5 && _.trim(foundExtension).length>2 ? foundExtension : "" ))).toLowerCase()
-                            const attachmentSize = _.get((typeof decryptedFileContent === "string" ? this.api.crypto().utils.text2ua(decryptedFileContent) : decryptedFileContent),"byteLength",0)
+                            const attachmentSize = _.get((typeof decryptedContent === "string" ? this.api.crypto().utils.text2ua(decryptedContent) : decryptedContent),"byteLength",0)
                             const attachmentSizePow = attachmentSize > (1024**2) ? 2 : attachmentSize > 1024 ? 1 : 0
                             this.set("_hasAdditionalAnnexesFromPatDetail", true)
                             this.push("_additionalAnnexesFromPatDetail", {
-                                content: decryptedFileContent,
+                                content: decryptedContent,
                                 filename: _.kebabCase(_.trim(_.get(foundDocument,"name","")).replace("."+foundExtension,"")) + "." + fileExtension,
                                 fileExtension: fileExtension,
                                 fileExtensionUppercase: _.trim(fileExtension).toUpperCase(),
-                                mimeType: this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti",""))),
+                                mimeType: _.trim(this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti","")))) ? _.trim(this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti","")))) : "text/plain",
                                 title: _.trim(_.get(foundDocument,"name","")),
                                 size: this.api._powRoundFloatByPrecision( attachmentSize / (1024**attachmentSizePow) ,2) + " " + _.trim(attachmentSizePow === 2 ? "Mb" : attachmentSizePow === 1 ? "Kb" : "Bytes"),
                                 documentId: _.trim(_.get(foundDocument,"id",""))
@@ -1145,17 +1146,23 @@
                 // Is case of forward / reply
                 if(_.size(componentOpenParameters)) {
 
-                    const msgFrom = !!_.size(_.get(componentOpenParameters,"destinations",[])) ? '[' + _.get(componentOpenParameters,"received", moment().format('DD/MM/YYYY - hh:mm')) + '] ' + _.trim(_.get(componentOpenParameters,"destinations[0].lastName","")) + ' ' + _.trim(_.get(componentOpenParameters,"destinations[0].firstName","")) : ''
-                    const msgNewTxt = !_.trim(_.get(componentOpenParameters,"document.textContent","")) ? '' : _.map(_.trim(_.get(componentOpenParameters,"document.textContent","")).split('\n'), singleLine =>_.trim(singleLine) ).join("\n")
+                    console.log("[HT-MSG-NEW] ", componentOpenParameters);
 
-                    this.set("newMessage.annex", _.get(componentOpenParameters,"annex",[]))
-                    this.set("newMessage.customMetas", _.get(componentOpenParameters,"customMetas",{}))
-                    this.set('newMessage.recipients',_.get(componentOpenParameters,"destinations",[]))
-                    this.set('newMessage.document.title', _.get(componentOpenParameters,"document.title",""))
-                    this.set("newMessage.patientInss", _.get(componentOpenParameters,"patientInss",null))
-                    this.set('isForwardOrReply', _.trim(_.get(componentOpenParameters,"type", "")) === 'fwd' ? "(" + this.localize(_.trim(_.get(componentOpenParameters,"type", "")),'',this.language)+")" : _.trim(_.get(componentOpenParameters,"type", "")) === 'replyto' ? "(" + this.localize('answer','Answer',this.language) + ")" : "" )
-                    this.set('newMessage.document.textContent', _.trim(_.get(componentOpenParameters,"type", "")) === 'fwd' ? "\n\n------------------------------------------------\n\n" + this.localize(_.trim(_.get(componentOpenParameters,"type", "")),'',this.language) + " \n\n" + _.trim(_.get(componentOpenParameters,"document.textContent", "")) : _.trim(_.get(componentOpenParameters,"type", "")) === 'replyto' ? "\n\n------------------------------------------------\n\n" + msgFrom + ":\n\n" + msgNewTxt : "" )
-                    vaadinUploadComponent.files = _.size(_.get(componentOpenParameters,"annex",[])) ? _.get(componentOpenParameters,"annex",[]) : []
+                    this.set("newMessage.important", true)
+                    this.set('newMessage.document.title', _.trim(_.get(componentOpenParameters,"subject","")))
+                    this.set('newMessage.document.textContent', [
+                        "\n\n",
+                        "--------------------------------------------------------------------------\n" +
+                        _.trim(_.get(componentOpenParameters,"originalSender","")) + " - " + _.trim(_.get(componentOpenParameters,"received","")) + "\n" +
+                        "--------------------------------------------------------------------------\n",
+                        _.trim(_.get(componentOpenParameters,"body", "")) + "\n\n"
+                    ].join("\n\n"))
+
+                    // Axel Fiolle
+                    // this.set("newMessage.annex", _.get(componentOpenParameters,"annex",[]))
+                    // this.set('newMessage.recipients',_.get(componentOpenParameters,"destinations",[]))
+                    // this.set("newMessage.patientInss", _.get(componentOpenParameters,"patientInss",null))
+                    // vaadinUploadComponent.files = _.size(_.get(componentOpenParameters,"annex",[])) ? _.get(componentOpenParameters,"annex",[]) : []
 
                 }
 
@@ -1190,12 +1197,12 @@
                                     let fileByteArray = [];
                                     new Uint8Array(se.target.result).forEach(int8 => fileByteArray.push(int8));
                                     this.push('newMessage.annex', [{
-                                        "content": fileByteArray,
-                                        "filename": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
-                                        "mimeType": _.trim(_.get(singleFileToBeUploaded,"type", "text/plain")),
-                                        "title": _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
-                                        "size": _.get(singleFileToBeUploaded,"size",0) > 1024 ? (_.get(singleFileToBeUploaded,"size",0) / 1024).toFixed(2) + " Ko" : _.get(singleFileToBeUploaded,"size",0) + " o",
-                                        "documentId": _.trim(_.get(singleFileToBeUploaded,"doc.id",""))
+                                        content: fileByteArray,
+                                        filename: _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
+                                        mimeType: _.trim(_.get(singleFileToBeUploaded,"type", "")) ? _.trim(_.get(singleFileToBeUploaded,"type", "")) : "text/plain",
+                                        title: _.trim(_.get(singleFileToBeUploaded,"name","document.txt")),
+                                        size: _.get(singleFileToBeUploaded,"size",0) > 1024 ? (_.get(singleFileToBeUploaded,"size",0) / 1024).toFixed(2) + " Ko" : _.get(singleFileToBeUploaded,"size",0) + " o",
+                                        documentId: _.trim(_.get(singleFileToBeUploaded,"doc.id",""))
                                     }]);
                                 }.bind(this);
                                 fileReaderInstance.readAsArrayBuffer(singleFileToBeUploaded);
@@ -1301,7 +1308,7 @@
                             content: this._arrayBufferToByteArray(_singleAdditionalAnnexFromPatDetail.content),
                             documentId: _singleAdditionalAnnexFromPatDetail.documentId,
                             filename: _singleAdditionalAnnexFromPatDetail.filename,
-                            mimeType: _singleAdditionalAnnexFromPatDetail.mimeType,
+                            mimeType: _.trim(_.get(_singleAdditionalAnnexFromPatDetail,"mimeType", "")) ? _.trim(_.get(_singleAdditionalAnnexFromPatDetail,"mimeType", "")) : "text/plain",
                             title: _singleAdditionalAnnexFromPatDetail.title,
                             size: _singleAdditionalAnnexFromPatDetail.size
                         }

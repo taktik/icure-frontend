@@ -383,14 +383,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     color: var(--app-error-color-dark);
                 }
 
-                #actions-spinner {
-                    position: absolute;
-                    right: 148px;
-                    top: 30px;
-                    z-index: 1;
-                    height: 35px;
-                }
-
                 #vaadinMessagesGrid {
                     padding-right: 0;
                     margin-right: 0;
@@ -435,14 +427,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         text-transform: capitalize;
                     };
                     --paper-button-ink-color: var(--app-secondary-color-dark);
-                }
-
-                ht-spinner.center {
-                    z-index: 999999;
-                    position: fixed;
-                    height: 42px;
-                    width: 42px;
-                    margin: 6px;
                 }
 
                 paper-icon-button.change-page {
@@ -1575,6 +1559,88 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if ( parseInt(_.get(this,"_currentPageNumber",1)) < parseInt(_.get(this,"_totalPagesForCurrentFolderAndCurrentFilter",1)) ) this.set('_currentPageNumber', ( parseInt(_.get(this,"_currentPageNumber",1)) + 1 ) )
             }
 
+            takeActionForDetailMessage(givenAction,givenMessage,additionalParameters) {
+
+                let prom = Promise.resolve([])
+
+                prom = this._closeReadMessageComponent()
+                    .then(() => !_.trim(givenAction) || !_.trim(_.get(givenMessage,"id","")) ?
+                        Promise.resolve():
+                        (
+                            givenAction === "hideUnhide" ? this._hideUnHideMessages([givenMessage]) :
+                            givenAction === "deleteUndelete" ? this._deletedUndeleteMessages([givenMessage]) :
+                            givenAction === "deleteForEver" ? this._deleteMessagesForEver([givenMessage]) :
+                            givenAction === "reply" ? this._replyToMessage(givenMessage,additionalParameters) :
+                            givenAction === "forward" ? this._forwardMessage(givenMessage,additionalParameters) :
+                            Promise.resolve()
+                        )
+                    )
+
+                return prom
+                    .then(()=>{})
+                    .catch((e)=>console.log("ERROR with takeActionForDetailMessage: ", e))
+                    .finally(()=>prom)
+
+            }
+
+            _replyToMessage(givenMessage,additionalParameters) {
+
+                console.log("--- _replyToMessage --- ");
+                console.log("givenMessage", givenMessage);
+                console.log("additionalParameters", additionalParameters);
+
+                let prom = Promise.resolve([])
+                return prom
+                    .then(()=> !_.trim(_.get(givenMessage,"id","")) ? prom : {
+                        subject: "RE: " + _.trim(_.get(givenMessage,"subject","")),
+                        recipient: _.trim(_.get(givenMessage,"fromHealthcarePartyId",_.trim(_.get(givenMessage,"metas.CM-SenderID","")))),
+                        recipientType: _.trim(_.get(givenMessage,"metas.CM-SenderIDType","")),
+                        patientSsin: _.trim(_.get(givenMessage,"metas.patientSsin","")),
+                        body: _.trim(_.get(_.find(_.get(additionalParameters,"documentsOfMessage",[]),i=>_.trim(_.get(i,"documentLocation"))==="body"),"attachmentInfos.decryptedContent","")),
+                        originalSender: _.trim(_.get(givenMessage,"fromAddress","")),
+                        received: this.api.moment(_.get(givenMessage,"created",new Date().getTime())).format('DD/MM/YYYY hh:mm'),
+                        answerType: "reply"
+                    })
+                    .then(eventParameters=>this.dispatchEvent(new CustomEvent("reply-to-message-msg", { bubbles:true, composed:true, detail:eventParameters })))
+                    .catch((e)=>console.log("ERROR with _replyToMessage: ", e))
+                    .finally(()=>prom)
+            }
+
+            _forwardMessage(givenMessage,additionalParameters) {
+
+                let prom = Promise.resolve([])
+
+                console.log("--- _forwardMessage ---");
+                console.log("givenMessage", givenMessage);
+                console.log("additionalParameters", additionalParameters);
+
+                // return !_.trim(_.get(givenMessage,"id","")) ? prom :
+                //     HERE...
+
+                //         const msgToFw = {
+                //             destinations: [],
+                //             patientInss: _.get(this,"selectedMessage.metas.patientSsin",""),
+                //             annex: this.documentsOfMessage.filter(doc=>doc.documentLocation !== "body"),
+                //             document: {
+                //                 title: 'Fw: '+_.get(this,"selectedMessage.subject",""),
+                //                 textContent: this.docTxt != undefined && this.docTxt.length ? this.docTxt : this.localize('no_msg_content','No message',this.language)
+                //             },
+                //             customMetas: _.get(this,"selectedMessage.metas",[]),
+                //             type: 'fwd'
+                //         }
+                //         const target = this.parentElement.parentNode.querySelector('ht-msg-menu')
+                //         target.dispatchEvent(new CustomEvent('fw-msg', {detail: {bubbles: true, composed: true, params:msgToFw}}))
+
+                return prom
+                    .then(()=>{})
+                    .catch((e)=>console.log("ERROR with _forwardMessage: ", e))
+                    .finally(()=>{
+                        // broadcast "forward-message"
+                        return prom
+                    })
+
+            }
+
 
 
 
@@ -1633,34 +1699,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
                 })
                 return prom.then(()=>messages)
-            }
-
-
-
-            takeActionForDetailMessage(givenAction,givenMessage) {
-
-                let prom = Promise.resolve([]);
-
-                prom = this._closeReadMessageComponent()
-                    .then(() => !_.trim(givenAction) || !_.trim(_.get(givenMessage,"id","")) ?
-                        Promise.resolve():
-                        (
-                            givenAction === "hideUnhide" ? this._hideUnHideMessages([givenMessage]) :
-                            givenAction === "deleteUndelete" ? this._deletedUndeleteMessages([givenMessage]) :
-                            givenAction === "deleteForEver" ? this._deleteMessagesForEver([givenMessage]) :
-                            Promise.resolve()
-                        )
-                    )
-
-                return prom
-                    .then(()=>{})
-                    .catch((e)=>console.log("ERROR with takeActionForDetailMessage: ", e))
-                    .finally(()=>prom)
-
-                // Fabien: faire "reply" & "forward"
-                // broadcast "forward-message"
-                // broadcast "reply-to-message-msg"
-
             }
 
 

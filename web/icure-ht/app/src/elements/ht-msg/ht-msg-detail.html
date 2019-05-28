@@ -40,7 +40,6 @@
 
 <link rel="import" href="../dynamic-form/dynamically-loaded-form.html">
 <link rel="import" href="../dynamic-form/entity-selector.html">
-<link rel="import" href="../../spinner-style.html">
 <link rel="import" href="../dynamic-form/dynamic-doc.html">
 
 <link rel="import" href="../pdf-element/pdf-element.html">
@@ -55,7 +54,7 @@
 
 
 
-		<style include="shared-style spinner-style">
+		<style include="shared-style">
 
 			:host{
 				position: relative;
@@ -660,15 +659,6 @@
 				color: var(--app-text-color);
 			}
 
-			ht-spinner {
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                z-index: 150;
-                transform: translate(-50%,-50%);
-				height: 42px;
-				width: 42px;
-            }
 			paper-spinner.patlist-spinner {
                 position: relative;
                 top: 12px;
@@ -1037,16 +1027,69 @@
                 cursor:pointer;
             }
 
+            #loadingContainer, #loadingContainerSmall {
+                position:absolute;
+                width: 100%;
+                height: 100%;
+                top: 0;left: 0;
+                background-color: rgba(0,0,0,.3);
+                z-index: 10;
+                text-align: center;
+            }
+
+            #loadingContentContainer, #loadingContentContainerSmall {
+                position:relative;
+                width: 400px;
+                min-height: 200px;
+                background-color: #ffffff;
+                padding:20px;
+                border:3px solid var(--app-secondary-color);
+                margin:40px auto 0 auto;
+                text-align: center;
+            }
+
+            .loadingIcon {
+                margin-right:5px;
+                margin-top:-4px;
+            }
+
+            .loadingIcon.done {
+                color: var(--app-secondary-color);
+            }
+
+            .mr5 {
+                margin-right:5px;
+            }
+
+            .ml5 {
+                margin-left:5px;
+            }
+
+            .smallIcon {
+                width:16px;
+                height:16px;
+            }
+
+            .textAlignCenter {
+                text-align: center;
+            }
+
 		</style>
 
 
 
-		<ht-spinner class="center spinner" active="[[isLoadingMessage]]"></ht-spinner>
+        <template is="dom-if" if="[[_isLoading]]">
+            <div id="loadingContainer">
+                <div id="loadingContentContainer">
+                    <div style="max-width:100px; margin:0 auto"><ht-spinner class="spinner" alt="Loading..." active></ht-spinner></div>
+                    <div id="loadingContent"></div>
+                </div>
+            </div>
+        </template>
 
 
 
         <template is="dom-if" if="[[selectedMessage]]">
-
             <div id="main-details-panel" class="details-panel">
 
 
@@ -1086,7 +1129,15 @@
                         <div class="singleHeaderLine"><iron-icon icon="icons:date-range" class="m-r-5 darkBlue w20 m-t-minus-2"></iron-icon> [[_msTstampToDDMMYYYY(selectedMessage.created)]]</div>
                         <template is="dom-if" if="[[_isImportant(selectedMessage)]]"><div class="singleHeaderLine"><iron-icon icon="warning" class="m-r-5 darkRed w20 m-t-minus-2"></iron-icon> [[localize('ehb.important','High importance',language)]]</div></template>
                         <template is="dom-repeat" items="[[_linkedPatientsBasedOnMessageSsinAndAnnexes]]" as="singlePatient"><div class="singleHeaderLine"><iron-icon icon="icons:accessibility" class="m-r-5 darkBlue w20 m-t-minus-2"></iron-icon> [[singlePatient.lastName]] [[singlePatient.firstName]] [[singlePatient.ssinOrBirthdate]]</div></template>
-                        <template is="dom-repeat" items="[[_messageAttachments]]" as="singleAttachment"><div class="singleHeaderLine cursorPointer" data-attachmenturl="[[singleAttachment.attachmentUrl]]" on-tap="_downloadAttachment"><iron-icon icon="editor:attach-file" class="m-r-5 darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon> [[singleAttachment.filename]] <span class="fileSize" data-attachmenturl="[[singleAttachment.attachmentUrl]]">([[singleAttachment.size]])</span> <iron-icon icon="icons:arrow-downward" class="darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon></div></template>
+                        <template is="dom-repeat" items="[[_messageAttachments]]" as="singleAttachment">
+                            <template is="dom-if" if="[[singleAttachment.attachmentUrl]]">
+                                <div class="singleHeaderLine cursorPointer" data-attachmenturl="[[singleAttachment.attachmentUrl]]" on-tap="_downloadAttachment">
+                                    <iron-icon icon="editor:attach-file" class="m-r-5 darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon>
+                                    [[singleAttachment.filename]] <span class="fileSize" data-attachmenturl="[[singleAttachment.attachmentUrl]]">([[singleAttachment.size]])</span>
+                                    <iron-icon icon="icons:arrow-downward" class="darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon>
+                                </div>
+                            </template>
+                        </template>
 
                     </div>
                 </paper-card>
@@ -1094,7 +1145,7 @@
 
 
 
-                <template is="dom-repeat" items="[[_sorted(documentsOfMessage)]]">
+                <template is="dom-repeat" items="[[documentsOfMessage]]">
                     <div class="layout-vertical annexe-card">
                         <dynamic-doc
                                 id="[[item.id]]"
@@ -1109,6 +1160,7 @@
                                 preview="true"
                                 downloadable="true"
                                 fullwidth="true"
+                                is-body-text-of-email="[[_isEqual(item.documentLocation,'body')]]"
 
                                 on-open-suggestions="openSuggestions"
                                 unassigned="[[item.unimportedPats]]"
@@ -1120,11 +1172,11 @@
 
                 <template is="dom-if" if="[[assignModal]]">
                     <div id="import-suggest">
-                        <div class="line">
-                            <h4>[[localize('set_attach','Set attachment',language)]]</h4> <ht-spinner class="patlist-spinner" active="[[isLoadingPatsSuggest]]"></ht-spinner>
-                        </div>
+
+                        <div class="line"><h4>[[localize('set_attach','Set attachment',language)]]</h4> <ht-spinner class="patlist-spinner" active="[[isLoadingPatsSuggest]]"></ht-spinner></div>
+
                         <template is="dom-if" if="[[documentBeingAssigned.unimportedPats.length]]">
-                        <div class="twocol">
+                            <div class="twocol">
                             <div>
                                 <h5>[[localize('un_attachs','Unassigned results',language)]]</h5>
                                 <div class="scrollbox labolist">
@@ -1172,8 +1224,9 @@
                             </div>
                         </div>
                         </template>
+
                         <template is="dom-if" if="[[!documentBeingAssigned.unimportedPats.length]]">
-                        <div>
+                            <div>
                             <h5>[[patsLng]] [[localize('poss_matches','Possible matches',language)]] [[selectName]]</h5>
                             <div class="scrollbox patlist">
                                 <template is="dom-if" if="[[!manualAssign]]">
@@ -1197,37 +1250,18 @@
                             </div>
                         </div>
                         </template>
-                        <!--TODO : Get lab result -->
-                        <!--<template is="dom-if" if="[[toImportPatsSuggestions.length]]">-->
-                        <!--<div class="line lab-details noPortable">-->
-                        <!--<h4>Lab result</h4>-->
-                        <!--<div class="sheet">-->
-                        <!--<h5>[[docInfo.labo]]</h5>-->
-                        <!--<p><b>[[docInfo.lastName]] [[docInfo.firstName]] [[docInfo.sex]]</b></p>-->
-                        <!--<p>[[docInfo.documentId]] - [[docInfo.formatedDemandDate]] - [[docInfo.protocol]]</p>-->
-                        <!--<p><small>[[docInfo.engine]]</small></p>-->
-                        <!--<p>[[docInfo]]</p>-->
-                        <!--<p>[[thisDocument]]</p>-->
-                        <!--</div>-->
-                        <!--</div>-->
-                        <!--</template>-->
+
                         <div class="line save-line">
-                            <paper-button class="modal-button--cancel" on-tap="closeSuggestions">
-                                [[localize('can','Cancel',language)]]
-                            </paper-button>
-                            <template is="dom-if" if="[[canAssign]]">
-                                <paper-button id="patients-importBtn" class="confirmPats" on-tap="_assignToPat">
-                                    [[localize('set','Assign',language)]] <iron-icon id="patients-icon" icon="check"></iron-icon>
-                                </paper-button>
-                            </template>
+                            <paper-button class="modal-button--cancel" on-tap="closeSuggestions">[[localize('can','Cancel',language)]]</paper-button>
+                            <template is="dom-if" if="[[canAssign]]"><paper-button id="patients-importBtn" class="confirmPats" on-tap="_assignToPat">[[localize('set','Assign',language)]] <iron-icon id="patients-icon" icon="check"></iron-icon></paper-button></template>
                         </div>
+
                     </div>
                 </template>
 
 
 
             </div>
-
         </template>
 
 
@@ -1295,9 +1329,14 @@
                         type: Object,
                         value: {}
                     },
-                    isLoadingMessage: {
+                    _isLoading: {
                         type: Boolean,
-                        value: false
+                        value: false,
+                        observer: '_loadingStatusChanged'
+                    },
+                    _loadingMessages: {
+                        type: Array,
+                        value: () => []
                     },
                     _linkedPatientsBasedOnMessageSsinAndAnnexes:{
                         type: Array,
@@ -1416,13 +1455,14 @@
 
             ready() {
                 super.ready();
+                document.addEventListener('keyup',this._handleShortcutKeys.bind(this))
             }
 
             _setIsConnectedToEhbox() {
                 this.set("ehealthSession", !!this.api.tokenId)
             }
 
-            _isEqualTo(a, b) {
+            _isEqual(a, b) {
                 return !!(a===b)
             }
 
@@ -1463,8 +1503,9 @@
             }
 
             _takeAction(e) {
-                const actionToTake = _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.action",""))),"[0].dataset.action","")
-                return !_.trim(_.get(this,"selectedMessage.id", "")) || !_.trim(actionToTake) ? false : this.dispatchEvent(new CustomEvent('carry-out-action', {composed: true, bubbles: true, detail: {action:_.trim(actionToTake), message:_.get(this,"selectedMessage",{})}}));
+                const actionToTake = typeof e === "string" ? _.trim(e) : _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.action",""))),"[0].dataset.action","")
+                const additionalParameters = { documentsOfMessage:_.get(this,"documentsOfMessage",[]), _linkedPatientsBasedOnMessageSsinAndAnnexes:_.get(this,"_linkedPatientsBasedOnMessageSsinAndAnnexes",[]), _messageAttachments:_.get(this,"_messageAttachments",[]) }
+                return !_.trim(_.get(this,"selectedMessage.id", "")) || !_.trim(actionToTake) ? false : this.dispatchEvent(new CustomEvent('carry-out-action', {composed: true, bubbles: true, detail: {action:_.trim(actionToTake), message:_.get(this,"selectedMessage",{}),additionalParameters:additionalParameters}}));
             }
 
             _isImportant(m) {
@@ -1487,28 +1528,32 @@
 
             }
 
+            _loadingStatusChanged() {
+                if(!this._isLoading) this._resetLoadingMessage();
+            }
 
+            _resetLoadingMessage() {
+                this._loadingMessages = [];
+            }
 
+            _setLoadingMessage( messageData ) {
+                setTimeout(()=> {
+                    if (messageData.updateLastMessage) this._loadingMessages.pop();
+                    this._loadingMessages.push(messageData);
+                    let loadingContentTarget = this.shadowRoot.querySelectorAll('#loadingContent')[0];
+                    if (loadingContentTarget) { loadingContentTarget.innerHTML = ''; _.each(this._loadingMessages, (v) => { loadingContentTarget.innerHTML += "<p><iron-icon icon='" + v.icon + "' class='" + (v.done ? "loadingIcon done" : "loadingIcon") + "'></iron-icon>" + v.message + "</p>"; }); }
+                },100)
+            }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            _toggleProcessingPopup( inputMessage="" ) {
+                if(!_.get(this,"_isLoading",false)) {
+                    this._resetLoadingMessage();
+                    this.set('_isLoading', true );
+                    this._setLoadingMessage({ message: _.trim(inputMessage) ? _.trim(inputMessage) : this.localize('ongoingProcess',this.language), icon:"arrow-forward"});
+                } else {
+                    this.set('_isLoading', false );
+                }
+            }
 
             _loadMessageDetails(selectedMessage) {
 
@@ -1521,7 +1566,7 @@
                 this.set("processLock", false)
 
                 if(!_.size(selectedMessage)) return prom
-                this.set('isLoadingMessage',true)
+                this._toggleProcessingPopup()
                 this.set('assignedResults',_.get(selectedMessage,"assignedResults",[]))
                 this.set('unassignedResults',_.get(selectedMessage,"unassignedResults",[]))
                 let patientDetailsBasedOnSsin = false
@@ -1529,7 +1574,7 @@
                 return this._getPatientDataBySsin(selectedMessage)
                     .then(x => patientDetailsBasedOnSsin = x)
                     .then(()=> !_.trim(_.get(selectedMessage,"id","")) ? prom : this.api.document().findByMessage(_.get(this,"user.healthcarePartyId",""), selectedMessage).catch(e=>{console.log("ERROR with findByMessage: ", e); return prom;}))
-                    .then(documentsOfMessage => !_.size(documentsOfMessage) ? prom : Promise.all(_.compact(_.filter(documentsOfMessage,d=>!!_.trim(_.get(d,"attachmentId",""))&&!!_.trim(_.get(d,"secretForeignKeys",""))&&_.trim(_.get(d,"documentLocation",""))==="annex")).map(singleDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(singleDocument,"id","")), _.size(_.get(singleDocument,"encryptionKeys",[])) ? _.get(singleDocument,"encryptionKeys",[]) : _.get(singleDocument,"delegations",[]))
+                    .then(documentsOfMessage => !_.size(documentsOfMessage) ? prom : Promise.all(_.compact(_.filter(documentsOfMessage,d=>!!_.trim(_.get(d,"attachmentId",""))&&!!_.trim(_.get(d,"secretForeignKeys","")))).map(singleDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(singleDocument,"id","")), _.size(_.get(singleDocument,"encryptionKeys",[])) ? _.get(singleDocument,"encryptionKeys",[]) : _.get(singleDocument,"delegations",[]))
                         .then(({extractedKeys: enckeys}) => this.api.beresultimport().canHandle(_.trim(_.get(singleDocument,"id","")), enckeys.join(',')).catch(e=>{console.log("ERROR with canHandle: ", e); return prom;})
                             .then(canHandle => !!canHandle ? this.api.beresultimport().getInfos(_.trim(_.get(singleDocument,"id","")), true, null, enckeys.join(',')).catch(e=>{console.log("ERROR with getInfos: ", e); return prom;}) : prom)
                             .then(beResultImportInfos => !beResultImportInfos ? prom : _.compact(_.map(beResultImportInfos, singleBeResultImportInfo => { return {
@@ -1550,25 +1595,23 @@
                                 const fileExtension = _.trim(_.get( _.compact(_.map(this.api.document().utiExts, (v,k)=>_.trim(v).toLowerCase() ===_.trim(_.get(singleDocument,"mainUti","")).toLowerCase()?k:false)), "[0]", ( _.trim(_.get(singleDocument,"name","")).indexOf(".") > -1 && _.trim(foundExtension).length<5 && _.trim(foundExtension).length>2 ? foundExtension : "" ))).toLowerCase()
                                 const attachmentSize = _.get((typeof decryptedContent === "string" ? this.api.crypto().utils.text2ua(decryptedContent) : decryptedContent),"byteLength",0)
                                 const attachmentSizePow = attachmentSize > (1024**2) ? 2 : attachmentSize > 1024 ? 1 : 0
-                                return _.merge(singleDocument,{
+                                return !_.trim(decryptedContent) ? false :  _.merge(singleDocument,{
                                     docInfo:documentsInfos||[],
                                     attachmentInfos:{
                                         filename: _.kebabCase(_.trim(_.get(singleDocument,"name","")).replace("."+foundExtension,"")) + "." + fileExtension,
                                         size: this.api._powRoundFloatByPrecision( attachmentSize / (1024**attachmentSizePow) ,2) + " " + _.trim(attachmentSizePow === 2 ? "Mb" : attachmentSizePow === 1 ? "Kb" : "Bytes"),
-                                        attachmentUrl: this.api.document().getAttachmentUrl(_.trim(_.get(singleDocument, "id","")), _.trim(_.get(singleDocument, "attachmentId","")), enckeys, this.api.sessionId)
-                                        // uniqueId: "attachment-" + _.uniqueId(_.trim(_.get(singleDocument, "id", _.uniqueId()))),
-                                        // decryptedContent: decryptedContent,
-                                        // mimeType: this.api.document().mimeType(_.trim(_.get(singleDocument,"mainUti","")))
+                                        attachmentUrl: _.trim(this.api.document().getAttachmentUrl(_.trim(_.get(singleDocument, "id","")), _.trim(_.get(singleDocument, "attachmentId","")), enckeys, this.api.sessionId)),
+                                        decryptedContent: decryptedContent,
+                                        mimeType: _.trim(this.api.document().mimeType(_.trim(_.get(singleDocument,"mainUti","")))) ? _.trim(this.api.document().mimeType(_.trim(_.get(singleDocument,"mainUti","")))) : "text/plain"
                                     }
                                 })
                             })
                         )
-                        .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return prom;})
+                        .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return singleDocument;})
                     )))
-                    .then(documentsOfMessage => this.set("documentsOfMessage", !!_.size(documentsOfMessage) ? documentsOfMessage : []))
+                    .then(documentsOfMessage => this.set("documentsOfMessage", !!_.size(documentsOfMessage) ? _.compact(_.orderBy(documentsOfMessage, d => _.trim(_.get(d,"documentLocation","annex")) === "body" ? "" : _.get(d,"id",_.uniqueId()))) : []))
                     .catch(e=>console.log("ERROR with _loadMessageDetails: ", e))
                     .finally(()=>{
-
                         this.set("_linkedPatientsBasedOnMessageSsinAndAnnexes", _.compact(
                             _.compact(_.concat( [patientDetailsBasedOnSsin], _.flatMap(_.map(_.get(this,"documentsOfMessage",[]), singleDoc => _.map(_.get(singleDoc,"docInfo",[]), x=>x))))).map(pat => { return {
                                 lastName: _.map(_.trim(_.get(pat, "lastName", "")).split(" "), i => _.capitalize(i)).join(" "),
@@ -1580,26 +1623,62 @@
                                 )
                             }}))
                         )
+                        this.set("_messageAttachments", _.compact(_.map(_.get(this,"documentsOfMessage",[]).filter(d=>_.trim(_.get(d,"documentLocation",""))==="annex"), singleDoc => _.get(singleDoc,"attachmentInfos",{}))))
 
-                        this.set("_messageAttachments", _.compact(_.map(_.get(this,"documentsOfMessage",[]), singleDoc => _.get(singleDoc,"attachmentInfos",{}))))
+                        // console.log('[HT-MSG-DETAIL] Message: ', selectedMessage)
+                        // console.log('documentsOfMessage: ', _.get(this,"documentsOfMessage",[]))
+                        // console.log('patientDetailsBasedOnSsin: ', patientDetailsBasedOnSsin)
+                        // console.log('_linkedPatientsBasedOnMessageSsinAndAnnexes: ', _.get(this,"_linkedPatientsBasedOnMessageSsinAndAnnexes",[]))
 
-                        console.log('[HT-MSG-DETAIL] Message: ', selectedMessage)
-                        console.log('patientDetailsBasedOnSsin: ', patientDetailsBasedOnSsin)
-                        console.log('documentsOfMessage: ', _.get(this,"documentsOfMessage",[]))
-
-                        this.set('isLoadingMessage',false);
+                        this._toggleProcessingPopup()
                         return prom;
 
                     })
 
+            }
 
-                        // assign dans _messageAttachments sur base documentsOfMessage
+            _handleShortcutKeys(e) {
 
-                        // this.set( "_messageAttachments", !_.size(foundAttachments) ? [] : ...
-                        // Injecter dans globales pour header email
-                        // Répéter opération pour pats founds => % foundDocumentsInfos
+                const isActive = !!_.size(_.get(this,"selectedMessage",{}))
+                const isInInput = ["INPUT", "SELECT", "TEXTAREA"].indexOf(_.get(e,"target.nodeName","")) !== -1
+                if(!isActive || isInInput) return
 
-            }            
+                const pressedKey = _.trim(_.get(e,"key","")).toLocaleLowerCase();
+                const message = _.get(this,"selectedMessage",{})
+                const ehealthSession = !!this.ehealthSession
+                const isSentBox = !!this._isSentbox(message)
+                const isDeleted = !!this._isDeleted(message)
+
+                if(pressedKey === "escape") this._takeAction("close")
+                if((pressedKey === "c" || pressedKey === "h" || pressedKey === "m")) this._takeAction("hideUnhide")
+                if(!!ehealthSession && !isSentBox && !isDeleted && pressedKey === "r") this._takeAction("reply")
+                if(!!ehealthSession && !isSentBox && !isDeleted && (pressedKey === "f" || pressedKey === "t")) this._takeAction("forward")
+                if(!!ehealthSession && (pressedKey === "d" || pressedKey === "s" || pressedKey === "delete")) this._takeAction("deleteUndelete")
+
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             
             
@@ -1647,10 +1726,6 @@
                 this.set('patsLng',this.toImportPatsSuggestions.length + this.toImportPatsSearch.length)
             }
 
-            _sorted(docs) {
-                return _.sortBy(docs, (d) => d.documentLocation === 'body' ? '' : d.id)
-            }
-
             openSuggestions(e) {
                 if(!this.assignModal) {
                     this.set('documentBeingAssigned', this.documentsOfMessage.find(d => d.id === e.detail.documentId))
@@ -1683,36 +1758,6 @@
                 } else {
                     return []
                 }
-            }
-
-            _getPatsFromDoc(document) {
-
-                if(document.documentLocation === "body") return document
-                console.log('_getPatsFromDoc')
-                const unassigned = this.unassignedResults || []
-                this.set('toImportPatsSuggestions', [])
-                return this.api.crypto()
-                    .extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, document.id, _.size(document.encryptionKeys) ? document.encryptionKeys : document.delegations)
-                    .then(({extractedKeys: enckeys}) =>
-                        this.api.beresultimport().canHandle(document.id, enckeys.join(','))
-                        .then(isResult => isResult && this.api.beresultimport().getInfos(document.id, false, null, enckeys.join(',')))
-                    )
-                    .then(resultInfo => {
-                        if (resultInfo && resultInfo.length && unassigned.length) {
-                            resultInfo.forEach(res => {
-                                document.docInfo = res
-                                unassigned.forEach(u => {
-                                    if (u === res.protocol) {
-                                        //res.formatedDemandDate = this.api.moment(res.demandDate).format('DD/MM/YYYY')
-                                        (document.unimportedPats || (document.unimportedPats = [])).push(res)
-                                    }
-                                })
-                            })
-                            document.unimportedPats = _.orderBy(document.unimportedPats || [], 'demandDate', "desc")
-                        }
-                    })
-                    .then(() => document)
-                    .catch(() => document)
             }
 
             _updateSuggestions() {
@@ -1861,69 +1906,35 @@
                 } // else end
             }
 
-
-
-            // _forwardMsgs(e) {
-            //     if (this.docTxt != null) {
-            //         const msgToFw = {
-            //             destinations: [],
-            //             patientInss: _.get(this,"selectedMessage.metas.patientSsin",""),
-            //             annex: this.documentsOfMessage.filter(doc=>doc.documentLocation !== "body"),
-            //             document: {
-            //                 title: 'Fw: '+_.get(this,"selectedMessage.subject",""),
-            //                 textContent: this.docTxt != undefined && this.docTxt.length ? this.docTxt : this.localize('no_msg_content','No message',this.language)
-            //             },
-            //             customMetas: _.get(this,"selectedMessage.metas",[]),
-            //             type: 'fwd'
-            //         }
-            //         const target = this.parentElement.parentNode.querySelector('ht-msg-menu')
-            //         target.dispatchEvent(new CustomEvent('fw-msg', {detail: {bubbles: true, composed: true, params:msgToFw}}))
-            //     } else setTimeout(()=>{this._forwardMsgs()},2500)
-            // }
-
-            // _replyMsgs(e) {
-            //     if (this.docTxt != null) {
-            //         let dest = []
-            //         this.api.hcparty().findBySsinOrNihii(_.get(this,"selectedMessage.fromHealthcarePartyId",""))
-            //             .then(paginated=>{
-            //                 if(paginated.rows && paginated.rows[0]) {
-            //                     let hcp = paginated.rows[0]
-            //                     if (hcp.name && !hcp.name.startsWith('Noreply') || hcp.ssin !== "12345678912") {
-            //                         hcp.type = 'NIHII'
-            //                         hcp.displayName = `${hcp.firstName} ${hcp.lastName} [${hcp.nihii}]`
-            //                         dest.push(hcp)
-            //                         const msgToRe = {
-            //                             destinations: dest,
-            //                             received: this.api.moment(_.get(this,"selectedMessage.created",new Date().getTime())).format('DD/MM/YYYY hh:mm'),
-            //                             patientInss: _.get(this,"selectedMessage.metas.patientSsin",""),
-            //                             annex: undefined,
-            //                             document: {
-            //                                 title: 'Re: ' + _.get(this,"selectedMessage.subject",""),
-            //                                 textContent: this.docTxt != undefined && this.docTxt.length ? this.docTxt : this.localize('no_msg_content','No message',this.language)
-            //                             },
-            //                             customMetas: _.get(this,"selectedMessage.metas",[]),
-            //                             type: 'replyto'
+            // _getPatsFromDoc(document) {
+            //
+            //     if(document.documentLocation === "body") return document
+            //     console.log('_getPatsFromDoc')
+            //     const unassigned = this.unassignedResults || []
+            //     this.set('toImportPatsSuggestions', [])
+            //     return this.api.crypto()
+            //         .extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, document.id, _.size(document.encryptionKeys) ? document.encryptionKeys : document.delegations)
+            //         .then(({extractedKeys: enckeys}) =>
+            //             this.api.beresultimport().canHandle(document.id, enckeys.join(','))
+            //                 .then(isResult => isResult && this.api.beresultimport().getInfos(document.id, false, null, enckeys.join(',')))
+            //         )
+            //         .then(resultInfo => {
+            //             if (resultInfo && resultInfo.length && unassigned.length) {
+            //                 resultInfo.forEach(res => {
+            //                     document.docInfo = res
+            //                     unassigned.forEach(u => {
+            //                         if (u === res.protocol) {
+            //                             //res.formatedDemandDate = this.api.moment(res.demandDate).format('DD/MM/YYYY')
+            //                             (document.unimportedPats || (document.unimportedPats = [])).push(res)
             //                         }
-            //                         const target = this.parentElement.parentNode.querySelector('ht-msg-menu')
-            //                         target.dispatchEvent(new CustomEvent('re-msg', {detail: {bubbles: true,composed: true,params: msgToRe}}))
-            //                     } else console.log('cannot reply to Noreply : '+_.get(this,"selectedMessage.fromHealthcarePartyId",""))
-            //                 } else console.log('cannot find ssin or nihii : '+_.get(this,"selectedMessage.fromHealthcarePartyId",""))
-            //             }).catch(e=>console.log(e))
-            //     } else setTimeout(()=>{this._replyMsgs()},2500)
+            //                     })
+            //                 })
+            //                 document.unimportedPats = _.orderBy(document.unimportedPats || [], 'demandDate', "desc")
+            //             }
+            //         })
+            //         .then(() => document)
+            //         .catch(() => document)
             // }
-
-            _getMsgTxt() { // TODO : make it async
-                if (this.documentsOfMessage && this.documentsOfMessage.length) {
-                    const doc = this.documentsOfMessage.find(d=>d.documentLocation === 'body') || {}
-                    this.api.crypto()
-                        .extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId,doc.id,_.size(doc.encryptionKeys) ? doc.encryptionKeys : doc.delegations)
-                        .then(({extractedKeys: enckeys}) =>this.api.beresultimport().canHandle(doc.id, enckeys.join(',')).then(()=> {
-                            const dataUrl = doc && this.api.document().getAttachmentUrl(doc.id, doc.attachmentId, enckeys, this.api.sessionId)
-                            this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'})
-                                .then(response => response.text())).then(text =>this.set('docTxt',text))
-                        }))
-                }
-            }
 
 
 
