@@ -259,7 +259,7 @@
                 const ctc = this.currentContact
                 if (!he.id) {
                     this.promoteServiceToHealthElement(he).then(he => {
-                        _.assign(e.detail, he) //Prevent subsequent promotions
+                        _.assign(e.detail.healthElement, he) //Prevent subsequent promotions
                         if (!ctc.subContacts.some(sc => sc.formId === this.formId && sc.healthElementId === he.id)) {
                             if (this.contact === ctc) {
                                 this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
@@ -386,8 +386,8 @@
                     //Make sure that healthElements contain new potential linkables
                     const idLinkables = this.healthElements.map(he=>he.idService)
 
-                    ctc.services.filter(s => s.tags.some(t => t.type === 'CD-ITEM' && (t.code === 'healthelement'  || t.code === 'healthissue')))
-                        .forEach(svc => {
+                    const promiseChain = ctc.services.filter(s => s.tags.some(t => t.type === 'CD-ITEM' && (t.code === 'healthcareelement'  || t.code === 'healthissue')))
+                        .map(svc => {
                             const descr = this.shortServiceDescription(svc, this.language)
                             if (descr && descr.length && !idLinkables.includes(svc.id)) {
                                 const he = {
@@ -407,7 +407,7 @@
                                     svc: svc,
                                     plansOfAction: []
                                 }
-                                this.api.code().icpcChapters(he.codes.filter(c => c.type === 'ICPC' || c.type === 'ICPC2').map(x => x.code))
+                                return this.api.code().icpcChapters(he.codes.filter(c => c.type === 'ICPC' || c.type === 'ICPC2').map(x => x.code))
                                     .then(([code]) => {
                                         code && code.descr && ((he.colour = code.descr.colour))
                                     })
@@ -420,19 +420,20 @@
                             }
                         })
 
+                    Promise.all(promiseChain).then(() => {
+                        this.dispatchEvent(new CustomEvent('data-change', {detail: ctc, bubbles: true, composed: true})); //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
+                        if (this.saveTimeout) {
+                            clearTimeout(this.saveTimeout);
+                        }
+                        const saveAction = this.saveAction = () => {
+                            console.log("Saving...")
+                            this.saveTimeout = undefined;
 
-                    this.dispatchEvent(new CustomEvent('data-change', {detail: ctc, bubbles: true, composed: true})); //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
-                    if (this.saveTimeout) {
-                        clearTimeout(this.saveTimeout);
-                    }
-                    const saveAction = this.saveAction = () => {
-                        console.log("Saving...")
-                        this.saveTimeout = undefined;
-
-                        return new Promise((resolve,reject) =>
-                        this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true})))//Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
-                    };
-                    this.saveTimeout = setTimeout(saveAction, 10000); //Make sure the save is done with the right saveAction by using a const
+                            return new Promise((resolve,reject) =>
+                                this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true})))//Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
+                        };
+                        this.saveTimeout = setTimeout(saveAction, 10000); //Make sure the save is done with the right saveAction by using a const
+                    })
 				})
 
 
@@ -498,6 +499,7 @@
 							_.uniq(self.services.map(s => s.svc && ({name:s.svc.label, label:s.svc.label})))
 						))
 					},
+                    form: () => form,
                     computeFormulas: (lifecycles) => {
                         try {
                         	form = form || this.form
