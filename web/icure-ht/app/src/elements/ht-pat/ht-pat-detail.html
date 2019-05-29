@@ -2717,7 +2717,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     'selectedHealthcareElementsSpliced(selectedHealthcareElements.splices)',
                     'selectedContactIdsChanged(selectedContactIds.*)',
                     '_filesChanged(files.*)',
-                    '_isConnectedToEhbox(api.tokenId)'
+                    '_isConnectedToEhbox(api.tokenId)',
+                    'selectedMedicationsChanged(selectedMedications)'
                 ];
             }
 
@@ -3643,9 +3644,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 const currentlySelectedContactsIds = (this.selectedContactIds || []).map(id => id && id.substr(4) /* format is ctc_... see DOM */)
                 this.set('postitMsg',this.patient.note)
-                //console.log("Before load "+(+new Date() - start))
+                //console.log("Before load "+(+new Date() - now))
                 Promise.all([this.api.contact().findBy(this.user.healthcarePartyId, patient).then(ctcs => ctcs.map(ctc => this.api.register(ctc, 'contact'))), this.api.helement().findBy(this.user.healthcarePartyId, patient, true)]).then(([ctcs, allHes]) => {
-                    //console.log("After load "+(+new Date() - start))
+                    //console.log("After load "+(+new Date() - now))
 
                     const hesByHeId = {}
                     allHes.forEach(he => {
@@ -3663,7 +3664,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         -(x.closingDate || 0)
                     ]
                     const idServicesInHes = _.compact(hes.map(he => he.idService))
-                    //console.log("Before filter service "+(+new Date() - start))
+                    //console.log("Before filter service "+(+new Date() - now))
                     this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id)).then(hesAsServices => {
                         const svcHes = hesAsServices.filter(s => !s.tags.some(t => t.type === 'CD-ITEM' && t.code === 'medication')).map(svc => this._makeHeFromSvc(svc))
 
@@ -3716,7 +3717,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                         const unclosedContacts = ctcs.filter(c => !c.closingDate && (c.author === this.user.id || c.responsible === this.user.healthcarePartyId))
 
-                        //console.log("Before scan ctcs "+(+new Date() - start))
+                        //console.log("Before scan ctcs "+(+new Date() - now))
                         ctcs.forEach(ctc => {
                             ctc.healthElements = _.uniq(ctc.subContacts.map(sc => sc.planOfActionId && combinedHesWithHistory.find(he => he.plansOfAction.find(poa => poa.id === sc.planOfActionId)) || sc.healthElementId && combinedHesWithHistory.find(he => he.id === sc.healthElementId)).map(he => he && he.healthElementId)).filter(id => !!id).map(id => hesByHeId[id][0])
                             ctc.services.forEach(s => {
@@ -3726,7 +3727,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             })
                         })
 
-                        //console.log("After scan ctcs "+(+new Date() - start))
+                        //console.log("After scan ctcs "+(+new Date() - now))
                         const youngest = unclosedContacts.map(c => c.openingDate && this.api.moment(c.openingDate)).reduce((y, mc) => (mc && mc.isAfter(y)) ? mc : y, moment().subtract(1, 'days'))
                         Promise.all(unclosedContacts.map(unclosedContact => {
                             return (!unclosedContact.openingDate || this.api.moment(unclosedContact.openingDate).isBefore(youngest)) ?
@@ -3746,7 +3747,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         .then(newCtc => {
                             const thisYear = moment().year()
 
-                            console.log("Before set contacts "+(+new Date() - start))
+                            //console.log("Before set contacts "+(+new Date() - now))
 
                             this.set('contacts', Object.values(ctcs.reduce((acc, it) => {
                                 const prev = acc[it.groupId || it.id]
@@ -3764,7 +3765,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 return acc
                             }, {})))
 
-                            console.log("Before set contacts "+(+new Date() - start))
+                            //console.log("Before set contacts "+(+new Date() - now))
 
                             this.set('currentContact', newCtc)
                             const formIds = {}
@@ -3798,7 +3799,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 }
                             }
 
-                            console.log("Before ctcs years"+(+new Date() - start))
+                            //console.log("Before ctcs years"+(+new Date() - now))
 
                             this.set('contactYears', _.sortBy(_.values(_.reduce(this.contacts, (acc, ctc) => {
                                 if (ctc.subContacts && ctc.subContacts.some(sc => !sc.id || !this.hiddenSubContactsId[sc.id]) ||
@@ -3817,7 +3818,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                             this.filterEvents()
 
-                            console.log("After ctcs years"+(+new Date() - start))
+                            //console.log("After ctcs years"+(+new Date() - now))
 
                             if (currentlySelectedContactsIds.some(cId => !ctcs.some(c => c.id === cId))) {
                                 this.set('selectedContactIds', _.compact(ctcs.filter(c => currentlySelectedContactsIds.includes(c.id)).map(c => `ctc_${c.id}`)))
@@ -4358,6 +4359,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this._updateFilterPanels();
             }
 
+            selectedMedicationsChanged() {
+                // useful for debug
+                const sel = this.selectedMedications.length && this.selectedMedications[0].id.substr(5)
+                if(sel) {
+                    console.log("selected medication: ", this.medications && this.medications.find(med => med.id == sel ))
+                }
+            }
+
             selectedMainElementItemsChanged(event) {
                 const domRepeat = event.target.querySelector("dom-repeat");
                 const selectedModels = _.compact(event.target.selectedItems.map(el => {
@@ -4371,7 +4380,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const allModels = domRepeat.items || [];
 
                 let finalSelection = this.selectedHealthcareElements.filter(he => !allModels.includes(he)).concat(selectedModels)
-                console.log(finalSelection.map(he=>he.descr).join(","))
+                //console.log(finalSelection.map(he=>he.descr).join(","))
+                console.log("selected HE:", finalSelection) // useful for debug
                 this.set('selectedHealthcareElements', finalSelection);
             }
 
