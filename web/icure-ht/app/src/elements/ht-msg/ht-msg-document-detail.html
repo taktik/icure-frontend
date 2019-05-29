@@ -1245,62 +1245,71 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         //@ToDo
     }
 
-    _focusChanged(){
-	    if(this.selectedMessage){
-	        let selMsg = this.selectedMessage;
-            this.set('disabled', ((selMsg.status & (1 << 26)) !== 0))
+    _focusChanged() {
+	    if (!this.selectedMessage) {
+            this.set('isLoadingMessage', false)
+            this.set('messages', null)
+            this.set('hasUnassignedResults', false)
+            this.set('thisDocument', null)
+            return;
+        }
 
-            console.log('this message',selMsg)
-            let getPatientIdProm = this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, selMsg, new Uint8Array(this.api.crypto().utils.base64toArrayBuffer(this.selectedMessage.metas.cryptedInfo)))
+        let selMsg = this.selectedMessage;
+        this.set('disabled', ((selMsg.status & (1 << 26)) !== 0));
+        let getPatientIdProm = null;
+        console.log('this message', selMsg);
+        try {
+            getPatientIdProm = this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, selMsg, new Uint8Array(this.api.crypto().utils.base64toArrayBuffer(this.selectedMessage.metas.cryptedInfo)))
                 .then(decrypted => JSON.parse(this.api.crypto().utils.ua2text(decrypted)))
                 .then(secretInfo => {
                     if (secretInfo.length > 0) {
                         this.api.patient().getPatientWithUser(this.user, secretInfo[0].patientId)
                             .then(patient => {
-                                this.push("listPat",{
+                                this.push("listPat", {
                                     id: patient.id,
                                     name: patient.firstName + " " + patient.lastName || patient.id,
                                     ssin: patient.ssin
                                 });
                                 this.set('selectedMessage.patientId', patient.id);
-                                return Promise.resolve();
+                                // return Promise.resolve();
                             })
                     }
-                })
-                .catch(error => console.log(error));
-
-            let getMessageDocumentProm = this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
-                .then(found => {
-                    this.set("document",found[0])
-                    return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys);
-                })
-                .then(attachmentResponse => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.document, attachmentResponse))
-                .then(decryptedFileContent => {
-                    let type = _.toLower(this.document.name.split('.').pop());
-                    let base64 = btoa([].reduce.call(new Uint8Array(decryptedFileContent), (p,c) => p+ String.fromCharCode(c),''));
-                    if (type === 'jpeg' || type === 'jpg' || type ==="PNG" || type ==="png") {
-                        this.set('isPdf', false);
-                        this.set('selectedData', 'data:image/jpeg;base64,' + base64);
-                    } else if (type === 'tif' || type === 'tiff') {
-                        this.set('isPdf', false);
-                        this.set('selectedData', 'data:image/tiff;base64,' + base64);
-                    } else if (type === 'pdf') {
-                        this.set('selectedData',base64);
-                        this.set('isPdf', true);
-                    }
                     return Promise.resolve();
-                    // this.set('isLoadingMessage', false)
-                    // this.set('messages', [selMsg])
                 })
-                .catch(error=> console.log('error:', error))
-            Promise.all([getPatientIdProm, getMessageDocumentProm]).then(() => this.set('isLoadingMessage', false))
-
-        } else {
-            this.set('isLoadingMessage', false)
-            this.set('messages', null)
-            this.set('hasUnassignedResults', false)
-            this.set('thisDocument', null)
+                // .catch(error => console.log(error));
+        } catch(error) {
+            getPatientIdProm = Promise.reject(error)
         }
+
+        let getMessageDocumentProm = this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
+            .then(found => {
+                this.set("document",found[0]);
+                return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys);
+            })
+            .then(attachmentResponse => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.document, attachmentResponse))
+            .then(decryptedFileContent => {
+                let type = _.toLower(this.document.name.split('.').pop());
+                let base64 = btoa([].reduce.call(new Uint8Array(decryptedFileContent), (p,c) => p+ String.fromCharCode(c),''));
+                if (type === 'jpeg' || type === 'jpg' || type ==="PNG" || type ==="png") {
+                    this.set('isPdf', false);
+                    this.set('selectedData', 'data:image/jpeg;base64,' + base64);
+                } else if (type === 'tif' || type === 'tiff') {
+                    this.set('isPdf', false);
+                    this.set('selectedData', 'data:image/tiff;base64,' + base64);
+                } else if (type === 'pdf') {
+                    this.set('selectedData',base64);
+                    this.set('isPdf', true);
+                }
+                return Promise.resolve();
+                // this.set('isLoadingMessage', false)
+                // this.set('messages', [selMsg])
+            });
+            // .catch(error=> console.log('error:', error))
+        Promise.all([getPatientIdProm, getMessageDocumentProm])
+            .catch((error) => {
+                this.dispatchEvent(new CustomEvent('show-error-message', { detail: {title: selMsg.metas.filename, message: error, bubbles: true }}));
+            })
+            .finally(() => this.set('isLoadingMessage', false))
 	}
 
     _base64(data) {
