@@ -45,7 +45,7 @@ import moment from 'moment/src/moment';
       this.HEIGHT = this.viewportOut.offsetHeight;
 
     var width = this.WIDTH,
-      height = this.HEIGHT;
+        height = this.HEIGHT;
 
     if (attrName === 'width') {
       width = newVal;
@@ -60,9 +60,9 @@ import moment from 'moment/src/moment';
     // this.element.style.height = this.reader.style.height = this.HEIGHT + 64 + 'px';
 
     // this.viewportOutStyle.width = width + 'px';
-      if (!this.fitHeight) {
-          this.viewportOutStyle.height = height + 'px';
-      }
+    if (!this.fitHeight) {
+      this.viewportOutStyle.height = height + 'px';
+    }
 
     this.spinner.style.top = (height - this.toolbarHeight) / 2 + 'px';
   };
@@ -75,7 +75,7 @@ import moment from 'moment/src/moment';
     this.fitWidth = fitWidth;
   };
   Reader.prototype.setFitHeight = function(fitHeight) {
-      this.fitHeight = fitHeight;
+    this.fitHeight = fitHeight;
   };
 
   Reader.prototype.queueRenderPage = function(num) {
@@ -144,8 +144,8 @@ import moment from 'moment/src/moment';
 
       if (self.currentZoomVal === 0 || !!resize) {
         scaleW = Math.round((self.WIDTH / self.pageW) * 100) / 100,
-          scaleH = Math.round(((self.HEIGHT - self.toolbarHeight) / self.pageH) * 100) / 100,
-          scale = Math.min(scaleH, scaleW);
+            scaleH = Math.round(((self.HEIGHT - self.toolbarHeight) / self.pageH) * 100) / 100,
+            scale = Math.min(scaleH, scaleW);
         self.fitZoomVal = scale;
         self.widthZoomVal = self.WIDTH / self.pageW;
         self.currentZoomVal = self.fitWidth ? self.widthZoomVal : self.fitZoomVal;
@@ -171,7 +171,7 @@ import moment from 'moment/src/moment';
         self.viewport.height = self.pageH;
         self.viewportStyle.width = self.pageW + 'px';
         if (!self.fitHeight) {
-            self.viewportStyle.height = self.pageH + 'px';
+          self.viewportStyle.height = self.pageH + 'px';
         }
 
         if (self.enableTextSelection){
@@ -250,13 +250,13 @@ import moment from 'moment/src/moment';
               textDivs: []
             })
             task.promise.then(() => {
-                if (self.fitHeight && self.textLayerDiv && self.textLayerDiv.offsetHeight) {
-                  setTimeout(() => {
-                      const newHeight = Math.max(self.textLayerDiv.offsetHeight, 200) + self.toolbarHeight + 32 + 'px'
-                      console.log('Setting pdf-element height to ' + newHeight)
-                      self.element.style.height = newHeight
-                  }, 300)
-                }
+              if (self.fitHeight && self.textLayerDiv && self.textLayerDiv.offsetHeight) {
+                setTimeout(() => {
+                  const newHeight = Math.max(self.textLayerDiv.offsetHeight, 200) + self.toolbarHeight + 32 + 'px'
+                  console.log('Setting pdf-element height to ' + newHeight)
+                  self.element.style.height = newHeight
+                }, 300)
+              }
             });
           });
         }
@@ -337,7 +337,7 @@ import moment from 'moment/src/moment';
 
   Reader.prototype.download = function(context) {
     var a = document.createElement('a'),
-      filename = validURL(this.SRC) ? this.SRC.split('/') : [`${"document"}_${moment()}.pdf`];
+        filename = validURL(this.SRC) ? this.SRC.split('/') : [`${"document"}_${moment()}.pdf`];
 
     a.href = this.downloadLink;
     a.target = '_parent';

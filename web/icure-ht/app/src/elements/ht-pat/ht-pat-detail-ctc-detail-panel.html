@@ -40,6 +40,8 @@
 <link rel="import" href="../ht-spinner/ht-spinner.html">
 <link rel="import" href="../../scrollbar-style.html">
 
+
+
 <link rel="import" href="../dynamic-form/dynamic-subcontact-type-selector.html">
 <link rel="import" href="../../elements/ht-msg/ht-msg-new.html">
 
@@ -796,6 +798,10 @@
 		</div>
 
 		<entity-selector id="load-template-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[reportTemplatesSelectorColumns()]]" data-provider="[[reportCustomTemplatesSelectorDataProvider()]]" entity-icon="vaadin:doctor" entity-type="[[localize('template','Template',language)]]" on-entity-selected="_reportTemplateSelected"></entity-selector>
+		<entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
+
+        <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" global-hcp=[[globalHcp]] on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"></ht-pat-prescription-dialog>
+
 		<ht-pat-invoicing-dialog id="invoicingForm" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-invoicing-dialog>
 
 		<paper-dialog id="prose-editor-dialog" no-cancel-on-outside-click no-cancel-on-esc-key>
@@ -939,9 +945,6 @@
 								{ icon: "icure-svg-icons:blood-pressure", filter:[{type:'CD-PARAMETER',code:['weight','height','bmi']}],  title: {en: "Biometries", fr:"Biométries", nl:"Biometries"}, id: "Biometry" }];
 						}
 					},
-					files: {
-						type: Array
-					},
 					showAddFormsContainer: {
 						type: Boolean,
 						value: false
@@ -1077,8 +1080,6 @@
                 )))
 
                 this._contactsChanged()
-
-
             }
 
 			ifRecipeAvailable(){
@@ -1218,11 +1219,6 @@
 
 			addDocument() {
 				this.set('showAddFormsContainer', false);
-                // const vaadinUpload = this.$['vaadin-upload'];
-                // vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-                // vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
-                // this.set('files',[])
-				// this.$['upload-dialog'].open();
                 this.dispatchEvent(new CustomEvent('add-document', {detail: {currentContact: this.currentContact}, composed: true, bubbles: true}))
 			}
 
@@ -3532,6 +3528,79 @@
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
 			}
 
+			saveDoc(e){
+			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length))return;
+
+                (e.detail.documents || []).map( doc =>{
+                	const tab = [
+						(doc.patientId ? {
+							patientId : doc.patientId,
+							isAssigned: true
+						}: {})
+					]
+					let message = null
+
+                	Promise.all([
+						this.api.user().findByHcpartyId(doc.hcp),
+                    	this.api.message().newInstance(this.user)])
+							.then(([user,msg]) => this.api.message().createMessage(_.merge(msg,{
+								transportGuid : "DOC:"+(doc.isScanned ? "SCAN" :"IMPORT")+":IN",
+								recipients :[doc.hcp,(this.user.healthcarePartyId || (this.hcp && this.hcp.id) || "")],
+								recipientsType : "org.taktik.icure.entities.HealthcareParty",
+								metas :{
+									filename : doc.title,
+									importDate : doc.importDate,
+									documentDate : doc.docDate,
+									type : doc.type
+								},
+								toAddresses : [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")),_.get(user,"email",doc.hcp)],
+								subject : "imported doc in patient folder",
+								//@ToDo test on persphysician ==> traited or not
+								status : (doc.isScanned ? 1<<24 : 0) | 1<<25 | (doc.patientId ? 1<<26 : 0)
+							})))
+							.then(msg =>{
+								message = msg
+								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, msg,this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(tab))))
+							})
+							.then(cryptedMsg =>{
+								message.metas.cryptedInfo = btoa(String.fromCharCode.apply(null, new Uint8Array(cryptedMsg)))
+								return this.api.message().modifyMessage(message)
+							})
+							.then(msg => this.api.register(msg,"message"))
+							.then(msg => this.api.document().newInstance(this.user, msg, {
+								documentType: doc.type,
+								mainUti: this.api.document().uti(_.toLower(doc.extension)==="pdf" ? "application/"+_.toLower(doc.extension) : "image/"+_.toLower(doc.extension)),
+								name: doc.title.includes("."+doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
+							)
+							.then(newDoc => this.api.document().createDocument(newDoc))
+							.then(createdDoc =>{
+								doc.docId = createdDoc.id
+								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc,doc.fileBlob)
+							})
+							.then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))
+							.finally(x => {
+								if(!doc.patientId)return;
+								(doc.patientId===this.patient.id ? Promise.resolve(this.patient) : this.api.patient().getPatientWithUser(this.user, doc.patientId))
+									//.then(patient  => this.api.register(patient,"patient"))
+									.then(patient => this.api.contact().newInstance(this.user, patient, {
+										created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+										modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
+										author: this.user.id,
+										responsible: this.user.healthcarePartyId,
+										subContacts: []
+									}))
+									.then(contact => {
+										const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'imported document' });
+										contact.services =[svc];
+										const sc = { status: 64, services: [{ serviceId: svc.id }] };
+										contact.subContacts.push(sc);
+
+										return this.api.contact().createContactWithUser(this.user,contact)
+									}).then(contact => this.api.register(contact,"contact"))
+							})
+				})
+			}
+
             resizeFloatingBar(isTooSmall){
                 isTooSmall ? this.root.querySelector('.floating-action-bar').classList.add('mobile') : this.root.querySelector('.floating-action-bar').classList.remove('mobile')
             }
@@ -3551,7 +3620,7 @@
 
 			    const documentId = _.get(e,"detail.documentId", false);
 			    if (!documentId) return;
-			    
+
 			    // eHealthBox connection has to be
 			    if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
 
