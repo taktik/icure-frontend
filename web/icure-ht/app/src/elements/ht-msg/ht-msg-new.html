@@ -802,7 +802,15 @@
                     },
                     _hasAdditionalAnnexesFromPatDetail: {
                         type: Boolean,
-                        value: false,
+                        value: false
+                    },
+                    _dontTriggerUpdateSubjectUpOnPatientLinked: {
+                        type: Boolean,
+                        value: false
+                    },
+                    _assignRecipientValueWhenReplyingToMessage: {
+                        type: Boolean,
+                        value: false
                     }
                 }
             }
@@ -851,12 +859,15 @@
             }
 
             _recipientsFilterChanged(recipientType, recipientFilter) {
+
                 if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
                 const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
+
                 setTimeout(() => {
                     if (reqIdx !== this.recipientReqIdx) return;
                     this.set('busySpinner', true)
 
+                    const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
                     const numericSearchQuery = _.trim(_.trim(recipientFilter).replace( /([^\d]*)/gi, '' ))
                     const patternsValidation = {
                         heightDigits: /^([0-9]){8}$/i,
@@ -876,23 +887,23 @@
                             this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
                         ]) :
                         recipientType.id === 'EHP' ? Promise.all([
-                                !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
-                                this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
-                                this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
-                            ]) :
-                            recipientType.id === 'INSS' ? Promise.all([
-                                    !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
-                                    this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
-                                ]) :
-                                (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
-                                        !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                                        this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
-                                    ]) :
-                                    // Default type = NIHII
-                                    Promise.all([
-                                        !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                                        this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
-                                    ])
+                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType.id === 'INSS' ? Promise.all([
+                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
+                        ]) :
+                        (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
+                        ]) :
+                        // Default type = NIHII
+                        Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
+                        ])
 
                     searchProm
                         .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
@@ -906,17 +917,25 @@
                                     ( !!_.get(singleSearchResult, "nihii", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.nihii)))).indexOf(_.trim(_.get(singleSearchResult, "nihii", ""))) === -1 )
                                 )})
                                 .map(singleRecipient => _.assign({displayName : _.compact([
-                                        _.map( _.trim(_.get(singleRecipient, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                        _.map( _.trim(_.get(singleRecipient, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                        ( ( !_.trim(_.get(singleRecipient, "lastName", "")) && !_.trim(_.get(singleRecipient, "firstName", "")) ) ? _.map( _.trim(_.get(singleRecipient, "name", "")).split(" "),i=> _.capitalize(i)).join(" ") : "" ),
-                                        ( !! _.trim(_.get(singleRecipient, "nihii", "")) ? "(" + this.localize('nihii', 'INAMI', this.language) + ": " + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")" : "" ),
-                                        ( !! _.trim(_.get(singleRecipient, "ssin", "")) ? "(" + this.localize('ssin', 'Registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(singleRecipient, "ssin", ""))) + ")" : "" ),
-                                        ( !! _.trim(_.get(singleRecipient, "ehp", "")) ? "(EHP: " + _.trim(_.get(singleRecipient, "ehp", "")) + ")" : "" ),
-                                        ( !! _.trim(_.get(singleRecipient, "cbe", "")) ? "(BCE: " + _.trim(_.get(singleRecipient, "cbe", "")) + ")" : "" )
-                                    ]).join(" ")},singleRecipient))
+                                    _.map( _.trim(_.get(singleRecipient, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                    _.map( _.trim(_.get(singleRecipient, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                    ( ( !_.trim(_.get(singleRecipient, "lastName", "")) && !_.trim(_.get(singleRecipient, "firstName", "")) ) ? _.map( _.trim(_.get(singleRecipient, "name", "")).split(" "),i=> _.capitalize(i)).join(" ") : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "nihii", "")) ? "(" + this.localize('nihii', 'INAMI', this.language) + ": " + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "ssin", "")) ? "(" + this.localize('ssin', 'Registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(singleRecipient, "ssin", ""))) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "ehp", "")) ? "(EHP: " + _.trim(_.get(singleRecipient, "ehp", "")) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "cbe", "")) ? "(BCE: " + _.trim(_.get(singleRecipient, "cbe", "")) + ")" : "" )
+                                ]).join(" ")},singleRecipient))
                                 .orderBy(['displayName','nihii', 'ssin', 'ehp', 'cbe'],['asc','asc','asc','asc','asc'])
                                 .value()
                             )
+
+                            if(!!_.get(this,"_assignRecipientValueWhenReplyingToMessage") && _.size(_.get(this, "filteredRecipientsList[0]",{})) && !!newMsgTo) {
+                                this.set("_assignRecipientValueWhenReplyingToMessage",false)
+                                newMsgTo.selectedItem = _.get(this, "filteredRecipientsList[0]",{})
+                                setTimeout(()=>{this._addRecipient()},100)
+                                setTimeout(()=>{newMsgTo.close()},200)
+                            }
+
                         }})
                         .catch(e=>{console.log("ERROR with _recipientsFilterChanged: ", e);})
                         .finally(() => this.set('busySpinner', false))
@@ -1055,7 +1074,7 @@
                     // Valid pat, valid ssin, assign straight
                     if( _.trim(_.get(linkedPatientComboxBoxSelectedItem, "ssin", "")) ) {
                         this.set("newMessage.patientInss", _.trim(_.get(linkedPatientComboxBoxSelectedItem, "ssin", "")));
-                        this.set("newMessage.document.title", _.compact([_.trim(_.get(this, "newMessage.document.title")),_.trim(_.get(linkedPatientComboxBoxSelectedItem, "displayName", ""))]).join(" - "))
+                        if(!this._dontTriggerUpdateSubjectUpOnPatientLinked) this.set("newMessage.document.title", _.compact([_.trim(_.get(this, "newMessage.document.title")),_.trim(_.get(linkedPatientComboxBoxSelectedItem, "displayName", ""))]).join(" - "))
                         return;
                     }
 
@@ -1081,92 +1100,6 @@
 
                 this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotification')
                 this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotification')
-
-            }
-
-            open(componentOpenParameters) {
-
-                this._resetComponentData();
-
-                const vaadinUploadComponent = this.shadowRoot.querySelector('#vaadinUploadNewMessage')
-                const dataFromPatDetail = _.get(componentOpenParameters, "dataFromPatDetail", false );
-                const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
-
-                // From ht-pat-detail-ctc-detail-panel
-                if(_.size(dataFromPatDetail)) {
-
-                    this.set("newMessage.important", true)
-                    try{ delete(componentOpenParameters.dataFromPatDetail); } catch(e){}
-
-                    if(_.trim(_.get(dataFromPatDetail,"patient.id",""))) {
-                        dataFromPatDetail.patient = _.assign({displayName : _.compact([
-                                _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                _.map( _.trim(_.get(dataFromPatDetail, "patient.firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                ( !! _.trim(_.get(dataFromPatDetail, "patient.ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) + ")" : "" ),
-                                ( ! _.trim(_.get(dataFromPatDetail, "patient.ssin", "")) && !! _.trim(_.get(dataFromPatDetail, "patient.dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(dataFromPatDetail,"patient.dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" : "" )
-                            ]).join(" ")},dataFromPatDetail.patient)
-
-                        // Changing value / selectedItem will call this._setLinkedPatient
-                        if(linkedPatientComboxBox && !!_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.selectedItem = _.get(dataFromPatDetail, "patient", {})
-                        if(linkedPatientComboxBox && !_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.value = _.get(dataFromPatDetail, "patient.displayName", "")
-                        setTimeout(()=>{ this.set("newMessage.document.title", _.compact([this.localize('documentTransfer', 'Document transfer', this.language), _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
-                    }
-
-                    // To improve: could be several attachments from pat (considering we only have one at the moment)
-                    this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
-                        .then(foundDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(foundDocument,"id","")), _.size(_.get(foundDocument,"encryptionKeys",[])) ? _.get(foundDocument,"encryptionKeys",[]) : _.get(foundDocument,"delegations",[]))
-                            .then(({extractedKeys: enckeys}) => !!_.trim(_.get(foundDocument,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(foundDocument,"id","")), _.trim(_.get(foundDocument,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>({foundDocument,decryptedContent})).catch(e=>{console.log("ERROR with getAttachment: ",e); return foundDocument;}) : foundDocument)
-                        )
-                        .then(({foundDocument, decryptedContent}) => {
-                            const foundExtension = _.trim(_.get(foundDocument,"name","")).split(".").pop()
-                            const fileExtension = _.trim(_.get( _.compact(_.map(this.api.document().utiExts, (v,k)=>_.trim(v).toLowerCase() ===_.trim(_.get(foundDocument,"mainUti","")).toLowerCase()?k:false)), "[0]", ( _.trim(_.get(foundDocument,"name","")).indexOf(".") > -1 && _.trim(foundExtension).length<5 && _.trim(foundExtension).length>2 ? foundExtension : "" ))).toLowerCase()
-                            const attachmentSize = _.get((typeof decryptedContent === "string" ? this.api.crypto().utils.text2ua(decryptedContent) : decryptedContent),"byteLength",0)
-                            const attachmentSizePow = attachmentSize > (1024**2) ? 2 : attachmentSize > 1024 ? 1 : 0
-                            this.set("_hasAdditionalAnnexesFromPatDetail", true)
-                            this.push("_additionalAnnexesFromPatDetail", {
-                                content: decryptedContent,
-                                filename: _.kebabCase(_.trim(_.get(foundDocument,"name","")).replace("."+foundExtension,"")) + "." + fileExtension,
-                                fileExtension: fileExtension,
-                                fileExtensionUppercase: _.trim(fileExtension).toUpperCase(),
-                                mimeType: _.trim(this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti","")))) ? _.trim(this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti","")))) : "text/plain",
-                                title: _.trim(_.get(foundDocument,"name","")),
-                                size: this.api._powRoundFloatByPrecision( attachmentSize / (1024**attachmentSizePow) ,2) + " " + _.trim(attachmentSizePow === 2 ? "Mb" : attachmentSizePow === 1 ? "Kb" : "Bytes"),
-                                documentId: _.trim(_.get(foundDocument,"id",""))
-                            });
-                            this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail') && this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail').render()
-                        })
-                        .catch(e=>{
-                            console.log("ERROR getting attachment from pat detail: ", e)
-                            this.set("_bodyOverlay", true);
-                            this.$["unableToLinkPatDocument"].open();
-                        })
-
-                }
-
-                // Is case of forward / reply
-                if(_.size(componentOpenParameters)) {
-
-                    console.log("[HT-MSG-NEW] ", componentOpenParameters);
-
-                    this.set("newMessage.important", true)
-                    this.set('newMessage.document.title', _.trim(_.get(componentOpenParameters,"subject","")))
-                    this.set('newMessage.document.textContent', [
-                        "\n\n",
-                        "--------------------------------------------------------------------------\n" +
-                        _.trim(_.get(componentOpenParameters,"originalSender","")) + " - " + _.trim(_.get(componentOpenParameters,"received","")) + "\n" +
-                        "--------------------------------------------------------------------------\n",
-                        _.trim(_.get(componentOpenParameters,"body", "")) + "\n\n"
-                    ].join("\n\n"))
-
-                    // Axel Fiolle
-                    // this.set("newMessage.annex", _.get(componentOpenParameters,"annex",[]))
-                    // this.set('newMessage.recipients',_.get(componentOpenParameters,"destinations",[]))
-                    // this.set("newMessage.patientInss", _.get(componentOpenParameters,"patientInss",null))
-                    // vaadinUploadComponent.files = _.size(_.get(componentOpenParameters,"annex",[])) ? _.get(componentOpenParameters,"annex",[]) : []
-
-                }
-
-                return this.$['new-msg'].open();
 
             }
 
@@ -1425,6 +1358,138 @@
 
                 console.log(this.newMessage);
                 return;
+
+            }
+
+            _getPatientDataBySsin(ssin) {
+                return !_.trim(ssin) ?
+                    Promise.resolve() :
+                    this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId",null)), _.trim(ssin), null, null, 100)
+                        .then(foundPatientsBasedOnSsin => _
+                            .chain(_.get(foundPatientsBasedOnSsin,"rows",[]))
+                            .filter(i=>!!_.get(i,"active",false) && _.trim(_.get(i,"ssin","")) === _.trim(ssin))
+                            .orderBy(['modified'],['desc'])
+                            .head()
+                            .value()
+                        )
+                        .catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser: ", e); return Promise.resolve();})
+            }
+
+            open(componentOpenParameters) {
+
+                this._resetComponentData();
+
+                const vaadinUploadComponent = this.shadowRoot.querySelector('#vaadinUploadNewMessage')
+                const dataFromPatDetail = _.get(componentOpenParameters, "dataFromPatDetail", false );
+                const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
+
+                // From ht-pat-detail-ctc-detail-panel
+                if(_.size(dataFromPatDetail)) {
+
+                    this.set("newMessage.important", true)
+                    try{ delete(componentOpenParameters.dataFromPatDetail); } catch(e){}
+
+                    if(_.trim(_.get(dataFromPatDetail,"patient.id",""))) {
+                        dataFromPatDetail.patient = _.assign({displayName : _.compact([
+                                _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                _.map( _.trim(_.get(dataFromPatDetail, "patient.firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                ( !!_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) + ")" : "" ),
+                                ( !_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) && !!_.trim(_.get(dataFromPatDetail, "patient.dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(dataFromPatDetail,"patient.dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" : "" )
+                            ]).join(" ")},dataFromPatDetail.patient)
+
+                        // Changing value / selectedItem will call this._setLinkedPatient
+                        if(linkedPatientComboxBox && !!_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.selectedItem = _.get(dataFromPatDetail, "patient", {})
+                        if(linkedPatientComboxBox && !_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.value = _.get(dataFromPatDetail, "patient.displayName", "")
+                        setTimeout(()=>{ this.set("newMessage.document.title", _.compact([this.localize('documentTransfer', 'Document transfer', this.language), _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
+                    }
+
+                    // To improve: could be several attachments from pat (considering we only have one at the moment)
+                    this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
+                        .then(foundDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(foundDocument,"id","")), _.size(_.get(foundDocument,"encryptionKeys",[])) ? _.get(foundDocument,"encryptionKeys",[]) : _.get(foundDocument,"delegations",[]))
+                            .then(({extractedKeys: enckeys}) => !!_.trim(_.get(foundDocument,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(foundDocument,"id","")), _.trim(_.get(foundDocument,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>({foundDocument,decryptedContent})).catch(e=>{console.log("ERROR with getAttachment: ",e); return foundDocument;}) : foundDocument)
+                        )
+                        .then(({foundDocument, decryptedContent}) => {
+                            const foundExtension = _.trim(_.get(foundDocument,"name","")).split(".").pop()
+                            const fileExtension = _.trim(_.get( _.compact(_.map(this.api.document().utiExts, (v,k)=>_.trim(v).toLowerCase() ===_.trim(_.get(foundDocument,"mainUti","")).toLowerCase()?k:false)), "[0]", ( _.trim(_.get(foundDocument,"name","")).indexOf(".") > -1 && _.trim(foundExtension).length<5 && _.trim(foundExtension).length>2 ? foundExtension : "" ))).toLowerCase()
+                            const attachmentSize = _.get((typeof decryptedContent === "string" ? this.api.crypto().utils.text2ua(decryptedContent) : decryptedContent),"byteLength",0)
+                            const attachmentSizePow = attachmentSize > (1024**2) ? 2 : attachmentSize > 1024 ? 1 : 0
+                            this.set("_hasAdditionalAnnexesFromPatDetail", true)
+                            this.push("_additionalAnnexesFromPatDetail", {
+                                content: decryptedContent,
+                                filename: _.kebabCase(_.trim(_.get(foundDocument,"name","")).replace("."+foundExtension,"")) + "." + fileExtension,
+                                fileExtension: fileExtension,
+                                fileExtensionUppercase: _.trim(fileExtension).toUpperCase(),
+                                mimeType: _.trim(this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti","")))) ? _.trim(this.api.document().mimeType(_.trim(_.get(foundDocument,"mainUti","")))) : "text/plain",
+                                title: _.trim(_.get(foundDocument,"name","")),
+                                size: this.api._powRoundFloatByPrecision( attachmentSize / (1024**attachmentSizePow) ,2) + " " + _.trim(attachmentSizePow === 2 ? "Mb" : attachmentSizePow === 1 ? "Kb" : "Bytes"),
+                                documentId: _.trim(_.get(foundDocument,"id",""))
+                            });
+                            this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail') && this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail').render()
+                        })
+                        .catch(e=>{
+                            console.log("ERROR getting attachment from pat detail: ", e)
+                            this.set("_bodyOverlay", true);
+                            this.$["unableToLinkPatDocument"].open();
+                        })
+
+                }
+
+                // Is case of forward / reply
+                if(_.size(componentOpenParameters)) {
+
+                    console.log("[HT-MSG-NEW] ", componentOpenParameters);
+
+                    const prom = Promise.resolve([])
+                    const patientSsin = _.trim(_.get(componentOpenParameters,"patientSsin",""))
+                    const replyOrForward = _.trim(_.get(componentOpenParameters,"replyOrForward","reply"))
+
+                    return prom
+                        .then(()=> this._getPatientDataBySsin(patientSsin))
+                        .then(foundPatientBySsin => {
+                            if(!_.trim(_.get(foundPatientBySsin, "id",""))) return prom;
+                            this.set("_dontTriggerUpdateSubjectUpOnPatientLinked", true)
+                            linkedPatientComboxBox.selectedItem = _.assign({displayName : _.compact([
+                                _.map( _.trim(_.get(foundPatientBySsin, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                _.map( _.trim(_.get(foundPatientBySsin, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                ( !!_.trim(_.get(foundPatientBySsin, "ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(foundPatientBySsin, "ssin", ""))) + ")" : "" ),
+                                ( !_.trim(_.get(foundPatientBySsin, "ssin", "")) && !!_.trim(_.get(foundPatientBySsin, "dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(foundPatientBySsin,"dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" : "" )
+                            ]).join(" ")},foundPatientBySsin)
+                            return prom
+                        })
+                        .then(() => {
+                            if(_.trim(replyOrForward) !== "reply" || !_.trim(_.get(componentOpenParameters,"recipientId",""))) return prom;
+                            this.set("_assignRecipientValueWhenReplyingToMessage", true)
+                            this.set("recipientType",_.trim(_.get(componentOpenParameters,"recipientType","")))
+                            this.set("recipientFilter",_.trim(_.get(componentOpenParameters,"recipientId","")))
+                            return prom
+                        })
+                        .then(() => {
+                            if(_.trim(replyOrForward) !== "forward" || !_.size(_.get(componentOpenParameters,"attachments",[])) ) return prom;
+                            console.log("SET attachments")
+                        })
+                        .catch((e)=>{ console.log("ERROR with open: ", e); return prom; })
+                        .finally(()=>{
+                            this.set("newMessage.important", true)
+                            this.set('newMessage.document.title', ( replyOrForward === "forward" ? "FW: " : replyOrForward === "reply" ? "RE: " : "" ) + _.trim(_.get(componentOpenParameters,"subject","")))
+                            this.set('newMessage.document.textContent', [
+                                "\n\n",
+                                "--------------------------------------------------------------------------\n" +
+                                _.trim(_.get(componentOpenParameters,"originalSender","")) + " - " + _.trim(_.get(componentOpenParameters,"received","")) + "\n" +
+                                "--------------------------------------------------------------------------\n",
+                                _.trim(_.get(componentOpenParameters,"body", "")) + "\n\n"
+                            ].join("\n\n"))
+                            this.$['new-msg'].open();
+                        })
+
+                    // Axel Fiolle
+                    // this.set("newMessage.annex", _.get(componentOpenParameters,"annex",[]))
+                    // this.set('newMessage.recipients',_.get(componentOpenParameters,"destinations",[]))
+                    // this.set("newMessage.patientInss", _.get(componentOpenParameters,"patientInss",null))
+                    // vaadinUploadComponent.files = _.size(_.get(componentOpenParameters,"annex",[])) ? _.get(componentOpenParameters,"annex",[]) : []
+
+                }
+
+                return this.$['new-msg'].open();
 
             }
 
