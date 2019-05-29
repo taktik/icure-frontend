@@ -17,7 +17,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="elements/ht-msg/ht-msg-mycarenet.html">
 <link rel="import" href="elements/ht-msg/ht-msg-new.html">
 <link rel="import" href="elements/ht-msg/ht-msg-documents.html">
-
+<link rel="import" href="elements/ht-msg/ht-msg-document-detail.html">
+<link rel="import" href="elements/ht-msg/ht-msg-import-doc-dialog.html">
 
 
 <link rel="import" href="./shared-styles.html">
@@ -83,6 +84,25 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 height: calc(100% - 91px);
             }
 
+            ht-msg-document-detail{
+                padding: 16px;
+                z-index: 0;
+                transform: translateX(100vw);
+                opacity: 0;
+                transition: all .5s cubic-bezier(0.075, 0.82, 0.165, 1);
+            }
+            ht-msg-document-detail.selected {
+                transform: none;
+                opacity: 1;
+                z-index: 10; /* else it's impossible to scroll in this box */
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                border-left: 1px solid var(--app-background-color-dark);
+                background-color: var(--app-background-color-light);
+                padding: 0;
+            }
+
             .display-left-menu{
                 display:none;
                 position:fixed;
@@ -108,6 +128,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             ht-msg-list.selected {
                 /*width: 152vw;*/
+            }
+
+            ht-msg-documents.selected {
+                width: 152vw;
             }
 
             ht-msg-menu{
@@ -157,6 +181,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     /*width: initial;*/
                 }
 
+                ht-msg-documents {
+                    transition: all .5s ease-out;
+                }
+
+                ht-msg-documents.selected {
+                    height: calc(40vh - 24px);
+                    width: initial;
+                }
+
                 ht-msg-detail {
                     padding: 0 16px;
                     z-index: 2;
@@ -171,6 +204,25 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     box-sizing: border-box;
                 }
                 ht-msg-detail.selected {
+                    transform: none;
+                    opacity: 1;
+                    border-top: 1px solid var(--app-background-color-darker);
+                }
+
+                ht-msg-document-detail {
+                    padding: 0 16px;
+                    z-index: 2;
+                    width: 100vw;
+                    height: calc(60vh - 32px);
+                    bottom: 0;
+                    position: fixed;
+                    transform: translateY(100vh);
+                    opacity: 0;
+                    display: flex;
+                    flex-direction: column;
+                    box-sizing: border-box;
+                }
+                ht-msg-document-detail.selected {
                     transform: none;
                     opacity: 1;
                     border-top: 1px solid var(--app-background-color-darker);
@@ -212,7 +264,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             <template is="dom-if" if="[[isEHealthBox]]">
                 <div class="sub-container">
-                    
+
                     <ht-msg-list
                         id="msg-list"
                         api="[[api]]"
@@ -228,6 +280,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-list>
 
+
                     <ht-msg-detail
                         id="msg-detail"
                         api="[[api]]"
@@ -238,22 +291,33 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         credentials="[[credentials]]"
                         selected-message="[[selectedMessage]]"
                         on-carry-out-action="_carryOutActionFromDetailComponent"
+                        on-msg-detail-closed="_triggerGridResize"
+                        on-item-delete="handleRefreshlist"
+                        on-item-restore="handleRefreshlist"
                         class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-detail>
-                    
+
                 </div>
             </template>
 
             <template is="dom-if" if="[[documentLayout]]">
-                    <ht-msg-documents
-                        id="msgDocuments"
-                        api="[[api]]"
-                        i18n="[[i18n]]"
-                        language="[[language]]"
-                        resources="[[resources]]"
-                        user="[[user]]"
+                <div class="sub-container">
+                    <ht-msg-documents id="doc-list" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"
                         menu-selection-object="[[selectList]]"
+                        on-selection-messages-change="handleMessageChange"
+                        on-open-new-doc="openNewDoc"
+                        on-show-error-message="showErrorMessage"
+                        class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-documents>
+                    <ht-msg-document-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"
+                        selected-message="[[selectedMessage]]"
+                        on-msg-detail-closed="_triggerGridDocResize"
+                        on-item-delete="handleRefreshlist"
+                        on-item-restore="handleRefreshlist"
+                        on-document-update="_updateDoc"
+                        class$="[[_selectedElem(selectedMessage)]]"
+                    ></ht-msg-document-detail>
+                </div>
             </template>
 
             <template is="dom-if" if="[[invoicesLayout]]">
@@ -291,6 +355,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
 
         <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"></ht-msg-new>
+        <ht-msg-import-doc-dialog id="import-doc-dialog" api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" on-save-documents="_saveDoc"></ht-msg-import-doc-dialog>
 
     </template>
 
@@ -445,11 +510,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             handleMessageChange(e) {
                 this.set('selectedMessage', _.get(e,"detail.selection.item",null))
                 this._triggerGridResize()
+                this._triggerGridDocResize()
             }
 
             _triggerGridResize() {
                 const msgList = this.shadowRoot.querySelector('#msg-list')|| false
                 return typeof _.get(msgList,"_triggerGridResize","") === "function" && msgList._triggerGridResize()
+            }
+
+            _triggerGridDocResize() {
+                const msgDoc = this.shadowRoot.querySelector('#doc-list')|| false
+                return msgDoc && msgDoc.triggerGridResize()
             }
 
 			handleRefreshlist(e) {
@@ -496,6 +567,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     && typeof _.get(this, "$['msg-menu'].shadowRoot.querySelectorAll", "") === "function"
                     && _.get(this, "$['msg-menu'].shadowRoot", false).querySelectorAll("[data-status='" + _.get(e, "detail.selection.status", "") + "']")
                     && _.map(_.get(this, "$['msg-menu'].shadowRoot", false).querySelectorAll("[data-status='" + _.get(e, "detail.selection.status", "") + "']"),e=>{ try{e.click()}catch(e){}})
+            }
+
+            showErrorMessage(e) {
+                this.shadowRoot.querySelector("#doc-list").showErrorMessage(e)
+            }
+
+            openNewDoc(){
+                this.$["import-doc-dialog"].open()
+            }
+
+            _saveDoc(e){
+                this.shadowRoot.querySelector("#doc-list").saveDoc(e)
+            }
+
+            _updateDoc(e) {
+                this.shadowRoot.querySelector('#doc-list').updateDoc(e)
             }
 
             _getCurrentAndParentHcps(user) {
