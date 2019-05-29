@@ -364,7 +364,7 @@
 				padding: 2px;
 				margin-right: 8px;
             }
-            
+
             .floating-action-bar.mobile span{
                 display: none;
             }
@@ -832,7 +832,18 @@
 
 		<template is="dom-if" if="[[busySpinner]]"><div id="busySpinner"><div id="busySpinnerContainer"><ht-spinner class="spinner" active></ht-spinner></div></div></template>
 
-        
+        <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox yet',language)]]</h3>
+                <p class="textAlignCenter m-t-20">[[localize('pleaseConnecteHealthBoxFirst','Please connect your eHealthBox first',language)]].</p>
+            </div>
+            <div class="dialogButtons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
+        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
 
 	</template>
 	<script>
@@ -1391,7 +1402,6 @@
                     this.notifyPath('currentContact.tags')
                     this.saveCurrentContact()
 							.then(ctc => this.dispatchEvent(new CustomEvent('contact-saved', { detail: {contact :ctc} , bubbles:true })))
-
                 }
             }
 
@@ -1682,7 +1692,7 @@
                 }
                 ctx.subContexts = makeSubContexts(ctx)
 
-                prose.applyContext((expr, template, ctx, cache) => {
+                prose.applyContext((expr, ctx) => {
                     return new Promise(function (resolve, reject) {
                         try {
                             const env = new evaljs.Environment(_.assign(ctx, {resolve, reject}));
@@ -1699,9 +1709,10 @@
                             }
 
                             if (status.value && status.value.asynchronous) {
-                                //Wait for internal resolution
+                                //Wait for internal resolution... it is the responsibility of the js to call resolve
+                                // TODO: manage some timeout
                             } else {
-                                resolve({ctx:status.value})
+                                resolve(status.value)
                             }
                         } catch (e) {
                             reject(e)
@@ -1803,7 +1814,11 @@
 				    return {
 				        type:'form',
 						name:k.label,
-						nodes: [{ type: k.isSubForm ? 'template' : 'variable', attrs: { expr: k.isSubForm ? `subContexts("${k.name}")`:`dataProvider.getValue("${k.name}")`} }]
+						nodes: [
+						    k.isSubForm ?
+                                { type: 'template', attrs: { expr:`subContexts("${k.name}")`, template: {'default':[ { type: 'variable', attrs: { expr:`dataProvider.form().template.name`}}]} } } :
+                                { type: 'variable', attrs: { expr:`const v = dataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`} }
+                                ]
 				    }
 				}), "name" )
 
@@ -1964,7 +1979,7 @@
                             {
                                 documentType: 'report',
                                 mainUti: this.api.document().uti("application/pdf"),
-                                name: reportData.title + " " + reportData.description
+                                name: reportData.title + " " + reportData.description + ".pdf"
                             }
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
@@ -2289,7 +2304,7 @@
                             {
                                 documentType: 'report',
                                 mainUti: this.api.document().uti("application/pdf"),
-                                name: this.documentMetas.title + " - " + this.documentMetas.patientName
+                                name: this.documentMetas.title + " - " + this.documentMetas.patientName + ".pdf"
                             }
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
@@ -2608,7 +2623,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName
+                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName + ".pdf"
                         }
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
@@ -2757,7 +2772,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName
+                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName + ".pdf"
                         }
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
@@ -2939,7 +2954,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName
+                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName + ".pdf"
                         }
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
@@ -3437,7 +3452,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: resourcesObject.documentMetas.title + " - " + resourcesObject.documentMetas.patientName
+                            name: resourcesObject.documentMetas.title + " - " + resourcesObject.documentMetas.patientName + ".pdf"
                         }
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
@@ -3531,6 +3546,29 @@
                 this.set("_bodyOverlay", false);
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
             }
+
+			_forwardDocument(e) {
+
+			    const documentId = _.get(e,"detail.documentId", false);
+			    if (!documentId) return;
+			    
+			    // eHealthBox connection has to be
+			    if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+
+                let hcpAndPatData = {}
+			    this._getPatAndHcpCommonData()
+                    .then(x=>hcpAndPatData=x)
+                    .catch(e=>{})
+                    .finally(()=> this.$['new-msg'].open({
+                        dataFromPatDetail: {
+                            patient: _.get(this, "patient", false),
+                            hcpAndPatData: hcpAndPatData || false,
+                            documentId: documentId
+                        }
+                    }))
+
+			}
+
         }
 
 		customElements.define(HtPatDetailCtcDetailPanel.is, HtPatDetailCtcDetailPanel);
