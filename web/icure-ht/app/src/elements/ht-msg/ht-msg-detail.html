@@ -1203,7 +1203,6 @@
                                 </div>
                             </div>
                             <div>
-                                <h5>[[patsLng]] [[localize('found_matches','Found matches',language)]] [[selectName]]</h5>
                                 <div class="scrollbox patlist">
                                     <template is="dom-if" if="[[!manualAssign]]">
                                         <paper-button class="search-patients" on-tap="toggleManualAssign"><iron-icon icon="perm-identity"></iron-icon> [[localize('sch_pats','Search patients',language)]]</paper-button>
@@ -1230,7 +1229,6 @@
 
                         <template is="dom-if" if="[[!documentBeingAssigned.unimportedPats.length]]">
                             <div>
-                            <h5>[[patsLng]] [[localize('poss_matches','Possible matches',language)]] [[selectName]]</h5>
                             <div class="scrollbox patlist">
                                 <template is="dom-if" if="[[!manualAssign]]">
                                     <paper-button class="search-patients" on-tap="toggleManualAssign"><iron-icon icon="perm-identity"></iron-icon> [[localize('sch_pats','Search patients',language)]]</paper-button>
@@ -1256,7 +1254,7 @@
 
                         <div class="line save-line">
                             <paper-button class="modal-button--cancel" on-tap="closeSuggestions">[[localize('can','Cancel',language)]]</paper-button>
-                            <template is="dom-if" if="[[canAssign]]"><paper-button id="patients-importBtn" class="confirmPats" on-tap="_assignToPat">[[localize('set','Assign',language)]] <iron-icon id="patients-icon" icon="check"></iron-icon></paper-button></template>
+                            <paper-button id="patients-importBtn" class="confirmPats" on-tap="_assignToPat">[[localize('set','Assign',language)]] <iron-icon id="patients-icon" icon="check"></iron-icon></paper-button>
                         </div>
 
                     </div>
@@ -1367,10 +1365,7 @@
 
 
 
-                    contacts: {
-                        type: Array,
-                        value: () => []
-                    },
+                    // FZ: revoir fiolle
                     unassignedResults: {
                         type: Array,
                         value: []
@@ -1403,22 +1398,14 @@
                         type: Boolean,
                         value: false
                     },
-                    selectName: {
-                        type: String,
-                        value: ''
-                    },
                     docInfo: {
                         type: Object,
                         value: null
                     },
-                    canAssign: {
-                        type: Boolean,
-                        value: false
-                    },
                     searchPatValue: {
                         type: String,
                         value: ''
-                    },
+                    }, // + observer ?
                     manualAssign: {
                         type: Boolean,
                         value: false
@@ -1427,14 +1414,15 @@
                         type: Array,
                         value: () => []
                     },
-                    patsLng: {
-                        type: Number,
-                        value: 0
-                    },
-                    docTxt: {
-                        type: Object,
-                        value: null
-                    }
+                    // /FZ: revoir fiolle
+
+
+
+
+
+
+
+
                 };
             }
 
@@ -1446,9 +1434,8 @@
 
 
 
-                    '_updateSuggestions(selectedProtocol)',
-                    '_updatePatSearch(searchPatValue)',
-                    '_patsLngChanged(toImportPatsSuggestions,toImportPatsSearch)'
+                    '_updateSuggestions(selectedProtocol)',     // FZ: revoir fiolle
+                    '_updatePatSearch(searchPatValue)'          // FZ: revoir fiolle
                 ];
             }
 
@@ -1558,6 +1545,26 @@
                 }
             }
 
+            _handleShortcutKeys(e) {
+
+                const isActive = !!_.size(_.get(this,"selectedMessage",{}))
+                const isInInput = ["INPUT", "SELECT", "TEXTAREA"].indexOf(_.get(e,"target.nodeName","")) !== -1
+                if(!isActive || isInInput) return
+
+                const pressedKey = _.trim(_.get(e,"key","")).toLocaleLowerCase();
+                const message = _.get(this,"selectedMessage",{})
+                const ehealthSession = !!this.ehealthSession
+                const isSentBox = !!this._isSentbox(message)
+                const isDeleted = !!this._isDeleted(message)
+
+                if(pressedKey === "escape") this._takeAction("close")
+                if((pressedKey === "c" || pressedKey === "h" || pressedKey === "m")) this._takeAction("hideUnhide")
+                if(!!ehealthSession && !isSentBox && !isDeleted && pressedKey === "r") this._takeAction("reply")
+                if(!!ehealthSession && (pressedKey === "f" || pressedKey === "t")) this._takeAction("forward")
+                if(!!ehealthSession && (pressedKey === "d" || pressedKey === "s" || pressedKey === "delete")) this._takeAction("deleteUndelete")
+
+            }
+
             _loadMessageDetails(selectedMessage) {
 
                 const prom = Promise.resolve()
@@ -1570,9 +1577,20 @@
 
                 if(!_.size(selectedMessage)) return prom
                 this._toggleProcessingPopup()
+                let patientDetailsBasedOnSsin = false
+
+
+
+
+
+                // FABIEN: revoir fiolle
                 this.set('assignedResults',_.get(selectedMessage,"assignedResults",[]))
                 this.set('unassignedResults',_.get(selectedMessage,"unassignedResults",[]))
-                let patientDetailsBasedOnSsin = false
+                // /FABIEN: revoir fiolle
+
+
+
+
 
                 return this._getPatientDataBySsin(selectedMessage)
                     .then(x => patientDetailsBasedOnSsin = x)
@@ -1580,17 +1598,15 @@
                     .then(documentsOfMessage => !_.size(documentsOfMessage) ? prom : Promise.all(_.compact(_.filter(documentsOfMessage,d=>!!_.trim(_.get(d,"attachmentId",""))&&!!_.trim(_.get(d,"secretForeignKeys","")))).map(singleDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(singleDocument,"id","")), _.size(_.get(singleDocument,"encryptionKeys",[])) ? _.get(singleDocument,"encryptionKeys",[]) : _.get(singleDocument,"delegations",[]))
                         .then(({extractedKeys: enckeys}) => this.api.beresultimport().canHandle(_.trim(_.get(singleDocument,"id","")), enckeys.join(',')).catch(e=>{console.log("ERROR with canHandle: ", e); return prom;})
                             .then(canHandle => !!canHandle ? this.api.beresultimport().getInfos(_.trim(_.get(singleDocument,"id","")), true, null, enckeys.join(',')).catch(e=>{console.log("ERROR with getInfos: ", e); return prom;}) : prom)
-                            .then(beResultImportInfos => !beResultImportInfos ? prom : _.compact(_.map(beResultImportInfos, singleBeResultImportInfo => { return {
+                            .then(beResultImportInfos => !beResultImportInfos ? prom : _.compact(_.map(beResultImportInfos, singleBeResultImportInfo => { return _.merge(singleBeResultImportInfo, {
                                 codes: _.get(singleBeResultImportInfo,"codes[0]",{}),
                                 lastName: _.map( _.trim(_.get(singleBeResultImportInfo, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
                                 firstName: _.map( _.trim(_.get(singleBeResultImportInfo, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                dateOfBirth: _.trim(_.get(singleBeResultImportInfo,"dateOfBirth","")),
                                 dateOfBirthHr: (_.parseInt(_.trim(_.get(singleBeResultImportInfo,"dateOfBirth",""))) ? moment(_.trim(_.get(singleBeResultImportInfo,"dateOfBirth",""))).format("DD/MM/YYYY") : ""),
-                                protocol: _.trim(_.get(singleBeResultImportInfo,"protocol","")),
                                 complete: !!_.get(singleBeResultImportInfo,"complete",""),
                                 demandDate: parseInt(_.get(singleBeResultImportInfo,"demandDate",0)),
-                                labo: _.trim(_.get(singleBeResultImportInfo,"labo",""))
-                            }})))
+                                demandDateHr: moment(_.get(singleBeResultImportInfo,"demandDate",undefined)).format("DD/MM/YYYY")
+                            })})))
                             .then(documentsInfos => ({singleDocument,documentsInfos}))
                             .then(({singleDocument,documentsInfos})=>!!_.trim(_.get(singleDocument,"id","")) && _.trim(_.get(singleDocument,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(singleDocument,"id","")), _.trim(_.get(singleDocument,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>({singleDocument,documentsInfos,decryptedContent})).catch(e=>{console.log("ERROR with getAttachment: ",e); return ({singleDocument,documentsInfos});}) : ({singleDocument,documentsInfos}))
                             .then(({singleDocument,documentsInfos,decryptedContent})=>{
@@ -1631,10 +1647,10 @@
                         )
                         this.set("_messageAttachments", _.compact(_.map(_.get(this,"documentsOfMessage",[]).filter(d=>_.trim(_.get(d,"documentLocation",""))==="annex"), singleDoc => _.get(singleDoc,"attachmentInfos",{}))))
 
-                        // console.log('[HT-MSG-DETAIL] Message: ', selectedMessage)
-                        // console.log('documentsOfMessage: ', _.get(this,"documentsOfMessage",[]))
-                        // console.log('patientDetailsBasedOnSsin: ', patientDetailsBasedOnSsin)
-                        // console.log('_linkedPatientsBasedOnMessageSsinAndAnnexes: ', _.get(this,"_linkedPatientsBasedOnMessageSsinAndAnnexes",[]))
+                        console.log('[HT-MSG-DETAIL] Message: ', selectedMessage)
+                        console.log('documentsOfMessage: ', _.get(this,"documentsOfMessage",[]))
+                        console.log('patientDetailsBasedOnSsin: ', patientDetailsBasedOnSsin)
+                        console.log('_linkedPatientsBasedOnMessageSsinAndAnnexes: ', _.get(this,"_linkedPatientsBasedOnMessageSsinAndAnnexes",[]))
 
                         this._toggleProcessingPopup()
                         return prom;
@@ -1643,41 +1659,6 @@
 
             }
 
-            _handleShortcutKeys(e) {
-
-                const isActive = !!_.size(_.get(this,"selectedMessage",{}))
-                const isInInput = ["INPUT", "SELECT", "TEXTAREA"].indexOf(_.get(e,"target.nodeName","")) !== -1
-                if(!isActive || isInInput) return
-
-                const pressedKey = _.trim(_.get(e,"key","")).toLocaleLowerCase();
-                const message = _.get(this,"selectedMessage",{})
-                const ehealthSession = !!this.ehealthSession
-                const isSentBox = !!this._isSentbox(message)
-                const isDeleted = !!this._isDeleted(message)
-
-                if(pressedKey === "escape") this._takeAction("close")
-                if((pressedKey === "c" || pressedKey === "h" || pressedKey === "m")) this._takeAction("hideUnhide")
-                if(!!ehealthSession && !isSentBox && !isDeleted && pressedKey === "r") this._takeAction("reply")
-                if(!!ehealthSession && (pressedKey === "f" || pressedKey === "t")) this._takeAction("forward")
-                if(!!ehealthSession && (pressedKey === "d" || pressedKey === "s" || pressedKey === "delete")) this._takeAction("deleteUndelete")
-
-            }
-
-
-
-
-
-            // FABIEN, continue here
-            //
-            // _.map(res, singleRes => {
-            //     return _.map(singleRes.services, sv => {
-            //         return sv.label + ": " + (_.trim(sv.content.fr.stringValue) ? _.trim(sv.content.fr.stringValue) : _.flatMap(sv.content.fr.measureValue))
-            //     })
-            // })
-
-
-
-
 
 
 
@@ -1704,11 +1685,6 @@
 
 
 
-
-            _uncheckBoxes() {
-                const checkboxes = this.shadowRoot.querySelectorAll('.checkbox-item') || []
-                checkboxes.forEach(c=>c.checked = false)
-            }
 
             toggleManualAssign() {
                 if (!this.isLoadingPatsSuggest) {
@@ -1722,7 +1698,6 @@
 
                 if(!_.trim(searchPatValue).length) return;
 
-                this.set('canAssign',false)
                 if (searchPatValue.length >= 2) {
                     this.set('isLoadingPatsSuggest',true)
                     console.log('updatePatSearch',searchPatValue)
@@ -1731,17 +1706,12 @@
                             console.log('pats',pats)
                             this.set('toImportPatsSearch',pats.rows || [])
                             this.set('isLoadingPatsSuggest',false)
-                            this._uncheckBoxes()
                         })
                     },2000)
                 } else {
                     this.set('toImportPatsSearch',[])
                     this.set('isLoadingPatsSuggest',false)
                 }
-            }
-
-            _patsLngChanged() {
-                this.set('patsLng',this.toImportPatsSuggestions.length + this.toImportPatsSearch.length)
             }
 
             openSuggestions(e) {
@@ -1760,22 +1730,9 @@
             closeSuggestions() {
                 this.set('documentBeingAssigned', null)
                 this.set('targetPats',[])
-                this.set('canAssign',false)
                 this.set('toImportPatsSuggestions', [])
                 this.set('assignModal',false)
-                this.set('selectName','')
                 this.set('selectedProtocol',-1)
-            }
-
-            _getAssignedPats(m) {
-                if(m.assignedResults && m.assignedResults.length) {
-                    Promise.all(Object.keys(m.assignedResults).forEach(key=>this.api.patient().getPatient(key)))
-                        .then(pats=>{
-                            return pats
-                        })
-                } else {
-                    return []
-                }
             }
 
             _updateSuggestions() {
@@ -1784,11 +1741,9 @@
                     this.set('isLoadingPatsSuggest',true)
                     const unimportedPats = this.documentBeingAssigned && this.documentBeingAssigned.unimportedPats || []
                     const index = this.selectedProtocol
-                    this.set('selectName', unimportedPats[index] ? `(${unimportedPats[index].lastName})` : '')
                     this.set('docInfo', this.documentBeingAssigned && this.documentBeingAssigned.docInfo)
                     this.set('toImportPatsSuggestions',[])
                     this.set('targetPats',[])
-                    this.set('canAssign',false)
                     this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, unimportedPats[index].lastName, null, null, 100, "asc")
                         .then(patients => {
                             this.set('isLoadingPatsSuggest',false)
@@ -1796,7 +1751,6 @@
                                 if (pat.lastName.toUpperCase() === unimportedPats[index].lastName.toUpperCase()) {
                                     pat.dateOfBirth = this.api.moment(pat.dateOfBirth).format('DD/MM/YYYY')
                                     this.push('toImportPatsSuggestions', pat)
-                                    this._uncheckBoxes()
                                 }
                             })
                         })
@@ -1804,17 +1758,7 @@
             }
 
             _getPatsFromCheckbox(e) {
-                const elem = JSON.parse(e.target.dataset.item)
-                const checked = e.target.checked
-                let arr = this.targetPats ? this.targetPats : []
-                if (checked) {
-                    arr.push(elem)
-                } else {
-                    arr.splice(arr.indexOf(elem))
-                }
-                this.set('canAssign',this.targetPats.length)
-                this.set('targetPats',arr)
-                // console.log('_getPatsFromCheckbox',elem,'checked:'+checked,arr)
+                // this.set('targetPats',ceux checked )
             }
 
             _assignResultToSelected(selMsg,targets,document,docInfo) {
@@ -1924,35 +1868,6 @@
                 } // else end
             }
 
-            // _getPatsFromDoc(document) {
-            //
-            //     if(document.documentLocation === "body") return document
-            //     console.log('_getPatsFromDoc')
-            //     const unassigned = this.unassignedResults || []
-            //     this.set('toImportPatsSuggestions', [])
-            //     return this.api.crypto()
-            //         .extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, document.id, _.size(document.encryptionKeys) ? document.encryptionKeys : document.delegations)
-            //         .then(({extractedKeys: enckeys}) =>
-            //             this.api.beresultimport().canHandle(document.id, enckeys.join(','))
-            //                 .then(isResult => isResult && this.api.beresultimport().getInfos(document.id, false, null, enckeys.join(',')))
-            //         )
-            //         .then(resultInfo => {
-            //             if (resultInfo && resultInfo.length && unassigned.length) {
-            //                 resultInfo.forEach(res => {
-            //                     document.docInfo = res
-            //                     unassigned.forEach(u => {
-            //                         if (u === res.protocol) {
-            //                             //res.formatedDemandDate = this.api.moment(res.demandDate).format('DD/MM/YYYY')
-            //                             (document.unimportedPats || (document.unimportedPats = [])).push(res)
-            //                         }
-            //                     })
-            //                 })
-            //                 document.unimportedPats = _.orderBy(document.unimportedPats || [], 'demandDate', "desc")
-            //             }
-            //         })
-            //         .then(() => document)
-            //         .catch(() => document)
-            // }
 
 
 
