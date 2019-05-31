@@ -641,6 +641,10 @@
                     currentContact:{
                         type: Object
                     },
+                    currentMedicationScheme:{
+                        type: Object,
+                        value: null
+                    }
                 };
             }
 
@@ -785,6 +789,13 @@
                     tranRespPromise.then(tranResp => {
                         this.set('message', tranResp);
                         this.set('isLoading',false);
+                        if(this._isMedicationScheme(transInfo)) {
+                            this.set("currentMedicationScheme", this._getMedicationSchemeFromTransactionSet(tranResp));
+                        }
+                        else
+                        {
+                            this.set("currentMedicationScheme", null);
+                        }
                     }).catch( error=> {
                         this.set('message', null);
                         console.log('getTransaction failed : ' + error);
@@ -796,6 +807,108 @@
             getJSON(obj){
                 return JSON.stringify(obj);
             }
+
+            //create easy medicationscheme object
+            _getMedicationSchemeFromTransactionSet(tr){
+                let ms = {}
+                //transactions [0..n]
+                //get informative transaction tr[0]
+                const infoTr = tr.folders[0].transactions.find(it => it.cds.find(cd => cd.value==="medicationscheme"));
+                //ms.infoTr = infoTr;
+                ms.idKmehr = infoTr.ids.find(id => id.s === "ID_KMEHR").value;
+                ms.hubId = infoTr.ids.find(id => id.s === "LOCAL").sl + "." + infoTr.ids.find(id => id.s === "LOCAL").value;
+                ms.date = "";
+                ms.authors = infoTr.author.hcparties;
+                ms.version = infoTr.version;
+
+                //loop trough medicationschemeElements tr[1..n]
+                const msElemTrs =  tr.folders[0].transactions.filter(it => it.cds.find(cd => cd.value==="medicationschemeelement"));
+                //ms.msElemTrs = msElemTrs;
+                // loop trough items
+                //  medicationchemeelement:
+                //  item[0]: meta info (adaptation, ...)
+                //  item[1]: medication info (medication, dates, posology, regimen, frequency, ...)
+                //  item[2]: medication use /optional (?)
+                const elems = msElemTrs.map(elTr => {
+                    let el = {}
+                    el.idKmehr = elTr.ids.find(id => id.s === "ID_KMEHR").value;
+                    //meta info
+                    const infoItems = elTr.item.filter(itm=>itm.cds.find(cd => cd.value === "healthcareelement"));
+                    const adaptationItem = infoItems.find(itm => itm.contents.find(it => it.cds.find(cd => cd.s==="CD_MS_ADAPTATION")))
+                    //el.adaptationItem = adaptationItem; //added for debug
+                    el.adaptationflag = adaptationItem ? adaptationItem.contents.filter(it => it.cds.find(cd => cd.value==="adaptationflag")).length > 0 : false;
+                    el.adaptationtype = adaptationItem ? adaptationItem.contents.find(it => it.cds.find(cd => cd.s==="CD_MS_ADAPTATION")).cds.find(cd => cd.s==="CD_MS_ADAPTATION").value : "";
+                    //medication
+                    const medicationItem = elTr.item.find(itm=>itm.cds.find(cd => cd.value === "medication"))
+                    //el.medicationItem = medicationItem; //added for debug
+                    const medicationContent = medicationItem && medicationItem.contents && medicationItem.contents.length > 0 ? medicationItem.contents[0] : null
+                    el.compoundprescription = medicationContent ? medicationContent.compoundprescription : null;
+                    el.medicinalproduct = medicationContent ? medicationContent.medicinalproduct : null;
+                    el.substanceproduct = medicationContent ? medicationContent.substanceproduct : null;
+                    el.beginmoment = medicationItem.beginmoment;
+                    el.endmoment = medicationItem.endmoment;
+                    el.temporality = medicationItem.temporality;
+                    el.frequency = medicationItem.frequency;
+                    el.regimen = medicationItem.regimen;
+                    el.posology = medicationItem.posology;
+                    el.suspensions = [];
+                    //use
+                    const useItem = infoItems.find(itm => itm.contents.find(it => it.cds.find(cd => cd.value==="medicationuse")))
+                    //el.useItem = useItem; //added for debug
+                    const useContent = useItem ? useItem.contents.find(it => it.cds.length === 0) : null;
+                    el.usePresent = useContent ? true : false;
+                    el.useTexts = useContent ? useContent.texts : [];
+
+                    el.date = "";
+
+                    return el;
+                })
+                ms.msElems = elems;
+                //loop trough treatmentsuspensions tr[1..n]
+                const msSuspTrs =  tr.folders[0].transactions.filter(it => it.cds.find(cd => cd.value==="treatmentsuspension"));
+                //ms.msSuspTrs = msSuspTrs; //added for debug
+                // loop trough items
+                //  treatmentsuspension:
+                //  item[0]: suspension info (medication, , lnks ...)
+                //   lnks:type, url: //transaction[id[@S='ID-KMEHR']='5']
+                //  item[1]: transactionreason: texts / optional
+                const susps = msSuspTrs.map(elTr => {
+                    let el = {}
+                    el.idKmehr = elTr.ids.find(id => id.s === "ID_KMEHR").value;
+                    //suspended medication
+                    const suspendedMedicItem = elTr.item.find(itm=>itm.cds.find(cd => cd.value === "medication"))
+                    const medicationContent = suspendedMedicItem && suspendedMedicItem.contents && suspendedMedicItem.contents.length > 0 ? suspendedMedicItem.contents[0] : null
+                    el.compoundprescription = medicationContent ? medicationContent.compoundprescription : null;
+                    el.medicinalproduct = medicationContent ? medicationContent.medicinalproduct : null;
+                    el.substanceproduct = medicationContent ? medicationContent.substanceproduct : null;
+                    el.beginmoment = suspendedMedicItem.beginmoment;
+                    el.endmoment = suspendedMedicItem.endmoment;
+                    el.lifecycle = suspendedMedicItem.lifecycle;
+                    el.lnks = suspendedMedicItem.lnks;
+                    
+                    //suspension reason
+                    const reasonItem = elTr.item.find(itm=>itm.cds.find(cd => cd.value === "transactionreason"))
+                    const reasonContent = reasonItem ? reasonItem.contents.find(it => it.cds.length === 0) : null;
+                    el.reasonTexts = reasonContent ? reasonContent.texts : [];
+
+                    //link to msElem by idKmehr
+                    const lnk = el.lnks && el.lnks.length > 0 ? (el.lnks[0].url ? el.lnks[0].url : "") : ""
+                    const matches = lnk.match(/(\d+)/);
+                    const lnkIdKmehr = matches && matches.length > 0 ? matches[0] : null;
+                    if(lnkIdKmehr){
+                        let trToSusp = ms.msElems.find(elm => elm.idKmehr === lnkIdKmehr);
+                        if(trToSusp){
+                            trToSusp.suspensions.push(el);
+                            trToSusp.suspended = true;
+                        }
+                    }
+                    return el;
+                })
+                ms.msSusps = susps;
+                return ms;
+            }
+
+
 
             //getPatientAuditTrailUsingGET(
             // endpoint, xFHCKeystoreId, xFHCTokenId, xFHCPassPhrase,
