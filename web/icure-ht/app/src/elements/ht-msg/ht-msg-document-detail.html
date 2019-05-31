@@ -141,6 +141,7 @@
 				background: transparent;
 				box-shadow: none;
                 flex-grow: 0;
+                --main-width: 100%
 			}
 
 			.horizontal {
@@ -452,11 +453,38 @@
 				font-weight: 500;
 			}
 
-			.img-container img{
-				max-width: 100%;
-				height: auto;
-			}
+            .img-container{
+                padding: 20px;
+                align-self: center;
+                display:flex;
+                justify-content: center;
+                align-items: center;
+                background-color:  rgb(113, 135, 146);
+            }
 
+            .img-container img{
+                max-height: 600px;
+                max-width: calc(var(--main-width) - 20px);
+            }
+
+            /*.img-container{*/
+                /*max-width: 600px;*/
+                /*display:flex;*/
+                /*justify-content: center;*/
+                /*align-items: center;*/
+                /*max-height:400px;*/
+                /*overflow: hidden;*/
+                /*background-color:  rgb(113, 135, 146);*/
+            /*}*/
+            /*.img-container img{*/
+                /*height: 100%;*/
+                /*width: auto;*/
+                /*background-color:  rgb(113, 135, 146);*/
+            /*}*/
+            /*.img-container img{*/
+                /*max-width: 100%;*/
+                /*height: auto;*/
+            /*}*/
             .action-buttons {
                 width: 100%;
                 padding: 0;
@@ -1021,7 +1049,10 @@
                             </template>
                         </div>
                         <template is="dom-if" if="[[!disabled]]">
-                            <paper-button class="save-button" on-tap="saveIt">[[localize('save','Sauver',language)]]</paper-button>
+                            <paper-button class="save-button" on-tap="save">[[localize('save','Sauver',language)]]</paper-button>
+                        </template>
+                        <template is="dom-if" if="[[disabled]]">
+                            <paper-button class="save-button" on-tap="unassign">[[localize('unassign','Désaffecter',language)]]</paper-button>
                         </template>
                     </div>
                     <div>
@@ -1039,8 +1070,8 @@
                                     <vaadin-text-field id="importTextField" label="[[localize('doc-title','Titre du document',language)]]" value="{{selectedMessage.metas.filename}}" disabled="[[disabled]]"></vaadin-text-field>
                                 </div>
                                 <div class="input-form">
-                                    <vaadin-date-picker id="importPicker" label="[[localize('doc_dat','Date d\'importation',language)]]" value="{{selectedMessage.metas.importDate}}" i18n="[[i18n]]" disabled></vaadin-date-picker>
-                                    <vaadin-date-picker id="docPicker" label="[[localize('doc_dat','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
+                                    <vaadin-date-picker id="importPicker" label="[[localize('import_date','Date d\'importation',language)]]" value="{{selectedMessage.metas.importDate}}" i18n="[[i18n]]" disabled></vaadin-date-picker>
+                                    <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
                                 </div>
                                 <div class="input-form">
                                     <vaadin-text-field id="hcpTextField" label="[[localize('hcp','Medecin',language)]]" value="{{selectedMessage.hcp}}" disabled>
@@ -1289,14 +1320,15 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
         let selMsg = this.selectedMessage;
         this.set('disabled', ((selMsg.status & (1 << 26)) !== 0));
-        let getPatientIdProm = null;
         console.log('this message', selMsg);
+        let getPatientIdProm = null;
         try {
             getPatientIdProm = this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, selMsg, new Uint8Array(this.api.crypto().utils.base64toArrayBuffer(this.selectedMessage.metas.cryptedInfo)))
                 .then(decrypted => JSON.parse(this.api.crypto().utils.ua2text(decrypted)))
                 .then(secretInfo => {
-                    if (secretInfo.length > 0) {
-                        this.api.patient().getPatientWithUser(this.user, secretInfo[0].patientId)
+                    if (secretInfo.length > 0 && secretInfo[0].patientId && secretInfo[0].contactId) {
+                        this.selectedMessage.contactId = secretInfo[0].contactId;
+                        return this.api.patient().getPatientWithUser(this.user, secretInfo[0].patientId)
                             .then(patient => {
                                 this.push("listPat", {
                                     id: patient.id,
@@ -1304,14 +1336,12 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                                     ssin: patient.ssin
                                 });
                                 this.set('selectedMessage.patientId', patient.id);
-                                // return Promise.resolve();
                             })
                     }
-                    return Promise.resolve();
-                })
-                // .catch(error => console.log(error));
+                    // return Promise.resolve();
+                });
         } catch(error) {
-            getPatientIdProm = Promise.reject(error)
+            getPatientIdProm = Promise.reject(error);
         }
 
         let getMessageDocumentProm = this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
@@ -1333,11 +1363,7 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     this.set('selectedData',base64);
                     this.set('isPdf', true);
                 }
-                return Promise.resolve();
-                // this.set('isLoadingMessage', false)
-                // this.set('messages', [selMsg])
             });
-            // .catch(error=> console.log('error:', error))
         Promise.all([getPatientIdProm, getMessageDocumentProm])
             .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', { detail: {title: selMsg.metas.filename, message: "err.document.open", detail: error}, bubbles: true })))
             .finally(() => this.set('isLoadingMessage', false))
@@ -1415,14 +1441,21 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.dispatchEvent(new CustomEvent('msg-detail-closed'))
     }
 
-    saveIt(e){
+    unassign(e) {
+        let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id};
+        detail.doc.id = this.document.id;
+        detail.contactId = this.selectedMessage.contactId;
+        this.dispatchEvent(new CustomEvent("document-unassign",  { detail: detail, bubbles: true }))
+    }
+
+    save(e){
 	    let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id}
-	    detail.doc.id = this.document.id
+	    detail.doc.id = this.document.id;
 	    if (this.selectedMessage.patientId !== '') {
 	        detail.patientId = this.selectedMessage.patientId
         }
 	    if (!this.selectedMessage.metas.type || !this.selectedMessage.patientId || ! this.selectedMessage.patientSsin) {
-	        let errors = []
+	        let errors = [];
             errors.push(!this.selectedMessage.metas.type && this.localize('type-doc', 'Type de document', this.language));
 	        errors.push(!this.selectedMessage.patientSsin && this.localize('ssin', 'Ssin', this.language));
 	        errors.push(!this.selectedMessage.patientId && this.localize('patient', 'Patient', this.language));
