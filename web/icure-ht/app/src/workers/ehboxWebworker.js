@@ -121,16 +121,16 @@ onmessage = e => {
             // annexe5 = "A1\\9999999\\Laboratoire Albert II, également roi des Belges\\######A2\\1381188\\wathelet\\julien\\M\\17041997\\######A3\\1381188\\rue de masse diarbois, 200\\6043\\Ransart\\######A4\\1381188\\18785633004\\22092015\\1416\\C\\######L1\\1381188\\t_HEMATO\\ HEMATOLOGIE\\\\\\\\\\######L1\\1381188\\t_HEMOGRAMME\\Hemogramme\\\\\\\\\\######L1\\1381188\\327\\Hemoglobine\\12,0 - 16,0\\g/dl\\\\12,0\\######L1\\1381188\\325\\Hematies\\3,9 - 5,1\\10e6/mme3\\*\\3,7\\######L1\\1381188\\328\\Hematocrite\\36,5 - 46,9\\%\\\\37,0\\"
             // fullMessage = {annex : [annexe1.replace(/######/gi, "\n"), annexe2, annexe3.replace(/######/gi, "\n"), annexe4.replace(/######/gi, "\n"), annexe5.replace(/######/gi, "\n")] }
             //
-            // labResultHeaderRegExp = /A1\\.*\\.*([\\])*/gi
+            // labResultHeaderRegExp = /A1\\.*\\.*([\\])*([.*])*\n/gi
             // BEFORE_ehBoxAnnexes = _.get(fullMessage,"annex",[])
-            // a1HeadersByAnnexesKey = _.map(BEFORE_ehBoxAnnexes, (singleAnnex,singleAnnexKey) => singleAnnex.match(labResultHeaderRegExp))
+            // a1HeadersByAnnexesKey = _.map(BEFORE_ehBoxAnnexes, singleAnnex => singleAnnex.match(labResultHeaderRegExp))
             //
             // AFTER_ehBoxAnnexes = _.flatMap(
             //     _.map(BEFORE_ehBoxAnnexes, (singleAnnex,annexKey) => {
             //
-            //         const foundA1LabHeader_equivalentToNumberOfPatients = _.size(a1HeadersByAnnexesKey[annexKey])
+            //         const foundA1LabHeaders = _.size(a1HeadersByAnnexesKey[annexKey])
             //
-            //         return ( !foundA1LabHeader_equivalentToNumberOfPatients || foundA1LabHeader_equivalentToNumberOfPatients == 1 ) ?
+            //         return ( !foundA1LabHeaders || foundA1LabHeaders == 1 ) ?
             //             singleAnnex : // Not a lab result OR lab result with only one patient, let go as such
             //             _.map(_.compact(singleAnnex.split(labResultHeaderRegExp)), (v,k)=> a1HeadersByAnnexesKey[annexKey][k] + v)
             //
@@ -151,7 +151,7 @@ onmessage = e => {
 
 
 
-
+            const ehBoxAnnexes = _.get(fullMessage,"annex",[])
 
             // Unread by default
             let finalMessageStatus = _.get(fullMessage,"status",(1<<1))
@@ -182,7 +182,7 @@ onmessage = e => {
             })
                 .then(messageInstance => msgApi.createMessage(messageInstance))
                 .then(createdMessage => {
-                    const documentAndAnnexesPromises = _.compact(_.concat(_.get(fullMessage,"document",[]),_.get(fullMessage,"annex",[]))).map(documentAndAnnexes => _.size(documentAndAnnexes) ? registerNewDocument(documentAndAnnexes, createdMessage, fullMessage) : Promise.resolve([])).filter(x=>!!x)
+                    const documentAndAnnexesPromises = _.compact(_.concat(_.get(fullMessage,"document",[]),ehBoxAnnexes)).map(documentAndAnnexes => _.size(documentAndAnnexes) ? registerNewDocument(documentAndAnnexes, createdMessage, fullMessage) : Promise.resolve([])).filter(x=>!!x)
                     return Promise.all(documentAndAnnexesPromises)
                     .then(annexDocs => [createdMessage, annexDocs])
                     .catch(e => iccMessageXApi.message().deleteMessages(createdMessage.id).then((x)=>x).catch(e => { console.log("ERROR with deleteMessages: ", e); return Promise.resolve([]) }))
@@ -262,7 +262,7 @@ onmessage = e => {
                     // (Birthdate)Exact match + (FN)levenshtein<2 + (LN)levenshtein<3 [OR]
                     // (Birthdate)Exact match + (FN)Exact match [OR]
                     // (Birthdate)Exact match + (LN)Exact match [OR]
-                    // (FN+LN)Exact match (risky)
+                    // (FN+LN)Exact match
                     // return (docInfo.ssin && p.ssin && docInfo.ssin === p.ssin) ||
                     //     (pFn && lFn && pLn && lLn && p.dateOfBirth && docInfo.dateOfBirth && (levenshtein(pFn,lFn) < 2 && levenshtein(pLn,lLn) < 3 && p.dateOfBirth === docInfo.dateOfBirth)) ||
                     //     (pFn && lFn && p.dateOfBirth && docInfo.dateOfBirth && (pFn === lFn && p.dateOfBirth === docInfo.dateOfBirth)) ||
@@ -318,7 +318,7 @@ onmessage = e => {
                         })
                     }).then(c => {
                         console.log("did import ", c, docInfo)
-                        return {id: c.id, protocolId: docInfo.protocol}
+                        return {id: c.id, protocolId: docInfo.protocol, documentId:_.get(document,"id",""), patientId:_.get(candidates,"[0].id","")}
                     }).catch(err => {
                         console.log(err)
                     })
@@ -347,6 +347,7 @@ onmessage = e => {
                         createdMessage.assignedResults = assignedMap
 
                         // FABIEN: cypted metas here
+                        // _.flatten(reslist).forEach(result ==> {assigned: true, protocolId: result.protocolId, contactId: result.id, documentId: result.documentId, patientId: result.patientId }
 
                         return msgApi.modifyMessage(createdMessage)
                     })
@@ -371,7 +372,7 @@ onmessage = e => {
                            return assignResult(fullMessage, docInfo, createdDocument).then(result => {
                                if(result != null) {
                                    console.log('result',result)
-                                   return {assigned: true, protocolId: result.protocolId, contactId: result.id}
+                                   return {assigned: true, protocolId: result.protocolId, contactId: result.id, documentId: result.documentId, patientId: result.patientId }
                                } else {
                                    return {assigned: false, protocolId: docInfo.protocol, contactId: null}
                                }
