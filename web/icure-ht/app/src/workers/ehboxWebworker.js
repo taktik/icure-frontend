@@ -34,6 +34,7 @@ onmessage = e => {
         const msgApi            = new iccApi.iccMessageApi(iccHost, iccHeaders)
         const beResultApi       = new iccApi.iccBeresultimportApi(iccHost, iccHeaders)
         const iccHcpartyApi     = new iccApi.iccHcpartyApi(iccHost, iccHeaders)
+        const accesslogApi      = new iccApi.iccAccesslogApi(iccHost, iccHeaders)
         const iccCryptoXApi     = new iccXApi.IccCryptoXApi(iccHost, iccHeaders, iccHcpartyApi)
         const iccUtils          = new UtilsClass()
 
@@ -61,7 +62,7 @@ onmessage = e => {
                 .then(([fullMessageFromEHealthBox, foundExistingMessage]) => !_.trim(_.get(fullMessageFromEHealthBox,"id","")) ?
                     promResolve : // Could be message couldn't be decrypted due to obsolete keystores
                     !!_.size(_.get(foundExistingMessage,"rows",[])) ?
-                        !!(parseInt(_.get(_.head(_.get(foundExistingMessage,"rows",[])),"created",Date.now())) < (Date.now() - (62 * 24 * 3600000))) ? removeMsgFromEhboxServer(_.head(_.get(foundExistingMessage,"rows",[]))) : promResolve :
+                        !!(parseInt(_.get(_.head(_.get(foundExistingMessage,"rows",[])),"created",Date.now())) < (Date.now() - (31 * 24 * 3600000))) ? removeMsgFromEhboxServer(_.head(_.get(foundExistingMessage,"rows",[]))) : promResolve :
                         registerNewMessage(fullMessageFromEHealthBox, boxId).then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
                 )
                 .catch(e=>{console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ",e); return promResolve;})
@@ -101,7 +102,7 @@ onmessage = e => {
             finalMessageStatus = !!_.size(_.get(fullMessageFromEHealthBox,"annex",[])) ? finalMessageStatus|1<<4 : finalMessageStatus
 
             return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), {
-                created: moment(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD"))), "YYYYMMDD").valueOf(),
+                created: moment(_.trim(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD")))), "YYYYMMDD").valueOf(),
                 fromAddress: !_.size(_.get(fullMessageFromEHealthBox,"sender",{})) ? "" : _.trim(_.compact([
                     _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))),
                     _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorFirstName",""))),
@@ -139,8 +140,6 @@ onmessage = e => {
 
         }
 
-
-
         const registerNewDocument = (singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox) => {
 
             const promResolve = Promise.resolve()
@@ -163,6 +162,8 @@ onmessage = e => {
 
         }
 
+
+
         const tryToAssignAppendices = (createdMessage, fullMessageFromEHealthBox, createdDocumentsToAssign, boxId) => {
 
             let prom = Promise.resolve();
@@ -178,50 +179,49 @@ onmessage = e => {
             })
 
             return prom
-                .then( tryToAssignAppendixResults=> {
-
+                .then( tryToAssignAppendixResults => {
                     let assignedMap = {}; let unassignedList = [];  let patientInfos = [];
                     _.map(_.compact(tryToAssignAppendixResults), singleAssignResult => {
-                        if (!!_.get(singleAssignResult,"assigned",false)) assignedMap[_.trim(_.get(singleAssignResult,"contactId",""))] = _.trim(_.get(singleAssignResult,"protocolId",""))
-                        if (!_.get(singleAssignResult,"assigned",false))  unassignedList.push(singleAssignResult.protocolId)
+
+                        if (!!_.get(singleAssignResult,"assigned",false)) {
+                            assignedMap[_.trim(_.get(singleAssignResult,"contactId",""))] = _.trim(_.get(singleAssignResult,"protocolId",""))
+                            accesslogApi.createAccessLog({
+                                id: iccCryptoXApi.randomUuid(),
+                                patientId: _.trim(_.get(singleAssignResult,"patientId","")),
+                                user: _.trim(_.get(user,"id","")),
+                                date: +new Date(),
+                                accessType: 'USER_ACCESS'
+                            }).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                        } else {
+                            unassignedList.push(singleAssignResult.protocolId)
+                        }
+
                         patientInfos.push({
                             isAssigned: !!_.get(singleAssignResult,"assigned",""),
                             patientId: _.trim(_.get(singleAssignResult,"patientId","")),
                             protocolId: _.trim(_.get(singleAssignResult,"protocolId","")),
                             contactId: _.trim(_.get(singleAssignResult,"contactId","")),
                             documentId: _.trim(_.get(singleAssignResult,"documentId","")),
-                            docInfo: _.get(singleAssignResult,"docInfo","")
+                            docInfo: {
+                                dateOfBirth: _.trim(_.get(singleAssignResult,"docInfo.dateOfBirth","")),
+                                firstName: _.trim(_.get(singleAssignResult,"docInfo.firstName","")),
+                                lastName: _.trim(_.get(singleAssignResult,"docInfo.lastName","")),
+                                sex: _.trim(_.get(singleAssignResult,"docInfo.sex","")),
+                                ssin: _.trim(_.get(singleAssignResult,"docInfo.ssin",""))
+                            }
                         })
+
                     })
 
-
-
-
-
-
-
-
-
-
-
-
-                    const patientInfosToBeCrypted = JSON.stringify(patientInfos)
-
-                    const encryptedPatientInfos = encryptByUserAndResourceObject( user, createdMessage, iccCryptoXApi.utils.ua2ArrayBuffer(iccCryptoXApi.utils.text2ua(patientInfosToBeCrypted)))
-                        .then(encryptedContent => {
-                            console.log("--- ENCRYPTEDCONTENT ---");
-                            console.log("createdMessage", createdMessage)
-                            console.log("encryptedContent", encryptedContent)
-                        })
-
-
-
-
-
-
-
-
-                    return msgApi.modifyMessage(_.merge({}, createdMessage, { unassignedResults: unassignedList, assignedResults: assignedMap, metas: _.merge({}, _.get(createdMessage,"metas",{}) , {patientInfos: JSON.stringify(patientInfos)}), }))
+                    return encryptContent( user, createdMessage, patientInfos )
+                        .then(encryptedContent => msgApi.modifyMessage(
+                            _.merge( {}, createdMessage, {
+                                unassignedResults: unassignedList,
+                                assignedResults: assignedMap,
+                                metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {patientInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))})
+                            })
+                        ).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
+                        .catch(e=>{ console.log("ERROR with encryptContent: ", e); return msgApi.modifyMessage( _.merge( {}, createdMessage, { unassignedResults: unassignedList, assignedResults: assignedMap })) })
 
                 })
                 .finally(()=>promResolve)
@@ -241,14 +241,14 @@ onmessage = e => {
                 .then(({extractedKeys: encryptionKeys}) => beResultApi.getInfos(createdDocumentToAssign.id, false, null, encryptionKeys.join(',')).catch(e=>{console.log("ERROR with getInfos: ", e); return promResolve;}))
                 .then(beResultApiDocInfos => {
                     let prom = Promise.resolve();
-                    _.map(beResultApiDocInfos, beResultApiDocInfo => {
-                        prom = prom.then(promisesCarrier => assignResult(fullMessageFromEHealthBox, beResultApiDocInfo, createdDocumentToAssign)
+                    _.map(beResultApiDocInfos, docInfo => {
+                        prom = prom.then(promisesCarrier => assignResult(fullMessageFromEHealthBox, docInfo, createdDocumentToAssign)
                             .then(assignResult => _.concat(promisesCarrier, {
                                 assigned: !!_.trim(_.get(assignResult, "patientId", "")),
-                                protocolId: _.trim(_.get(beResultApiDocInfo, "protocol", "")),
+                                protocolId: _.trim(_.get(docInfo, "protocol", "")),
                                 contactId: _.trim(_.get(assignResult, "id", "")),
                                 documentId: _.trim(_.get(createdDocumentToAssign, "id", "")),
-                                docInfo: beResultApiDocInfo,
+                                docInfo: docInfo,
                                 patientId: _.trim(_.get(assignResult, "patientId", ""))
                             }))
                             .catch(e => { console.log("ERROR with assignResult: ", e); return promResolve; })
@@ -307,7 +307,7 @@ onmessage = e => {
                         return (_.trim(_.get(docInfo,"ssin","something")) === _.trim(_.get(p,"ssin","else")))
                     })
 
-                    return (_.size(candidates||[]) !== 1) ?
+                    return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
                         iccContactXApi.newInstance(user, candidates[0], {
                             groupId: _.trim(_.get(message,"id","")),
@@ -315,7 +315,7 @@ onmessage = e => {
                             modified: +new Date,
                             author: _.trim(_.get(user,"id","")),
                             responsible: _.trim(_.get(user,"healthcarePartyId","")),
-                            openingDate: moment(_.get(docInfo,"demandDate","")).format('YYYYMMDDHHmmss')||'',
+                            openingDate: moment((parseInt(_.get(docInfo,"demandDate",0))?_.parseInt(_.get(docInfo,"demandDate",0)):null)).format('YYYYMMDDHHmmss')||'',
                             closingDate: moment().format('YYYYMMDDHHmmss')||'',
                             encounterType: { type: _.trim(_.get(docInfo,"codes.type","")), version: _.trim(_.get(docInfo,"codes.version","")), code: _.trim(_.get(docInfo,"codes.code","")) },
                             descr: "Analyse: " + _.trim(_.get(docInfo,"labo","")),
@@ -350,29 +350,23 @@ onmessage = e => {
 
         }
 
-        const encryptByUserAndResourceObject = ( user, resourceObject, contentToEncrypt ) => {
+        const encryptContent = ( user, resourceObject, contentToEncrypt ) => {
 
             const userHpcId = _.trim(_.get(user,"healthcarePartyId",""))
-            const resourceObjectEncryptionKeys = _.get(resourceObject,"encryptionKeys",{})
 
             if(
                 !_.trim(userHpcId) ||
                 !_.trim(resourceObject) ||
                 !_.trim(contentToEncrypt) ||
-                !_.size(resourceObjectEncryptionKeys) ||
                 typeof iccCryptoXApi.AES.encrypt !== "function"
             ) return Promise.resolve(contentToEncrypt);
 
-            // Fabien: continue here
-            //this.document().initEncryptionKeys ==> nous avons un message ici et pas un document ==> passer par patient ?
-            bug()
-
-            return ( Object.keys(!!_.size(resourceObjectEncryptionKeys)) ? Promise.resolve(resourceObject) : this.document().initEncryptionKeys(user, resourceObject) )
-                .then(doc => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(userHpcId, _.trim(_.get(doc,"id","")), resourceObjectEncryptionKeys))
-                .then((sfks) => iccCryptoXApi.AES.importKey("raw", iccCryptoXApi.utils.hex2ua(sfks.extractedKeys[0].replace(/-/g, ""))))
-                .then((key) => iccCryptoXApi.AES.encrypt(key, contentToEncrypt))
+            return (!!_.size(_.get(resourceObject,"encryptionKeys",{})) ? Promise.resolve(resourceObject) : iccDocumentXApi.initEncryptionKeys(user, resourceObject))
+                .then(doc => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(userHpcId, _.trim(_.get(doc,"id","")), _.get(doc,"encryptionKeys",{})))
+                .then((sfks) => iccCryptoXApi.AES.importKey("raw", iccUtils.ua2ArrayBuffer(iccUtils.hex2ua(sfks.extractedKeys[0].replace(/-/g, "")))))
+                .then((key) => iccCryptoXApi.AES.encrypt(key, iccUtils.text2ua(JSON.stringify(contentToEncrypt))))
                 .catch((e) =>
-                    iccCryptoXApi.decryptAndImportAesHcPartyKeysInDelegations(userHpcId, resourceObjectEncryptionKeys && Object.keys(resourceObjectEncryptionKeys).length ? resourceObjectEncryptionKeys : _.get(resourceObject,"delegations",{}))
+                    iccCryptoXApi.decryptAndImportAesHcPartyKeysInDelegations(userHpcId, ( !!_.size(_.get(resourceObject,"encryptionKeys",{})) ? _.get(resourceObject,"encryptionKeys",{}) : _.get(resourceObject,"delegations ",{}) ) )
                         .then(decryptedAndImportedAesHcPartyKeys => iccCryptoXApi.AES.encrypt(_.get(_.head(decryptedAndImportedAesHcPartyKeys), "key", undefined), contentToEncrypt))
                 )
 
@@ -383,7 +377,6 @@ onmessage = e => {
         let promisesCarrier = []
         let prom = Promise.resolve()
         _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
-            // _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id","")) && _.trim(_.get(m,"id",""))==="1000011867226" && singleBoxId === "INBOX" ), singleMessage => prom = prom
             _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
                 .then((promisesCarrier) => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
                 .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))

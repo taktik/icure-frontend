@@ -936,6 +936,10 @@
                 color:var(--dark-primary-color)!important;
             }
 
+            .darkPink {
+                color:#A02A7F!important;
+            }
+
             .darkGreen {
                 color:#41671e!important
             }
@@ -1149,7 +1153,6 @@
 
 
                 <div class="action-buttons">
-
                     <div class="buttons">
 
                         <!-- Reply -->
@@ -1185,13 +1188,13 @@
                         <div class="singleHeaderLine"><iron-icon icon="icons:account-circle" class="m-r-5 darkBlue w20 m-t-minus-2"></iron-icon> [[selectedMessage.fromAddress]]</div>
                         <div class="singleHeaderLine"><iron-icon icon="icons:date-range" class="m-r-5 darkBlue w20 m-t-minus-2"></iron-icon> [[_msTstampToDDMMYYYY(selectedMessage.created)]]</div>
                         <template is="dom-if" if="[[_isImportant(selectedMessage)]]"><div class="singleHeaderLine"><iron-icon icon="warning" class="m-r-5 darkRed w20 m-t-minus-2"></iron-icon> [[localize('ehb.important','High importance',language)]]</div></template>
-                        <template is="dom-repeat" items="[[_linkedPatientsBasedOnMessageSsinAndAnnexes]]" as="singlePatient"><div class="singleHeaderLine"><iron-icon icon="icons:accessibility" class="m-r-5 darkBlue w20 m-t-minus-2"></iron-icon> [[singlePatient.lastName]] [[singlePatient.firstName]] [[singlePatient.ssinOrBirthdate]]</div></template>
+                        <template is="dom-repeat" items="[[_linkedPatientsBasedOnMessageSsinAndAnnexes]]" as="singlePatient"><div class="singleHeaderLine"><iron-icon icon$="[[_iconBySex(singlePatient.sex)]]" class$="m-r-5 [[_colorCssClassBySex(singlePatient.sex)]] w20 m-t-minus-2"></iron-icon> [[singlePatient.lastName]] [[singlePatient.firstName]] [[singlePatient.ssinOrBirthdate]]</div></template>
                         <template is="dom-repeat" items="[[_messageAttachments]]" as="singleAttachment">
                             <template is="dom-if" if="[[singleAttachment.attachmentUrl]]">
                                 <div class="singleHeaderLine cursorPointer" data-attachmenturl="[[singleAttachment.attachmentUrl]]" on-tap="_downloadAttachment">
                                     <iron-icon icon="editor:attach-file" class="m-r-5 darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon>
                                     [[singleAttachment.filename]] <span class="fileSize" data-attachmenturl="[[singleAttachment.attachmentUrl]]">([[singleAttachment.size]])</span>
-                                    <iron-icon icon="icons:arrow-downward" class="darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon>
+                                    <iron-icon icon="icons:file-download" class="darkBlue w20 m-t-minus-2" data-attachmenturl="[[singleAttachment.attachmentUrl]]"></iron-icon>
                                 </div>
                             </template>
                         </template>
@@ -1628,6 +1631,14 @@
                 return ((m.status & (1 << 4)) !== 0)
             }
 
+            _iconBySex(inputData) {
+                return (inputData === "F" || inputData === "W") ? "vaadin:female" : "vaadin:male"
+            }
+
+            _colorCssClassBySex(inputData) {
+                return (inputData === "F" || inputData === "W") ? "darkPink" : "darkBlue"
+            }
+
             _downloadAttachment(e) {
 
                 const downloadUrl = _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataAttachmenturl",""))),"[0].dataAttachmenturl","")
@@ -1761,8 +1772,9 @@
                     .then(documentsOfMessage => this.set("documentsOfMessage", !!_.size(documentsOfMessage) ? _.compact(_.orderBy(documentsOfMessage, d => _.trim(_.get(d,"documentLocation","annex")) === "body" ? "" : _.get(d,"id",_.uniqueId()))) : []))
                     .catch(e=>console.log("ERROR with _loadMessageDetails: ", e))
                     .finally(()=>{
-                        this.set("_linkedPatientsBasedOnMessageSsinAndAnnexes", _.compact(
+                        this.set("_linkedPatientsBasedOnMessageSsinAndAnnexes", _.uniqBy(_.compact(
                             _.compact(_.concat( [patientDetailsBasedOnSsin], _.flatMap(_.map(_.get(this,"documentsOfMessage",[]), singleDoc => _.map(_.get(singleDoc,"docInfo",[]), x=>x))))).map(pat => { return {
+                                sex: _.trim(_.get(pat, "sex", "")).toUpperCase(),
                                 lastName: _.map(_.trim(_.get(pat, "lastName", "")).split(" "), i => _.capitalize(i)).join(" "),
                                 firstName: _.map(_.trim(_.get(pat, "firstName", "")).split(" "), i => _.capitalize(i)).join(" "),
                                 ssinOrBirthdate: (
@@ -1770,9 +1782,9 @@
                                     !!_.trim(_.get(pat, "dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(pat, "dateOfBirth", 0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" :
                                     ""
                                 )
-                            }}))
+                            }})),"ssinOrBirthdate")
                         )
-                        this.set("_messageAttachments", _.compact(_.map(_.get(this,"documentsOfMessage",[]).filter(d=>_.trim(_.get(d,"documentLocation",""))==="annex"), singleDoc => _.get(singleDoc,"attachmentInfos",{}))))
+                        this.set("_messageAttachments", _.orderBy(_.compact(_.map(_.get(this,"documentsOfMessage",[]).filter(d=>_.trim(_.get(d,"documentLocation",""))==="annex"), singleDoc => _.get(singleDoc,"attachmentInfos",{}))), ['filename','size'],['asc','asc']))
 
                         console.log('[HT-MSG-DETAIL] Message: ', selectedMessage)
                         console.log('documentsOfMessage: ', _.get(this,"documentsOfMessage",[]))
@@ -1801,7 +1813,7 @@
 
 
 
-            // Créer accès log après assignation lab résult -> remonte sur le dashboard du coup
+            // Créer accès log après assignation lab résult
             //
             // this.api.accesslog().createAccessLog(new AccessLogDto({
             //     id: this.api.crypto().randomUuid(),
@@ -1810,8 +1822,6 @@
             //     date: +new Date(),
             //     accessType: 'USER_ACCESS'
             // }));
-
-
 
             // this.dispatchEvent(new CustomEvent('medications-selection', { detail: {onCreate: this._medicationCreated.bind(this), onShowDetails: this._displayMedicationDetails.bind(this), onValueChanged: this._valueChanged.bind(this)}, bubbles: true, composed: true} ))
 
