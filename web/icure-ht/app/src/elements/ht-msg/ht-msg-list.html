@@ -1688,6 +1688,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(!_.size(_.get(this,"currentHcp",{})) || _.get(this,"_messageFilterSelectedItem",null) === null) return;
 
 
+                const promResolve = Promise.resolve()
                 const cacheTTL = (10**3)*3600 // Long TTL on purpose, ehboxWebWorker will force refresh (when new message hits inbox / sentbox)
                 const eHealthBoxType = _.trim(_.get(this,"menuSelectionObject.selection.item","personalInbox"))
                 const eHealthBoxCurrentFolder = _.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))
@@ -1711,7 +1712,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this._toggleProcessingPopup(this.localize('ehb.gettingMessages',this.language));
 
                 const promiseResolver = !shouldRefreshData ?
-                    Promise.resolve() :
+                    promResolve :
                     Promise.all(_.map(["INBOX:*","SENTBOX:*","BININBOX:*","BINSENTBOX:*"], singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 2000).then(messages=>messages.rows).catch(()=>Promise.resolve())))
                         .then(promisesResults => _
                             .chain(promisesResults)
@@ -1722,31 +1723,50 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             .value()
                         )
                         .then(foundMessages => {
+
                             this.set("_getEHealthBoxDataLastRefreshTstamp",( _.size(foundMessages) ? +new Date() : 0 ))
                             Object.keys(this._cachedMessagesData).forEach(k => this._cachedMessagesData[k] = [] )
-                            return _.map(foundMessages, singleMessage => {
-                                return !_.trim(_.get(singleMessage,"metas.patientInfos")) ?
-                                    Promise.resolve(singleMessage) :
+
+                            let prom = Promise.resolve();
+                            _.map(foundMessages, singleMessage => {
+                                prom = prom.then(promisesCarrier => !_.trim(_.get(singleMessage,"metas.patientInfos")) ?
+                                    Promise.resolve(_.concat(promisesCarrier, singleMessage)) :
                                     this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, singleMessage, this.api.crypto().utils.text2ua(Base64.decode(_.trim(_.get(singleMessage,"metas.patientInfos")))) )
                                         .then(uaDecryptedContent => _.merge({}, singleMessage, {patientInfos:JSON.parse(this.api.crypto().utils.ua2text(uaDecryptedContent))||[]}))
                                         .catch(e=>{console.log("ERROR with encryptDecryptFileContentByUserHcpIdAndDocumentObject: ",e); return Promise.resolve(singleMessage)})
-                                    .then(singleMessage => {
-                                        console.log("intermediaire: ", singleMessage);
-                                        return singleMessage
-                                    })
-                                    .then(singleMessage => {
-                                        const messageBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]",""))
-                                        const isHidden = !!(_.get(singleMessage,"status",0)&(1<<14))
+                                    .then(singleMessage => _.concat(promisesCarrier, singleMessage))
+                                )
+                            })
+
+                            prom
+                                .then(messagesWithDecryptedPatientInfos => {
+                                    const patientIds = _.uniq(_.compact(_.flatMap(_.map(messagesWithDecryptedPatientInfos,i=>_.compact(_.map(_.get(i,"patientInfos",[]),j=>_.get(j,"patientId","")))))))
+                                    return this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: patientIds}))
+                                        .then(patientsFromLocalDb => _.map(messagesWithDecryptedPatientInfos, singleMessageToEnrichWithPatDetails => {
+                                            const patsInfos = _.get(singleMessageToEnrichWithPatDetails,"patientInfos",[])
+                                            return !_.size(patsInfos) ?
+                                                singleMessageToEnrichWithPatDetails :
+                                                _.merge({},singleMessageToEnrichWithPatDetails, {patientInfos: patsInfos.map( patInfo => !_.trim(_.get(patInfo,"patientId","")) ?
+                                                    patInfo :
+                                                    _.merge({},patInfo,{patientData:_.find(patientsFromLocalDb, p => _.trim(_.get(patInfo,"patientId","")) === _.trim(_.get(p,"id","")) )})
+                                                )})
+                                            })
+                                        )
+                                        .catch(e=>{console.log("ERROR with getPatientsWithUser: ", e); return messagesWithDecryptedPatientInfos;})
+                                })
+                                .then(messagesWithEnrichedPatientInfos => {
+                                    _.compact(messagesWithEnrichedPatientInfos).map(singleMessageWithEnrichedPatientInfos => {
+                                        const messageBox = _.trim(_.get(_.trim(_.get(singleMessageWithEnrichedPatientInfos,"transportGuid","")).split(":"),"[0]",""))
+                                        const isHidden = !!(_.get(singleMessageWithEnrichedPatientInfos,"status",0)&(1<<14))
                                         return (
-                                            messageBox === "INBOX" && !isHidden ? this.push("_cachedMessagesData.inbox", singleMessage) :
-                                            messageBox === "SENTBOX" && !isHidden ? this.push("_cachedMessagesData.sent", singleMessage) :
-                                            messageBox === "BININBOX" && !isHidden ? this.push("_cachedMessagesData.deleted", singleMessage):
-                                            messageBox === "BINSENTBOX" && !isHidden ? this.push("_cachedMessagesData.deleted", singleMessage) :
-                                            this.push("_cachedMessagesData.hidden", singleMessage)
+                                            messageBox === "INBOX" && !isHidden ? this.push("_cachedMessagesData.inbox", singleMessageWithEnrichedPatientInfos) :
+                                            messageBox === "SENTBOX" && !isHidden ? this.push("_cachedMessagesData.sent", singleMessageWithEnrichedPatientInfos) :
+                                            messageBox === "BININBOX" && !isHidden ? this.push("_cachedMessagesData.deleted", singleMessageWithEnrichedPatientInfos):
+                                            messageBox === "BINSENTBOX" && !isHidden ? this.push("_cachedMessagesData.deleted", singleMessageWithEnrichedPatientInfos) :
+                                            this.push("_cachedMessagesData.hidden", singleMessageWithEnrichedPatientInfos)
                                         )
                                     })
-
-                            })
+                                })
 
                         })
                         .then(()=>this._getBoxCapacity())
@@ -1775,6 +1795,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             .orderBy(['created','received'],['desc','desc'])
                             .value()
 
+                        console.log("messagesDataForCurrentFolderAndCurrentFilter", messagesDataForCurrentFolderAndCurrentFilter)
+
                         this._clearGridCache()
                         this._resetGridSelectedItems()
                         this.set('pageStart', parseInt(((currentPageNumber-1)||0) * parseInt(this._vaadinGridMaxItemsPerPage)) )
@@ -1794,41 +1816,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
-
-
-            _testCryptedMetasKey() {
-
-                // FABIEN: double check si ma MM est capable de décrypter ce message
-
-                const mySecretContentToBeCrypted = "This is top secret - to be encrypted"
-
-                let prom = this.api.message().newInstance(this.user)
-                    .then(newMessageInstance => this.api.message().createMessage(
-                        _.merge(newMessageInstance, {
-                            transportGuid: "TEST:CRYPTO:METAS",
-                            recipients: [_.get(this.user, 'healthcarePartyId', "")],
-                            recipientsType: "org.taktik.icure.entities.HealthcareParty",
-                            metas: { nonEncryptedContent: mySecretContentToBeCrypted },
-                            toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', ""))],
-                            subject: "TEST message with crypted meta key"
-                        }))
-                    )
-                    .then(createdMessage => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdMessage, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(createdMessage.metas.nonEncryptedContent))).then(encryptedContent => ({createdMessage, encryptedContent})))
-                    .then(({createdMessage, encryptedContent}) => this.api.message().modifyMessage(_.merge(createdMessage, {metas:{encryptedContent:btoa(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}})).then(modifiedMessageWithEncryptedContent=>modifiedMessageWithEncryptedContent))
-                    .then(modifiedMessageWithEncryptedContent => this.api.register(modifiedMessageWithEncryptedContent,"message"))
-                    .then(modifiedMessageWithEncryptedContent => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, modifiedMessageWithEncryptedContent, new Uint8Array(this.api.crypto().utils.base64toArrayBuffer(modifiedMessageWithEncryptedContent.metas.encryptedContent)))
-                        .then(uaDecryptedContent => {
-                            const decryptedContent = this.api.crypto().utils.ua2text(uaDecryptedContent);
-                            return ({modifiedMessageWithEncryptedContent,decryptedContent});
-                        })
-                    )
-
-                prom.then(({modifiedMessageWithEncryptedContent, decryptedContent}) => {
-                    console.log("modifiedMessageWithEncryptedContent: ", modifiedMessageWithEncryptedContent);
-                    console.log("decryptedContent: ", decryptedContent);
-                })
-
-            }
 
 
 

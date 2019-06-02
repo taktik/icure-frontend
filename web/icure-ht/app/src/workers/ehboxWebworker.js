@@ -128,8 +128,8 @@ onmessage = e => {
                         prom = prom.then(promisesCarrier => !!_.size(singleDocumentOrAnnex) ?
                             registerNewDocument(singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox)
                                 .then(createdDocument => _.concat(promisesCarrier, createdDocument))
-                                .catch(e => { console.log("ERROR with registerNewDocument: ", e); return promResolve; })
-                            : promResolve
+                                .catch(e => { console.log("ERROR with registerNewDocument: ", e); return Promise.resolve(_.concat(promisesCarrier, {})); })
+                            : Promise.resolve(_.concat(promisesCarrier, {}))
                         )
                     })
 
@@ -172,10 +172,11 @@ onmessage = e => {
 
             _.map(createdDocumentsToAssign.filter(doc => doc.documentLocation !== "body"), createdDocumentToAssign => {
                 prom = prom.then(promisesCarrier => !_.trim(_.get(createdDocumentToAssign,"id","")) ?
-                    promResolve :
+                    Promise.resolve(_.concat(promisesCarrier, {})) :
                     tryToAssignAppendix(fullMessageFromEHealthBox, createdDocumentToAssign)
                         .then(assignResult => _.concat(promisesCarrier, assignResult))
-                        .catch(e=>{console.log("ERROR with tryToAssignAppendix: ", e); return promResolve;}))
+                        .catch(e=>{console.log("ERROR with tryToAssignAppendix: ", e); return Promise.resolve(_.concat(promisesCarrier, {}));})
+                )
             })
 
             return prom
@@ -251,7 +252,7 @@ onmessage = e => {
                                 docInfo: docInfo,
                                 patientId: _.trim(_.get(assignResult, "patientId", ""))
                             }))
-                            .catch(e => { console.log("ERROR with assignResult: ", e); return promResolve; })
+                            .catch(e => { console.log("ERROR with assignResult: ", e); return Promise.resolve(_.concat(promisesCarrier, {})); })
                         )
                     })
                     return prom.then(assignResults => assignResults)
