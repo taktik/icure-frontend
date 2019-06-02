@@ -122,9 +122,53 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             paper-dialog {
-                width:80%;
-                height: 80%;
+                width: 40%;
+                height: 40%;
             }
+
+            .dialogButtons {
+                position: absolute;
+                bottom: 40px;
+                margin: 0;
+                width: 100%;
+                text-align: center;
+            }
+
+            .dialogButtons .modal-button {
+                --paper-button-ink-color: var(--app-secondary-color);
+                background-color: var(--app-secondary-color);
+                color: var(--app-text-color);
+                font-weight: 700;
+                font-size: 14px;
+                height: 40px;
+                min-width: 100px;
+                padding: 10px 1.2em;
+                text-transform: uppercase;
+            }
+
+            .dialogButtons .modal-button.grey {
+                --paper-button-ink-color: var(--app-background-color-dark);
+                background-color: var(--app-background-color-dark);
+            }
+
+            .modalDialog {
+                height: 300px;
+                width: 600px;
+            }
+
+            .modalDialogContent {
+                height: 250px;
+                width: auto;
+                margin: 10px;
+            }
+
+            .modal-title {
+                background: var(--app-background-color-dark);
+                margin-top: 0;
+                padding: 16px 24px;
+            }
+
+
 
             ht-msg-list.selected {
                 /*width: 152vw;*/
@@ -315,6 +359,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         on-item-delete="handleRefreshlist"
                         on-item-restore="handleRefreshlist"
                         on-document-update="_updateDoc"
+                        on-document-unassign="_unassignDoc"
+                        on-document-delete="_deleteDoc"
+                        on-show-error-message="showErrorMessage"
                         class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-document-detail>
                 </div>
@@ -353,17 +400,52 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </template>
 
         </div>
-
-        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"></ht-msg-new>
-        <ht-msg-import-doc-dialog id="import-doc-dialog" api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" on-save-documents="_saveDoc"></ht-msg-import-doc-dialog>
-
+        <ht-msg-new
+                id="new-msg"
+                api="[[api]]"
+                i18n="[[i18n]]"
+                language="[[language]]"
+                resources="[[resources]]"
+                user="[[user]]"
+                credentials="[[credentials]]">
+        </ht-msg-new>
+        <ht-msg-import-doc-dialog
+                id="import-doc-dialog"
+                api="[[api]]"
+                i18n="[[i18n]]"
+                user="[[user]]"
+                language="[[language]]"
+                resources="[[resources]]"
+                on-save-documents="_saveDoc"
+                on-show-error-message="showErrorMessage">
+        </ht-msg-import-doc-dialog>
+        <paper-dialog class="modalDialog" id="errorMessageBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title">
+                <iron-icon icon="icons:warning"></iron-icon>
+                [[localize('warning','Warning',language)]]
+            </h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">
+                    [[errorTitle]]
+                </h3>
+                <p class="textAlignCenter m-t-20">
+                    [[errorMessage]]
+                </p>
+                <p class="textAlignCenter m-t-20">
+                    [[errorDetail]]
+                </p>
+            </div>
+            <div class="dialogButtons">
+                <paper-button class="modal-button" on-tap="closeErrorMessageBox">
+                    <iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon>
+                    [[localize('clo','Close',language)]]
+                </paper-button>
+            </div>
+        </paper-dialog>
     </template>
-
-
-
     <script>
 
-        class HtMsg extends Polymer.Element {
+        class HtMsg extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
             static get is() {
                 return 'ht-msg'
@@ -569,20 +651,49 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     && _.map(_.get(this, "$['msg-menu'].shadowRoot", false).querySelectorAll("[data-status='" + _.get(e, "detail.selection.status", "") + "']"),e=>{ try{e.click()}catch(e){}})
             }
 
+            // showErrorMessage(e) {
+            //     this.shadowRoot.querySelector("#doc-list").showErrorMessage(e)
+            // }
+
             showErrorMessage(e) {
-                this.shadowRoot.querySelector("#doc-list").showErrorMessage(e)
+                if (e.detail && e.detail.title && e.detail.message) {
+                    return setTimeout(()=>{
+                        console.log(e.detail.error);
+                        this.set('errorTitle', e.detail.title);
+                        this.set('errorMessage', this.localize(e.detail.message, e.detail.message, this.language));
+                        e.detail.detail && this.set('errorDetail', e.detail.detail);
+                        this.set("_bodyOverlay", true);
+                        this.$["errorMessageBox"].open();
+                    },200);
+                }
             }
+
+            closeErrorMessageBox() {
+                this.set("_bodyOverlay", false);
+                this.$['errorMessageBox'].close();
+                // _.map(this.shadowRoot.querySelectorAll('.modalDialog'), i => i && typeof i.close === "function" && i.close())
+            }
+
 
             openNewDoc(){
                 this.$["import-doc-dialog"].open()
             }
 
             _saveDoc(e){
+                this.$["import-doc-dialog"].close();
                 this.shadowRoot.querySelector("#doc-list").saveDoc(e)
             }
 
             _updateDoc(e) {
                 this.shadowRoot.querySelector('#doc-list').updateDoc(e)
+            }
+
+            _unassignDoc(e) {
+                this.shadowRoot.querySelector('#doc-list').unassignDoc(e)
+            }
+
+            _deleteDoc(e) {
+                this.shadowRoot.querySelector('#doc-list').deleteDoc(e)
             }
 
             _getCurrentAndParentHcps(user) {
