@@ -363,11 +363,11 @@ onmessage = e => {
 
             return (!!_.size(_.get(resourceObject,"encryptionKeys",{})) ? Promise.resolve(resourceObject) : iccDocumentXApi.initEncryptionKeys(user, resourceObject))
                 .then(doc => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(userHpcId, _.trim(_.get(doc,"id","")), _.get(doc,"encryptionKeys",{})))
-                .then((sfks) => iccCryptoXApi.AES.importKey("raw", iccUtils.ua2ArrayBuffer(iccUtils.hex2ua(sfks.extractedKeys[0].replace(/-/g, "")))))
-                .then((key) => iccCryptoXApi.AES.encrypt(key, iccUtils.text2ua(JSON.stringify(contentToEncrypt))))
+                .then((sfks) => iccCryptoXApi.AES.importKey("raw", iccUtils.hex2ua(sfks.extractedKeys[0].replace(/-/g, ""))))
+                .then((key) => iccCryptoXApi.AES.encrypt(key, iccUtils.ua2ArrayBuffer(iccUtils.text2ua(JSON.stringify(contentToEncrypt)))))
                 .catch((e) =>
                     iccCryptoXApi.decryptAndImportAesHcPartyKeysInDelegations(userHpcId, ( !!_.size(_.get(resourceObject,"encryptionKeys",{})) ? _.get(resourceObject,"encryptionKeys",{}) : _.get(resourceObject,"delegations ",{}) ) )
-                        .then(decryptedAndImportedAesHcPartyKeys => iccCryptoXApi.AES.encrypt(_.get(_.head(decryptedAndImportedAesHcPartyKeys), "key", undefined), contentToEncrypt))
+                        .then(decryptedAndImportedAesHcPartyKeys => iccCryptoXApi.AES.encrypt(_.get(_.head(decryptedAndImportedAesHcPartyKeys), "key", undefined), iccUtils.ua2ArrayBuffer(iccUtils.text2ua(JSON.stringify(contentToEncrypt)))))
                 )
 
         }
