@@ -864,8 +864,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 -->
 
                 <vaadin-grid-column flex-grow="1">
-                    <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'sent')]]"><template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('sen','Sender',language)]]</b></vaadin-grid-sorter></template></template>
-                    <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'sent')]]"><template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('rec','Recipient',language)]]</b></vaadin-grid-sorter></template></template>
+                    <template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('ehb.senderRecipient','Sender / recipient',language)]]</b></vaadin-grid-sorter></template>
+                    <!--
+                        <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'sent')]]"><template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('sen','Sender',language)]]</b></vaadin-grid-sorter></template></template>
+                        <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'sent')]]"><template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('rec','Recipient',language)]]</b></vaadin-grid-sorter></template></template>
+                    -->
                     <template>
                         <div class$="cell [[_boldIfIsUnread(item)]]">
                             <template is="dom-if" if="[[_isImportant(item)]]"><iron-icon icon="warning" class="darkRed"></iron-icon></template>
@@ -886,13 +889,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <vaadin-grid-column flex-grow="1">
                     <template class="header">[[localize('pat','Patient',language)]]</template>
                     <template>
-                        <template is="dom-repeat" items="[[item.patientInfosBasedOnResultInfo]]" as="patientInfos">
+                        <template is="dom-repeat" items="[[item.patientInfos]]" as="patientInfos">
                             <div class$="singlePatientInfo [[_boldIfIsUnread(item)]]">
-                                <template is="dom-if" if="[[patientInfos.isAssigned]]"><div id="hasLab-[[patientInfos.uniqueId]]" class="labicon"></div><paper-tooltip position="right" for="hasLab-[[patientInfos.uniqueId]]">[[localize('assigned_labresults','Assigned lab results',language)]]</paper-tooltip></template>
-                                <template is="dom-if" if="[[!patientInfos.isAssigned]]"><div id="hasLab-[[patientInfos.uniqueId]]" class="labicon unassigned-true"></div><paper-tooltip position="right" for="hasLab-[[patientInfos.uniqueId]]">[[localize('unassigned_labresults','Unassigned lab results',language)]]</paper-tooltip></template>
-                                [[patientInfos.lastName]]
-                                [[patientInfos.firstName]]
-                                [[patientInfos.dateOfBirthHr]]
+                                <template is="dom-if" if="[[patientInfos.isAssigned]]"><div id="hasLab-[[patientInfos.patientData.uniqueId]]" class="labicon"></div><paper-tooltip position="right" for="hasLab-[[patientInfos.patientData.uniqueId]]">[[localize('assigned_labresults','Assigned lab results',language)]]</paper-tooltip></template>
+                                <template is="dom-if" if="[[!patientInfos.isAssigned]]"><div id="hasLab-[[patientInfos.patientData.uniqueId]]" class="labicon unassigned-true"></div><paper-tooltip position="right" for="hasLab-[[patientInfos.patientData.uniqueId]]">[[localize('unassigned_labresults','Unassigned lab results',language)]]</paper-tooltip></template>
+                                [[patientInfos.patientData.lastName]]
+                                [[patientInfos.patientData.firstName]]
+                                [[patientInfos.patientData.dateOfBirthHr]]
                             </div>
                         </template>
                     </template>
@@ -1341,40 +1344,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(this.shadowRoot.querySelector('#allMessagesFilter') && typeof _.get(this.shadowRoot.querySelector('#allMessagesFilter'),"click",false) === "function" ) { try { this.shadowRoot.querySelector('#allMessagesFilter').click() } catch(e){} }
             }
 
-            _updateCachedMessagesDataStructure(modifiedMessages) {
-
-                const idsOfMessagesToRemove = _.compact(_.map(_.compact(modifiedMessages),i=>_.trim(_.get(i,"message.id",""))))
-                let cachedMessagesDataCopy = _.cloneDeep(_.get(this,"_cachedMessagesData",{}))
-                let newCachedMessagesData =_.fromPairs(_.map(_.keys(cachedMessagesDataCopy), i=>[i,[]]))
-
-                // Drop from current folder
-                _.map(cachedMessagesDataCopy, (messagesOfFolder,cacheFolderName)=> newCachedMessagesData[cacheFolderName] = _.compact(_.remove(messagesOfFolder, i=>idsOfMessagesToRemove.indexOf(_.trim(_.get(i,"id","")))===-1)))
-
-                // Assign to new folder
-                _.map(modifiedMessages,i=>{
-                    const modifyAction = _.trim(_.get(i,"action",""))
-                    const singleMessage = _.get(i,"message",{})
-                    const messageBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]",""))
-                    const isHidden = !!(_.get(singleMessage,"status",0)&(1<<14))
-                    return (
-                        modifyAction === "hide" ? newCachedMessagesData.hidden.push(singleMessage) :
-                        modifyAction === "unhide" && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
-                        modifyAction === "unhide" && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
-                        modifyAction === "delete" ? newCachedMessagesData.deleted.push(singleMessage) :
-                        modifyAction === "undelete" && isHidden ? newCachedMessagesData.hidden.push(singleMessage) :
-                        modifyAction === "undelete" && !isHidden && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
-                        modifyAction === "undelete" && !isHidden && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
-                        modifyAction === "unread" || modifyAction === "read" ? newCachedMessagesData[_.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))].push(singleMessage) :
-                        false
-                    )
-                })
-
-                _.map(newCachedMessagesData, (v,k) => newCachedMessagesData[k] = _.chain(v).compact().orderBy(['created','received'],['desc','desc']).value())
-                this.set("_cachedMessagesData", newCachedMessagesData)
-                return Promise.resolve()
-
-            }
-
             _hideUnHideMessages(givenMessages=null,additionalDataForMessagesToUpdate=null) {
 
                 let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
@@ -1543,7 +1512,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(activeItem && isUnread) {
                     let modifiedMessageCarrier = {}
                     this.api.message().modifyMessage(_.merge(activeItem, {status:(_.get(activeItem,"status",0)^(1<<1))}))
-                        .then(modifiedMessage=>{modifiedMessageCarrier = modifiedMessage; this._updateCachedMessagesDataStructure([{action:"read", message:modifiedMessage}]); })
+                        .then(modifiedMessage => this._updateCachedMessagesDataStructure([{action:"read", message:modifiedMessage}]))
+                        .then(x=>modifiedMessageCarrier = _.get(x,"message",{}))
                         .catch(e=>console.log("ERROR with flag as read: ",e))
                         .finally(()=>{ this.set("_vaadinGridMessagesActiveItem",modifiedMessageCarrier); this._getEHealthBoxData(null,null,null,{avoidClosingOpenedDocument:true,avoidScrollToTop:true}).then(()=>this.dispatchEvent(new CustomEvent('selected-message-changed', {detail:{selection:{item: modifiedMessageCarrier}}}))); })
                 }
@@ -1602,67 +1572,101 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     .finally(()=>prom)
             }
 
+            _updateCachedMessagesDataStructure(modifiedMessages) {
 
+                const idsOfMessagesToRemove = _.compact(_.map(_.compact(modifiedMessages),i=>_.trim(_.get(i,"message.id",""))))
+                let cachedMessagesDataCopy = _.cloneDeep(_.get(this,"_cachedMessagesData",{}))
+                let newCachedMessagesData =_.fromPairs(_.map(_.keys(cachedMessagesDataCopy), i=>[i,[]]))
 
+                // Drop from current folder
+                _.map(cachedMessagesDataCopy, (messagesOfFolder,cacheFolderName)=> newCachedMessagesData[cacheFolderName] = _.compact(_.remove(messagesOfFolder, i=>idsOfMessagesToRemove.indexOf(_.trim(_.get(i,"id","")))===-1)))
 
+                return this._decryptAndResolvePatientsMetas(_.map(modifiedMessages, m=>m.message))
+                    .then(modifiedAndResolvedMessages => {
 
+                        // Remap as {message,action} object (always the same action)
+                        modifiedAndResolvedMessages = _.map(_.compact(modifiedAndResolvedMessages),m => { return {message:m, action: _.get(modifiedMessages,"[0].action","")} })
 
+                        // Assign to new folder
+                        _.map(modifiedAndResolvedMessages,i=>{
+                            const modifyAction = _.trim(_.get(i,"action",""))
+                            const singleMessage = _.get(i,"message",{})
+                            const messageBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]",""))
+                            const isHidden = !!(_.get(singleMessage,"status",0)&(1<<14))
+                            return (
+                                modifyAction === "hide" ? newCachedMessagesData.hidden.push(singleMessage) :
+                                modifyAction === "unhide" && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
+                                modifyAction === "unhide" && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
+                                modifyAction === "delete" ? newCachedMessagesData.deleted.push(singleMessage) :
+                                modifyAction === "undelete" && isHidden ? newCachedMessagesData.hidden.push(singleMessage) :
+                                modifyAction === "undelete" && !isHidden && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
+                                modifyAction === "undelete" && !isHidden && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
+                                modifyAction === "unread" || modifyAction === "read" ? newCachedMessagesData[_.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))].push(singleMessage) :
+                                false
+                            )
+                        })
 
+                        _.map(newCachedMessagesData, (v,k) => newCachedMessagesData[k] = _.chain(v).compact().orderBy(['created','received'],['desc','desc']).value())
+                        this.set("_cachedMessagesData", newCachedMessagesData)
+                        return Promise.resolve(_.head(modifiedAndResolvedMessages))
 
-
-
-
-
-
-
-
-            _enrichMessageWithPatientInfo(messages) {
-
-                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language), icon:"arrow-forward"});
-
-                const startPostion = (parseInt(this._currentPageNumber)-1) * parseInt(this._vaadinGridMaxItemsPerPage)
-                const endPosition = parseInt(this._currentPageNumber) * parseInt(this._vaadinGridMaxItemsPerPage)
-
-                // Resolve additional pat infos, observing pagination size (slice passes along as reference)
-                let messagesToResolve = messages.slice(startPostion, endPosition).filter(singleMessge=>!_.get(singleMessge,"patientInfosBasedOnResultInfo",false));
-
-                let prom = Promise.resolve([]);
-                const totalMessages = _.size(messagesToResolve)||1;
-                messagesToResolve.map((singleMessage,loopIndex) => {
-                    prom = prom.then(resolvedMessages => {
-                        return this.api.document().findByMessage(_.get(this,"user.healthcarePartyId", null), singleMessage)
-                            .then(docs => docs.filter(doc => !!_.get(doc,"id",false) && !!_.get(doc,"attachmentId",false) && !!_.get(doc,"secretForeignKeys",false) ))
-                            .then(docs => Promise.all(docs.map(singleDocument => {
-                                return this.api.crypto()
-                                    .extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), singleDocument.id, _.size(singleDocument.encryptionKeys) ? singleDocument.encryptionKeys : singleDocument.delegations)
-                                    .then(({extractedKeys: enckeys}) =>
-                                        this.api.beresultimport().canHandle(singleDocument.id, enckeys.join(','))
-                                            .then(isResult => (isResult ? this.api.beresultimport().getInfos(singleDocument.id, true, null, enckeys.join(',')) : false))
-                                            .catch(e=>{ /* console.log("Couldn't exec beresultimport().canHandle, error: ", e); console.log("singleDocument ", singleDocument); */ })
-                                    )
-                                    .then(resultInfos => _.compact(_.map(resultInfos, ri=> {
-                                        return {
-                                            lastName: _.upperFirst(_.trim(_.get(ri, "lastName", "NA")).toLowerCase()),
-                                            firstName: _.upperFirst(_.trim(_.get(ri, "firstName", "NA")).toLowerCase()),
-                                            dateOfBirthHr: (_.parseInt(_.get(ri, "dateOfBirth", 0)) ? "(" + moment(_.trim(_.get(ri, "dateOfBirth", ""))).format("DD/MM/YYYY") + ")" : ""),
-                                            // isAssigned: !!(parseInt(singleMessage.modified)%2),
-                                            isAssigned: !!_.size(_.get(singleMessage,"assignedResults",[])),
-                                            uniqueId: _.uniqueId(_.trim(_.get(singleMessage, "id", _.uniqueId())))
-                                        }
-                                    })))
-                                    .catch(e=>{})
-                            })))
-                            .then(resultInfos => {
-                                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language) + " " + (parseInt(loopIndex)+1) + "/" + totalMessages, icon:"arrow-forward", updateLastMessage: true});
-                                return _.concat(resolvedMessages, [_.merge(singleMessage, {patientInfosBasedOnResultInfo: (_.compact(_.flatMap(resultInfos))||[])})])
-                            })
-                            .catch(e=>{})
                     })
-                })
-                return prom.then(()=>messages)
+                    .catch(e=>{ console.log("ERROR with _decryptAndResolvePatientsMetas: ",e); return Promise.resolve(); })
+
             }
 
+            _decryptAndResolvePatientsMetas(givenMessages) {
 
+                let prom = Promise.resolve();
+                _.map(givenMessages, singleMessage => {
+                    prom = prom.then(promisesCarrier => !_.trim(_.get(singleMessage,"metas.patientInfos")) ?
+                        Promise.resolve(_.concat(promisesCarrier, singleMessage)) :
+                        this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, singleMessage, this.api.crypto().utils.text2ua(Base64.decode(_.trim(_.get(singleMessage,"metas.patientInfos")))) )
+                            .then(uaDecryptedContent => _.merge({}, singleMessage, {patientInfos:JSON.parse(this.api.crypto().utils.ua2text(uaDecryptedContent))||[]}))
+                            .then(singleMessage => _.concat(promisesCarrier, singleMessage))
+                            .catch(e=>{console.log("ERROR with encryptDecryptFileContentByUserHcpIdAndDocumentObject: ",e); return Promise.resolve(_.concat(promisesCarrier, singleMessage))})
+                    )
+                })
+
+                return prom
+                    .then(messagesWithDecryptedPatientInfos => {
+                        const patientIds = _.uniq(_.compact(_.flatMap(_.map(messagesWithDecryptedPatientInfos,i=>_.compact(_.map(_.get(i,"patientInfos",[]),j=>_.get(j,"patientId","")))))))
+                        return this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: patientIds}))
+                            .then(patientsFromLocalDb => _.map(_.compact(messagesWithDecryptedPatientInfos), singleMessageToEnrichWithPatDetails => {
+                                const patsInfos = _.get(singleMessageToEnrichWithPatDetails,"patientInfos",[])
+                                return !_.size(patsInfos) ?
+                                    singleMessageToEnrichWithPatDetails :
+                                    _.merge({},singleMessageToEnrichWithPatDetails, {
+                                        patientInfos: patsInfos.map( patInfo => {
+                                            const patientData = _.find(patientsFromLocalDb, p => _.trim(_.get(patInfo,"patientId","")) === _.trim(_.get(p,"id","")))
+                                            const couldResolvePatient = !(!_.trim(_.get(patInfo,"patientId","")) || !_.trim(_.get(patientData,"id","")))
+                                            return _.merge({},patInfo,{patientData:
+                                                {
+                                                    id: !!couldResolvePatient ? _.trim(_.get(patientData,"id","")) : "",
+                                                    uniqueId: !!couldResolvePatient ? _.uniqueId(_.trim(_.get(patientData,"id","")) + "-") : _.uniqueId("patientData-"),
+                                                    firstName: _.map( ( !!couldResolvePatient ?_.trim(_.get(patientData, "firstName", "")) : _.trim(_.get(patInfo,"docInfo.firstName","")) ).split(" "),i=> _.capitalize(i)).join(" "),
+                                                    lastName: _.map( ( !!couldResolvePatient ?_.trim(_.get(patientData, "lastName", "")) : _.trim(_.get(patInfo,"docInfo.lastName","")) ).split(" "),i=> _.capitalize(i)).join(" "),
+                                                    dateOfBirth: !!couldResolvePatient ? _.trim(_.get(patientData,"dateOfBirth","")) : _.trim(_.get(patInfo,"docInfo.dateOfBirth","")),
+                                                    dateOfBirthHr: !!couldResolvePatient ? (_.parseInt(_.trim(_.get(patientData,"dateOfBirth",""))) ? moment(_.trim(_.get(patientData,"dateOfBirth",""))).format("DD/MM/YYYY") : "") : (_.parseInt(_.trim(_.get(patInfo,"docInfo.dateOfBirth",""))) ? moment(_.trim(_.get(patInfo,"docInfo.dateOfBirth",""))).format("DD/MM/YYYY") : ""),
+                                                    ssin: !!couldResolvePatient ? _.trim(_.get(patientData,"ssin","")) : _.trim(_.get(patInfo,"docInfo.ssin","")),
+                                                    sex: !!couldResolvePatient ? (_.trim(_.get(patientData,"gender","male")).toLowerCase()==="male" ? "M" : "F") : (_.trim(_.get(patInfo,"docInfo.sex","M")).toLowerCase()==="m" ? "M" : "F"),
+                                                    picture: !!couldResolvePatient ? _.trim(_.get(patientData,"picture","")) : "",
+                                                    address: !!couldResolvePatient ?
+                                                       _.chain(_.get(patientData, "addresses", {})).filter({addressType:"home"}).head().value() ||
+                                                       _.chain(_.get(patientData, "addresses", {})).filter({addressType:"work"}).head().value() ||
+                                                       _.chain(_.get(patientData, "addresses", {})).head().value() ||
+                                                       {} : ""
+                                                }
+                                            })
+                                        })
+                                    })
+                                })
+                            )
+                            .catch(e=>{console.log("ERROR with getPatientsWithUser: ", e); return _.compact(messagesWithDecryptedPatientInfos);})
+
+                    })
+
+            }
 
             _getEHealthBoxData(menuSelectionObject, _messageFilterSelectedItem, _currentPageNumber, additionalSettings={}) {
 
@@ -1727,33 +1731,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.set("_getEHealthBoxDataLastRefreshTstamp",( _.size(foundMessages) ? +new Date() : 0 ))
                             Object.keys(this._cachedMessagesData).forEach(k => this._cachedMessagesData[k] = [] )
 
-                            let prom = Promise.resolve();
-                            _.map(foundMessages, singleMessage => {
-                                prom = prom.then(promisesCarrier => !_.trim(_.get(singleMessage,"metas.patientInfos")) ?
-                                    Promise.resolve(_.concat(promisesCarrier, singleMessage)) :
-                                    this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, singleMessage, this.api.crypto().utils.text2ua(Base64.decode(_.trim(_.get(singleMessage,"metas.patientInfos")))) )
-                                        .then(uaDecryptedContent => _.merge({}, singleMessage, {patientInfos:JSON.parse(this.api.crypto().utils.ua2text(uaDecryptedContent))||[]}))
-                                        .catch(e=>{console.log("ERROR with encryptDecryptFileContentByUserHcpIdAndDocumentObject: ",e); return Promise.resolve(singleMessage)})
-                                    .then(singleMessage => _.concat(promisesCarrier, singleMessage))
-                                )
-                            })
-
-                            prom
-                                .then(messagesWithDecryptedPatientInfos => {
-                                    const patientIds = _.uniq(_.compact(_.flatMap(_.map(messagesWithDecryptedPatientInfos,i=>_.compact(_.map(_.get(i,"patientInfos",[]),j=>_.get(j,"patientId","")))))))
-                                    return this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: patientIds}))
-                                        .then(patientsFromLocalDb => _.map(messagesWithDecryptedPatientInfos, singleMessageToEnrichWithPatDetails => {
-                                            const patsInfos = _.get(singleMessageToEnrichWithPatDetails,"patientInfos",[])
-                                            return !_.size(patsInfos) ?
-                                                singleMessageToEnrichWithPatDetails :
-                                                _.merge({},singleMessageToEnrichWithPatDetails, {patientInfos: patsInfos.map( patInfo => !_.trim(_.get(patInfo,"patientId","")) ?
-                                                    patInfo :
-                                                    _.merge({},patInfo,{patientData:_.find(patientsFromLocalDb, p => _.trim(_.get(patInfo,"patientId","")) === _.trim(_.get(p,"id","")) )})
-                                                )})
-                                            })
-                                        )
-                                        .catch(e=>{console.log("ERROR with getPatientsWithUser: ", e); return messagesWithDecryptedPatientInfos;})
-                                })
+                            return this._decryptAndResolvePatientsMetas(foundMessages)
                                 .then(messagesWithEnrichedPatientInfos => {
                                     _.compact(messagesWithEnrichedPatientInfos).map(singleMessageWithEnrichedPatientInfos => {
                                         const messageBox = _.trim(_.get(_.trim(_.get(singleMessageWithEnrichedPatientInfos,"transportGuid","")).split(":"),"[0]",""))
@@ -1795,8 +1773,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             .orderBy(['created','received'],['desc','desc'])
                             .value()
 
-                        console.log("messagesDataForCurrentFolderAndCurrentFilter", messagesDataForCurrentFolderAndCurrentFilter)
-
                         this._clearGridCache()
                         this._resetGridSelectedItems()
                         this.set('pageStart', parseInt(((currentPageNumber-1)||0) * parseInt(this._vaadinGridMaxItemsPerPage)) )
@@ -1814,6 +1790,63 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return Promise.resolve()
                     })
 
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+            _enrichMessageWithPatientInfo(messages) {
+
+                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language), icon:"arrow-forward"});
+
+                const startPostion = (parseInt(this._currentPageNumber)-1) * parseInt(this._vaadinGridMaxItemsPerPage)
+                const endPosition = parseInt(this._currentPageNumber) * parseInt(this._vaadinGridMaxItemsPerPage)
+
+                // Resolve additional pat infos, observing pagination size (slice passes along as reference)
+                let messagesToResolve = messages.slice(startPostion, endPosition).filter(singleMessge=>!_.get(singleMessge,"patientInfosBasedOnResultInfo",false));
+
+                let prom = Promise.resolve([]);
+                const totalMessages = _.size(messagesToResolve)||1;
+                messagesToResolve.map((singleMessage,loopIndex) => {
+                    prom = prom.then(resolvedMessages => {
+                        return this.api.document().findByMessage(_.get(this,"user.healthcarePartyId", null), singleMessage)
+                            .then(docs => docs.filter(doc => !!_.get(doc,"id",false) && !!_.get(doc,"attachmentId",false) && !!_.get(doc,"secretForeignKeys",false) ))
+                            .then(docs => Promise.all(docs.map(singleDocument => {
+                                return this.api.crypto()
+                                    .extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), singleDocument.id, _.size(singleDocument.encryptionKeys) ? singleDocument.encryptionKeys : singleDocument.delegations)
+                                    .then(({extractedKeys: enckeys}) =>
+                                        this.api.beresultimport().canHandle(singleDocument.id, enckeys.join(','))
+                                            .then(isResult => (isResult ? this.api.beresultimport().getInfos(singleDocument.id, true, null, enckeys.join(',')) : false))
+                                            .catch(e=>{ /* console.log("Couldn't exec beresultimport().canHandle, error: ", e); console.log("singleDocument ", singleDocument); */ })
+                                    )
+                                    .then(resultInfos => _.compact(_.map(resultInfos, ri=> {
+                                        return {
+                                            lastName: _.upperFirst(_.trim(_.get(ri, "lastName", "NA")).toLowerCase()),
+                                            firstName: _.upperFirst(_.trim(_.get(ri, "firstName", "NA")).toLowerCase()),
+                                            dateOfBirthHr: (_.parseInt(_.get(ri, "dateOfBirth", 0)) ? "(" + moment(_.trim(_.get(ri, "dateOfBirth", ""))).format("DD/MM/YYYY") + ")" : ""),
+                                            // isAssigned: !!(parseInt(singleMessage.modified)%2),
+                                            isAssigned: !!_.size(_.get(singleMessage,"assignedResults",[])),
+                                            uniqueId: _.uniqueId(_.trim(_.get(singleMessage, "id", _.uniqueId())))
+                                        }
+                                    })))
+                                    .catch(e=>{})
+                            })))
+                            .then(resultInfos => {
+                                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language) + " " + (parseInt(loopIndex)+1) + "/" + totalMessages, icon:"arrow-forward", updateLastMessage: true});
+                                return _.concat(resolvedMessages, [_.merge(singleMessage, {patientInfosBasedOnResultInfo: (_.compact(_.flatMap(resultInfos))||[])})])
+                            })
+                            .catch(e=>{})
+                    })
+                })
+                return prom.then(()=>messages)
             }
 
 
