@@ -1534,7 +1534,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 let prom = Promise.resolve([])
 
-                prom = this._closeReadMessageComponent()
+                prom =
+                    ( !!_.get(additionalParameters,"dontCloseReadMessageComponent",false) ? Promise.resolve() : this._closeReadMessageComponent() )
                     .then(() => !_.trim(givenAction) || !_.trim(_.get(givenMessage,"id","")) ?
                         Promise.resolve():
                         (
@@ -1542,6 +1543,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             givenAction === "deleteUndelete" ? this._deletedUndeleteMessages([givenMessage]) :
                             givenAction === "deleteForEver" ? this._deleteMessagesForEver([givenMessage]) :
                             (givenAction === "reply" || givenAction === "forward") ? this._replyToOrForwardMessage(givenMessage,additionalParameters,givenAction) :
+                            givenAction === "deleteAssignment" ? this._deleteAssignment(givenMessage, additionalParameters) :
                             Promise.resolve()
                         )
                     )
@@ -1601,7 +1603,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 modifyAction === "undelete" && isHidden ? newCachedMessagesData.hidden.push(singleMessage) :
                                 modifyAction === "undelete" && !isHidden && messageBox === "INBOX" ? newCachedMessagesData.inbox.push(singleMessage) :
                                 modifyAction === "undelete" && !isHidden && messageBox === "SENTBOX" ? newCachedMessagesData.sent.push(singleMessage) :
-                                modifyAction === "unread" || modifyAction === "read" ? newCachedMessagesData[_.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))].push(singleMessage) :
+                                (
+                                    modifyAction === "unread" ||
+                                    modifyAction === "read" ||
+                                    modifyAction === "deleteAssignment"
+                                ) ? newCachedMessagesData[_.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))].push(singleMessage) :
                                 false
                             )
                         })
@@ -1609,7 +1615,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         _.map(newCachedMessagesData, (v,k) => newCachedMessagesData[k] = _.chain(v).compact().orderBy(['created','received'],['desc','desc']).value())
                         this.set("_cachedMessagesData", newCachedMessagesData)
                         return Promise.resolve(_.head(modifiedAndResolvedMessages))
-
                     })
                     .catch(e=>{ console.log("ERROR with _decryptAndResolvePatientsMetas: ",e); return Promise.resolve(); })
 
@@ -1792,6 +1797,60 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
 
             }
+
+            _deleteAssignment(givenMessage, additionalParameters) {
+
+                const promResolve = Promise.resolve()
+                const contactIdToDelete = _.trim(_.get(additionalParameters,"contactId",""))
+                const patientInfosToKeep = _.compact(_.map( _.get(givenMessage,"patientInfos",[]), pi=> (_.trim(_.get(pi,"contactId","")) === contactIdToDelete ? false : pi))).map(pi=>_.omit(pi,"patientData"))
+
+                // return this.api.contact().getContactWithUser(_.get(this,"user",{}), _.trim(contactIdToDelete))
+                //     .then(contactToDelete => {
+                //         _.map(contactToDelete.services||[], s=>s.endOfLife = +new Date())
+                //         contactToDelete.deletionDate = parseInt(moment().format('YYYYMMDDHHmmss'))
+                //         return this.api.contact().modifyContactWithUser(_.get(this,"user",{}), contactToDelete).catch(e=>{ console.log("ERROR with modifyContactWithUser: ", e); return promResolve; })
+                //     })
+                //     .then(() => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), givenMessage, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(patientInfosToKeep))))
+                //         .then(encryptedContent => _.merge({},givenMessage, {metas:{patientInfos:Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}}))
+                //         .then(givenMessageWithCryptedMetasPatientInfos => this.api.message().modifyMessage(givenMessageWithCryptedMetasPatientInfos))
+                //         .then(modifiedMessage => RECOPIER "this._updateCachedMessagesDataStructure" ci-dessous)
+                //         .catch(e=>{ console.log("ERROR with encryptDecryptFileContentByUserHcpIdAndDocumentObject: ", e); return promResolve; })
+                //     )
+                //     .catch(e=>{ console.log("ERROR with getContactWithUser: ", e); return promResolve; })
+                //     .finally(()=>promResolve)
+
+                // TEST reload juste en modifiant le sujet (normalement: update contact + metas + revoir finally)
+                return this.api.message().modifyMessage(_.merge({},givenMessage, {subject:_.get(givenMessage,"subject","") + "-" + _.uniqueId()}))
+                    .then(modifiedMessage => this._updateCachedMessagesDataStructure([{action:"deleteAssignment", message:modifiedMessage}])
+                        .then(()=>{
+
+                            console.log("[MSG-LIST] _deleteAssignment");
+                            console.log("additionalParameters", additionalParameters);
+                            console.log("givenMessage", givenMessage);
+                            console.log("modifiedMessage", modifiedMessage);
+
+                            this._getEHealthBoxData(null,null,null,{avoidClosingOpenedDocument:true,avoidScrollToTop:true})
+                                .then(()=>{
+                                    this.set("_vaadinGridMessagesActiveItem",modifiedMessage)
+                                    // Fabien:
+                                    //      re-render le dialog d'assignation / update datas
+                                    //      aller dans tab assignation existantes
+                                    //      MSG DETAIL : _toggleAssignmentDialog % bon document ID
+                                    //      marquer le _assignmentDialogIsOpened comme true (opened) ==> APRES le _toggleAssignmentDialog
+                                    //      msg de confirmation "ok deleted"
+                                })
+
+                        })
+                    )
+
+            }
+
+
+
+
+
+
+
 
 
 
