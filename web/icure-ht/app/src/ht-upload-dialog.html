@@ -20,6 +20,15 @@
                 --main-height: 80vh;
             }
 
+            #drag-drop-layer {
+                position: absolute;
+                height: 100%; width: 100%;
+                top:0; left:0;
+                margin: 0; padding: 0;
+                background-color: rgba(0,0,0,.3);
+                visibility: hidden;
+            }
+
             .input-form{
                 width : 100%;
                 height: 40px;
@@ -139,7 +148,7 @@
                 padding-right: 24px;
             }
 
-            .img-container{
+            .img-container {
                 padding: 20px;
                 align-self: center;
                 display:flex;
@@ -148,13 +157,17 @@
                 background-color:  rgb(113, 135, 146);
             }
 
-            .img-container img{
+            .img-container img {
                 height: calc(var(--main-height) - 80px);
                 max-width: 600px;
             }
 
             .modalDialog {
-                height: 300px;
+                display: flex;
+                flex-direction: column;
+                min-height: 300px;
+                height: 200px;
+                min-width:400px;
                 width: 600px;
             }
 
@@ -179,11 +192,44 @@
                 z-index: 10;
                 text-align: center;
             }
+
+            .dialogButtons {
+                position: absolute;
+                bottom: 40px;
+                margin: 0;
+                width: 100%;
+                text-align: center;
+            }
+
+            .dialogButtons .modal-button {
+                --paper-button-ink-color: var(--app-secondary-color);
+                background-color: var(--app-secondary-color);
+                color: var(--app-text-color);
+                font-weight: 700;
+                font-size: 14px;
+                height: 40px;
+                min-width: 100px;
+                padding: 10px 1.2em;
+                text-transform: uppercase;
+            }
+
+            .dialogButtons .modal-button.grey {
+                --paper-button-ink-color: var(--app-background-color-dark);
+                background-color: var(--app-background-color-dark);
+            }
+            .m-t-50 {
+                margin-top: 50px !important;
+            }
+
+            .m-t-20 {
+                margin-top: 20px !important;
+            }
+
         </style>
-            <template is="dom-if" if="[[_bodyOverlay]]">
-                <div class="dialogContainer"></div>
-            </template>
-        <paper-dialog id="upload-dialog" no-cancel-on-outside-click>
+        <template is="dom-if" if="[[_bodyOverlay]]">
+            <div class="dialogContainer"></div>
+        </template>
+        <paper-dialog id="upload-dialog" no-cancel-on-outside-click draggable="true">
             <div id="list-panel" class="panel">
                 <div id="import-buttons">
                     <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
@@ -192,7 +238,7 @@
                             <vaadin-combo-box id="scannerList" filtered-items="[[scannerList]]" item-label-path="label" item-value-path="id" label="[[localize('scanners','Scanners',language)]]" value="{{selectedScanner}}"></vaadin-combo-box>
                         </div>
                     </template>
-                    <vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" form-data-name="attachment"></vaadin-upload>
+                    <vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="image/jpeg,application/pdf" form-data-name="attachment"></vaadin-upload>
                 </div>
                 <vaadin-grid id="doc-list" class="" items="[[docList]]" active-item="{{selectedDoc}}">
                     <vaadin-grid-column>
@@ -214,6 +260,14 @@
                         </template>
                         <template>
                             <div>[[item.title]]</div>
+                        </template>
+                    </vaadin-grid-column>
+                    <vaadin-grid-column>
+                        <template class="header">
+                            <div class="cell frozen">[[localize('del','Delete',language)]]</div>
+                        </template>
+                        <template>
+                            <paper-button on-tap="_deleteItem"><iron-icon icon="icons:close"></iron-icon></paper-button>
                         </template>
                     </vaadin-grid-column>
                 </vaadin-grid>
@@ -260,10 +314,8 @@
                     <paper-button class="modal-button modal-button--cancel" on-tap="close">[[localize('clo','Close',language)]]</paper-button>
                 </div>
             </div>
+            <div id="drag-drop-layer" class="dragDropLayer"></div>
         </paper-dialog>
-<!--        <template is="dom-if" if="[[_dialogOverlay]]">-->
-<!--            <div class="errorContainer"></div>-->
-<!--        </template>-->
         <paper-dialog class="modalDialog" id="error-message-box" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title">
                 <iron-icon icon="icons:warning"></iron-icon>
@@ -274,11 +326,11 @@
                     [[errorTitle]]
                 </h3>
                 <p class="textAlignCenter m-t-20">
-                    [[errorMessage]]
+                    [[errorMessage]]: [[errorDetail]]
                 </p>
-                <p class="textAlignCenter m-t-20">
-                    [[errorDetail]]
-                </p>
+<!--                <p class="textAlignCenter m-t-20">-->
+<!--                    [[errorDetail]]-->
+<!--                </p>-->
             </div>
             <div class="dialogButtons">
                 <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
@@ -405,6 +457,29 @@
 
             ready() {
                 super.ready();
+                let uploadDialog = this.shadowRoot.querySelector('#upload-dialog');
+                let dragDropLayer = this.shadowRoot.querySelector('#drag-drop-layer');
+
+                uploadDialog.addEventListener('dragenter', () => {
+                    dragDropLayer.style.visibility = 'visible';
+                });
+                dragDropLayer.addEventListener('dragenter', (e) => {
+                    e.dataTransfer.dropEffect = 'copy';
+                    e.preventDefault();
+                });
+                dragDropLayer.addEventListener('dragover', (e) => {
+                    e.dataTransfer.dropEffect = 'copy';
+                    e.preventDefault();
+                });
+                dragDropLayer.addEventListener('dragleave', () => {
+                    dragDropLayer.style.visibility = "hidden";
+                });
+                dragDropLayer.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dragDropLayer.style.visibility = "hidden";
+                    let target = this.shadowRoot.querySelector('vaadin-upload');
+                    target && target._onDrop(e);
+                });
             }
 
             apiReady(){
@@ -414,6 +489,37 @@
                     .catch(error => console.log(error));
                 console.log('ht-upload-dialog ready');
             }
+
+            // _onDialogDragEnter(e) {
+            //     e.dataTransfer.dropEffect = 'copy';
+            //     this.set('_dialogOverlay', true);
+            // }
+            //
+            // _onDropZoneDragEnter(e) {
+            //     e.dataTransfer.dropEffect = 'copy';
+            //     e.preventDefault();
+            // }
+            //
+            // _onDragOver(e) {
+            //     e.dataTransfer.dropEffect = 'copy';
+            //     e.preventDefault();
+            // }
+            //
+            // _onDialogDragLeave(e) {
+            //     this.set('_dialogOverlay', true);
+            // }
+            //
+            // _onDropZoneDragLeave(e) {
+            //     this.set('_dialogOverlay', false);
+            // }
+            //
+            // _onDrop(e) {
+            //     e.preventDefault();
+            //     this.set('_dialogOverlay', false);
+            //     // e.stopPropagation();
+            //     let target = this.shadowRoot.querySelector('vaadin-upload');
+            //     target && target._onDrop(e);
+            // }
 
             _hasElectronChanged(){
                 if(!this.hasElectron) return;
@@ -668,6 +774,18 @@
                 this.set('selectedData',"");
             }
 
+            _deleteItem(e) {
+                if (e.model && e.model.item) {
+                    let item = e.model.item;
+                    this.set("docList", this.docList.filter(doc => doc !== item));
+                    if (this.selectedDoc === item) {
+                        this.set("selectedDoc", {})
+                        this.set('isPdf', false);
+                        this.set('selectedData',"");
+                    }
+                }
+            }
+
             _saveDocuments() {
                 if((_.trim(this.selectedDoc.title) === "" || this.selectedDoc.type ==="" || this.selectedDoc.docDate ==="" || !this.selectedDoc.fileBlob)) {
                     let errors = [];
@@ -709,6 +827,8 @@
                 this.set('files', []);
             }
 
+
+
             saveDocuments(e) {
                 if(!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
                 let message = null;
@@ -733,9 +853,11 @@
                         })))
                         .then(msg => {
                             message = msg;
+                            let mimeType = _.toLower(doc.extension);
+                            mimeType = mimeType === 'jpg' ? 'jpeg' : mimeType === 'tif' ? 'tiff' : mimeType;
                             return this.api.document().newInstance(this.user, msg, {
                                 documentType: doc.type,
-                                mainUti: this.api.document().uti(_.toLower(doc.extension) === "pdf" ? "application/" + _.toLower(doc.extension) : "image/" + _.toLower(doc.extension)),
+                                mainUti: this.api.document().uti(mimeType === "pdf" ? "application/pdf" : "image/" + mimeType),
                                 name: doc.title.includes("." + doc.extension) ? _.trim(doc.title) : _.trim(doc.title) + "." + doc.extension
                             })
                         })
