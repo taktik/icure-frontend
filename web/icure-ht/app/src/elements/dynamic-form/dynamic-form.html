@@ -217,7 +217,7 @@
                             <paper-tooltip position="bottom" for="linktosub">[[localize('link_sub','Link to sub',language)]]</paper-tooltip>
 							-->
 							<template is="dom-if" if="[[_none(showEdit,noPrint)]]">
-				
+
 								<template is="dom-if" if="[[!isSubForm]]">
 									<paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
 										<paper-icon-button class="form-title-bar-btn" slot="dropdown-trigger" alt="menu" icon="icons:file-upload"></paper-icon-button>
@@ -228,7 +228,7 @@
 										</paper-listbox>
 									</paper-menu-button>
 								</template>
-							   
+
 								<template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
 									<paper-icon-button icon="print" on-tap="printSubForm" id="printSubForm" class="form-title-bar-btn"></paper-icon-button>
 									<paper-tooltip position="bottom" for="printSubForm">[[localize('print','Print',language)]]</paper-tooltip>
@@ -360,7 +360,7 @@
 					<paper-button dialog-confirm class="modal-button modal-button--save" on-tap="_deleteForm">Delete</paper-button>
 				</div>
 			</paper-dialog>
-			
+
 		</paper-card>
 	</template>
 	<script>
@@ -656,37 +656,30 @@
 
 			_sortedGroupedFormDataList(formDataList) {
 				const widthsStruct = formDataList.reduce((acc, i) => {
-					acc.widths[i.name] = i.editor.left + i.editor.width; acc.maxWidth = Math.max(acc.widths[i.name], acc.maxWidth); return acc;
-				}, { widths: {}, maxWidth: 32 });
-				const sortedList = _.sortBy(formDataList, fd => fd.editor.top);
-				const clusters = this.$['ckmeans-grouping'].cluster(sortedList.map(fd => fd.editor.top)).clusters;
+					acc.widths[i.name] = i.editor.left + i.editor.width; acc.maxWidth = Math.max(acc.widths[i.name], acc.maxWidth); return acc
+				}, { widths: {}, maxWidth: 32 })
 
-				const formDataClusters = sortedList.reduce((cs, fd) => cs[_.findIndex(clusters, c => c.includes(fd.editor.top))].push(fd) && cs, new Array(clusters.length).fill(null).map(u => [])).map(c => _.sortBy(c, "editor.left"));
-				formDataClusters.forEach(c => {
-					let prevWidth = 0;
-					for (let i = 0; i < c.length; i++) {
-						let width = widthsStruct.widths[c[i].name];
-						c[i].editor.flow = Math.floor(10000 * (width - prevWidth) / widthsStruct.maxWidth) / 100;
-						prevWidth = width;
-					}
-				});
+				//Cluster lines
+				const sortedList = _.sortBy(formDataList, fd => fd.editor.top)
+				const clusters = this.$['ckmeans-grouping'].cluster(sortedList.map(fd => fd.editor.top)).clusters
 
-				//Now that the flow have been determined restart a kmeans
-				const flowSortedList = _.sortBy(formDataList, fd => fd.editor.flow);
-				const flowClustering = this.$['ckmeans-flow-grouping'].cluster(flowSortedList.map(fd => fd.editor.flow));
+				const formDataClusters = sortedList.reduce((cs, fd) => cs[_.findIndex(clusters, c => c.includes(fd.editor.top))].push(fd) && cs, new Array(clusters.length).fill(null).map(() => [])).map(c => _.sortBy(c, [x => x.editor.left + x.editor.width]))
 
+				//Cluster columns
+				const rightClustering = this.$['ckmeans-flow-grouping'].cluster(_.sortBy(formDataList.map(fd => fd.editor.left + fd.editor.width)))
 				//Round centroids
-				flowClustering.centroids = flowClustering.centroids.map(c => Math.round(c * 12 / 100.0) * 100 / 12 - 0.00001);
-				const treatedFormDataList = _.flatten(formDataClusters);
-				treatedFormDataList.forEach(c => {
-					c.editor.flow = Math.floor(flowClustering.centroids[_.findIndex(flowClustering.clusters, cc => cc.includes(c.editor.flow))] * 100) / 100;
+				rightClustering.centroids = rightClustering.centroids.map(c => Math.round(c / 24) * 24)
+
+				_.flatten(formDataClusters).forEach(c => {
+					c.editor.right = rightClustering.centroids[_.findIndex(rightClustering.clusters, cc => cc.includes(c.editor.left + c.editor.width))]
 				});
-				formDataClusters.forEach(cs => {
-					while (cs.reduce((acc, i) => acc + i.editor.flow, 0) > 100) {
-						cs.reduce((max, i) => i.editor.flow > max.editor.flow ? i : max, { editor: { flow: 0 } }).editor.flow -= 8.33334;
-					}
-				});
-				return treatedFormDataList;
+
+				formDataClusters.forEach(line => {
+					const width = line.reduce((acc,c) => { c.editor.flow = c.editor.right - acc; return c.editor.right }, 0)
+					line.forEach(c => c.editor.flow = c.editor.flow * 100 / width)
+				})
+
+				return _.flatten(formDataClusters);
 			}
 
 			_isTextArea(layoutItem) {
