@@ -19,6 +19,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="elements/ht-msg/ht-msg-documents.html">
 <link rel="import" href="elements/ht-msg/ht-msg-document-detail.html">
 <link rel="import" href="elements/ht-msg/ht-msg-import-doc-dialog.html">
+<link rel="import" href="./ht-upload-dialog.html">
+
 
 
 <link rel="import" href="./shared-styles.html">
@@ -349,12 +351,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <ht-msg-documents id="doc-list" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"
                         menu-selection-object="[[selectList]]"
                         on-selection-messages-change="handleMessageChange"
-                        on-open-new-doc="openNewDoc"
-                        on-show-error-message="showErrorMessage"
+                        on-open-upload-dialog="_openUploadDialog"
                         class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-documents>
                     <ht-msg-document-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"
                         selected-message="[[selectedMessage]]"
+                        patient-list="[[patientList]]"
                         on-msg-detail-closed="_triggerGridDocResize"
                         on-item-delete="handleRefreshlist"
                         on-item-restore="handleRefreshlist"
@@ -409,39 +411,54 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 user="[[user]]"
                 credentials="[[credentials]]">
         </ht-msg-new>
-        <ht-msg-import-doc-dialog
-                id="import-doc-dialog"
+
+
+        <ht-upload-dialog
+                id="upload-dialog"
                 api="[[api]]"
                 i18n="[[i18n]]"
                 user="[[user]]"
                 language="[[language]]"
                 resources="[[resources]]"
-                on-save-documents="_saveDoc"
-                on-show-error-message="showErrorMessage">
-        </ht-msg-import-doc-dialog>
-        <paper-dialog class="modalDialog" id="errorMessageBox" no-cancel-on-outside-click no-cancel-on-esc-key>
-            <h2 class="modal-title">
-                <iron-icon icon="icons:warning"></iron-icon>
-                [[localize('warning','Warning',language)]]
-            </h2>
-            <div class="modalDialogContent m-t-50">
-                <h3 class="textAlignCenter">
-                    [[errorTitle]]
-                </h3>
-                <p class="textAlignCenter m-t-20">
-                    [[errorMessage]]
-                </p>
-                <p class="textAlignCenter m-t-20">
-                    [[errorDetail]]
-                </p>
-            </div>
-            <div class="dialogButtons">
-                <paper-button class="modal-button" on-tap="closeErrorMessageBox">
-                    <iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon>
-                    [[localize('clo','Close',language)]]
-                </paper-button>
-            </div>
-        </paper-dialog>
+                on-save-documents="_saveDocuments"
+                on-error-message="_handleError"
+                on-post-process="_postProcess">
+        </ht-upload-dialog>
+
+
+        <!--        <ht-msg-import-doc-dialog-->
+<!--                id="import-doc-dialog"-->
+<!--                api="[[api]]"-->
+<!--                i18n="[[i18n]]"-->
+<!--                user="[[user]]"-->
+<!--                language="[[language]]"-->
+<!--                resources="[[resources]]"-->
+<!--                on-save-documents="_saveDoc"-->
+<!--                on-show-error-message="showErrorMessage">-->
+<!--        </ht-msg-import-doc-dialog>-->
+<!--        <paper-dialog class="modalDialog" id="errorMessageBox" no-cancel-on-outside-click no-cancel-on-esc-key>-->
+<!--            <h2 class="modal-title">-->
+<!--                <iron-icon icon="icons:warning"></iron-icon>-->
+<!--                [[localize('warning','Warning',language)]]-->
+<!--            </h2>-->
+<!--            <div class="modalDialogContent m-t-50">-->
+<!--                <h3 class="textAlignCenter">-->
+<!--                    [[errorTitle]]-->
+<!--                </h3>-->
+<!--                <p class="textAlignCenter m-t-20">-->
+<!--                    [[errorMessage]]-->
+<!--                </p>-->
+<!--                <p class="textAlignCenter m-t-20">-->
+<!--                    [[errorDetail]]-->
+<!--                </p>-->
+<!--            </div>-->
+<!--            <div class="dialogButtons">-->
+<!--                <paper-button class="modal-button" on-tap="closeErrorMessageBox">-->
+<!--                    <iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon>-->
+<!--                    [[localize('clo','Close',language)]]-->
+<!--                </paper-button>-->
+<!--            </div>-->
+<!--        </paper-dialog>-->
     </template>
     <script>
 
@@ -523,6 +540,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     medicalHouseBillingTypeIsFlatRate: {
                         type: Boolean,
                         value: false
+                    },
+                    patientList: {
+                        type: Array,
+                        value: []
                     }
                 }
             }
@@ -586,11 +607,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 this.set('selectList', _.get(e,"detail",""))
                 this._closeColumn(e)
-
             }
 
             handleMessageChange(e) {
-                this.set('selectedMessage', _.get(e,"detail.selection.item",null))
+                let selectedMessage = _.get(e,"detail.selection.item",null);
+                if (selectedMessage && selectedMessage.patientId) {
+                    if (!(this.patientList.find(p => p.id === selectedMessage.patientId)))
+                        this.patientList.push({
+                            id: selectedMessage.patientId,
+                            name: selectedMessage.patientName,
+                            ssin: selectedMessage.patientSsin
+                        })
+                }
+                this.set('selectedMessage', selectedMessage)
                 this._triggerGridResize()
                 this._triggerGridDocResize()
             }
@@ -655,33 +684,31 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             //     this.shadowRoot.querySelector("#doc-list").showErrorMessage(e)
             // }
 
-            showErrorMessage(e) {
-                if (e.detail && e.detail.title && e.detail.message) {
-                    return setTimeout(()=>{
-                        console.log(e.detail.error);
-                        this.set('errorTitle', e.detail.title);
-                        this.set('errorMessage', this.localize(e.detail.message, e.detail.message, this.language));
-                        e.detail.detail && this.set('errorDetail', e.detail.detail);
-                        this.set("_bodyOverlay", true);
-                        this.$["errorMessageBox"].open();
-                    },200);
-                }
-            }
+            // showErrorMessage(e) {
+            //     if (e.detail && e.detail.title && e.detail.message) {
+            //         return setTimeout(()=>{
+            //             console.log(e.detail.error);
+            //             this.set('errorTitle', e.detail.title);
+            //             this.set('errorMessage', this.localize(e.detail.message, e.detail.message, this.language));
+            //             e.detail.detail && this.set('errorDetail', e.detail.detail);
+            //             this.set("_bodyOverlay", true);
+            //             this.$["errorMessageBox"].open();
+            //         },200);
+            //     }
+            // }
+            //
+            // closeErrorMessageBox() {
+            //     this.set("_bodyOverlay", false);
+            //     this.$['errorMessageBox'].close();
+            //     // _.map(this.shadowRoot.querySelectorAll('.modalDialog'), i => i && typeof i.close === "function" && i.close())
+            // }
 
-            closeErrorMessageBox() {
-                this.set("_bodyOverlay", false);
-                this.$['errorMessageBox'].close();
-                // _.map(this.shadowRoot.querySelectorAll('.modalDialog'), i => i && typeof i.close === "function" && i.close())
-            }
-
-
-            openNewDoc(){
-                this.$["import-doc-dialog"].open()
-            }
 
             _saveDoc(e){
                 this.$["import-doc-dialog"].close();
-                this.shadowRoot.querySelector("#doc-list").saveDoc(e)
+                // this.saveDoc(e);
+                // this.shadowRoot.querySelector("#doc-list").saveDoc(e)
+                this.$['doc-list'].saveDoc(e);
             }
 
             _updateDoc(e) {
@@ -732,6 +759,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return !!actionToTake && !!givenMessage ? this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "takeActionForDetailMessage", false) === "function" && this.shadowRoot.querySelector("#msg-list").takeActionForDetailMessage(actionToTake,givenMessage,additionalParameters) : false
             }
 
+
+
+            _openUploadDialog() {
+                this.shadowRoot.querySelector("#upload-dialog").open()
+            }
+
+            _saveDocuments(e) {
+                this.shadowRoot.querySelector("#upload-dialog").saveDocuments(e);
+            }
+
+            _postProcess() {
+                this.shadowRoot.querySelector("#upload-dialog").close();
+                this.shadowRoot.querySelector('#doc-list')._refresh();
+            }
+
+            _handleError(e) {
+                this.shadowRoot.querySelector("#upload-dialog").showErrorMessage(e);
+            }
         }
 
         customElements.define(HtMsg.is, HtMsg)

@@ -1,7 +1,7 @@
-<link rel="import" href="../dynamic-form/dynamic-subcontact-type-selector.html">
-<link rel="import" href="../pdf-element/pdf-element.html">
+<link rel="import" href="elements/dynamic-form/dynamic-subcontact-type-selector.html">
+<link rel="import" href="elements/pdf-element/pdf-element.html">
 
-<dom-module id="ht-msg-import-doc-dialog">
+<dom-module id="ht-upload-dialog">
     <template>
         <style>
             .buttons{
@@ -170,8 +170,20 @@
                 padding: 16px 24px;
             }
 
+            .dialogContainer {
+                position:absolute;
+                width: 100%;
+                height: 100%;
+                top: 0;left: 0;
+                background-color: rgba(0,0,0,.3);
+                z-index: 10;
+                text-align: center;
+            }
         </style>
-        <paper-dialog id="upload-dialog">
+            <template is="dom-if" if="[[_bodyOverlay]]">
+                <div class="dialogContainer"></div>
+            </template>
+        <paper-dialog id="upload-dialog" no-cancel-on-outside-click>
             <div id="list-panel" class="panel">
                 <div id="import-buttons">
                     <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
@@ -242,13 +254,16 @@
                     </div>
                 </div>
                 <div class="buttons">
-                    <paper-button class="modal-button" on-tap="delete">[[localize('del-it','Supprimer',language)]]</paper-button>
+                    <paper-button class="modal-button" on-tap="_delete" disabled="[[!selectedDoc]]">[[localize('del-it','Supprimer',language)]]</paper-button>
                     <!--<paper-button class="modal-button" on-tap="saveAll">[[localize('save-all','Tout sauver',language)]]</paper-button>-->
-                    <paper-button class="modal-button" on-tap="saveEvent">[[localize('save','Enregistrer',language)]]</paper-button>
-                    <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+                    <paper-button class="modal-button" on-tap="_saveDocuments" disabled="[[!selectedDoc]]">[[localize('save','Enregistrer',language)]]</paper-button>
+                    <paper-button class="modal-button modal-button--cancel" on-tap="close">[[localize('clo','Close',language)]]</paper-button>
                 </div>
             </div>
         </paper-dialog>
+<!--        <template is="dom-if" if="[[_dialogOverlay]]">-->
+<!--            <div class="errorContainer"></div>-->
+<!--        </template>-->
         <paper-dialog class="modalDialog" id="error-message-box" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title">
                 <iron-icon icon="icons:warning"></iron-icon>
@@ -266,10 +281,12 @@
                 </p>
             </div>
             <div class="dialogButtons">
-                <paper-button class="modal-button" on-tap="closeErrorMessageBoxEvent">
-                    <iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon>
-                    [[localize('clo','Close',language)]]
-                </paper-button>
+                <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+
+<!--                <paper-button class="modal-button" on-tap="closeErrorMessageBox">-->
+<!--                    <iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon>-->
+<!--                    [[localize('clo','Close',language)]]-->
+<!--                </paper-button>-->
             </div>
         </paper-dialog>
     </template>
@@ -277,16 +294,17 @@
         import _ from 'lodash/lodash';
         import moment from 'moment/src/moment';
 
-        class HtMsgImportDocDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+        class HtUploadDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
-                return 'ht-msg-import-doc-dialog';
+                return 'ht-upload-dialog';
             }
 
             static get properties() {
                 return {
                     api: {
                         type: Object,
-                        observer: "apiReady"
+                        // observer: "apiReady"
+                        noReset: true
                     },
                     doc: {
                         type: Boolean,
@@ -295,6 +313,14 @@
                     user: {
                         type: Object,
                         observer : "_userChanged"
+                    },
+                    _bodyOverlay: {
+                        type: Boolean,
+                        value: false
+                    },
+                    _dialogOverlay: {
+                        type: Boolean,
+                        value: false
                     },
                     patient: {
                         type: Object,
@@ -364,6 +390,7 @@
 
             static get observers() {
                 return [
+                    'apiReady(api,user,opened)',
                     '_filesChanged(files.*)',
                     "_selectedDocChanged(selectedDoc.*)",
                     "_filterPatChanged(filterPatient)",
@@ -378,17 +405,18 @@
 
             ready() {
                 super.ready();
-                this.addEventListener();
             }
 
             apiReady(){
-                this.api.isElectronAvailable().then(electron => this.set("hasElectron",electron))
+                this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
                 this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
                     .then(codes => this.set("listType",codes.rows.filter(code=>["careplan","contactreport","diarynote","labrequest","labresult","mea","note","prescription","referral","report","request","result"].find(keyWord=>code.code.includes(keyWord))).map(code => {return{code:code.code,name:code.label[this.language]||this.localize(code.code, code.code, this.language)||code.label["en"]||""}})))
+                    .catch(error => console.log(error));
+                console.log('ht-upload-dialog ready');
             }
 
             _hasElectronChanged(){
-                if(!this.hasElectron)return;
+                if(!this.hasElectron) return;
                 Promise.all([fetch("http://localhost:16042/scanning",{
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
@@ -629,38 +657,26 @@
                         this.set("selectedDoc", document);
                     });
                 } else {
-                    this.dispatchEvent(new CustomEvent('show-error-message', { detail: {title: file.name, message: "err.document.invalidType"}, bubbles: true }));
+                    this.dispatchEvent(new CustomEvent('error-message', { detail: {title: file.name, message: "err.document.invalidType"}, bubbles: true }));
                 }
             }
 
-            delete() {
+            _delete() {
                 this.set("docList",this.docList.filter(doc => doc!==this.selectedDoc))
                 this.set("selectedDoc",{})
                 this.set('isPdf', false);
                 this.set('selectedData',"");
             }
 
-            open() {
-                const vaadinUpload = this.$['vaadin-upload'];
-                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-                vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
-                this.set('files', []);
-                this.$['upload-dialog'].open();
-            }
-
-            close() {
-                this.set('files', []);
-                this.$['upload-dialog'].close();
-            }
-
-            saveEvent() {
-                if((_.trim(this.selectedDoc.title) === "" || this.selectedDoc.type ==="" || this.selectedDoc.docDate ==="")) {
+            _saveDocuments() {
+                if((_.trim(this.selectedDoc.title) === "" || this.selectedDoc.type ==="" || this.selectedDoc.docDate ==="" || !this.selectedDoc.fileBlob)) {
                     let errors = [];
                     errors.push(!this.selectedDoc.type && this.localize('doc-typ', 'Type de document', this.language));
                     errors.push(!this.selectedDoc.docDate && this.localize('doc_date', 'Document date', this.language));
                     errors.push(!this.selectedDoc.title && this.localize('docTitle', 'Title', this.language));
+                    errors.push(!this.selectedDoc.fileBlob && this.localize('file', 'File', this.language));
                     let errorDetail = errors.filter(item => !!item).join(', ');
-                    this.dispatchEvent(new CustomEvent("show-error-message", {
+                    this.dispatchEvent(new CustomEvent("error-message", {
                         detail: {
                             title: this.selectedDoc.title || 'Unknown',
                             message: 'err.document.missingField',
@@ -669,14 +685,31 @@
                     }));
                 } else {
                     this.dispatchEvent(new CustomEvent('save-documents', {
-                        detail: {documents: [this.selectedDoc]},
+                        detail: {
+                            documents: [this.selectedDoc]
+                        },
                         bubbles: true
                     }));
-                    this.delete()
                 }
             }
 
-            save(e) {
+            open() {
+                const vaadinUpload = this.$['vaadin-upload'];
+                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
+                vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
+                this.set('files', []);
+                this.set('_bodyOverlay', true)
+                this.$['upload-dialog'].open();
+            }
+
+            close() {
+                this.set('_bodyOverlay', false)
+                this.$['upload-dialog'].close();
+                this._delete()
+                this.set('files', []);
+            }
+
+            saveDocuments(e) {
                 if(!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
                 let message = null;
                 (e.detail.documents || []).map( doc =>{
@@ -698,8 +731,6 @@
                             //@ToDo test on persphysician ==> traited or not
                             status : (doc.isScanned ? 1<<24 : 0) | 1<<25 | (doc.patientId ? 1<<26 : 0)
                         })))
-                        // .then(msg => this.encryptPatientId(msg, doc.patientId))
-                        // .then(msg => this.api.message().modifyMessage(msg))
                         .then(msg => {
                             message = msg;
                             return this.api.document().newInstance(this.user, msg, {
@@ -718,9 +749,9 @@
                             .catch((e)=>{console.log("---error upload attachment---")}))
                         .finally(x => {
                             if(!doc.patientId && !this.message) {
-                                this.encryptInfo(message, [{}])
+                                this._encryptInfo(message, [{}])
                                     .then((msg) => this.api.message().modifyMessage(msg))
-                                    .then(() => this._refresh())
+                                    .then(() => e.detail.event && this.dispatchEvent(new CustomEvent(e.detail.event, { bubbles: true })))
                             }
                             else {
                                 this.api.patient().getPatientWithUser(this.user, doc.patientId)
@@ -752,7 +783,7 @@
                                         'contactId': contact.id
                                     }]))
                                     .then((msg) => this.api.message().modifyMessage(msg))
-                                    .then(() => this._refresh())
+                                    .then(() => this.dispatchEvent(new CustomEvent("post-process", { bubbles: true })))
                             }
                         })
                 })
@@ -765,21 +796,12 @@
                         this.set('errorTitle', e.detail.title);
                         this.set('errorMessage', this.localize(e.detail.message, e.detail.message, this.language));
                         e.detail.detail && this.set('errorDetail', e.detail.detail);
-                        this.set("_bodyOverlay", true);
                         this.$["error-message-box"].open();
                     }, 200);
                 }
             }
-
-            closeErrorMessageBoxEvent() {
-                this.dispatchEvent(new CustomEvent('close-error-message', { bubbles: true }));
-            }
-
-            closeErrorMessageBox() {
-                this.$['error-message-box'].close();
-            }
         }
 
-        customElements.define(HtMsgImportDocDialog.is, HtMsgImportDocDialog);
+        customElements.define(HtUploadDialog.is, HtUploadDialog);
     </script>
 </dom-module>
