@@ -3978,8 +3978,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     if(insuFound && insuFound.length){
                                         insuFound.map(p => {
                                             //1 if found: check if CT1/2 is changed
-                                            if (ins.ct1 && (!p.parameters || p.parameters.tc1 !== ins.ct1)) {
-                                                console.log('Insurability: CT1/2 changed');//1.2 if changed: close the found ins and create new with startdate today
+                                            if (
+                                                (ins.ct1 && (!p.parameters || p.parameters.tc1 !== ins.ct1))
+                                                || (ins.ct2 && (!p.parameters || p.parameters.tc2 !== ins.ct2))
+                                                || ins.period.periodStart < p.startDate
+                                            ){
+                                                console.log('Insurability: CT1/2 changed or startdate changed');//1.2 if changed: close the found ins and create new with startdate today
                                                 const newP = {};
                                                 newP.identificationNumber = ins.regNrWithMut;
                                                 newP.insuranceId = out[0].id;
@@ -3987,18 +3991,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                                 newP.parameters = {
                                                     tc1: ins.ct1,
                                                     preferentialstatus: parseInt(ins.ct1) % 2 === 1 ? true : false,
-                                                    tc2:ins.ct2,
-                                                    paymentapproval: !!ins.paymentApproval};
+                                                    tc2: ins.ct2,
+                                                    paymentapproval: !!ins.paymentApproval
+                                                };
                                                 //2.1 close all other
-                                                this.patient.insurabilities.map(p =>{
-                                                        if(!p.endDate) p.endDate = moment().format('YYYYMMDD');
+                                                this.patient.insurabilities.map(p => {
+                                                        if (!p.endDate) p.endDate = ins.period.periodStart;//moment().format('YYYYMMDD');
                                                     }
                                                 );
+                                                //remove insurabilities with same startdate
+                                                this.patient.insurabilities = this.patient.insurabilities.filter(it => it.startDate !== ins.period.periodStart && it.startDate < ins.period.periodStart);
                                                 this.patient.insurabilities.push(newP);
                                                 if (patient === this.patient) {
-                                                    this.api.queue(this.patient, 'patient').then (([pat, defer])  => {
-                                                        return this.api.patient().modifyPatientWithUser(this.user,this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
-                                                            this.dispatchEvent(new CustomEvent("patient-saved", {bubbles: true, composed: true}));
+                                                    this.api.queue(this.patient, 'patient').then(([pat, defer]) => {
+                                                        return this.api.patient().modifyPatientWithUser(this.user, this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
+                                                            this.dispatchEvent(new CustomEvent("patient-saved", {
+                                                                bubbles: true,
+                                                                composed: true
+                                                            }));
                                                             Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
                                                         })
                                                     })
@@ -4021,9 +4031,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                             paymentapproval: !!ins.paymentApproval};
                                         //2.1 close all other
                                         this.patient.insurabilities.map(p =>{
-                                                if(!p.endDate) p.endDate = moment().format('YYYYMMDD');
+                                                if(!p.endDate) p.endDate = ins.period.periodStart;//moment().format('YYYYMMDD');
                                             }
                                         );
+                                        //remove insurabilities with same startdate
+                                        this.patient.insurabilities = this.patient.insurabilities.filter(it => it.startDate !== ins.period.periodStart && it.startDate < ins.period.periodStart);
                                         this.push("patient.insurabilities",newP);
                                         if (patient === this.patient) {
                                             this.api.queue(this.patient, 'patient').then (([pat, defer])  => {
