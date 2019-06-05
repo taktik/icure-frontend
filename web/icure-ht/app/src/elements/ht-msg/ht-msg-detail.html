@@ -487,6 +487,7 @@
             .dialogButtons {
                 position:fixed;
                 bottom:60px;
+                right:60px;
             }
 
             .clearb {
@@ -1193,6 +1194,52 @@
                 text-transform: uppercase;
             }
 
+            #positiveFeedback, #negativeFeedback {
+                display: flex;
+                position: fixed;
+                top: 50vh;
+                right: 0;
+                transform: translate(100vw,-50%);
+                z-index: 999;
+                padding: 16px;
+                border-radius: 4px 0 0 4px;
+                transition: 1s ease-in;
+                flex-flow: row wrap;
+                align-items: center;
+                justify-content: flex-start;
+                background: rgba(0,0 ,0,.42);
+                color: var(--app-text-color-light);
+                box-shadow: 0 9px 12px 1px rgba(0,0,0,.14),
+                0 3px 16px 2px rgba(0,0,0,.12),
+                0 5px 6px 0 rgba(0,0,0,.2);
+            }
+
+            #positiveFeedback iron-icon, #negativeFeedback iron-icon{
+                border-radius: 50%;
+                padding: 2px;
+                margin-right: 8px;
+                box-sizing: border-box;
+            }
+
+            #positiveFeedback iron-icon{
+                background: var(--app-status-color-ok);
+            }
+
+            #negativeFeedback iron-icon{
+                background: var(--app-status-color-nok);
+            }
+
+            .showFeedbackMessage {
+                animation: ribbonFeedbackAnimation 7.5s cubic-bezier(0.075, 0.82, 0.165, 1);
+            }
+
+            @keyframes ribbonFeedbackAnimation {
+                0% {transform: translate(100vw,-50%);}
+                10% {transform: translate(0,-50%);}
+                88% {transform: translate(0,-50%);}
+                100% {transform: translate(100vw,-50%);}
+            }
+
 		</style>
 
 
@@ -1298,7 +1345,6 @@
             <div id="annexAssignmentDialogContainer">
 
                 <h2 class="modal-title"><iron-icon icon="vaadin:clipboard-user" class="m-r-5"></iron-icon> [[localize('ehb.assignWindow.title','Assign selected annex to patient file',language)]] <iron-icon icon="icons:close" class="f-r cursorPointer" on-tap="_toggleAssignmentDialog"></iron-icon></h2>
-
                 <div class="contentContainer">
 
 
@@ -1329,8 +1375,7 @@
                         </div>
 
                         <div class="dialogButtons">
-                            <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                            <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="validateMedications">[[localize('valid','Validate',language)]]</paper-button>
+                            <paper-button class="modal-button modal-button--save" on-tap="_toggleAssignmentDialog"><iron-icon icon="icons:close" class="m-r-5" on-tap="_toggleAssignmentDialog"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                         </div>
 
                     </template>
@@ -1347,8 +1392,7 @@
                         </div>
 
                         <div class="dialogButtons">
-                            <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                            <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="validateMedications">[[localize('valid','Validate',language)]]</paper-button>
+                            <paper-button class="modal-button modal-button--save" on-tap="_toggleAssignmentDialog"><iron-icon icon="icons:close" class="m-r-5" on-tap="_toggleAssignmentDialog"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                         </div>
 
                     </template>
@@ -1373,8 +1417,7 @@
                         </div>
 
                         <div class="dialogButtons">
-                            <paper-button class="modal-button modal-button--cancel" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                            <paper-button class="modal-button modal-button--save" dialog-confirm autofocus on-tap="validateMedications">[[localize('valid','Validate',language)]]</paper-button>
+                            <paper-button class="modal-button modal-button--save" on-tap="_toggleAssignmentDialog"><iron-icon icon="icons:close" class="m-r-5" on-tap="_toggleAssignmentDialog"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                         </div>
 
                     </template>
@@ -1399,10 +1442,14 @@
 
 
 
+                    <div id="positiveFeedback"><iron-icon icon="check"></iron-icon> [[localize('assignmentSuccessfullyUpdated','Assignment successfully updated',language)]]</div>
+                    <div id="negativeFeedback"><iron-icon icon="clear"></iron-icon> [[localize('assignmentNotSuccessfullyUpdated','Assignment could not be updated',language)]]</div>
+
+
+
                 </div>
 
             </div>
-
         </paper-dialog>
 
 
@@ -1516,6 +1563,11 @@
                         type: Array,
                         value: () => []
                     },
+                    _assignmentCallBack: {
+                        type: Object,
+                        value: {},
+                        noReset: true
+                    }
                 };
             }
 
@@ -1560,8 +1612,13 @@
             }
 
             _resetComponentData(){
+
                 const componentProperties = HtMsgDetail.properties
                 Object.keys(componentProperties).forEach(k => { if (!_.get(componentProperties[k],"noReset", false)) { this.set(k, (typeof componentProperties[k].value === 'function' ? componentProperties[k].value() : (componentProperties[k].value || null))) }})
+
+                this.$['positiveFeedback'] && this.$['positiveFeedback'].classList && this.$['positiveFeedback'].classList.remove('showFeedbackMessage')
+                this.$['negativeFeedback'] && this.$['negativeFeedback'].classList && this.$['negativeFeedback'].classList.remove('showFeedbackMessage')
+
             }
 
             _getPatientDataBySsin(selectedMessage) {
@@ -1669,10 +1726,34 @@
                 return this.api.formatSsinNumber(_.trim(inputData))
             }
 
+            _deleteAssignment(e) {
+
+                const contactId = _.trim(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.contactId",""))),"[0].dataset.contactId",""))
+                if(!_.trim(contactId)) return;
+
+                this.set("_assignmentCallBack", {
+                    action: "deleteAssignment",
+                    activeTab: _.trim(_.get(this,"_assignmentActiveTab","")),
+                    contactId: contactId,
+                    documentId: _.trim(_.get(_.find(_.get(this,"_alreadyAssignedDocuments",[]), {contactId:contactId}),"documentId")),
+                    patientId: _.trim(_.get(_.find(_.get(this,"_alreadyAssignedDocuments",[]), {contactId:contactId}),"patientId")),
+                })
+
+                this.set("_assignmentDialogIsLoading", true)
+                this._takeAction("deleteAssignment",{contactId:contactId, dontCloseReadMessageComponent:true})
+
+            }
+
             _loadMessageDetails(selectedMessage) {
 
+
+
                 const prom = Promise.resolve()
-                if(!!_.get(this, "processLock", false)) return prom
+                let patientDetailsBasedOnSsin = false
+
+
+
+                if(!!_.get(this, "processLock", false)) return prom;
                 this.set("processLock", true)
 
                 this._resetComponentData();
@@ -1681,7 +1762,15 @@
 
                 if(!_.size(selectedMessage)) return prom
                 this._toggleProcessingPopup()
-                let patientDetailsBasedOnSsin = false
+
+
+
+                const assignmentCallBack = _.get(this,"_assignmentCallBack",{})
+                if(!!_.size(assignmentCallBack)) {
+                    this.set("_assignmentDialogIsLoading", true)
+                    this.set("_assignmentActiveTab", _.trim(_.get(assignmentCallBack,"activeTab","suggestion")))
+                    this.set("_assignmentCallBack", {})
+                }
 
                 return this._getPatientDataBySsin(selectedMessage)
                     .then(x => patientDetailsBasedOnSsin = x)
@@ -1738,45 +1827,29 @@
                             }})),"ssinOrBirthdate")
                         )
                         this.set("_messageAttachments", _.orderBy(_.compact(_.map(_.get(this,"documentsOfMessage",[]).filter(d=>_.trim(_.get(d,"documentLocation",""))==="annex"), singleDoc => _.get(singleDoc,"attachmentInfos",{}))), ['filename','size'],['asc','asc']))
-
-                        console.log('[HT-MSG-DETAIL] Message: ', selectedMessage)
-                        console.log('documentsOfMessage: ', _.get(this,"documentsOfMessage",[]))
-                        console.log('patientDetailsBasedOnSsin: ', patientDetailsBasedOnSsin)
-                        console.log('_linkedPatientsBasedOnMessageSsinAndAnnexes: ', _.get(this,"_linkedPatientsBasedOnMessageSsinAndAnnexes",[]))
-
                         this._toggleProcessingPopup()
-                        return prom;
-
+                        return _.trim(_.get(assignmentCallBack,"action","")) === "deleteAssignment" ? this._toggleAssignmentDialog({assignmentCallBack:assignmentCallBack}) : prom
                     })
-
-            }
-
-            _deleteAssignment(e) {
-
-                const contactId = _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.contactId",""))),"[0].dataset.contactId","")
-                if(!_.trim(contactId)) return;
-
-                this.set("_assignmentDialogIsLoading", true)
-                this._takeAction("deleteAssignment",{contactId:contactId, dontCloseReadMessageComponent:true})
 
             }
 
             _toggleAssignmentDialog(e) {
 
-                const documentId = _.trim(_.get(e,"detail.documentId",""))
+                const assignmentCallBack = _.get(e,"assignmentCallBack",{})
+
+                let prom = Promise.resolve();
+                const documentId = !!_.size(assignmentCallBack) ? _.trim(_.get(assignmentCallBack,"documentId","")) : _.trim(_.get(e,"detail.documentId",""))
                 const isOpened = !!_.get(this,"_assignmentDialogIsOpened",false)
 
-                if(!isOpened && !_.trim(documentId)) return;
-                if(!!isOpened) { this.set("_assignmentDialogIsOpened", false); this.set("_assignmentDialogIsLoading", false); this.$['annexAssignmentDialog'].close(); return; }
+                if(!isOpened && !_.trim(documentId)) return prom;
+                if(!!isOpened) { this.set("_assignmentDialogIsOpened", false); this.set("_assignmentDialogIsLoading", false); this.$["positiveFeedback"].classList.remove('showFeedbackMessage'); this.$["negativeFeedback"].classList.remove('showFeedbackMessage'); this.$['annexAssignmentDialog'].close(); return prom; }
                 if(!isOpened && _.trim(documentId)) { this.set("_assignmentDialogIsOpened", true); this.set("_assignmentDialogIsLoading", true); this.$['annexAssignmentDialog'].open(); }
 
                 const selectedMessage =  _.get(this,"selectedMessage",{})
                 const currentDocument = _.find(_.get(this,"documentsOfMessage",[]), {id:documentId})
                 const docInfosOfCurrentDocument = _.get(currentDocument, "docInfo",[])
-                const isLabOrProtocol = !!_.size(docInfosOfCurrentDocument)
                 const patInfosOfSelectedDocument = _.filter(_.get(selectedMessage,"patientInfos",[]), {documentId:documentId})
 
-                let prom = Promise.resolve();
                 let patientsToResolve = _.map(docInfosOfCurrentDocument, x => { return { lastName: _.get(x,"lastName",""), firstName: _.get(x,"firstName",""), dateOfBirth: _.get(x,"dateOfBirth",""), ssin: _.get(x,"ssin",""), } })
                 patientsToResolve = _.compact(_.concat(patientsToResolve, _.map(patInfosOfSelectedDocument, x => { return { lastName: _.get(x,"patientData.lastName",""), firstName: _.get(x,"patientData.firstName",""), dateOfBirth: _.get(x,"patientData.dateOfBirth",""), ssin: _.get(x,"patientData.ssin",""), id: _.get(x,"patientData.id",""), } })))
                 patientsToResolve = _.uniqBy(patientsToResolve, x => [ _.get(x,"id",""), _.get(x,"ssin",""), _.get(x,"dateOfBirth",""), _.get(x,"lastName",""),  _.get(x,"firstName","")].join() )
@@ -1786,11 +1859,13 @@
                         this.api.patient().getPatientWithUser(_.get(this,"user",{}),_.trim(_.get(singlePatientToResolve,"id",""))).then(foundPatient=>_.concat(promisesCarrier, foundPatient)).catch(e=>{console.log("ERROR with getPatientWithUser: ", e); return promisesCarrier;}) :
                         !!_.trim(_.get(singlePatientToResolve,"ssin","")) ?
                             this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}) :
+
+                            // FABIEN: remplacer ceci par du levensthein
                             this.api.patient().fuzzySearchWithUser(_.get(this,"user",{}),_.trim(_.get(singlePatientToResolve,"firstName","")), _.trim(_.get(singlePatientToResolve,"lastName","")), _.trim(_.get(singlePatientToResolve,"dateOfBirth",""))).then(foundPatient=>_.concat(promisesCarrier, foundPatient)).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
                     )
                 })
 
-                prom
+                return prom
                     .then(resolvedPatients =>  this.set("_resolvedPatientsForSuggestedAssignments", _.uniqBy(_.compact(resolvedPatients), 'id')))
                     .then(()=>{
                         const alreadyAssignedDocuments = _.compact(_.filter(patInfosOfSelectedDocument, {isAssigned:true}))
@@ -1808,16 +1883,20 @@
                     .catch(e=>console.log("ERROR with _toggleAssignmentDialog: ", e))
                     .finally(()=>{
 
+                        console.log("[_toggleAssignmentDialog]");
                         console.log("selectedMessage", selectedMessage);
                         console.log("currentDocument", currentDocument);
-                        console.log("docInfosOfCurrentDocument", docInfosOfCurrentDocument);
-                        console.log("isLabOrProtocol", isLabOrProtocol);
                         console.log("patInfosOfSelectedDocument", patInfosOfSelectedDocument);
                         console.log("patientsToResolve", patientsToResolve);
-                        console.log("resolvedPatients", this._resolvedPatientsForSuggestedAssignments);
+                        console.log("_resolvedPatientsForSuggestedAssignments", this._resolvedPatientsForSuggestedAssignments);
                         console.log("alreadyAssignedDocuments", this._alreadyAssignedDocuments);
 
+                        if(!!_.size(assignmentCallBack)) {
+                            setTimeout(() => { this.$["positiveFeedback"].classList.add('showFeedbackMessage'); },100);
+                            setTimeout(() => { this.$["positiveFeedback"].classList.remove('showFeedbackMessage'); },8000);
+                        }
                         this.set("_assignmentDialogIsLoading", false)
+                        return prom
 
                     })
 
