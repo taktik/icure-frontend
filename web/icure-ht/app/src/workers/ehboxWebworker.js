@@ -181,7 +181,7 @@ onmessage = e => {
 
             return prom
                 .then( tryToAssignAppendixResults => {
-                    let assignedMap = {}; let unassignedList = [];  let patientInfos = [];
+                    let assignedMap = {}; let unassignedList = [];  let annexesInfos = [];
                     _.map(_.compact(tryToAssignAppendixResults), singleAssignResult => {
 
                         if (!!_.get(singleAssignResult,"assigned",false)) {
@@ -197,7 +197,7 @@ onmessage = e => {
                             unassignedList.push(singleAssignResult.protocolId)
                         }
 
-                        patientInfos.push({
+                        annexesInfos.push({
                             isAssigned: !!_.get(singleAssignResult,"assigned",""),
                             patientId: _.trim(_.get(singleAssignResult,"patientId","")),
                             protocolId: _.trim(_.get(singleAssignResult,"protocolId","")),
@@ -214,14 +214,8 @@ onmessage = e => {
 
                     })
 
-                    return encryptContent( user, createdMessage, patientInfos )
-                        .then(encryptedContent => msgApi.modifyMessage(
-                            _.merge( {}, createdMessage, {
-                                unassignedResults: unassignedList,
-                                assignedResults: assignedMap,
-                                metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {patientInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))})
-                            })
-                        ).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
+                    return encryptContent( user, createdMessage, annexesInfos )
+                        .then(encryptedContent => msgApi.modifyMessage(_.merge( {}, createdMessage, { metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {annexesInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}) })).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
                         .catch(e=>{ console.log("ERROR with encryptContent: ", e); return msgApi.modifyMessage( _.merge( {}, createdMessage, { unassignedResults: unassignedList, assignedResults: assignedMap })) })
 
                 })
