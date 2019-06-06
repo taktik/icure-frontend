@@ -198,7 +198,7 @@ onmessage = e => {
                         }
 
                         annexesInfos.push({
-                            isAssigned: !!_.get(singleAssignResult,"assigned",""),
+                            isAssigned: !!_.get(singleAssignResult,"assigned",false),
                             patientId: _.trim(_.get(singleAssignResult,"patientId","")),
                             protocolId: _.trim(_.get(singleAssignResult,"protocolId","")),
                             contactId: _.trim(_.get(singleAssignResult,"contactId","")),
