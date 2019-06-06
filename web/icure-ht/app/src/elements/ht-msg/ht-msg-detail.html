@@ -487,7 +487,7 @@
             .dialogButtons {
                 position:fixed;
                 bottom:60px;
-                right:60px;
+                right:30px;
             }
 
             .clearb {
@@ -1163,7 +1163,7 @@
             .singleAssignment {
                 margin-bottom:30px;
                 border:1px dashed var(--app-background-color-darker);
-                padding:15px 10px 10px 10px;
+                padding:15px 15px 10px 15px;
                 background-color: var(--app-background-color);
                 position:relative;
             }
@@ -1238,6 +1238,18 @@
                 10% {transform: translate(0,-50%);}
                 88% {transform: translate(0,-50%);}
                 100% {transform: translate(100vw,-50%);}
+            }
+
+            .patientPicture {
+                float: left;
+                margin: 0 15px 0 0;
+                max-width: 140px;
+
+            }
+
+            .patientPicture img {
+                height: 155px;
+                border:1px solid #cccccc;
             }
 
 		</style>
@@ -1404,6 +1416,7 @@
                         <div class="dialogTabContent">
                             <template is="dom-repeat" items="[[_alreadyAssignedDocuments]]" as="existingAssignment">
                                 <div class="singleAssignment">
+                                    <div class="patientPicture"><img src$="[[_renderPatientPicture(existingAssignment.patientData)]]"></div>
                                     <div class="singleAssignmentLine"><iron-icon icon$="[[_iconBySex(existingAssignment.patientData.sex)]]" class$="m-r-5 [[_colorCssClassBySex(existingAssignment.patientData.sex)]] w20 m-t-minus-2"></iron-icon> <b>[[existingAssignment.patientData.lastName]] [[existingAssignment.patientData.firstName]]</b></div>
                                     <div class="singleAssignmentLine"><iron-icon icon="vaadin:user-card" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('ssinPatVerbose','National identification number',language)]]: [[_formatSsinNumber(existingAssignment.patientData.ssin)]]</div>
                                     <div class="singleAssignmentLine"><iron-icon icon="social:cake" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('birthDate','Birth date',language)]]: [[existingAssignment.patientData.dateOfBirthHr]]</div>
@@ -1412,6 +1425,7 @@
                                     <div class="singleAssignmentLine"><iron-icon icon="vaadin:calendar-clock" class="m-r-5 w20 m-t-minus-2 darkBlue"></iron-icon> [[localize('assignmentDate','Assignment date',language)]]: [[existingAssignment.createdHr]]</div>
                                     <div class="singleAssignmentChecked"><iron-icon icon="icons:check-circle" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('documentAssigned','Document assigned',language)]]</div>
                                     <div class="singleAssignmentDelete"><paper-button class="modal-button modal-button-delete" on-tap="_deleteAssignment" data-contact-id$="[[existingAssignment.contactId]]"><iron-icon icon="icons:delete-forever" class="m-r-5 w20 m-t-minus-2" data-contact-id$="[[existingAssignment.contactId]]"></iron-icon> [[localize('deleteAssignment','Delete assignment',language)]]</paper-button></div>
+                                    <div class="clear"></div>
                                 </div>
                             </template>
                         </div>
@@ -1462,6 +1476,7 @@
 
         import _ from 'lodash/lodash';
         import moment from 'moment/src/moment';
+        import levenshtein from 'js-levenshtein'
 
         class HtMsgDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
@@ -1567,6 +1582,31 @@
                         type: Object,
                         value: {},
                         noReset: true
+                    },
+                    currentHcp: {
+                        type: Object,
+                        value: {},
+                        noReset: true
+                    },
+                    parentHcp: {
+                        type: Object,
+                        value: {},
+                        noReset: true
+                    },
+                    isAMedicalHouse: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
+                    },
+                    isParentAMedicalHouse: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
+                    },
+                    medicalHouseBillingTypeIsFlatRate: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
                     }
                 };
             }
@@ -1611,6 +1651,12 @@
                 return !!_.trim(_.get(inputData,"transportGuid","")).startsWith("SENT")
             }
 
+            _renderPatientPicture(patientData) {
+                return !_.trim(_.get(patientData,"picture","")) ?
+                    _.trim(_.get(patientData,"sex","M")) === 'F' ? require('../../../images/female-placeholder.png') : require('../../../images/male-placeholder.png') :
+                    'data:image/png;base64,' + _.trim(_.get(patientData,"picture",""))
+            }
+
             _resetComponentData(){
 
                 const componentProperties = HtMsgDetail.properties
@@ -1619,6 +1665,10 @@
                 this.$['positiveFeedback'] && this.$['positiveFeedback'].classList && this.$['positiveFeedback'].classList.remove('showFeedbackMessage')
                 this.$['negativeFeedback'] && this.$['negativeFeedback'].classList && this.$['negativeFeedback'].classList.remove('showFeedbackMessage')
 
+            }
+
+            assignResolvedObjects(inputObjects) {
+                _.map(inputObjects, (v,k)=> this.set(k,v))
             }
 
             _getPatientDataBySsin(selectedMessage) {
@@ -1726,10 +1776,30 @@
                 return this.api.formatSsinNumber(_.trim(inputData))
             }
 
+            _filterBestMatchingPatients( foundPatients, infosToMatchOn ) {
+
+                return _.filter(foundPatients, p => {
+
+                    const pFn =  !_.trim(_.get(p,"firstName","")) ? false : p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").split(/\s+/)[0]
+                    const pLn =  !_.trim(_.get(p,"lastName","")) ? false : p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").split(/\s+/)[0]
+                    const lFn =  !_.trim(_.get(infosToMatchOn,"firstName","")) ? false : infosToMatchOn.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/,'')
+                    const lLn =  !_.trim(_.get(infosToMatchOn,"lastName","")) ? false : infosToMatchOn.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/\s+/,'')
+
+                    return (infosToMatchOn.ssin && p.ssin && infosToMatchOn.ssin === p.ssin) ||
+                        (pFn && lFn && pLn && lLn && p.dateOfBirth && infosToMatchOn.dateOfBirth && (levenshtein(pFn,lFn) < 2 && levenshtein(pLn,lLn) < 3 && p.dateOfBirth === infosToMatchOn.dateOfBirth)) ||
+                        (pFn && lFn && p.dateOfBirth && infosToMatchOn.dateOfBirth && (pFn === lFn && p.dateOfBirth === infosToMatchOn.dateOfBirth)) ||
+                        (pLn && lLn && p.dateOfBirth && infosToMatchOn.dateOfBirth && (pLn === lLn && p.dateOfBirth === infosToMatchOn.dateOfBirth)) ||
+                        (pFn && lFn && pLn && lLn && (pLn === lLn && pFn === lFn))
+
+                })
+
+            }
+
             _deleteAssignment(e) {
 
                 const contactId = _.trim(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.contactId",""))),"[0].dataset.contactId",""))
                 if(!_.trim(contactId)) return;
+                if(!confirm(this.localize('areYouSure',this.language))) return
 
                 this.set("_assignmentCallBack", {
                     action: "deleteAssignment",
@@ -1848,20 +1918,33 @@
                 const selectedMessage =  _.get(this,"selectedMessage",{})
                 const currentDocument = _.find(_.get(this,"documentsOfMessage",[]), {id:documentId})
                 const docInfosOfCurrentDocument = _.get(currentDocument, "docInfo",[])
-                const patInfosOfSelectedDocument = _.filter(_.get(selectedMessage,"patientInfos",[]), {documentId:documentId})
+                const patInfosOfSelectedDocument = _.filter(_.get(selectedMessage,"annexesInfos",[]), {documentId:documentId})
+                const parentOrCurrentHcpId =_.trim(_.get(this,"parentHcp.id","")) ? _.trim(_.get(this,"parentHcp.id","")) : _.trim(_.get(this,"user.healthcarePartyId",""))
 
                 let patientsToResolve = _.map(docInfosOfCurrentDocument, x => { return { lastName: _.get(x,"lastName",""), firstName: _.get(x,"firstName",""), dateOfBirth: _.get(x,"dateOfBirth",""), ssin: _.get(x,"ssin",""), } })
                 patientsToResolve = _.compact(_.concat(patientsToResolve, _.map(patInfosOfSelectedDocument, x => { return { lastName: _.get(x,"patientData.lastName",""), firstName: _.get(x,"patientData.firstName",""), dateOfBirth: _.get(x,"patientData.dateOfBirth",""), ssin: _.get(x,"patientData.ssin",""), id: _.get(x,"patientData.id",""), } })))
                 patientsToResolve = _.uniqBy(patientsToResolve, x => [ _.get(x,"id",""), _.get(x,"ssin",""), _.get(x,"dateOfBirth",""), _.get(x,"lastName",""),  _.get(x,"firstName","")].join() )
 
                 _.map(patientsToResolve, singlePatientToResolve => {
+
+                    const filter = {
+                        '$type': 'UnionFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'filters': [{
+                            '$type': 'IntersectionFilter',
+                            'healthcarePartyId': parentOrCurrentHcpId,
+                            'filters': [
+                                { '$type': 'PatientByHcPartyNameContainsFuzzyFilter', 'healthcarePartyId': parentOrCurrentHcpId, 'searchString': _.trim(_.get(singlePatientToResolve,"lastName","")) },
+                                { '$type': 'PatientByHcPartyNameContainsFuzzyFilter', 'healthcarePartyId': parentOrCurrentHcpId, 'searchString': _.trim(_.get(singlePatientToResolve,"firstName","")) }
+                            ]},
+                            { '$type': 'PatientByHcPartyDateOfBirthFilter', 'healthcarePartyId': parentOrCurrentHcpId, 'dateOfBirth': _.trim(_.get(singlePatientToResolve,"dateOfBirth","")) }
+                        ]}
+
                     prom = prom.then(promisesCarrier => !!_.trim(_.get(singlePatientToResolve,"id","")) ?
                         this.api.patient().getPatientWithUser(_.get(this,"user",{}),_.trim(_.get(singlePatientToResolve,"id",""))).then(foundPatient=>_.concat(promisesCarrier, foundPatient)).catch(e=>{console.log("ERROR with getPatientWithUser: ", e); return promisesCarrier;}) :
                         !!_.trim(_.get(singlePatientToResolve,"ssin","")) ?
                             this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}) :
-
-                            // FABIEN: remplacer ceci par du levensthein
-                            this.api.patient().fuzzySearchWithUser(_.get(this,"user",{}),_.trim(_.get(singlePatientToResolve,"firstName","")), _.trim(_.get(singlePatientToResolve,"lastName","")), _.trim(_.get(singlePatientToResolve,"dateOfBirth",""))).then(foundPatient=>_.concat(promisesCarrier, foundPatient)).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
+                            this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
                     )
                 })
 
@@ -1883,13 +1966,10 @@
                     .catch(e=>console.log("ERROR with _toggleAssignmentDialog: ", e))
                     .finally(()=>{
 
-                        console.log("[_toggleAssignmentDialog]");
                         console.log("selectedMessage", selectedMessage);
                         console.log("currentDocument", currentDocument);
-                        console.log("patInfosOfSelectedDocument", patInfosOfSelectedDocument);
                         console.log("patientsToResolve", patientsToResolve);
                         console.log("_resolvedPatientsForSuggestedAssignments", this._resolvedPatientsForSuggestedAssignments);
-                        console.log("alreadyAssignedDocuments", this._alreadyAssignedDocuments);
 
                         if(!!_.size(assignmentCallBack)) {
                             setTimeout(() => { this.$["positiveFeedback"].classList.add('showFeedbackMessage'); },100);
