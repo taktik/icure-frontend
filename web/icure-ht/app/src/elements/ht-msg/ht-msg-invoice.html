@@ -2092,7 +2092,79 @@
                 igd && igd.clearCache()
             }
 
+
             fetchMessageToBeSendOrToBeCorrected(){
+                this.set("_isLoadingMessages",true)
+                let prom = Promise.resolve()
+
+                if(this.shadowRoot.getElementById("messagesGridContainer") && this.shadowRoot.getElementById("messagesGridContainer").classList.contains("half")){
+                    this.shadowRoot.getElementById("messagesGridContainer").classList.contains("half") ? this.shadowRoot.getElementById("messagesGridContainer").classList.remove("half") : null
+                    this.shadowRoot.getElementById("invoiceDetailContainer") && this.shadowRoot.getElementById("invoiceDetailContainer").classList.contains("open") ? this.shadowRoot.getElementById("invoiceDetailContainer").classList.remove("open") : null
+                }
+
+                this.api.invoice().listToInsurancesUnsent(this.user.id).then(invoicesUnsent => {
+                    const efactUnsent = invoicesUnsent.filter(iu => iu.sentMediumType === "efact")
+
+                    efactUnsent.forEach(eu =>
+                        prom = prom.then(listOfEfact =>
+                            this.api.crypto().extractCryptedFKs(eu, this.user.healthcarePartyId).then(ids => _.concat(listOfEfact, {invoice: eu, patientId: ids.extractedKeys[0]})))
+                    )
+
+                    prom = prom.then(listOfEfact =>
+                        Promise.all([_.compact(listOfEfact), this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(_.compact(listOfEfact).map(x => x.patientId))}))])
+                            .then(([listOfEfact, patientsList]) => listOfEfact.map(efact => _.assign(efact, {patient: patientsList.find(p => p.id === efact.patientId)})))
+                    ).then(listOfEfact =>
+                        Promise.all([listOfEfact, this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.compact(listOfEfact.map(e => e.invoice.recipientId || null)))}))])
+                            .then(([listOfEfact, insuranceList]) => listOfEfact.map(efact => _.assign(efact, {insurance: insuranceList.find(i => i.id === efact.invoice.recipientId) || null})))
+                    ).then(listOfEfact => listOfEfact.map(efact => {
+                        let insurabilityComplete = false
+
+                        efact.patient && efact.patient.insurabilities ? efact.patient.insurabilities = efact.patient.insurabilities.filter(ins => ins.insuranceId && ins.insuranceId.length && ins.parameters && ins.parameters.tc1 && ins.parameters.tc1.length && ins.parameters.tc2 && ins.parameters.tc2.length) : []
+                        efact.patient.insurabilities.length > 0 ? insurabilityComplete = true : insurabilityComplete = false
+
+                        return ({
+                            patientName: efact.patient.lastName+" "+efact.patient.firstName,
+                            invoiceId: efact.invoice.id,
+                            sentMediumType: efact.invoice.sentMediumType,
+                            insuranceCode: efact.insurance && efact.insurance.code ? efact.insurance.code : null,
+                            insuranceParent: efact.insurance && efact.insurance.parent ? efact.insurance.parent : null,
+                            invoiceReference: efact.invoice.invoiceReference,
+                            patientSsin: efact.patient.ssin,
+                            invoiceDate: efact.invoice.invoiceDate,
+                            reimbursement: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00,
+                            patientIntervention: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00,
+                            totalAmount: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00 ,
+                            doctorSupplement: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00,
+                            statut : (!!efact.invoice.invoicingCodes.find(ic => ic.resent === true)) === true ? this.localize('inv_to_be_corrected','To be corrected',this.language) : this.localize('inv_to_be_send','To be send'),
+                            hasChildren : false,
+                            uuid : efact.invoice.id,
+                            parentUuid : efact.insurance && efact.insurance.code ? efact.insurance.code.charAt(0) : null,
+                            patient: efact.patient,
+                            invoice: efact.invoice,
+                            toBeCorrected: !!efact.invoice.invoicingCodes.find(ic => ic.resent === true),
+                            error: efact.invoice.error || "",
+                            insurabilityCheck: insurabilityComplete,
+                            realizedByTrainee : efact.invoice.internshipNihii && efact.invoice.internshipNihii.length ? true : false
+                        })
+                    })).then(invoices => {
+                        this.set("messagesToBeCorrected", invoices.filter(inv => inv.toBeCorrected === true))
+                        this.set('selectedInvoicesToBeSend', invoices.filter(inv => inv.toBeCorrected === false && inv.invoice.printedDate))
+
+                        this.set("totalInvoicesToBeSend.totalPatientIntervention",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00)
+                        this.set("totalInvoicesToBeSend.totalDoctorSupplement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00)
+                        this.set("totalInvoicesToBeSend.totalReimbursement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00)
+                        this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
+                        this._toggleDataProvider(this.selectedInvoicesToBeSend)
+                    }).finally(() => this.fetchMessages())
+                     .catch(e => console.log('Erreur lors de la récupération des factures: ', e))
+                })
+
+
+
+            }
+
+
+            _fetchMessageToBeSendOrToBeCorrected(){
 
                 this.set("_isLoadingMessages",true)
 
@@ -2604,7 +2676,7 @@
                     localStorage.setItem('lastInvoicesSent', Date.now())
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp=> {
                         let prom = Promise.resolve()
-                        _.chain(this.selectedInvoicesToBeSend.filter(inv => inv.insurabilityCheck === true))
+                        _.chain(_.head(_.chunk(this.selectedInvoicesToBeSend.filter(inv => inv.insurabilityCheck === true), 500)))
                             .groupBy(fact => fact.insuranceParent)
                             .toPairs().value()
                             .forEach(([fedId,invoices]) => {
