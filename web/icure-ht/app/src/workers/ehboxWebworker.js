@@ -312,7 +312,7 @@ onmessage = e => {
                             responsible: _.trim(_.get(user,"healthcarePartyId","")),
                             openingDate: moment((parseInt(_.get(docInfo,"demandDate",0))?_.parseInt(_.get(docInfo,"demandDate",0)):null)).format('YYYYMMDDHHmmss')||'',
                             closingDate: moment().format('YYYYMMDDHHmmss')||'',
-                            encounterType: { type: _.trim(_.get(docInfo,"codes.type","")), version: _.trim(_.get(docInfo,"codes.version","")), code: _.trim(_.get(docInfo,"codes.code","")) },
+                            encounterType: { type: _.trim(_.get(docInfo,"codes[0].type","")), version: _.trim(_.get(docInfo,"codes[0].version","")), code: _.trim(_.get(docInfo,"codes[0].code","")) },
                             descr: "Analyse: " + _.trim(_.get(docInfo,"labo","")),
                             tags: [{type: 'CD-TRANSACTION', code: 'labresult'}],
                             subContacts: []

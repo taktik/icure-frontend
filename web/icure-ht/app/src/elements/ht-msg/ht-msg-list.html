@@ -1609,7 +1609,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 (
                                     modifyAction === "unread" ||
                                     modifyAction === "read" ||
-                                    modifyAction === "deleteAssignment"
+                                    modifyAction === "deleteAssignment" ||
+                                    modifyAction === "saveAssignment"
                                 ) ? newCachedMessagesData[_.trim(_.get(this,"menuSelectionObject.selection.folder","inbox"))].push(singleMessage) :
                                 false
                             )
@@ -1808,7 +1809,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 const promResolve = Promise.resolve()
                 const contactIdToDelete = _.trim(_.get(additionalParameters,"contactId",""))
-                const updatedAnnexesInfos = _.compact(_.map( _.get(givenMessage,"annexesInfos",[]), pi=> (_.trim(_.get(pi,"contactId","")) === contactIdToDelete ? _.merge({},pi,{isAssigned:false,contactId:"",patientId:""}) : pi))).map(pi=>_.omit(pi,"patientData"))
+                const updatedAnnexesInfos = _.compact(_.map( _.get(givenMessage,"annexesInfos",[]), ai=> (_.trim(_.get(ai,"contactId","")) === contactIdToDelete ? _.merge({},ai,{isAssigned:false,contactId:"",patientId:""}) : ai))).map(ai=>_.omit(ai,"patientData"))
 
                 return this.api.contact().getContactWithUser(_.get(this,"user",{}), _.trim(contactIdToDelete))
                     .then(foundContact => { _.map(foundContact.services||[], s=>s.endOfLife = +new Date()); return _.merge({}, foundContact, {deletionDate: parseInt(moment().format('YYYYMMDDHHmmss'))}) })
@@ -1836,53 +1837,123 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _saveAssignment(givenMessage, additionalParameters) {
 
+                const prom = Promise.resolve()
                 const promResolve = Promise.resolve()
                 const documentId = _.trim(_.get(additionalParameters,"documentId",""))
                 const patientId = _.trim(_.get(additionalParameters,"patientId",""))
                 const documentType = _.trim(_.get(additionalParameters,"documentType",""))
                 const documentToAssign = _.find(_.get(additionalParameters,"documentsOfMessage",[]), {id:documentId})
                 const isLabResult = !!_.size(_.get(documentToAssign,"docInfo",[]))
+                const annexesInfosAlreadyExist = !!_.size(_.get(givenMessage,"annexesInfos",[]))
+                let annexInfosToUpdate = !annexesInfosAlreadyExist ? false : _.find(_.get(givenMessage,"annexesInfos",[]), {documentId:documentId})
 
+                // console.log("[MSG-LIST] _saveAssignment");
+                // console.log("givenMessage", givenMessage);
+                // console.log("additionalParameters ", additionalParameters );
 
-                console.log("[MSG-LIST] _saveAssignment");
-                console.log("givenMessage", givenMessage);
-                console.log("additionalParameters ", additionalParameters );
+                // console.log("documentId ", documentId );
+                // console.log("patientId ", patientId );
+                // console.log("documentType ", documentType );
+                // console.log("documentToAssign ", documentToAssign );
+                // console.log("isLabResult ", isLabResult );
 
-                console.log("documentId ", documentId );
-                console.log("patientId ", patientId );
-                console.log("documentType ", documentType );
-                console.log("documentToAssign ", documentToAssign );
-                console.log("isLabResult ", isLabResult );
+                // console.log("annexesInfosAlreadyExist", annexesInfosAlreadyExist );
+                // console.log("annexInfosToUpdate", annexInfosToUpdate );
 
-                return
+                return (!documentId || !patientId || !_.size(documentToAssign)) ?
+                    promResolve :
+                    this.api.patient().getPatientWithUser(this.user,patientId)
+                        .then(patientObject => {
+                            let contactObjectForInstance = {
+                                groupId: _.trim(_.get(givenMessage,"id","")),
+                                created: +new Date,
+                                modified: +new Date,
+                                author: _.trim(_.get(this,"user.id","")),
+                                responsible: _.trim(_.get(this,"user.healthcarePartyId","")),
+                                openingDate: moment((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) : null)).format('YYYYMMDDHHmmss')||'',
+                                closingDate: moment().format('YYYYMMDDHHmmss')||'',
+                                encounterType: { type: "CD-TRANSACTION", version: "1", code: documentType },
+                                descr: "Analyse: " + _.trim(_.get(documentToAssign,"docInfo[0].labo","")),
+                                tags: [{type: 'CD-TRANSACTION', code: documentType}],
+                                subContacts: []
+                            }
+                            if(!isLabResult) {
+                                contactObjectForInstance.openingDate = moment((parseInt(_.get(givenMessage,"created",0)) ? parseInt(_.get(givenMessage,"created",0)) : null)).format('YYYYMMDDHHmmss')||''
+                                contactObjectForInstance.descr = "Annexe: " + _.trim(_.get(documentToAssign,"name",""))
+                            }
+                            return this.api.contact().newInstance(this.user, patientObject, contactObjectForInstance).then(contactInstance => [contactInstance,patientObject])
+                        })
+                        .then(([contactInstance,patientObject]) => {
 
+                            if(isLabResult) {
+                                contactInstance.services.push({
+                                    id: this.api.crypto().randomUuid(),
+                                    label: documentType,
+                                    valueDate: parseInt(moment().format('YYYYMMDDHHmmss')),
+                                    content: _.fromPairs([[this.language, {stringValue: _.trim(_.get(documentToAssign,"docInfo[0].labo",""))}]]),
+                                    tags: [{type: 'CD-TRANSACTION', code: documentType}]
+                                })
+                            } else {
+                                const svc = this.api.contact().service().newInstance( this.user, { tags: [{type: 'CD-TRANSACTION', code: documentType}], content: _.fromPairs([[this.language, {documentId: documentId, stringValue: _.trim(_.get(documentToAssign,"name",""))}]]), label: "Annexe: " + _.trim(_.get(documentToAssign,"name","")) })
+                                contactInstance.services = [svc]
+                                contactInstance.subContacts.push({status: 64, services: [{serviceId: svc.id}]})
+                            }
 
+                            return this.api.contact().createContactWithUser(this.user, contactInstance)
+                                .then(createdContact => [createdContact,patientObject])
 
-
-
-                const updatedAnnexesInfos = _.compact(_.map( _.get(givenMessage,"annexesInfos",[]), pi=> (_.trim(_.get(pi,"contactId","")) === contactIdToDelete ? _.merge({},pi,{isAssigned:false,contactId:"",patientId:""}) : pi))).map(pi=>_.omit(pi,"patientData"))
-
-                return this.api.contact().getContactWithUser(_.get(this,"user",{}), _.trim(contactIdToDelete))
-                    .then(foundContact => { _.map(foundContact.services||[], s=>s.endOfLife = +new Date()); return _.merge({}, foundContact, {deletionDate: parseInt(moment().format('YYYYMMDDHHmmss'))}) })
-                    .then(contactToDelete => this.api.form().getForm(_.trim(_.get(contactToDelete, "subContacts[0].formId","")))
-                        .then(foundForm => [contactToDelete, _.merge({}, foundForm, {deletionDate:parseInt(moment().format('YYYYMMDDHHmmss'))})])
-                        .catch(e=>{ console.log("ERROR with getForm: ",e); return Promise.resolve([contactToDelete,{}]); })
-                    )
-                    .then(([contactToDelete,formToDelete]) => Promise.all([
-                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), contactToDelete).catch(e=>{ console.log("ERROR with modifyContactWithUser: ", e); return promResolve; }),
-                        this.api.form().modifyForm(formToDelete).catch(e=>{ console.log("ERROR with modifyForm: ", e); return promResolve; })
-                    ]))
-                    .then(() => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), givenMessage, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(updatedAnnexesInfos))))
-                        .then(encryptedContent => _.merge({},givenMessage, {metas:{annexesInfos:Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}}))
-                        .then(givenMessageWithCryptedMetasPatientInfos => this.api.message().modifyMessage(givenMessageWithCryptedMetasPatientInfos))
-                        .then(modifiedMessage => this._updateCachedMessagesDataStructure([{action:"deleteAssignment", message:modifiedMessage}])
-                            .then(() => this._getEHealthBoxData(null,null,null,{avoidClosingOpenedDocument:true,avoidScrollToTop:true}))
-                            .then(()=> this.set("_vaadinGridMessagesActiveItem", _.find(_.get(this,"_vaadinGridDataToShow",[]), {id:_.trim(_.get(modifiedMessage,"id",""))})))
+                        })
+                        .then(([createdContact,patientObject]) => !isLabResult ? createdContact :
+                            this.api.form().newInstance(this.user, patientObject, {contactId: _.trim(_.get(createdContact,"id","")), descr: "Lab " + +new Date})
+                                .then(formInstance => this.api.form().createForm(formInstance))
+                                .then(createdForm => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy( _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(documentToAssign,"id","")), _.size(_.get(documentToAssign,"encryptionKeys",{})) ? _.get(documentToAssign,"encryptionKeys",{}) : _.get(documentToAssign,"delegations",{}))
+                                    .then(({extractedKeys: enckeys}) => this.api.beresultimport().doImport( _.trim(_.get(documentToAssign,"id","")), _.trim(_.get(this,"user.healthcarePartyId","")), this.language, _.trim(_.get(documentToAssign,"docInfo[0].protocol","")), _.trim(_.get(createdForm,"id","")), null, enckeys.join(','), createdContact).catch(e=>{console.log("ERROR with doImport: ", e); return Promise.resolve(createdContact);}))
+                                    .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return Promise.resolve(createdContact);})
+                                )
+                                .then(()=>createdContact)
+                                .catch(e =>{ console.log("ERROR with createForm: ", e); return Promise.resolve(createdContact); })
                         )
+                        .then(createdContact => {
+
+                            const updatedAnnexInfosForDocumentToAssign = {
+                                isAssigned: true,
+                                patientId: patientId,
+                                protocolId: ( !!_.size(annexInfosToUpdate) ? _.trim(_.get(annexInfosToUpdate,"protocolId","")) : _.trim(_.get(documentToAssign,"docInfo[0].protocol","")) ),
+                                contactId: _.trim(_.get(createdContact,"id","")),
+                                documentId: documentId,
+                                docInfo: {
+                                    dateOfBirth: ( !!_.size(annexInfosToUpdate) ? _.trim(_.get(annexInfosToUpdate,"docInfo.dateOfBirth","")) : _.trim(_.get(documentToAssign,"docInfo[0].dateOfBirth","")) ),
+                                    firstName: ( !!_.size(annexInfosToUpdate) ? _.trim(_.get(annexInfosToUpdate,"docInfo.firstName","")) : _.trim(_.get(documentToAssign,"docInfo[0].firstName","")) ),
+                                    lastName: ( !!_.size(annexInfosToUpdate) ? _.trim(_.get(annexInfosToUpdate,"docInfo.lastName","")) : _.trim(_.get(documentToAssign,"docInfo[0].lastName","")) ),
+                                    sex: ( !!_.size(annexInfosToUpdate) ? _.trim(_.get(annexInfosToUpdate,"docInfo.sex","")) : _.trim(_.get(documentToAssign,"docInfo[0].sex","")) ),
+                                    ssin: ( !!_.size(annexInfosToUpdate) ? _.trim(_.get(annexInfosToUpdate,"docInfo.ssin","")) : _.trim(_.get(documentToAssign,"docInfo[0].ssin","")) )
+                                }
+                            }
+
+                            return !annexesInfosAlreadyExist ?
+                                [updatedAnnexInfosForDocumentToAssign] :
+                                !!_.size(annexInfosToUpdate) ?
+                                    _.compact(_.map( _.get(givenMessage,"annexesInfos",[]), ai=> (_.trim(_.get(ai,"documentId","")) === _.trim(_.get(annexInfosToUpdate,"documentId","")) ? updatedAnnexInfosForDocumentToAssign : ai))) :
+                                    _.concat(givenMessage.annexesInfos, updatedAnnexInfosForDocumentToAssign)
+
+                        })
+                        .then(updatedAnnexesInfos => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), givenMessage, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(updatedAnnexesInfos.map(ai=>_.omit(ai,"patientData"))))))
+                            .then(encryptedContent => _.merge({},givenMessage, {metas:{annexesInfos:Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}}))
+                            .then(givenMessageWithCryptedMetasPatientInfos => this.api.message().modifyMessage(givenMessageWithCryptedMetasPatientInfos))
+                            .then(modifiedMessage => this._updateCachedMessagesDataStructure([{action:"saveAssignment", message:modifiedMessage}])
+                                .then(() => this._getEHealthBoxData(null,null,null,{avoidClosingOpenedDocument:true,avoidScrollToTop:true}))
+                                .then(()=> this.set("_vaadinGridMessagesActiveItem", _.find(_.get(this,"_vaadinGridDataToShow",[]), {id:_.trim(_.get(modifiedMessage,"id",""))})))
+                            )
+                        )
+                        .then(() => this.api.accesslog().createAccessLog({
+                            id: this.api.crypto().randomUuid(),
+                            patientId: patientId,
+                            user: _.trim(_.get(this,"user.id","")),
+                            date: +new Date(),
+                            accessType: 'USER_ACCESS'
+                        }))
                         .catch(e=>{ console.log(e); return promResolve; })
-                    )
-                    .catch(e=>{ console.log(e); return promResolve; })
-                    .finally(()=>promResolve)
+                        .finally(()=>promResolve)
 
             }
 
