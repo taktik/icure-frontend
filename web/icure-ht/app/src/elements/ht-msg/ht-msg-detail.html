@@ -1199,7 +1199,8 @@
             }
 
             .modal-button-assign {
-                background-color: #006C03;
+                /* background-color: #006C03; */
+                background-color: var(--app-secondary-color);
             }
 
             #positiveFeedback, #negativeFeedback {
@@ -1291,6 +1292,30 @@
 
             .m-t-50 {
                 margin-top:50px
+            }
+
+            .documentTypeComboBoxContainer {
+                position: absolute;
+                right: 15px;
+                top: 15px;
+                width: 320px;
+            }
+
+            .documentTypeComboBoxContainer.alreadyAssigned {
+                position: absolute;
+                right: 15px;
+                top: 65px;
+                width: auto;
+            }
+
+            .documentTypeComboBox {
+                width:100%
+            }
+
+            .documentTypeLabel {
+                font-weight: 700;
+                text-transform: uppercase;
+                display:block;
             }
 
 		</style>
@@ -1428,6 +1453,7 @@
                                             <div class="singleAssignmentLine"><iron-icon icon="icons:home" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('postalAddress','Address',language)]]: [[item.patientData.address.street]] [[item.patientData.address.houseNumber]] [[item.patientData.address.postboxNumber]]</div>
                                             <div class="singleAssignmentLine"><iron-icon icon="social:location-city" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('zipHyphenCity','ZIP - City',language)]]: [[item.patientData.address.postalCode]] [[item.patientData.address.city]]</div>
                                             <div class="singleAssignmentLine"><iron-icon icon="vaadin:calendar-clock" class="m-r-5 w20 m-t-minus-2 darkBlue"></iron-icon> [[localize('last_edi','Last modification',language)]]: [[item.patientData.lastModifiedHr]]</div>
+                                            <div class="documentTypeComboBoxContainer"><span class="documentTypeLabel">[[localize('ehb.assignmentDocumentType','Document type',language)]]:</span><vaadin-combo-box id$="documentType-[[item.documentId]]-[[item.patientData.id]]" class="documentTypeComboBox" filtered-items="[[_transactionCodes]]" item-label-path="name" item-value-path="code" value="[[item.documentType]]"></vaadin-combo-box></div>
                                             <div class="singleAssignmentSet"><paper-button class="modal-button modal-button-assign" on-tap="_openConfirmActionDialog" data-confirmation-action="_saveAssignment" data-document-id$="[[item.documentId]]" data-patient-id$="[[item.patientData.id]]"><iron-icon icon="icons:assignment-turned-in" class="m-r-5 w20 m-t-minus-2" data-confirmation-action="_saveAssignment" data-document-id$="[[item.documentId]]"  data-patient-id$="[[item.patientData.id]]"></iron-icon> [[localize('assignDocumentToThisPatient','Assign document to this patient',language)]]</paper-button></div>
                                             <div class="clear"></div>
                                         </div>
@@ -1479,6 +1505,7 @@
                                         <div class="singleAssignmentLine"><iron-icon icon="social:location-city" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('zipHyphenCity','ZIP - City',language)]]: [[item.patientData.address.postalCode]] [[item.patientData.address.city]]</div>
                                         <div class="singleAssignmentLine"><iron-icon icon="vaadin:calendar-clock" class="m-r-5 w20 m-t-minus-2 darkBlue"></iron-icon> [[localize('assignmentDate','Assignment date',language)]]: [[item.createdHr]]</div>
                                         <div class="singleAssignmentChecked"><iron-icon icon="icons:check-circle" class="m-r-5 w20 m-t-minus-2"></iron-icon> [[localize('documentAssigned','Document assigned',language)]]</div>
+                                        <div class="documentTypeComboBoxContainer alreadyAssigned"><span class="documentTypeLabel">[[localize('ehb.assignmentDocumentType','Document type',language)]]:</span>[[item.documentTypeHr]]</div>
                                         <div class="singleAssignmentDelete"><paper-button class="modal-button modal-button-delete" on-tap="_openConfirmActionDialog" data-confirmation-action="_deleteAssignment" data-contact-id$="[[item.contactId]]"><iron-icon icon="icons:delete-forever" class="m-r-5 w20 m-t-minus-2"  data-confirmation-action="_deleteAssignment" data-contact-id$="[[item.contactId]]"></iron-icon> [[localize('deleteAssignment','Delete assignment',language)]]</paper-button></div>
                                         <div class="clear"></div>
                                     </div>
@@ -1526,8 +1553,6 @@
 
                 </div>
 
-
-
                 <paper-dialog class="modalDialog" id="confirmActionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
                     <div id="confirmActionDialogContainer">
                         <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
@@ -1541,8 +1566,6 @@
                         </div>
                     </div>
                 </paper-dialog>
-
-
 
             </div>
         </paper-dialog>
@@ -1704,6 +1727,11 @@
                     _confirmationDataset: {
                         type: Object,
                         value: {}
+                    },
+                    _transactionCodes: {
+                        type: Array,
+                        value: ()=>[],
+                        noReset: true
                     }
                 };
             }
@@ -1913,11 +1941,9 @@
                 this._closeConfirmActionDialog()
                 this.set("_confirmationDataset", {})
 
-                if(typeof _.get(this,confirmationAction,false) !== "function") return
-
                 return (
-                    _.trim(_.get(this,confirmationAction,"")) === "_deleteAssignment" ? this._deleteAssignment(confirmationParams) :
-                    _.trim(_.get(this,confirmationAction,"")) === "_saveAssignment" ? this._saveAssignment(confirmationParams) :
+                    _.trim(confirmationAction) === "_deleteAssignment" ? this._deleteAssignment(confirmationParams) :
+                    _.trim(confirmationAction) === "_saveAssignment" ? this._saveAssignment(confirmationParams) :
                     false
                 )
 
@@ -1925,11 +1951,7 @@
 
             _deleteAssignment(e) {
 
-                console.log("------------- _deleteAssignment ---------------")
-                console.log(e)
-                return
-
-                const contactId = _.trim(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.contactId",""))),"[0].dataset.contactId",""))
+                const contactId = _.trim(_.get(e,"contactId",""))
                 if(!_.trim(contactId)) return;
 
                 this.set("_assignmentCallBack", {
@@ -1947,32 +1969,21 @@
 
             _saveAssignment(e) {
 
-                console.log("------------- _saveAssignment ---------------")
-                console.log(e)
-                return
-
-                const documentId = _.trim(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.documentId",""))),"[0].dataset.documentId",""))
-                const patientId = _.trim(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.patientId",""))),"[0].dataset.patientId",""))
+                const documentId = _.trim(_.get(e,"documentId",""))
+                const patientId = _.trim(_.get(e,"patientId",""))
+                const documentType = _.trim(_.get(this.shadowRoot.querySelector('#documentType-' + documentId + '-' + patientId),"value","labresult"))
                 if(!_.trim(documentId) || !_.trim(patientId)) return;
-
-                console.log("[MSG-DETAIL] saveAssignment");
-                console.log({
-                    action: "saveAssignment",
-                    activeTab: _.trim(_.get(this,"_assignmentActiveTab","")),
-                    documentId: documentId,
-                    patientId: patientId,
-                });
-                return;
 
                 this.set("_assignmentCallBack", {
                     action: "saveAssignment",
                     activeTab: _.trim(_.get(this,"_assignmentActiveTab","")),
                     documentId: documentId,
                     patientId: patientId,
+                    documentType: documentType
                 })
 
                 this.set("_assignmentDialogIsLoading", true)
-                this._takeAction(this._assignmentCallBack.action,{documentId:documentId, patientId:patientId, dontCloseReadMessageComponent:true})
+                this._takeAction(this._assignmentCallBack.action,{documentId:documentId, patientId:patientId, documentType:documentType, dontCloseReadMessageComponent:true})
 
             }
 
@@ -2113,6 +2124,7 @@
                 return prom
                     .then(resolvedPatients =>  this.set("_resolvedPatientsForSuggestedAssignments", _.orderBy(_.uniqBy(_.compact(resolvedPatients), 'id').map(patientData =>{return{
                         isAssigned: false,
+                        documentType: "labresult",
                         documentId: documentId,
                         patientData: {
                             id: _.trim(_.get(patientData,"id","")),
@@ -2130,12 +2142,23 @@
                             lastModifiedHr: moment(_.get(patientData, "modified", null)).format("DD/MM/YYYY - HH:mm:ss")
                         }
                     }}), ['lastName','firstName','dateOfBirth','modified'], ['asc','asc','desc','desc'])))
+                    .then(()=> !!_.size(_.get(this,"_transactionCodes",[])) ? false : this.api.code().findCodes("be", "CD-TRANSACTION").then(foundCodes => this.set(
+                        "_transactionCodes",
+                        _.orderBy(
+                            _.filter( foundCodes, c => ["careplan","contactreport","diarynote","labrequest","labresult","mea","note","prescription","referral","report","request","result"].indexOf(_.trim(_.get(c,"code",""))) > -1 )
+                                .map(code => {return{code:code.code,name:code.label[this.language]||this.localize(code.code, code.code, this.language)||code.label["en"]||""}}),
+                            ['name'],['asc']
+                        )
+                    )))
                     .then(()=>{
                         const alreadyAssignedDocuments = _.compact(_.filter(patInfosOfSelectedDocument, {isAssigned:true}))
                         return this.api.contact().getContactsWithUser(_.get(this,"user",{}),{ids:_.map(alreadyAssignedDocuments,x=>_.trim(_.get(x,"contactId","")))})
                             .then(foundContacts => _.map(alreadyAssignedDocuments, aad => {
-                                const contactCreatedOn = _.get(_.find(foundContacts, {id:_.trim(_.get(aad,"contactId",""))}), "created", null)
+                                const contactOfDocument = _.find(foundContacts, {id:_.trim(_.get(aad,"contactId",""))})
+                                const contactCreatedOn = _.get(contactOfDocument, "created", null)
                                 return _.merge({}, aad, {
+                                    documentType: _.get(contactOfDocument, "tags[0].code","labresult"),
+                                    documentTypeHr: _.trim(_.get(_.find(_.get(this,"_transactionCodes",[]), {code:_.get(contactOfDocument, "tags[0].code","labresult")}),"name",this.localize("labresult", "Lab result", this.language))),
                                     created: contactCreatedOn,
                                     createdHr: moment(contactCreatedOn).format("DD/MM/YYYY - HH:mm:ss")
                                 })

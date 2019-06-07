@@ -155,7 +155,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
 
                 paper-listbox {
-                    width:250px;
+                    width:320px;
                 }
 
                 paper-listbox:focus {
@@ -715,7 +715,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 #messagesFiltersDropDown {
                     margin-top:4px;
-                    width:250px;
+                    width:320px;
                 }
 
                 #messagesFiltersDropDown hr {
@@ -808,6 +808,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <paper-item data-filter="assignedResults"><iron-icon icon="icons:folder-shared" class="m-r-5 w22"></iron-icon>[[localize('ehb.assignedResults','Assigned results',language)]]</paper-item>
                             <paper-item data-filter="unassignedResults"><iron-icon icon="icons:folder-open" class="m-r-5 w22"></iron-icon>[[localize('ehb.unassignedResults','Unassigned results',language)]]</paper-item>
                             <paper-item data-filter="labResults"><iron-icon icon="vaadin:flask" class="m-r-5 w22"></iron-icon>[[localize('ehb.labResults','Lab results',language)]]</paper-item>
+                            <hr />
+                            <paper-item data-filter="allButLabResults"><iron-icon icon="vaadin:flask" class="m-r-5 w22"></iron-icon>[[localize('ehb.allButLabProtocol','All but lab / protocol',language)]]</paper-item>
                         </paper-listbox>
                     </paper-dropdown-menu>
                 </div>
@@ -1544,6 +1546,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             givenAction === "deleteForEver" ? this._deleteMessagesForEver([givenMessage]) :
                             (givenAction === "reply" || givenAction === "forward") ? this._replyToOrForwardMessage(givenMessage,additionalParameters,givenAction) :
                             givenAction === "deleteAssignment" ? this._deleteAssignment(givenMessage, additionalParameters) :
+                            givenAction === "saveAssignment" ? this._saveAssignment(givenMessage, additionalParameters) :
                             Promise.resolve()
                         )
                     )
@@ -1775,6 +1778,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     _.trim(selectedMessagesFilter) === "assignedResults" ? (!!isLabResult && (!!_.some(_.get(msg,"annexesInfos",[]), {isAssigned:true}) || !!_.size(_.get(msg,"assignedResults",[])))) :
                                     _.trim(selectedMessagesFilter) === "unassignedResults" ? (!!isLabResult && (!!_.some(_.get(msg,"annexesInfos",[]), {isAssigned:false}) || !!_.size(_.get(msg,"unassignedResults",[])))) :
                                     _.trim(selectedMessagesFilter) === "labResults" ? !!isLabResult :
+                                    _.trim(selectedMessagesFilter) === "allButLabResults" ? !isLabResult :
 
                                     false
                             })
@@ -1804,6 +1808,58 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 const promResolve = Promise.resolve()
                 const contactIdToDelete = _.trim(_.get(additionalParameters,"contactId",""))
+                const updatedAnnexesInfos = _.compact(_.map( _.get(givenMessage,"annexesInfos",[]), pi=> (_.trim(_.get(pi,"contactId","")) === contactIdToDelete ? _.merge({},pi,{isAssigned:false,contactId:"",patientId:""}) : pi))).map(pi=>_.omit(pi,"patientData"))
+
+                return this.api.contact().getContactWithUser(_.get(this,"user",{}), _.trim(contactIdToDelete))
+                    .then(foundContact => { _.map(foundContact.services||[], s=>s.endOfLife = +new Date()); return _.merge({}, foundContact, {deletionDate: parseInt(moment().format('YYYYMMDDHHmmss'))}) })
+                    .then(contactToDelete => this.api.form().getForm(_.trim(_.get(contactToDelete, "subContacts[0].formId","")))
+                        .then(foundForm => [contactToDelete, _.merge({}, foundForm, {deletionDate:parseInt(moment().format('YYYYMMDDHHmmss'))})])
+                        .catch(e=>{ console.log("ERROR with getForm: ",e); return Promise.resolve([contactToDelete,{}]); })
+                    )
+                    .then(([contactToDelete,formToDelete]) => Promise.all([
+                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), contactToDelete).catch(e=>{ console.log("ERROR with modifyContactWithUser: ", e); return promResolve; }),
+                        this.api.form().modifyForm(formToDelete).catch(e=>{ console.log("ERROR with modifyForm: ", e); return promResolve; })
+                    ]))
+                    .then(() => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), givenMessage, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(updatedAnnexesInfos))))
+                        .then(encryptedContent => _.merge({},givenMessage, {metas:{annexesInfos:Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}}))
+                        .then(givenMessageWithCryptedMetasPatientInfos => this.api.message().modifyMessage(givenMessageWithCryptedMetasPatientInfos))
+                        .then(modifiedMessage => this._updateCachedMessagesDataStructure([{action:"deleteAssignment", message:modifiedMessage}])
+                            .then(() => this._getEHealthBoxData(null,null,null,{avoidClosingOpenedDocument:true,avoidScrollToTop:true}))
+                            .then(()=> this.set("_vaadinGridMessagesActiveItem", _.find(_.get(this,"_vaadinGridDataToShow",[]), {id:_.trim(_.get(modifiedMessage,"id",""))})))
+                        )
+                        .catch(e=>{ console.log(e); return promResolve; })
+                    )
+                    .catch(e=>{ console.log(e); return promResolve; })
+                    .finally(()=>promResolve)
+
+            }
+
+            _saveAssignment(givenMessage, additionalParameters) {
+
+                const promResolve = Promise.resolve()
+                const documentId = _.trim(_.get(additionalParameters,"documentId",""))
+                const patientId = _.trim(_.get(additionalParameters,"patientId",""))
+                const documentType = _.trim(_.get(additionalParameters,"documentType",""))
+                const documentToAssign = _.find(_.get(additionalParameters,"documentsOfMessage",[]), {id:documentId})
+                const isLabResult = !!_.size(_.get(documentToAssign,"docInfo",[]))
+
+
+                console.log("[MSG-LIST] _saveAssignment");
+                console.log("givenMessage", givenMessage);
+                console.log("additionalParameters ", additionalParameters );
+
+                console.log("documentId ", documentId );
+                console.log("patientId ", patientId );
+                console.log("documentType ", documentType );
+                console.log("documentToAssign ", documentToAssign );
+                console.log("isLabResult ", isLabResult );
+
+                return
+
+
+
+
+
                 const updatedAnnexesInfos = _.compact(_.map( _.get(givenMessage,"annexesInfos",[]), pi=> (_.trim(_.get(pi,"contactId","")) === contactIdToDelete ? _.merge({},pi,{isAssigned:false,contactId:"",patientId:""}) : pi))).map(pi=>_.omit(pi,"patientData"))
 
                 return this.api.contact().getContactWithUser(_.get(this,"user",{}), _.trim(contactIdToDelete))
