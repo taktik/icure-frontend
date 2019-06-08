@@ -1408,10 +1408,10 @@
                     <div class="buttons">
 
                         <!-- Reply -->
-                        <template is="dom-if" if="[[ehealthSession]]"><template is="dom-if" if="[[!_isSentbox(selectedMessage)]]"><template is="dom-if" if="[[!_isDeleted(selectedMessage)]]"><paper-button class="msg-detail-btn" on-tap="_takeAction" data-action="reply"><iron-icon icon="icons:reply" data-action="reply"></iron-icon> [[localize('reply','Reply',language)]]</paper-button></template></template></template>
+                        <template is="dom-if" if="[[ehealthSession]]"><template is="dom-if" if="[[!_isSentbox(selectedMessage)]]"><template is="dom-if" if="[[!_isDeleted(selectedMessage)]]"><template is="dom-if" if="[[!_isAcknowledgment]]"><paper-button class="msg-detail-btn" on-tap="_takeAction" data-action="reply"><iron-icon icon="icons:reply" data-action="reply"></iron-icon> [[localize('reply','Reply',language)]]</paper-button></template></template></template></template>
 
                         <!-- Forward -->
-                        <template is="dom-if" if="[[ehealthSession]]"><paper-button class="msg-detail-btn" on-tap="_takeAction" data-action="forward"><iron-icon icon="icons:reply" style="transform: scaleX(-1)" data-action="forward"></iron-icon> [[localize('ehb.forward','Forward',language)]]</paper-button></template>
+                        <template is="dom-if" if="[[ehealthSession]]"><template is="dom-if" if="[[!_isAcknowledgment]]"><paper-button class="msg-detail-btn" on-tap="_takeAction" data-action="forward"><iron-icon icon="icons:reply" style="transform: scaleX(-1)" data-action="forward"></iron-icon> [[localize('ehb.forward','Forward',language)]]</paper-button></template></template>
 
                         <!-- Hide / unhide -->
                         <template is="dom-if" if="[[_isHidden(selectedMessage)]]"><paper-button class="msg-detail-btn" on-tap="_takeAction" data-action="hideUnhide"><iron-icon icon="visibility"  data-action="hideUnhide"></iron-icon> [[localize('ehb.unhideMessage','Unhide message',language)]]</paper-button></template>
@@ -1472,6 +1472,7 @@
                             preview="true"
                             downloadable="true"
                             fullwidth="true"
+                            patient-data="[[item.patientData]]"
                             is-body-text-of-email="[[_isEqual(item.documentLocation,'body')]]"
                             on-trigger-open-assignment-dialog="_toggleAssignmentDialog"
                         ></dynamic-doc>
@@ -1841,7 +1842,11 @@
                         type: String,
                         value: "",
                         noReset: true
-                    }
+                    },
+                    _isAcknowledgment:{
+                        type: Boolean,
+                        value: false
+                    },
                 };
             }
 
@@ -1932,7 +1937,7 @@
             _takeAction(e, takeActionAdditionalParameters={}) {
                 const actionToTake = typeof e === "string" ? _.trim(e) : _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.action",""))),"[0].dataset.action","")
                 const additionalParameters = _.merge({}, { documentsOfMessage:_.get(this,"documentsOfMessage",[]), _linkedPatientsBasedOnMessageSsinAndAnnexes:_.get(this,"_linkedPatientsBasedOnMessageSsinAndAnnexes",[]), _messageAttachments:_.get(this,"_messageAttachments",[]) }, takeActionAdditionalParameters)
-                return !_.trim(_.get(this,"selectedMessage.id", "")) || !_.trim(actionToTake) ? false : this.dispatchEvent(new CustomEvent('carry-out-action', {composed: true, bubbles: true, detail: {action:_.trim(actionToTake), message:_.get(this,"selectedMessage",{}),additionalParameters:additionalParameters}}));
+                return !_.trim(_.get(this,"selectedMessage.id", "")) || !_.trim(actionToTake) || (actionToTake==="reply" && !!this._isAcknowledgment) || (actionToTake==="forward" && !!this._isAcknowledgment) ? false : this.dispatchEvent(new CustomEvent('carry-out-action', {composed: true, bubbles: true, detail: {action:_.trim(actionToTake), message:_.get(this,"selectedMessage",{}),additionalParameters:additionalParameters}}));
             }
 
             _isImportant(m) {
@@ -2219,12 +2224,8 @@
 
             _loadMessageDetails(selectedMessage) {
 
-
-
                 const prom = Promise.resolve()
                 let patientDetailsBasedOnSsin = false
-
-
 
                 if(!!_.get(this, "processLock", false)) return prom;
                 this.set("processLock", true)
@@ -2244,6 +2245,10 @@
                     this.set("_assignmentActiveTab", _.trim(_.get(assignmentCallBack,"activeTab","suggestion")))
                     this.set("_assignmentCallBack", {})
                 }
+
+                this.set("_isAcknowledgment", _.trim(_.get(selectedMessage,"fromHealthcarePartyId","")) === "12345678912" )
+
+
 
                 return this._getPatientDataBySsin(selectedMessage)
                     .then(x => patientDetailsBasedOnSsin = x)
@@ -2284,7 +2289,13 @@
                         )
                         .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return singleDocument;})
                     )))
-                    .then(documentsOfMessage => this.set("documentsOfMessage", !!_.size(documentsOfMessage) ? _.compact(_.orderBy(documentsOfMessage, d => _.trim(_.get(d,"documentLocation","annex")) === "body" ? "" : _.get(d,"id",_.uniqueId()))) : []))
+                    .then(documentsOfMessage => {
+                        let resolvedDocumentsOfMessage = !!_.size(documentsOfMessage) ? _.compact(_.orderBy(documentsOfMessage, d => _.trim(_.get(d,"documentLocation","annex")) === "body" ? "" : _.get(d,"id",_.uniqueId()))) : []
+                        this.set("documentsOfMessage", _.map(resolvedDocumentsOfMessage, rdom => {
+                            const assignmentResolvedInformation = _.find(_.get(selectedMessage,"annexesInfos",[]), ai => { return _.trim(_.get(ai,"documentId","")) === _.trim(_.get(rdom,"id","")) && !!_.get(ai,"isAssigned","") })
+                            return _.merge(rdom, {patientData:_.get(assignmentResolvedInformation,"patientData",{})})
+                        }))
+                    })
                     .catch(e=>console.log("ERROR with _loadMessageDetails: ", e))
                     .finally(()=>{
                         this.set("_linkedPatientsBasedOnMessageSsinAndAnnexes", _.uniqBy(_.compact(
@@ -2311,6 +2322,7 @@
                 const assignmentCallBack = _.get(e,"assignmentCallBack",{})
 
                 let prom = Promise.resolve();
+                const promResolve = Promise.resolve();
                 const documentId = !!_.size(assignmentCallBack) ? _.trim(_.get(assignmentCallBack,"documentId","")) : _.trim(_.get(e,"detail.documentId",""))
                 const isOpened = !!_.get(this,"_assignmentDialogIsOpened",false)
                 this.set("_assignmentCurrentDocumentId", documentId)
@@ -2350,9 +2362,17 @@
 
                     prom = prom.then(promisesCarrier => !!_.trim(_.get(singlePatientToResolve,"id","")) ?
                         this.api.patient().getPatientWithUser(_.get(this,"user",{}),_.trim(_.get(singlePatientToResolve,"id",""))).then(foundPatient=>_.concat(promisesCarrier, foundPatient)).catch(e=>{console.log("ERROR with getPatientWithUser: ", e); return promisesCarrier;}) :
-                        !!_.trim(_.get(singlePatientToResolve,"ssin","")) ?
-                            this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}) :
-                            this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
+
+                            Promise.all([
+                                !_.trim(_.get(singlePatientToResolve,"ssin","")) ? promResolve : this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}),
+                                !( !!_.trim(_.get(singlePatientToResolve,"lastName","")) || !!_.trim(_.get(singlePatientToResolve,"firstName","")) || !!_.trim(_.get(singlePatientToResolve,"dateOfBirth","")) ) ? promResolve : this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
+                            ])
+                                .then(promsAnswers=>_.flatMap(promsAnswers,pa=>_.compact(pa)))
+
+                            // !!_.trim(_.get(singlePatientToResolve,"ssin","")) ?
+                                // this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}) :
+                                // this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
+
                     )
                 })
 
