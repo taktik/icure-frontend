@@ -854,17 +854,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 <vaadin-grid-selection-column></vaadin-grid-selection-column>
 
-                <!--
-                <vaadin-grid-column width="80px" flex-grow="0">
-                    <template class="header"></template>
-                    <template>
-                        <template is="dom-if" if="[[_isCrypted(item)]]"><iron-icon icon="lock" class=""></iron-icon></template>
-                        <template is="dom-if" if="[[_isImportant(item)]]"><iron-icon icon="warning" class=""></iron-icon></template>
-                        <template is="dom-if" if="[[_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class=""></iron-icon></template>
-                    </template>
-                </vaadin-grid-column>
-                -->
-
                 <vaadin-grid-column flex-grow="1">
                     <template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('ehb.senderRecipient','Sender / recipient',language)]]</b></vaadin-grid-sorter></template>
                     <!--
@@ -1592,7 +1581,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         // Remap as {message,action} object (always the same action)
                         modifiedAndResolvedMessages = _.map(_.compact(modifiedAndResolvedMessages),m => { return {message:m, action: _.get(modifiedMessages,"[0].action","")} })
 
-                        // Assign to new folder
+                        // Assign to new /same folder
                         _.map(modifiedAndResolvedMessages,i=>{
                             const modifyAction = _.trim(_.get(i,"action",""))
                             const singleMessage = _.get(i,"message",{})
@@ -1837,7 +1826,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _saveAssignment(givenMessage, additionalParameters) {
 
-                const prom = Promise.resolve()
                 const promResolve = Promise.resolve()
                 const documentId = _.trim(_.get(additionalParameters,"documentId",""))
                 const patientId = _.trim(_.get(additionalParameters,"patientId",""))
@@ -1846,19 +1834,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const isLabResult = !!_.size(_.get(documentToAssign,"docInfo",[]))
                 const annexesInfosAlreadyExist = !!_.size(_.get(givenMessage,"annexesInfos",[]))
                 let annexInfosToUpdate = !annexesInfosAlreadyExist ? false : _.find(_.get(givenMessage,"annexesInfos",[]), {documentId:documentId})
-
-                // console.log("[MSG-LIST] _saveAssignment");
-                // console.log("givenMessage", givenMessage);
-                // console.log("additionalParameters ", additionalParameters );
-
-                // console.log("documentId ", documentId );
-                // console.log("patientId ", patientId );
-                // console.log("documentType ", documentType );
-                // console.log("documentToAssign ", documentToAssign );
-                // console.log("isLabResult ", isLabResult );
-
-                // console.log("annexesInfosAlreadyExist", annexesInfosAlreadyExist );
-                // console.log("annexInfosToUpdate", annexInfosToUpdate );
 
                 return (!documentId || !patientId || !_.size(documentToAssign)) ?
                     promResolve :
@@ -1870,7 +1845,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 modified: +new Date,
                                 author: _.trim(_.get(this,"user.id","")),
                                 responsible: _.trim(_.get(this,"user.healthcarePartyId","")),
-                                openingDate: moment((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) : null)).format('YYYYMMDDHHmmss')||'',
+                                openingDate: moment((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) : parseInt(_.get(givenMessage,"created",0)))).format('YYYYMMDDHHmmss')||'',
                                 closingDate: moment().format('YYYYMMDDHHmmss')||'',
                                 encounterType: { type: "CD-TRANSACTION", version: "1", code: documentType },
                                 descr: "Analyse: " + _.trim(_.get(documentToAssign,"docInfo[0].labo","")),
@@ -1904,7 +1879,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                         })
                         .then(([createdContact,patientObject]) => !isLabResult ? createdContact :
-                            this.api.form().newInstance(this.user, patientObject, {contactId: _.trim(_.get(createdContact,"id","")), descr: "Lab " + +new Date})
+                            this.api.form().newInstance(this.user, patientObject, {contactId: _.trim(_.get(createdContact,"id","")), descr: "Lab result " + +new Date})
                                 .then(formInstance => this.api.form().createForm(formInstance))
                                 .then(createdForm => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy( _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(documentToAssign,"id","")), _.size(_.get(documentToAssign,"encryptionKeys",{})) ? _.get(documentToAssign,"encryptionKeys",{}) : _.get(documentToAssign,"delegations",{}))
                                     .then(({extractedKeys: enckeys}) => this.api.beresultimport().doImport( _.trim(_.get(documentToAssign,"id","")), _.trim(_.get(this,"user.healthcarePartyId","")), this.language, _.trim(_.get(documentToAssign,"docInfo[0].protocol","")), _.trim(_.get(createdForm,"id","")), null, enckeys.join(','), createdContact).catch(e=>{console.log("ERROR with doImport: ", e); return Promise.resolve(createdContact);}))
@@ -1956,109 +1931,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         .finally(()=>promResolve)
 
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            _enrichMessageWithPatientInfo(messages) {
-
-                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language), icon:"arrow-forward"});
-
-                const startPostion = (parseInt(this._currentPageNumber)-1) * parseInt(this._vaadinGridMaxItemsPerPage)
-                const endPosition = parseInt(this._currentPageNumber) * parseInt(this._vaadinGridMaxItemsPerPage)
-
-                // Resolve additional pat infos, observing pagination size (slice passes along as reference)
-                let messagesToResolve = messages.slice(startPostion, endPosition).filter(singleMessge=>!_.get(singleMessge,"patientInfosBasedOnResultInfo",false));
-
-                let prom = Promise.resolve([]);
-                const totalMessages = _.size(messagesToResolve)||1;
-                messagesToResolve.map((singleMessage,loopIndex) => {
-                    prom = prom.then(resolvedMessages => {
-                        return this.api.document().findByMessage(_.get(this,"user.healthcarePartyId", null), singleMessage)
-                            .then(docs => docs.filter(doc => !!_.get(doc,"id",false) && !!_.get(doc,"attachmentId",false) && !!_.get(doc,"secretForeignKeys",false) ))
-                            .then(docs => Promise.all(docs.map(singleDocument => {
-                                return this.api.crypto()
-                                    .extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), singleDocument.id, _.size(singleDocument.encryptionKeys) ? singleDocument.encryptionKeys : singleDocument.delegations)
-                                    .then(({extractedKeys: enckeys}) =>
-                                        this.api.beresultimport().canHandle(singleDocument.id, enckeys.join(','))
-                                            .then(isResult => (isResult ? this.api.beresultimport().getInfos(singleDocument.id, true, null, enckeys.join(',')) : false))
-                                            .catch(e=>{ /* console.log("Couldn't exec beresultimport().canHandle, error: ", e); console.log("singleDocument ", singleDocument); */ })
-                                    )
-                                    .then(resultInfos => _.compact(_.map(resultInfos, ri=> {
-                                        return {
-                                            lastName: _.upperFirst(_.trim(_.get(ri, "lastName", "NA")).toLowerCase()),
-                                            firstName: _.upperFirst(_.trim(_.get(ri, "firstName", "NA")).toLowerCase()),
-                                            dateOfBirthHr: (_.parseInt(_.get(ri, "dateOfBirth", 0)) ? "(" + moment(_.trim(_.get(ri, "dateOfBirth", ""))).format("DD/MM/YYYY") + ")" : ""),
-                                            // isAssigned: !!(parseInt(singleMessage.modified)%2),
-                                            isAssigned: !!_.size(_.get(singleMessage,"assignedResults",[])),
-                                            uniqueId: _.uniqueId(_.trim(_.get(singleMessage, "id", _.uniqueId())))
-                                        }
-                                    })))
-                                    .catch(e=>{})
-                            })))
-                            .then(resultInfos => {
-                                this._setLoadingMessage({ message:this.localize('ehb.gettingPatientsInfo',this.language) + " " + (parseInt(loopIndex)+1) + "/" + totalMessages, icon:"arrow-forward", updateLastMessage: true});
-                                return _.concat(resolvedMessages, [_.merge(singleMessage, {patientInfosBasedOnResultInfo: (_.compact(_.flatMap(resultInfos))||[])})])
-                            })
-                            .catch(e=>{})
-                    })
-                })
-                return prom.then(()=>messages)
-            }
-
-
-
-
-
-            
-            
-            
-
-
-
-
-
-
-
-            
-            
-            
-            
-            
-            
-            
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 		}
 
