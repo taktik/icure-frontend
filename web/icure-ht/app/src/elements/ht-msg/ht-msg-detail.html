@@ -1472,6 +1472,7 @@
                             preview="true"
                             downloadable="true"
                             fullwidth="true"
+                            data="[[_htmlDocumentData(item)]]"
                             patient-data="[[item.patientData]]"
                             is-body-text-of-email="[[_isEqual(item.documentLocation,'body')]]"
                             on-trigger-open-assignment-dialog="_toggleAssignmentDialog"
@@ -1968,6 +1969,10 @@
                 this.set("_assignmentActiveTab", "existing")
             }
 
+            _htmlDocumentData(inputData) {
+                return ( _.trim(_.get(inputData,"mainUti","")) === "public.html" || _.trim(_.get(inputData,"attachmentInfos.mimeType","")) === "text/html" ) && !!_.trim(_.get(inputData,"attachmentInfos.decryptedContent","")) ? {content:[_.trim(_.get(inputData,"attachmentInfos.decryptedContent",""))], l:null} : null;
+            }
+
             _downloadAttachment(e) {
 
                 const downloadUrl = _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataAttachmenturl",""))),"[0].dataAttachmenturl","")
@@ -2025,7 +2030,7 @@
                 if(!!assignmentDialogIsOpened) return
 
                 if(pressedKey === "escape") this._takeAction("close")
-                if((pressedKey === "c" || pressedKey === "h" || pressedKey === "m")) this._takeAction("hideUnhide")
+                if(pressedKey === "h" || pressedKey === "m") this._takeAction("hideUnhide")
                 if(!!ehealthSession && !isSentBox && !isDeleted && pressedKey === "r") this._takeAction("reply")
                 if(!!ehealthSession && (pressedKey === "f" || pressedKey === "t")) this._takeAction("forward")
                 if(!!ehealthSession && (pressedKey === "d" || pressedKey === "s" || pressedKey === "delete")) this._takeAction("deleteUndelete")
@@ -2208,7 +2213,7 @@
                                             _.chain(_.get(patientData, "addresses", {})).filter({addressType: "work"}).head().value() ||
                                             _.chain(_.get(patientData, "addresses", {})).head().value() ||
                                             {},
-                                        lastModifiedHr: moment(_.get(patientData, "modified", null)).format("DD/MM/YYYY - HH:mm:ss")
+                                        lastModifiedHr: parseInt(_.get(patientData, "modified", null)) ? moment(_.get(patientData, "modified", null)).format("DD/MM/YYYY - HH:mm:ss") : "-"
                                     }
                                 }})
                                 .orderBy(['lastName','firstName', 'dateOfBirth','modified'],['asc','asc','desc','desc'])
@@ -2305,7 +2310,7 @@
                                 firstName: _.map(_.trim(_.get(pat, "firstName", "")).split(" "), i => _.capitalize(i)).join(" "),
                                 ssinOrBirthdate: (
                                     !!_.trim(_.get(pat, "ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(pat, "ssin", ""))) + ")" :
-                                    !!_.trim(_.get(pat, "dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(pat, "dateOfBirth", 0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" :
+                                    !!_.trim(_.get(pat, "dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(pat, "dateOfBirth", "")), "YYYYMMDD").format('DD/MM/YYYY') + ")" :
                                     ""
                                 )
                             }})),"ssinOrBirthdate")
@@ -2362,17 +2367,11 @@
 
                     prom = prom.then(promisesCarrier => !!_.trim(_.get(singlePatientToResolve,"id","")) ?
                         this.api.patient().getPatientWithUser(_.get(this,"user",{}),_.trim(_.get(singlePatientToResolve,"id",""))).then(foundPatient=>_.concat(promisesCarrier, foundPatient)).catch(e=>{console.log("ERROR with getPatientWithUser: ", e); return promisesCarrier;}) :
-
-                            Promise.all([
-                                !_.trim(_.get(singlePatientToResolve,"ssin","")) ? promResolve : this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}),
-                                !( !!_.trim(_.get(singlePatientToResolve,"lastName","")) || !!_.trim(_.get(singlePatientToResolve,"firstName","")) || !!_.trim(_.get(singlePatientToResolve,"dateOfBirth","")) ) ? promResolve : this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
-                            ])
-                                .then(promsAnswers=>_.flatMap(promsAnswers,pa=>_.compact(pa)))
-
-                            // !!_.trim(_.get(singlePatientToResolve,"ssin","")) ?
-                                // this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}) :
-                                // this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
-
+                        Promise.all([
+                            !_.trim(_.get(singlePatientToResolve,"ssin","")) ? promResolve : this.api.patient().findByNameBirthSsinAutoWithUser(_.get(this,"user",{}), _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(singlePatientToResolve,"ssin","")), null, null, 10).then(({rows})=>_.concat(promisesCarrier, rows)).catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser (by ssin): ", e); return promisesCarrier;}),
+                            !( !!_.trim(_.get(singlePatientToResolve,"lastName","")) || !!_.trim(_.get(singlePatientToResolve,"firstName","")) || !!_.trim(_.get(singlePatientToResolve,"dateOfBirth","")) ) ? promResolve : this.api.patient().filterByWithUser(_.get(this,"user",{}), null, null, 20, 0, null, null, {filter: filter}).then(({rows}) => _.concat(promisesCarrier, this._filterBestMatchingPatients(rows,singlePatientToResolve))).catch(e=>{console.log("ERROR with fuzzySearchWithUser: ", e); return promisesCarrier;})
+                        ])
+                            .then(promsAnswers=>_.flatMap(promsAnswers,pa=>_.compact(pa)))
                     )
                 })
 
@@ -2394,7 +2393,7 @@
                                 _.chain(_.get(patientData, "addresses", {})).filter({addressType:"work"}).head().value() ||
                                 _.chain(_.get(patientData, "addresses", {})).head().value() ||
                                 {},
-                            lastModifiedHr: moment(_.get(patientData, "modified", null)).format("DD/MM/YYYY - HH:mm:ss")
+                            lastModifiedHr: parseInt(_.get(patientData, "modified", undefined)) ? moment(_.get(patientData, "modified", undefined)).format("DD/MM/YYYY - HH:mm:ss") : "-"
                         }
                     }}), ['lastName','firstName','dateOfBirth','modified'], ['asc','asc','desc','desc'])))
                     .then(()=> !!_.size(_.get(this,"_transactionCodes",[])) ? false : this.api.code().findCodes("be", "CD-TRANSACTION").then(foundCodes => this.set(

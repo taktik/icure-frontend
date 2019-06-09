@@ -47,6 +47,8 @@ onmessage = e => {
         const iccMessageXApi    = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi)
         const iccPatientXApi    = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi)
 
+        let totalNewMessages = 0
+
 
 
         const createDbMessageWithAppendicesAndTryToAssign =  (message,boxId) => {
@@ -63,7 +65,9 @@ onmessage = e => {
                     promResolve : // Could be message couldn't be decrypted due to obsolete keystores
                     !!_.size(_.get(foundExistingMessage,"rows",[])) ?
                         !!(parseInt(_.get(_.head(_.get(foundExistingMessage,"rows",[])),"created",Date.now())) < (Date.now() - (31 * 24 * 3600000))) ? removeMsgFromEhboxServer(_.head(_.get(foundExistingMessage,"rows",[]))) : promResolve :
-                        registerNewMessage(fullMessageFromEHealthBox, boxId).then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
+                        registerNewMessage(fullMessageFromEHealthBox, boxId)
+                            .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
+                            .then(() => totalNewMessages++ )
                 )
                 .catch(e=>{console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ",e); return promResolve;})
 
@@ -143,7 +147,7 @@ onmessage = e => {
         const registerNewDocument = (singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox) => {
 
             const promResolve = Promise.resolve()
-            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) ?
+            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || !_.trim(_.get(singleDocumentOrAnnex,"content","")) ?
                 promResolve :
                 iccDocumentXApi.newInstance(user, createdMessage, {
                     documentLocation: (!!_.get(fullMessageFromEHealthBox,"document", false) && _.get(singleDocumentOrAnnex,"content","something") === _.get(fullMessageFromEHealthBox,"document.content","else")) ? 'body' : 'annex',
@@ -377,6 +381,7 @@ onmessage = e => {
                 .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
                 .finally(()=> _.concat(promisesCarrier, []))
             )
+            prom.then(()=> singleBoxId === "INBOX" && parseInt(totalNewMessages) ? postMessage({totalNewMessages: parseInt(totalNewMessages)}) : false )
         }))
 
 

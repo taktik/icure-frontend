@@ -650,6 +650,23 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     display: none;
                 }
             }
+
+            .ehBoxViewIcon {
+                color:var(--app-primary-color-dark);
+                opacity: 1!important;
+                max-height: 30px;
+                width: 30px;
+                height: 30px;
+            }
+
+            #ehBoxMessage {
+                cursor: pointer;
+            }
+
+            #ehBoxMessage .notification-msg {
+                overflow:hidden
+            }
+
         </style>
 
         <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
@@ -1266,7 +1283,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <ht-hcp name="hcp" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-hcp>
-                    <ht-msg name="msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" on-trigger-open-my-profile="_triggerOpenMyProfile" on-trigger-goto-admin="_triggerOpenAdminGroupsManagementSubMenu" on-idle="resetTimer">
+                    <ht-msg name="msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" force-refresh="[[_forceEhBoxRefresh]]" on-trigger-open-my-profile="_triggerOpenMyProfile" on-trigger-goto-admin="_triggerOpenAdminGroupsManagementSubMenu" on-idle="resetTimer">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-msg>
                     <ht-diary id="htDiary" name="diary" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]">
@@ -1373,11 +1390,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
-        <paper-item id="ehboxInboxMessage" class="notification-container grey">
-            <iron-icon class="notification-icn" icon="communication:email"></iron-icon>
-            <div class="notification-msg">[[ehboxWebWorkerMessage]]</div>
+        <paper-item id="ehBoxMessage" class="notification-container electron-notification-panel">
+            <iron-icon class="notification-icn" icon="communication:email" on-tap="_gotoEhBox"></iron-icon>
+            <div class="notification-msg" on-tap="_gotoEhBox">[[ehBoxWebWorkerTotalNewMessages]] [[localize('ehb.newMessages','new message(s)', language)]]</div>
             <paper-button class="notification-btn single-btn" on-tap="_closeNotif">[[localize('clo','Close', language)]]</paper-button>
         </paper-item>
+
 
         <paper-item id="electronMessage" class="notification-container electron-notification-panel">
             <iron-icon class="notification-icn" icon="icons:warning"></iron-icon>
@@ -1544,9 +1562,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Number,
                         noReset: true
                     },
-                    ehboxWebWorkerMessage: {
-                        type: String,
-                        value: ""
+                    ehBoxWebWorkerTotalNewMessages: {
+                        type: Number,
+                        value: 0
                     },
                     EhboxCheckingActive: {
                         type: Boolean,
@@ -1625,6 +1643,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     socket: {
                         type : Object,
                         value : null
+                    },
+                    _forceEhBoxRefresh: {
+                        type : Boolean,
+                        value : false
                     }
                 }
             }
@@ -1645,6 +1667,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 e.target.parentElement.classList.remove('notification');
             }
 
+            _gotoEhBox(e){
+                if(!!_.size(_.get(e,"target.parentElement",{}))) e.target.parentElement.classList.remove('notification');
+                this.$['ehBoxMessage'] && this.$['ehBoxMessage'].classList && this.$['ehBoxMessage'].classList.remove('notification')
+                this.set('routeData.page', "msg")
+                this._triggerMenu()
+            }
 
             _isValidInvite() {
                 this.set('validInvite', this.lastName && this.firstName && this.lastName.length && this.firstName.length && this.validMail)
@@ -1820,7 +1848,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this._importKeychain()
                 }
             }
-
 
             _startCheckInactiveTimer() {
                 clearInterval(this.interval)
@@ -2012,9 +2039,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
                 )
             }
+
             _versionOk(a,b) {
                 return a && b ? 'ok' : 'nok'
             }
+
             _getMHToken() {
                 //TODO: change the request for MH
                 //this.api.fhc().Stscontroller().requestTokenUsingGET(k.passPhrase, this.getNihii8(MHNihii), k.uuid, true )
@@ -2207,7 +2236,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return Promise.resolve(null);
             }
 
-
             uploadMHKeystoreAndCheckToken() {
 
                 const ksKey  = "org.taktik.icure.ehealth.keychain.MMH."+ this.user.healthcarePartyId;
@@ -2330,8 +2358,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return ([hcp, keyPairs])
                     })
 
-                    this.$.ehboxInboxMessage.classList.remove('notificationEhbox')
-
+                    this.$.ehBoxMessage.classList.remove('notification')
                     if (!this.worker) { this.worker = new Worker() }
 
                     getParents(this.user.healthcarePartyId, {}).then(([hcp, kp]) => this.getAlternateKeystores().then(alternateKeystores => {
@@ -2355,15 +2382,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 				    }))
 
                     this.worker.onmessage = e => {
-                        this.set('ehboxWebWorkerMessage', e.data.message)
-                        this.$.ehboxInboxMessage.classList.add('notificationEhbox')
-                        console.log("Le worker à repondu " + e.data.message)
+                        const totalNewMessages = parseInt(_.get(e,"data.totalNewMessages",0))
+                        if(parseInt(totalNewMessages)) {
+                            this.set("_forceEhBoxRefresh", true)
+                            this.set('ehBoxWebWorkerTotalNewMessages', totalNewMessages)
+                            this.$['ehBoxMessage'].classList.add('notification');
+                            setTimeout(() => { this.set("_forceEhBoxRefresh", false) }, 1000);
+                            setTimeout(() => { this.$['ehBoxMessage'].classList.remove('notification'); }, 15000);
+                        }
                     }
 
-                } else {
-                    // this.set('ehboxWebWorkerMessage', 'Réception automatique désactivée')
-                    // this.$.ehboxInboxMessage.classList.add('notificationEhbox')
-                    // console.log('check ehbox prevent from user param OR time prevent')
                 }
             }
 

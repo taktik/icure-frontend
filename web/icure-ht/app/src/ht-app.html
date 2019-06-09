@@ -619,6 +619,21 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 .logo {
                     display: none;
                 }
+
+                .ehBoxViewIcon {
+                    color:var(--app-primary-color-dark);
+                    opacity: 1!important;
+                    max-height: 30px;
+                    width: 30px;
+                    height: 30px;
+                }
+                #ehBoxMessage {
+                    cursor: pointer;
+                }
+                #ehBoxMessage .notification-msg {
+                    overflow:hidden
+                }
+
             }
         </style>
 
@@ -916,9 +931,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
-        <paper-item id="ehboxInboxMessage" class="notification-container grey">
-            <iron-icon class="notification-icn" icon="communication:email"></iron-icon>
-            <div class="notification-msg">[[ehboxWebWorkerMessage]]</div>
+        <paper-item id="ehBoxMessage" class="notification-container electron-notification-panel">
+            <iron-icon class="notification-icn" icon="communication:email" on-tap="_gotoEhBox"></iron-icon>
+            <div class="notification-msg" on-tap="_gotoEhBox">[[ehBoxWebWorkerTotalNewMessages]] [[localize('ehb.newMessages','new message(s)', language)]]</div>
             <paper-button class="notification-btn single-btn" on-tap="_closeNotif">[[localize('clo','Close', language)]]</paper-button>
         </paper-item>
 
@@ -1085,9 +1100,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Number,
                         noReset: true
                     },
-                    ehboxWebWorkerMessage: {
-                        type: String,
-                        value: ""
+                    ehBoxWebWorkerTotalNewMessages: {
+                        type: Number,
+                        value: 0
                     },
                     EhboxCheckingActive: {
                         type: Boolean,
@@ -1166,6 +1181,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     socket: {
                         type : Object,
                         value : null
+                    },
+                    _forceEhBoxRefresh: {
+                        type : Boolean,
+                        value : false
                     }
                 }
             }
@@ -1184,6 +1203,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _closeNotif(e){
                 e.target.parentElement.classList.remove('notification');
+            }
+
+            _gotoEhBox(e){
+                if(!!_.size(_.get(e,"target.parentElement",{}))) e.target.parentElement.classList.remove('notification');
+                this.$['ehBoxMessage'] && this.$['ehBoxMessage'].classList && this.$['ehBoxMessage'].classList.remove('notification')
+                this.set('routeData.page', "msg")
+                this._triggerMenu()
             }
 
 
@@ -1561,7 +1587,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 )
             }
             _versionOk(a,b) {
-                return a && b ? '' : 'nok'
+                return a && b ? 'ok' : 'nok'
             }
             _getMHToken() {
                 //TODO: change the request for MH
@@ -1685,7 +1711,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     }
                     this._timeCheck()
                         this._timeCheckMH(0)//Should launch directly, no wait in this case!!!
-                    this._inboxMessageCheck()
+                        this._inboxMessageCheck()
+                        this._checkForUpdateMessage()
                     })
                 }).catch(function (e) {
                     this.authenticated = false
@@ -1875,7 +1902,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return ([hcp, keyPairs])
                     })
 
-                    this.$.ehboxInboxMessage.classList.remove('notificationEhbox')
+                    this.$.ehBoxMessage.classList.remove('notification')
 
                     if (!this.worker) { this.worker = new Worker() }
 
@@ -1900,16 +1927,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 				    }))
 
                     this.worker.onmessage = e => {
-                        this.set('ehboxWebWorkerMessage', e.data.message)
-                        this.$.ehboxInboxMessage.classList.add('notificationEhbox')
-                        console.log("Le worker à repondu " + e.data.message)
+                        const totalNewMessages = parseInt(_.get(e,"data.totalNewMessages",0))
+                        if(parseInt(totalNewMessages)) {
+                            this.set("_forceEhBoxRefresh", true)
+                            this.set('ehBoxWebWorkerTotalNewMessages', totalNewMessages)
+                            this.$['ehBoxMessage'].classList.add('notification');
+                            setTimeout(() => { this.set("_forceEhBoxRefresh", false) }, 1000);
+                            setTimeout(() => { this.$['ehBoxMessage'].classList.remove('notification'); }, 15000);
+                        }
                     }
 
-                } else {
-                    // this.set('ehboxWebWorkerMessage', 'Réception automatique désactivée')
-                    // this.$.ehboxInboxMessage.classList.add('notificationEhbox')
-                    // console.log('check ehbox prevent from user param OR time prevent')
                 }
+
             }
 
             getMHKeystore(){
@@ -2178,6 +2207,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _triggerOpenAdminGroupsManagementSubMenu(e) {
                 this.set('routeData.page', "admin"); this._triggerMenu();
                 this.$['htAdmin'] && typeof this.$['htAdmin'].handleMenuChange === "function" && this.$['htAdmin'].handleMenuChange({detail:{selection:{item: 'management',submenu:'facturationFlatRateManagementSubMenu'}}});
+            }
+
+            _checkForUpdateMessage(){
+                if(this.user){
+                    this.$['htUpdateDialog']._openDialog()
+                }
             }
 
         }
