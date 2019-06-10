@@ -175,9 +175,12 @@ onmessage = e => {
 
             let prom = Promise.resolve();
             const promResolve = Promise.resolve()
+            const annexesToAssign = _.filter(createdDocumentsToAssign,doc => _.trim(_.get(doc,"documentLocation","body")) !== "body")
+            const totalAnnexesToAssign = parseInt(_.size(annexesToAssign))
             if(boxId !== "INBOX" || !createdDocumentsToAssign) return promResolve
 
-            _.map(createdDocumentsToAssign.filter(doc => doc.documentLocation !== "body"), createdDocumentToAssign => {
+
+            _.map(annexesToAssign, createdDocumentToAssign => {
                 prom = prom.then(promisesCarrier => !_.trim(_.get(createdDocumentToAssign,"id","")) ?
                     Promise.resolve(_.concat(promisesCarrier, {})) :
                     tryToAssignAppendix(fullMessageFromEHealthBox, createdDocumentToAssign)
@@ -221,9 +224,13 @@ onmessage = e => {
 
                     })
 
+                    const totalAssignedAnnexes = parseInt(_.size(_.filter(annexesInfos,{isAssigned:true})))
+                    const messageCurrentStatus = _.get(createdMessage,"status",0)
+                    const messageStatus = (totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
+
                     return encryptContent( user, createdMessage, annexesInfos )
-                        .then(encryptedContent => msgApi.modifyMessage(_.merge( {}, createdMessage, { metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {annexesInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}) })).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
-                        .catch(e=>{ console.log("ERROR with encryptContent: ", e); return msgApi.modifyMessage( _.merge( {}, createdMessage, { unassignedResults: unassignedList, assignedResults: assignedMap })) })
+                        .then(encryptedContent => msgApi.modifyMessage(_.merge( {}, createdMessage, { status: messageStatus, metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {annexesInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}) })).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
+                        .catch(e=>{ console.log("ERROR with encryptContent: ", e); return msgApi.modifyMessage( _.merge( {}, createdMessage, { status: messageStatus, unassignedResults: unassignedList, assignedResults: assignedMap })) })
 
                 })
                 .finally(()=>promResolve)
