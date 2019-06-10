@@ -994,6 +994,10 @@
                 height: 40px;
             }
 
+            vaadin-combo-box {
+                --vaadin-combo-box-overlay-max-height: 30vh;
+            }
+
             vaadin-text-field{
                 height: 40px;
                 margin-top: -16px;
@@ -1004,7 +1008,7 @@
             #importPicker,#docPicker{
                 width: calc(50% - 2px);
             }
-            #PatCombo {
+            #patCombo {
                 width: calc(50% - 4px);
             }
             #NissTextField{
@@ -1128,10 +1132,9 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			    type: Object,
                 value: null
             },
-
-			selectedDocuments:{
-				type: Object
-			},
+			// selectedDocuments:{
+			// 	type: Object
+			// },
 			documentAttachment:{
 				type: String,
 				value: null
@@ -1196,10 +1199,10 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			    type: String,
                 value: ''
             },
-            docInfo: {
-			    type: Object,
-                value: null
-            },
+            // docInfo: {
+			//     type: Object,
+            //     value: null
+            // },
             canAssign: {
 			    type: Boolean,
                 value: false
@@ -1223,10 +1226,10 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             hasLabResult: {
 			    type: Boolean
             },
-            docTxt: {
-			    type: Object,
-                value: null
-            },
+            // docTxt: {
+			//     type: Object,
+            //     value: null
+            // },
             ehealthSession: {
                 type: Boolean
             },
@@ -1245,7 +1248,12 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             disabled: {
 			    type: Boolean,
                 value: true
-            }
+            },
+            _currentPageNumber: {
+                type: Number,
+                value: 1
+            },
+
         };
 	}
 
@@ -1268,7 +1276,6 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
             .then(codes => this.set("listType",codes.rows.filter(code=>["careplan","contactreport","diarynote","labrequest","labresult","mea","note","prescription","referral","report","request","result"].find(keyWord=>code.code.includes(keyWord))).map(code => {return{code:code.code,name:code.label[this.language]||this.localize(code.code, code.code, this.language)||code.label["en"]||""}})))
     }
-
 
     _deleteSingleMessage(e){
         //@ToDo
@@ -1318,11 +1325,44 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         return !!((m.status & (1 << 26)) === 0)
     }
 
+    _wrapPatient(patient) {
+        return {
+            id: patient.id,
+            name: patient.firstName + " " + patient.lastName || patient.id,
+            ssin: patient.ssin
+        };
+    }
+
+    _pushDistinctPatient(listPath, patient) {
+        if (!patient || !patient.id) return;
+        if (this.get(listPath).find(item => item.id === patient.id)) return;
+        this.push(listPath, this._wrapPatient(patient));
+    }
 
     _patientIdChanged(){
-        if(!this.selectedMessage) return;
-        let found = (this.patientList.find(pat => pat.id===this.selectedMessage.patientId) || {ssin:""}).ssin
-        found !==this.selectedMessage.patientSsin && this.set("selectedMessage.patientSsin", found)
+        if (!this.selectedMessage || !this.selectedMessage.id || !this.selectedMessage.patientId) return;
+        let pat = this.patientList.find(p => p.id === this.selectedMessage.patientId);
+        if (pat) (pat.ssin !== this.selectedMessage.patientSsin) && this.set("selectedMessage.patientSsin", pat.ssin)
+        else {
+            return this.api.patient().filterByWithUser(this.user, null, null, 10, null, null, "desc", {
+                filter: {
+                    '$type': 'PatientByHcPartyAndSsinFilter',
+                    'healthcarePartyId': this.selectedMessage.fromHealthcarePartyId,
+                    'id': this.selectedMessage.patientId
+                }
+            })
+                .then(pats => {
+                    pats.rows.map(pat => this._pushDistinctPatient("patientList", pat));
+                    const pat = this.patientList.find(p => p.id === this.selectedMessage.patientId) || {
+                        id: "",
+                        ssin: "",
+                        name: ""
+                    };
+                    this.set("selectedMessage.patientId", pat.id);
+                    this.shadowRoot.querySelector("#patCombo").selectedItem = pat;
+                    (pat.ssin !== this.selectedMessage.patientSsin) && this.set("selectedMessage.patientSsin", pat.ssin)
+                })
+        }
     }
 
     _validSsin(ssin) {
@@ -1344,11 +1384,7 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     'ssin': this.selectedMessage.patientSsin
                 }
             }).then(pats => {
-                pats.rows.map(pat => this.push("patientList",{
-                    id: pat.id,
-                    name: pat.firstName + " " + pat.lastName || pat.id,
-                    ssin: pat.ssin
-                }))
+                pats.rows.map(pat => this._pushDistinctPatient("patientList",pat))
                 this.set("selectedMessage.patientId",this.patientList.find(pat => pat.ssin===this.selectedMessage.patientSsin).id)
             })
         }
@@ -1417,6 +1453,15 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	    else
 	        this.dispatchEvent(new CustomEvent("document-update",  { detail: detail, bubbles: true }))
     }
+
+    _gotoPreviousGridPage() {
+        if ( parseInt(_.get(this,"_currentPageNumber",1)) > 1 ) this.set( '_currentPageNumber',( parseInt(_.get(this,"_currentPageNumber",2)) - 1 ) )
+    }
+
+    _gotoNextGridPage() {
+        if ( parseInt(_.get(this,"_currentPageNumber",1)) < parseInt(_.get(this,"_totalPagesForCurrentFolderAndCurrentFilter",1)) ) this.set('_currentPageNumber', ( parseInt(_.get(this,"_currentPageNumber",1)) + 1 ) )
+    }
+
 
 }
 
