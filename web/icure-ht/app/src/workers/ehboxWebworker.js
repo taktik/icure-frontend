@@ -47,7 +47,10 @@ onmessage = e => {
         const iccMessageXApi    = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi)
         const iccPatientXApi    = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi)
 
-        let totalNewMessages = 0
+        let totalNewMessages = {
+            INBOX: 0,
+            SENTBOX: 0
+        }
 
 
 
@@ -67,7 +70,7 @@ onmessage = e => {
                         !!(parseInt(_.get(_.head(_.get(foundExistingMessage,"rows",[])),"created",Date.now())) < (Date.now() - (31 * 24 * 3600000))) ? removeMsgFromEhboxServer(_.head(_.get(foundExistingMessage,"rows",[]))) : promResolve :
                         registerNewMessage(fullMessageFromEHealthBox, boxId)
                             .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
-                            .then(() => totalNewMessages++ )
+                            .then(() => totalNewMessages[boxId]++ )
                 )
                 .catch(e=>{console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ",e); return promResolve;})
 
@@ -377,11 +380,23 @@ onmessage = e => {
         let prom = Promise.resolve()
         _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
             _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
-                .then((promisesCarrier) => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
+                .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
                 .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
                 .finally(()=> _.concat(promisesCarrier, []))
             )
-            prom.then(()=> singleBoxId === "INBOX" && parseInt(totalNewMessages) ? postMessage({totalNewMessages: parseInt(totalNewMessages)}) : false )
+            prom.then(()=> {
+
+                if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
+                    postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
+                    setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
+                }
+
+                if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
+                    postMessage({forceRefresh: true});
+                    setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
+                }
+
+            })
         }))
 
 
