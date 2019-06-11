@@ -642,6 +642,7 @@
                 } else if (type === 'pdf') {
                     this.set('isPdf', true);
                     this.set('selectedData',base64);
+                    // setTimeout(() => this.shadowRoot.querySelector("#viewer").zoomFit(), 1000)
                 }
             }
 
@@ -882,17 +883,23 @@
                 }
             }
 
+            _isInvalid(document) {
+                return _.trim(document.title) === "" || document.type === "" || document.docDate === "" || !document.fileBlob;
+            }
+
             _saveDocuments() {
-                if ((_.trim(this.selectedDoc.title) === "" || this.selectedDoc.type === "" || this.selectedDoc.docDate === "" || !this.selectedDoc.fileBlob)) {
-                    let errors = [];
-                    errors.push(!this.selectedDoc.type && this.localize('doc-typ', 'Type de document', this.language));
-                    errors.push(!this.selectedDoc.docDate && this.localize('doc_date', 'Document date', this.language));
-                    errors.push(!this.selectedDoc.title && this.localize('docTitle', 'Title', this.language));
-                    errors.push(!this.selectedDoc.fileBlob && this.localize('file', 'File', this.language));
+                if (this.docList.length === 0) return;
+                let invalidDoc = this.docList.find(d => this._isInvalid(d));
+                if (invalidDoc) {
+                    let errors = []
+                    errors.push(!invalidDoc.type && this.localize('doc-typ', 'Type de document', this.language));
+                    errors.push(!invalidDoc.docDate && this.localize('doc_date', 'Document date', this.language));
+                    errors.push(!invalidDoc.title && this.localize('docTitle', 'Title', this.language));
+                    errors.push(!invalidDoc.fileBlob && this.localize('file', 'File', this.language));
                     let errorDetail = errors.filter(item => !!item).join(', ');
                     this.dispatchEvent(new CustomEvent("error-message", {
                         detail: {
-                            title: this.selectedDoc.title || 'Unknown',
+                            title: invalidDoc.title || 'Unknown',
                             message: 'err.document.missingField',
                             detail: errorDetail
                         }, bubbles: true
@@ -900,7 +907,7 @@
                 } else {
                     this.dispatchEvent(new CustomEvent('save-documents', {
                         detail: {
-                            documents: [this.selectedDoc]
+                            documents: this.docList
                         },
                         bubbles: true
                     }));
@@ -924,9 +931,8 @@
 
             saveDocuments(e) {
                 if (!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
-                let message = null;
-                (e.detail.documents || []).map(doc => {
-                    Promise.all([
+                console.log("message to process ", e.detail.documents.length);
+                Promise.all((e.detail.documents || []).map(doc => Promise.all([
                         this.api.user().findByHcpartyId(doc.hcp),
                         this.api.message().newInstance(this.user)])
                         .then(([user, msg]) => this.api.message().createMessage(_.merge(msg, {
@@ -942,10 +948,10 @@
                             toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")), _.get(user, "email", doc.hcp)],
                             subject: "imported doc in message",
                             //@ToDo test on persphysician ==> traited or not
-                            status: (doc.isScanned ? 1 << 24 : 0) | 1 << 25 | (doc.patientId ? 1 << 26 : 0)
+                            status: (doc.isScanned ? 1 << 24 : 0) | 1 << 1 | 1 << 25 | (doc.patientId ? 1 << 26 : 0)
                         })))
                         .then(msg => {
-                            message = msg;
+                            console.log("processing message ", msg.id);
                             let mimeType = _.toLower(doc.extension);
                             mimeType = mimeType === 'jpg' ? 'jpeg' : mimeType === 'tif' ? 'tiff' : mimeType;
                             return this.api.document().newInstance(this.user, msg, {
@@ -953,24 +959,21 @@
                                 mainUti: this.api.document().uti(mimeType === "pdf" ? "application/pdf" : "image/" + mimeType),
                                 name: doc.title.includes("." + doc.extension) ? _.trim(doc.title) : _.trim(doc.title) + "." + doc.extension
                             })
+                                .then(newDoc => this.api.document().createDocument(newDoc))
+                                .then(createdDoc => {
+                                    doc.docId = createdDoc.id;
+                                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
+                                })
+                                .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent))
+                                .then(() => msg)
                         })
-                        .then(newDoc => this.api.document().createDocument(newDoc))
-                        .then(createdDoc => {
-                            doc.docId = createdDoc.id
-                            return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
-                        })
-                        .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent)
-                            .then(x => x)
-                            .catch((e) => {
-                                console.log("---error upload attachment---")
-                            }))
-                        .finally(x => {
-                            if (!doc.patientId && !this.message) {
-                                this._encryptInfo(message, [{}])
-                                    .then((msg) => this.api.message().modifyMessage(msg))
-                                    .then(() => e.detail.event && this.dispatchEvent(new CustomEvent(e.detail.event, {bubbles: true})))
+                        .then((msg) => {
+                            if (!doc.patientId) {
+                                console.log("no patient for message ", msg.id);
+                                return this._encryptInfo(msg, [{}])
                             } else {
-                                this.api.patient().getPatientWithUser(this.user, doc.patientId)
+                                console.log("has patient for message ", msg.id);
+                                return this.api.patient().getPatientWithUser(this.user, doc.patientId)
                                     .then(patient => this.api.register(patient, "patient"))
                                     .then(patient => this.api.contact().newInstance(this.user, patient, {
                                         created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
@@ -993,16 +996,19 @@
                                         return this.api.contact().createContactWithUser(this.user, contact)
                                     })
                                     .then(contact => this.api.register(contact, "contact"))
-                                    .then(contact => this._encryptInfo(message, [{
+                                    .then(contact => this._encryptInfo(msg, [{
                                         'patientId': doc.patientId,
                                         'isAssigned': true,
                                         'contactId': contact.id
                                     }]))
-                                    .then((msg) => this.api.message().modifyMessage(msg))
-                                    .then(() => this.dispatchEvent(new CustomEvent("post-process", {bubbles: true})))
                             }
                         })
-                })
+                        .then((msg) => this.api.message().modifyMessage(msg))
+                        .catch((error) => console.log(error))
+                ))
+                    .then((values) => console.log("processed messages ", values.length))
+                    .catch((error) => console.log(error))
+                    .finally(() => this.dispatchEvent(new CustomEvent("post-process", {bubbles: true})))
             }
 
             showErrorMessage(e) {
