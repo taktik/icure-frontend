@@ -320,6 +320,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         user="[[user]]"
                         menu-selection-object="[[selectList]]"
                         on-selected-message-changed="handleMessageChange"
+                        on-message-moved-to-assigned-folder="_handleMessageMovedToAssignedFolder"
                         on-update-menu-folders-totals="callPersonalInboxUpdateMenuFoldersTotals"
                         on-create-new-msg="_triggerCreateNewMessage"
                         on-reply-to-or-forward-message="_triggerReplyToOrForwardMessage"
@@ -460,6 +461,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <!--            </div>-->
 <!--        </paper-dialog>-->
     </template>
+
+
+
     <script>
 
         class HtMsg extends Polymer.TkLocalizerMixin(Polymer.Element) {
@@ -541,6 +545,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Boolean,
                         value: false
                     },
+                    forceRefresh: {
+                        type: Boolean,
+                        value: false
+                    },
                     patientList: {
                         type: Array,
                         value: []
@@ -551,7 +559,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             static get observers() {
                 return [
                     '_setIsConnectedToEhbox(api.tokenId)',
-                    '_getCurrentAndParentHcps(user)'
+                    '_getCurrentAndParentHcps(user)',
+                    '_forceRefreshList(forceRefresh)'
                 ];
             }
 
@@ -746,8 +755,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     )
                     .catch((e)=>console.log("ERROR with _getCurrentAndParentHcps:", e))
                     .finally(()=> {
-                        this.shadowRoot.querySelector("#msg-menu") && typeof _.get(this.shadowRoot.querySelector("#msg-menu"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-menu").assignResolvedObjects({currentHcp:this.currentHcp, isAMedicalHouse:this.isAMedicalHouse, medicalHouseBillingTypeIsFlatRate:this.medicalHouseBillingTypeIsFlatRate, parentHcp:this.parentHcp, isParentAMedicalHouse:this.isParentAMedicalHouse})
-                        this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-list").assignResolvedObjects({currentHcp:this.currentHcp, isAMedicalHouse:this.isAMedicalHouse, medicalHouseBillingTypeIsFlatRate:this.medicalHouseBillingTypeIsFlatRate, parentHcp:this.parentHcp, isParentAMedicalHouse:this.isParentAMedicalHouse})
+                        const dataToAssign = {currentHcp:this.currentHcp, isAMedicalHouse:this.isAMedicalHouse, medicalHouseBillingTypeIsFlatRate:this.medicalHouseBillingTypeIsFlatRate, parentHcp:this.parentHcp, isParentAMedicalHouse:this.isParentAMedicalHouse}
+                        this.shadowRoot.querySelector("#msg-menu") && typeof _.get(this.shadowRoot.querySelector("#msg-menu"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-menu").assignResolvedObjects(dataToAssign)
+                        this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-list").assignResolvedObjects(dataToAssign)
+                        this.shadowRoot.querySelector("#msg-detail") && typeof _.get(this.shadowRoot.querySelector("#msg-detail"), "assignResolvedObjects", false) === "function" && this.shadowRoot.querySelector("#msg-detail").assignResolvedObjects(dataToAssign)
                     })
 
             }
@@ -757,6 +768,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const givenMessage = _.trim(_.get(e,"detail.message.id","")) ? _.get(e,"detail.message",{}) : {}
                 const additionalParameters = _.get(e,"detail.additionalParameters",{})
                 return !!actionToTake && !!givenMessage ? this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "takeActionForDetailMessage", false) === "function" && this.shadowRoot.querySelector("#msg-list").takeActionForDetailMessage(actionToTake,givenMessage,additionalParameters) : false
+            }
+
+            _forceRefreshList(forceRefresh) {
+                return !!forceRefresh && this.shadowRoot.querySelector("#msg-list") && typeof _.get(this.shadowRoot.querySelector("#msg-list"), "_triggerGetEHealthBoxDataForceRefreshFromWebWorker", false) === "function" ? this.shadowRoot.querySelector("#msg-list")._triggerGetEHealthBoxDataForceRefreshFromWebWorker() : false
+            }
+
+            _handleMessageMovedToAssignedFolder() {
+                this.shadowRoot.querySelector("#msg-detail") && typeof _.get(this.shadowRoot.querySelector("#msg-detail"), "_messageGotMovedToAssignedFolder", false) === "function" && this.shadowRoot.querySelector("#msg-detail")._messageGotMovedToAssignedFolder()
             }
 
 
