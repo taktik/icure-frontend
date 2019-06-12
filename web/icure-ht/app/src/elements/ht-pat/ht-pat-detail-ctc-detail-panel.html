@@ -1896,7 +1896,6 @@
 			_getDLPdfHeader() {
 
 				// <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
-
 				return `
                     <html>
                         <head>
@@ -1904,9 +1903,8 @@
                             <style>
                                 html {margin:0;padding:0;box-sizing:border-box;}
                                 body {margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif;box-sizing:border-box; }
-                                .page {width: 90%;height:90%; overflow:hidden; color:#000000; font-size:12px; padding: 4mm; margin:5%; box-sizing: border-box; }
-
-                                p {margin-top:0}
+                                .page {width: 90%;height:90%; margin:5%;overflow:hidden; color:#000000; font-size:12px;  box-sizing: border-box;}
+                                p {margin-top:0;}
 								p.title {font-weight: bold;font-size: 18px;}
 								p.comment {height: 20mm;}
 
@@ -2278,7 +2276,9 @@
                         return _.assign({pdfContent:pdfContent},resourcesObject)
 
                     })
-                    .then(resourcesObject => this.api.pdfReport(this._getDLPdfHeader()+ _.trim(resourcesObject.pdfContent) + this._getPdfFooter(), {type:"recipe",completionEvent:"pdfDoneRenderingEvent", option:'a5',paperWidth:148,paperHeight:210,marginLeft: 0,marginRight: 0,marginTop: 0,marginBottom: 0}).then(({pdf:pdfFileContent, printed:printed}) => _.assign({pdfFileContent:pdfFileContent, printed: printed}, resourcesObject)))
+					.then(resourcesObject => this.api.isElectronAvailable().then(isElectron => _.assign({isElectron:isElectron}, resourcesObject)))
+					.then(resourcesObject => resourcesObject.isElectron ? fetch('http://localhost:16042/getPrinterSetting', {method: "POST",headers: {"Content-Type": "application/json; charset=utf-8"},body: JSON.stringify({userId: this.user.id})}).then(response => response && response.status===200 ? response.json() : Promise.resolve({})).then( data => _.assign({printFormat : data && data.data && JSON.parse(data.data) && JSON.parse(data.data).find(x => x.type==="recipe") ?JSON.parse(data.data).find(x => x.type==="recipe").format : "A4"}, resourcesObject) ) : resourcesObject)
+                    .then(resourcesObject => this.api.pdfReport((resourcesObject.isElectron && resourcesObject.printFormat!=="A4" ? this._getDLPdfHeader() : this._getA5PdfHeader())+ _.trim(resourcesObject.pdfContent) + this._getPdfFooter(), {type:"recipe",completionEvent:"pdfDoneRenderingEvent", option:'a5',paperWidth:148,paperHeight:210,marginLeft: 0,marginRight: 0,marginTop: 0,marginBottom: 0}).then(({pdf:pdfFileContent, printed:printed}) => _.assign({pdfFileContent:pdfFileContent, printed: printed}, resourcesObject)))
                     .then(resourcesObject => this.api.message().newInstanceWithPatient(this.user, this.patient)
                         .then(newMessageInstance=>_.assign({newMessageInstance: newMessageInstance}, resourcesObject))
                         .then(resourcesObject=>this.api.message().createMessage(
@@ -3528,84 +3528,9 @@
 				this.set('traductValue',this.localize(tab[value],tab[value],this.language))
 			}
 
-			saveDoc(e){
-			    if(!(e && e.detail && e.detail.documents && e.detail.documents.length))return;
-
-                (e.detail.documents || []).map( doc =>{
-                	const tab = [
-						(doc.patientId ? {
-							patientId : doc.patientId,
-							isAssigned: true
-						}: {})
-					]
-					let message = null
-
-                	Promise.all([
-						this.api.user().findByHcpartyId(doc.hcp),
-                    	this.api.message().newInstance(this.user)])
-							.then(([user,msg]) => this.api.message().createMessage(_.merge(msg,{
-								transportGuid : "DOC:"+(doc.isScanned ? "SCAN" :"IMPORT")+":IN",
-								recipients :[doc.hcp,(this.user.healthcarePartyId || (this.hcp && this.hcp.id) || "")],
-								recipientsType : "org.taktik.icure.entities.HealthcareParty",
-								metas :{
-									filename : doc.title,
-									importDate : doc.importDate,
-									documentDate : doc.docDate,
-									type : doc.type
-								},
-								toAddresses : [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")),_.get(user,"email",doc.hcp)],
-								subject : "imported doc in patient folder",
-								//@ToDo test on persphysician ==> traited or not
-								status : (doc.isScanned ? 1<<24 : 0) | 1<<25 | (doc.patientId ? 1<<26 : 0)
-							})))
-							.then(msg =>{
-								message = msg
-								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, msg,this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(tab))))
-							})
-							.then(cryptedMsg =>{
-								message.metas.cryptedInfo = btoa(String.fromCharCode.apply(null, new Uint8Array(cryptedMsg)))
-								return this.api.message().modifyMessage(message)
-							})
-							.then(msg => this.api.register(msg,"message"))
-							.then(msg => this.api.document().newInstance(this.user, msg, {
-								documentType: doc.type,
-								mainUti: this.api.document().uti(_.toLower(doc.extension)==="pdf" ? "application/"+_.toLower(doc.extension) : "image/"+_.toLower(doc.extension)),
-								name: doc.title.includes("."+doc.extension) ? _.trim(doc.title) :_.trim(doc.title)+"."+doc.extension})
-							)
-							.then(newDoc => this.api.document().createDocument(newDoc))
-							.then(createdDoc =>{
-								doc.docId = createdDoc.id
-								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc,doc.fileBlob)
-							})
-							.then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment---")}))
-							.finally(x => {
-								if(!doc.patientId)return;
-								(doc.patientId===this.patient.id ? Promise.resolve(this.patient) : this.api.patient().getPatientWithUser(this.user, doc.patientId))
-									//.then(patient  => this.api.register(patient,"patient"))
-									.then(patient => this.api.contact().newInstance(this.user, patient, {
-										created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-										modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-										author: this.user.id,
-										responsible: this.user.healthcarePartyId,
-										subContacts: []
-									}))
-									.then(contact => {
-										const svc = this.api.contact().service().newInstance(this.user, { content: _.fromPairs([[this.language, { documentId: doc.docId, stringValue: doc.title }]]), label: 'imported document' });
-										contact.services =[svc];
-										const sc = { status: 64, services: [{ serviceId: svc.id }] };
-										contact.subContacts.push(sc);
-
-										return this.api.contact().createContactWithUser(this.user,contact)
-									}).then(contact => this.api.register(contact,"contact"))
-							})
-				})
-			}
-
             resizeFloatingBar(isTooSmall){
                 isTooSmall ? this.root.querySelector('.floating-action-bar').classList.add('mobile') : this.root.querySelector('.floating-action-bar').classList.remove('mobile')
             }
-
-
 
             _isConnectedToEhbox() {
                 this.set("ehealthSession", !!this.api.tokenId)
