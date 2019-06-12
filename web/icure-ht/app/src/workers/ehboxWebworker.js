@@ -66,11 +66,7 @@ onmessage = e => {
                 )
                 .then(([fullMessageFromEHealthBox, foundExistingMessage]) => !_.trim(_.get(fullMessageFromEHealthBox,"id","")) ?
                     promResolve : // Could be message couldn't be decrypted due to obsolete keystores
-                    !!_.size(_.get(foundExistingMessage,"rows",[])) ?
-                        !!(parseInt(_.get(_.head(_.get(foundExistingMessage,"rows",[])),"created",Date.now())) < (Date.now() - (31 * 24 * 3600000))) ? removeMsgFromEhboxServer(_.head(_.get(foundExistingMessage,"rows",[]))) : promResolve :
-                        registerNewMessage(fullMessageFromEHealthBox, boxId)
-                            .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
-                            .then(() => totalNewMessages[boxId]++ )
+                    convertFromOldToNewSystemAndCarryOn(boxId, fullMessageFromEHealthBox, _.head(_.get(foundExistingMessage,"rows",[{}])))
                 )
                 .catch(e=>{console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ",e); return promResolve;})
 
@@ -380,6 +376,59 @@ onmessage = e => {
                 )
 
         }
+
+
+
+        const convertFromOldToNewSystemAndCarryOn = (boxId, fullMessageFromEHealthBox, foundExistingMessage) => {
+
+            const promResolve = Promise.resolve()
+
+            return !_.trim(_.get(foundExistingMessage,"id","")) ?
+
+                // Message doesn't exist yet
+                registerNewMessage(fullMessageFromEHealthBox, boxId)
+                    .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
+                    .then(() => totalNewMessages[boxId]++ ) :
+
+                // Auto-clean on EH BOX after six month
+                !!(parseInt(_.get(foundExistingMessage, "created", Date.now())) < (Date.now() - (180 * 24 * 3600000))) ? removeMsgFromEhboxServer(foundExistingMessage) :
+
+                promResolve.then(()=>{
+
+                    const userHpcId = _.trim(_.get(user,"healthcarePartyId",""))
+                    const receivedDate = parseInt(_.get(foundExistingMessage,"received",0))
+                    const isAlreadyHidden = !!(_.get(foundExistingMessage,"status",0)&(1<<14))
+                    const isAlreadyProcessed = !!(_.get(foundExistingMessage,"status",0)&(1<<26))
+                    const sourceBox = _.trim(_.get(_.trim(_.get(foundExistingMessage,"transportGuid","")).split(':'), "[0]", ""))
+
+                    return iccDocumentXApi.findByMessage(userHpcId, foundExistingMessage).catch(e=>{console.log("ERROR with findByMessage: ", e); return promResolve;})
+                        .then(documentsOfMessage => !_.size(documentsOfMessage) ?
+                            promResolve :
+                            Promise.all(_.compact(_.filter(documentsOfMessage,d=>!!_.trim(_.get(d,"attachmentId",""))&&!!_.trim(_.get(d,"secretForeignKeys","")))).map(singleDocument => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(userHpcId, _.trim(_.get(singleDocument,"id","")), _.size(_.get(singleDocument,"encryptionKeys",[])) ? _.get(singleDocument,"encryptionKeys",[]) : _.get(singleDocument,"delegations",[]))
+                                .then(({extractedKeys: enckeys}) => beResultApi.canHandle(_.trim(_.get(singleDocument,"id","")), enckeys.join(',')).then(canHandle=>!!canHandle).catch(e=>{console.log("ERROR with canHandle: ", e); return Promise.resolve(false);}))
+                                .then(canHandle=>([singleDocument,!!canHandle]))
+                            ))
+                        )
+                        .then(documentsAndCanHandleResults => {
+
+                            const newSystemProdCommitDate = 1560231000000 // 20190611 @ 7.30 AM
+                            const atLeastOneLabResult = !!_.size(_.filter(documentsAndCanHandleResults, i => !!i[1]))
+
+                            return !!(boxId !== "INBOX" || sourceBox !== "INBOX" || !atLeastOneLabResult || !!isAlreadyHidden || !!isAlreadyProcessed || !(receivedDate < newSystemProdCommitDate )) ?
+                                promResolve :
+                                msgApi.deleteMessages(_.trim(_.get(foundExistingMessage,"id",""))).then(()=>{
+                                    _.map(documentsAndCanHandleResults, documentAndCanHandleResult => docApi.deleteDocument(_.trim(_.get(documentAndCanHandleResult,"[0].id",""))).catch(e=>console.log("ERROR with deleteDocument", e)))
+                                    return registerNewMessage(fullMessageFromEHealthBox, boxId)
+                                        .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
+                                        .then(() => totalNewMessages[boxId]++ )
+
+                                })
+
+                        })
+
+                })
+
+            }
 
 
 
