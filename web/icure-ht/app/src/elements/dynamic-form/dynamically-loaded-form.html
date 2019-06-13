@@ -175,12 +175,6 @@
                         type: Object,
                         value: null
                     },
-                    layoutInfoPerLabel: {
-                        type: Object,
-                        value: function () {
-                            return {};
-                        }
-                    },
                     hcpListItem: {
                         type: Array,
                         value: []
@@ -367,11 +361,6 @@
                                 }]
                             }]
                         });
-                    } else {
-                        this.set('layoutInfoPerLabel', (this.form.template.layout.sections && _.flatMap(this.form.template.layout.sections, s => s.formColumns && _.flatMap(s.formColumns, c => c.formDataList || []) || []) || []).reduce((acc, fli) => {
-                            acc[fli.name] = fli;
-                            return acc;
-                        }, {}));
                     }
                     !this.currentContact && this.set('currentContact', this._allContacts().find(c => !c.closingDate) || null);
                 }
@@ -462,8 +451,13 @@
             }
 
             getDataProvider(form, rootPath) {
+			 	const layoutInfoPerLabel = (form.template.layout && form.template.layout.sections && _.flatMap(form.template.layout.sections, s => s.formColumns && _.flatMap(s.formColumns, c => c.formDataList || []) || []) || []).reduce((acc, fli) => {
+						acc[fli.name] = fli;
+						return acc;
+					}, {})
+
                 const initWrapper = (label, init) => svc => {
-                    const li = this.layoutInfoPerLabel[label];
+                    const li = layoutInfoPerLabel[label];
                     if (li) {
                         li.tags && li.tags.forEach(tag => {
                             const exTag = svc.tags.find(t => t.type === tag.type);
@@ -499,6 +493,7 @@
 							_.uniq(self.services.map(s => s.svc && ({name:s.svc.label, label:s.svc.label})))
 						))
 					},
+                    form: () => form,
                     computeFormulas: (lifecycles) => {
                         try {
                         	form = form || this.form
@@ -729,8 +724,14 @@
                         return s && s.svc && ((s.svc.endOfLife && this.localize('service_mod_del','Modified or deleted service',this.language)===this.form.template.name) || !s.svc.endOfLife) && s.svc.valueDate;
                     },
                     getValue: (label) => {
-                        const s = self.getServicesLineForContact(label)[0];
-                        return s ? s.svc ? this.api.contact().shortServiceDescription(s.svc, this.language) : "<NA>" : "-";
+                    	const valContainers = self.getValueContainers(label)
+
+						if (valContainers && valContainers.length > 1) {
+							return valContainers.map(svc => this.api.contact().shortServiceDescription(svc, this.language))
+						} else {
+							const s = self.getServicesLineForContact(label)[0];
+							return s ? s.svc ? this.api.contact().shortServiceDescription(s.svc, this.language) : "<NA>" : "-";
+						}
 					},
                     getRawValue: (label) => {
                         const s = self.getServicesLineForContact(label)[0];

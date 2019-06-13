@@ -1,7 +1,7 @@
 /* global PDFJS, URL */
 
 'use strict';
-
+import moment from 'moment/src/moment';
 (function(window, undefined) {
   var Reader = function(el) {
     this.element = el;
@@ -45,7 +45,7 @@
       this.HEIGHT = this.viewportOut.offsetHeight;
 
     var width = this.WIDTH,
-      height = this.HEIGHT;
+        height = this.HEIGHT;
 
     if (attrName === 'width') {
       width = newVal;
@@ -60,9 +60,9 @@
     // this.element.style.height = this.reader.style.height = this.HEIGHT + 64 + 'px';
 
     // this.viewportOutStyle.width = width + 'px';
-      if (!this.fitHeight) {
-          this.viewportOutStyle.height = height + 'px';
-      }
+    if (!this.fitHeight) {
+      this.viewportOutStyle.height = height + 'px';
+    }
 
     this.spinner.style.top = (height - this.toolbarHeight) / 2 + 'px';
   };
@@ -75,7 +75,7 @@
     this.fitWidth = fitWidth;
   };
   Reader.prototype.setFitHeight = function(fitHeight) {
-      this.fitHeight = fitHeight;
+    this.fitHeight = fitHeight;
   };
 
   Reader.prototype.queueRenderPage = function(num) {
@@ -89,8 +89,8 @@
   Reader.prototype.loadPDF = function() {
     this.setSize();
     var self = this;
-
-    PDFJS.getDocument({url: this.SRC, withCredentials: true}).then(function(pdf) {
+    const docSrc = validURL(this.SRC) ? {url: this.SRC, withCredentials: true} : {data: atob(this.SRC)}
+    PDFJS.getDocument(docSrc).then(function(pdf) {
       self.PDF = pdf;
       self.queueRenderPage(1);
 
@@ -121,6 +121,16 @@
     });
   };
 
+  function validURL(str) {
+    var regex = /(http|https):\/\/(\w+:{0,1}\w*)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%!\-\/]))?/;
+    if(!regex .test(str)) {
+      //alert("Please enter valid URL.");
+      return false;
+    } else {
+      return true;
+    }
+  }
+
   Reader.prototype.renderPDF = function(pageNum, resize, isFull) {
     var self = this;
     self.pageRendering = true;
@@ -134,8 +144,8 @@
 
       if (self.currentZoomVal === 0 || !!resize) {
         scaleW = Math.round((self.WIDTH / self.pageW) * 100) / 100,
-          scaleH = Math.round(((self.HEIGHT - self.toolbarHeight) / self.pageH) * 100) / 100,
-          scale = Math.min(scaleH, scaleW);
+            scaleH = Math.round(((self.HEIGHT - self.toolbarHeight) / self.pageH) * 100) / 100,
+            scale = Math.min(scaleH, scaleW);
         self.fitZoomVal = scale;
         self.widthZoomVal = self.WIDTH / self.pageW;
         self.currentZoomVal = self.fitWidth ? self.widthZoomVal : self.fitZoomVal;
@@ -161,7 +171,7 @@
         self.viewport.height = self.pageH;
         self.viewportStyle.width = self.pageW + 'px';
         if (!self.fitHeight) {
-            self.viewportStyle.height = self.pageH + 'px';
+          self.viewportStyle.height = self.pageH + 'px';
         }
 
         if (self.enableTextSelection){
@@ -240,13 +250,13 @@
               textDivs: []
             })
             task.promise.then(() => {
-                if (self.fitHeight && self.textLayerDiv && self.textLayerDiv.offsetHeight) {
-                  setTimeout(() => {
-                      const newHeight = Math.max(self.textLayerDiv.offsetHeight, 200) + self.toolbarHeight + 32 + 'px'
-                      console.log('Setting pdf-element height to ' + newHeight)
-                      self.element.style.height = newHeight
-                  }, 300)
-                }
+              if (self.fitHeight && self.textLayerDiv && self.textLayerDiv.offsetHeight) {
+                setTimeout(() => {
+                  const newHeight = Math.max(self.textLayerDiv.offsetHeight, 200) + self.toolbarHeight + 32 + 'px'
+                  console.log('Setting pdf-element height to ' + newHeight)
+                  self.element.style.height = newHeight
+                }, 300)
+              }
             });
           });
         }
@@ -327,7 +337,7 @@
 
   Reader.prototype.download = function(context) {
     var a = document.createElement('a'),
-      filename = this.SRC.split('/');
+        filename = validURL(this.SRC) ? this.SRC.split('/') : [`${"document"}_${moment()}.pdf`];
 
     a.href = this.downloadLink;
     a.target = '_parent';
