@@ -40,6 +40,8 @@
 <link rel="import" href="../ht-spinner/ht-spinner.html">
 <link rel="import" href="../../scrollbar-style.html">
 
+
+
 <link rel="import" href="../dynamic-form/dynamic-subcontact-type-selector.html">
 <link rel="import" href="../../elements/ht-msg/ht-msg-new.html">
 
@@ -796,6 +798,10 @@
 		</div>
 
 		<entity-selector id="load-template-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[reportTemplatesSelectorColumns()]]" data-provider="[[reportCustomTemplatesSelectorDataProvider()]]" entity-icon="vaadin:doctor" entity-type="[[localize('template','Template',language)]]" on-entity-selected="_reportTemplateSelected"></entity-selector>
+		<entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
+
+        <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" global-hcp=[[globalHcp]] on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"></ht-pat-prescription-dialog>
+
 		<ht-pat-invoicing-dialog id="invoicingForm" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-invoicing-dialog>
 
 		<paper-dialog id="prose-editor-dialog" no-cancel-on-outside-click no-cancel-on-esc-key>
@@ -832,7 +838,18 @@
 
 		<template is="dom-if" if="[[busySpinner]]"><div id="busySpinner"><div id="busySpinnerContainer"><ht-spinner class="spinner" active></ht-spinner></div></div></template>
 
+        <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox yet',language)]]</h3>
+                <p class="textAlignCenter m-t-20">[[localize('pleaseConnecteHealthBoxFirst','Please connect your eHealthBox first',language)]].</p>
+            </div>
+            <div class="dialogButtons">
+                <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
 
+        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
 
 	</template>
 	<script>
@@ -929,9 +946,6 @@
 								{ icon: "icure-svg-icons:blood-pressure", filter:[{type:'CD-PARAMETER',code:['sbp','dbp']}],  title: {en: "BloodPressure", fr:"Pression sanguine", nl:"BloodPressure"}, id: "BloodPressure" },
 								{ icon: "icure-svg-icons:blood-pressure", filter:[{type:'CD-PARAMETER',code:['weight','height','bmi']}],  title: {en: "Biometries", fr:"Biométries", nl:"Biometries"}, id: "Biometry" }];
 						}
-					},
-					files: {
-						type: Array
 					},
 					showAddFormsContainer: {
 						type: Boolean,
@@ -1072,8 +1086,6 @@
                 )))
 
                 this._contactsChanged()
-
-
             }
 
 			ifRecipeAvailable(){
@@ -1213,11 +1225,6 @@
 
 			addDocument() {
 				this.set('showAddFormsContainer', false);
-                // const vaadinUpload = this.$['vaadin-upload'];
-                // vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-                // vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
-                // this.set('files',[])
-				// this.$['upload-dialog'].open();
                 this.dispatchEvent(new CustomEvent('add-document', {detail: {currentContact: this.currentContact}, composed: true, bubbles: true}))
 			}
 
@@ -1895,7 +1902,6 @@
 			_getDLPdfHeader() {
 
 				// <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
-
 				return `
                     <html>
                         <head>
@@ -1903,9 +1909,8 @@
                             <style>
                                 html {margin:0;padding:0;box-sizing:border-box;}
                                 body {margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif;box-sizing:border-box; }
-                                .page {width: 90%;height:90%; overflow:hidden; color:#000000; font-size:12px; padding: 4mm; margin:5%; box-sizing: border-box; }
-
-                                p {margin-top:0}
+                                .page {width: 90%;height:90%; margin:5%;overflow:hidden; color:#000000; font-size:12px;  box-sizing: border-box;}
+                                p {margin-top:0;}
 								p.title {font-weight: bold;font-size: 18px;}
 								p.comment {height: 20mm;}
 
@@ -1974,7 +1979,7 @@
                             {
                                 documentType: 'report',
                                 mainUti: this.api.document().uti("application/pdf"),
-                                name: reportData.title + " " + reportData.description
+                                name: reportData.title + " " + reportData.description + ".pdf"
                             }
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
@@ -2277,7 +2282,9 @@
                         return _.assign({pdfContent:pdfContent},resourcesObject)
 
                     })
-                    .then(resourcesObject => this.api.pdfReport(this._getDLPdfHeader()+ _.trim(resourcesObject.pdfContent) + this._getPdfFooter(), {type:"recipe",completionEvent:"pdfDoneRenderingEvent", option:'a5',paperWidth:148,paperHeight:210,marginLeft: 0,marginRight: 0,marginTop: 0,marginBottom: 0}).then(({pdf:pdfFileContent, printed:printed}) => _.assign({pdfFileContent:pdfFileContent, printed: printed}, resourcesObject)))
+					.then(resourcesObject => this.api.isElectronAvailable().then(isElectron => _.assign({isElectron:isElectron}, resourcesObject)))
+					.then(resourcesObject => resourcesObject.isElectron ? fetch('http://localhost:16042/getPrinterSetting', {method: "POST",headers: {"Content-Type": "application/json; charset=utf-8"},body: JSON.stringify({userId: this.user.id})}).then(response => response && response.status===200 ? response.json() : Promise.resolve({})).then( data => _.assign({printFormat : data && data.data && JSON.parse(data.data) && JSON.parse(data.data).find(x => x.type==="recipe") ?JSON.parse(data.data).find(x => x.type==="recipe").format : "A4"}, resourcesObject) ) : resourcesObject)
+                    .then(resourcesObject => this.api.pdfReport((resourcesObject.isElectron && resourcesObject.printFormat!=="A4" ? this._getDLPdfHeader() : this._getA5PdfHeader())+ _.trim(resourcesObject.pdfContent) + this._getPdfFooter(), {type:"recipe",completionEvent:"pdfDoneRenderingEvent", option:'a5',paperWidth:148,paperHeight:210,marginLeft: 0,marginRight: 0,marginTop: 0,marginBottom: 0}).then(({pdf:pdfFileContent, printed:printed}) => _.assign({pdfFileContent:pdfFileContent, printed: printed}, resourcesObject)))
                     .then(resourcesObject => this.api.message().newInstanceWithPatient(this.user, this.patient)
                         .then(newMessageInstance=>_.assign({newMessageInstance: newMessageInstance}, resourcesObject))
                         .then(resourcesObject=>this.api.message().createMessage(
@@ -2299,7 +2306,7 @@
                             {
                                 documentType: 'report',
                                 mainUti: this.api.document().uti("application/pdf"),
-                                name: this.documentMetas.title + " - " + this.documentMetas.patientName
+                                name: this.documentMetas.title + " - " + this.documentMetas.patientName + ".pdf"
                             }
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
@@ -2618,7 +2625,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName
+                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName + ".pdf"
                         }
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
@@ -2767,7 +2774,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName
+                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName + ".pdf"
                         }
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
@@ -2949,7 +2956,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName
+                            name: pdfPrintingData.documentMetas.title + " - " + pdfPrintingData.documentMetas.patientName + ".pdf"
                         }
                     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},pdfPrintingData))
                 )
@@ -3447,7 +3454,7 @@
                         {
                             documentType: 'report',
                             mainUti: this.api.document().uti("application/pdf"),
-                            name: resourcesObject.documentMetas.title + " - " + resourcesObject.documentMetas.patientName
+                            name: resourcesObject.documentMetas.title + " - " + resourcesObject.documentMetas.patientName + ".pdf"
                         }
                         ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
                     )
@@ -3531,8 +3538,6 @@
                 isTooSmall ? this.root.querySelector('.floating-action-bar').classList.add('mobile') : this.root.querySelector('.floating-action-bar').classList.remove('mobile')
             }
 
-
-
             _isConnectedToEhbox() {
                 this.set("ehealthSession", !!this.api.tokenId)
             }
@@ -3541,6 +3546,29 @@
                 this.set("_bodyOverlay", false);
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
             }
+
+			_forwardDocument(e) {
+
+			    const documentId = _.get(e,"detail.documentId", false);
+			    if (!documentId) return;
+
+			    // eHealthBox connection has to be
+			    if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+
+                let hcpAndPatData = {}
+			    this._getPatAndHcpCommonData()
+                    .then(x=>hcpAndPatData=x)
+                    .catch(e=>{})
+                    .finally(()=> this.$['new-msg'].open({
+                        dataFromPatDetail: {
+                            patient: _.get(this, "patient", false),
+                            hcpAndPatData: hcpAndPatData || false,
+                            documentId: documentId
+                        }
+                    }))
+
+			}
+
         }
 
 		customElements.define(HtPatDetailCtcDetailPanel.is, HtPatDetailCtcDetailPanel);
