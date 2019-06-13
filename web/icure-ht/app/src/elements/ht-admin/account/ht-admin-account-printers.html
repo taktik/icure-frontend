@@ -221,25 +221,39 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <div class="line">
                         <div class="col">[[localize(preference.type,preference.typeLocalized,language)]]</div>
                         <div class="col">
-                            <paper-dropdown-menu-light>
-                                <label></label>
-                                <paper-listbox slot="dropdown-content" selected="{{preference.formatSelected}}" attr-for-selected="name">
-                                    <template is="dom-repeat" items="[[preference.formats]]">
-                                        <paper-item name="[[item]]">[[item]]</paper-item>
-                                    </template>
-                                </paper-listbox>
-                            </paper-dropdown-menu-light>
+                            <template is="dom-if" if="[[preference.isPrinter]]">
+                                <paper-dropdown-menu-light>
+                                    <label></label>
+                                    <paper-listbox slot="dropdown-content" selected="{{preference.formatSelected}}" attr-for-selected="name">
+                                        <template is="dom-repeat" items="[[preference.formats]]">
+                                            <paper-item name="[[item]]">[[item]]</paper-item>
+                                        </template>
+                                    </paper-listbox>
+                                </paper-dropdown-menu-light>
+                            </template>
                         </div>
                         <div class="col">
-                            <paper-dropdown-menu-light>
-                                <label></label>
-                                <paper-listbox slot="dropdown-content" selected="{{preference.printerSelected}}" attr-for-selected="name">
-                                    <paper-item name="print-window">[[localize('print-window','print-window',language)]]</paper-item>
-                                    <template is="dom-repeat" items="[[printers]]">
-                                        <paper-item name="[[item.name]]">[[item.name]]</paper-item>
-                                    </template>
-                                </paper-listbox>
-                            </paper-dropdown-menu-light>
+                            <template is="dom-if" if="[[preference.isPrinter]]">
+                                <paper-dropdown-menu-light>
+                                    <label></label>
+                                    <paper-listbox slot="dropdown-content" selected="{{preference.printerSelected}}" attr-for-selected="name">
+                                        <paper-item name="print-window">[[localize('print-window','print-window',language)]]</paper-item>
+                                        <template is="dom-repeat" items="[[printers]]">
+                                            <paper-item name="[[item.name]]">[[item.name]]</paper-item>
+                                        </template>
+                                    </paper-listbox>
+                                </paper-dropdown-menu-light>
+                            </template>
+                            <template is="dom-if" if="[[!preference.isPrinter]]">
+                                <paper-dropdown-menu-light>
+                                    <label></label>
+                                    <paper-listbox slot="dropdown-content" selected="{{preference.printerSelected}}" attr-for-selected="name">
+                                        <template is="dom-repeat" items="[[scanners]]">
+                                            <paper-item name="[[item.id]]">[[item.label]]</paper-item>
+                                        </template>
+                                    </paper-listbox>
+                                </paper-dropdown-menu-light>
+                            </template>
                         </div>
                     </div>
                 </template>
@@ -331,18 +345,23 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Array,
                         value: []
                     },
+                    scanners: {
+                        type: Array,
+                        value: []
+                    },
                     listTypeDocument: {
                         type: Array,
                         value : [
-                            {type : "rapp-mail",typeLocalized :"rapport et courrier",formats:["A4"]},
-                            {type : "recipe",typeLocalized :"prescriptions et ITT",formats:["A4","DL/A5"]},
-                            {type : "recipe-kine-inf",typeLocalized :"prescription kiné et infi",formats:["A4","DL/A5"]},
-                            {type : "imagerie",typeLocalized :"demande d'imagerie",formats:["A4"]},
-                            {type : "doc-off-format",typeLocalized :"Document officiel (E-fact,E-attest)",formats:["A4"]},
-                            {type : "sticker-mut",typeLocalized :"Etiquette mutuelle",formats:["90 X 29"]},
-                            {type : "sticker-mut-a4",typeLocalized :"Feuille d'étiquettes mutuelle",formats:["A4"]},
-                            {type : "doc-little-format",typeLocalized :"Autre document - petit format",formats:["A4","DL/A5"]},
-                            {type : "doc-big-format",typeLocalized :"Autre document - grand format",formats:["A4","DL/A5"]}
+                            {type : "rapp-mail",typeLocalized :"rapport et courrier",formats:["A4"],isPrinter:true},
+                            {type : "recipe",typeLocalized :"prescriptions et ITT",formats:["A4","DL/A5"],isPrinter:true},
+                            {type : "recipe-kine-inf",typeLocalized :"prescription kiné et infi",formats:["A4","DL/A5"],isPrinter:true},
+                            {type : "imagerie",typeLocalized :"demande d'imagerie",formats:["A4"],isPrinter:true},
+                            {type : "doc-off-format",typeLocalized :"Document officiel",formats:["A4"],isPrinter:true},
+                            {type : "sticker-mut",typeLocalized :"Etiquette mutuelle",formats:["90 X 29"],isPrinter:true},
+                            {type : "sticker-mut-a4",typeLocalized :"Feuille d'étiquettes mutuelle",formats:["A4"],isPrinter:true},
+                            {type : "doc-little-format",typeLocalized :"Autre document - petit format",formats:["A4","DL/A5"],isPrinter:true},
+                            {type : "doc-big-format",typeLocalized :"Autre document - grand format",formats:["A4","DL/A5"],isPrinter:true},
+                            {type : "scanner",typeLocalized :"Scanner",formats:[],isPrinter:false,formatSelected:"-"}
                         ]
                     },
                     electronAvailable: {
@@ -371,25 +390,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _electronInit(){
                 if(!this.electronAvailable)return;
-                this.api.printers().then(prt=>{
+                this.api.printers()
+                .then(prt=>{
                     this.set('printers',prt)
-                    fetch('http://localhost:16042/getPrinterSetting', {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json; charset=utf-8"
-                        },
-                        body: JSON.stringify({
-                            userId: this.user.id
+                    Promise.all([
+                        fetch("http://localhost:16042/scanning",{
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({
+                            request : "list"})
+                        }),
+                        fetch('http://localhost:16042/getPrinterSetting', {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json; charset=utf-8"
+                            },
+                            body: JSON.stringify({
+                                userId: this.user.id
+                            })
                         })
-                    })
-                    .then(response => response.json())
-                    .then((responseParsed) =>{
+                    ])
+                    .then(([responseS,responseP]) => Promise.all([responseP.json(),responseS.json()]))
+                    .then(([responseParsed,scns]) =>{
+                        this.set("scanners",scns.data.all)
                         if(responseParsed.ok){
                             const property = JSON.parse(responseParsed.data)
                             property.map(setting => {
                                 const itemTypeDoc =this.listTypeDocument.findIndex(itemDoc => itemDoc.type===setting.type)
                                 this.set("listTypeDocument."+itemTypeDoc+".formatSelected", setting.format)
-                                this.set("listTypeDocument."+itemTypeDoc+".printerSelected", this.printers.find(printer => printer.name===setting.printer) ? setting.printer : "print-window")
+                                this.set("listTypeDocument."+itemTypeDoc+".printerSelected", this.listTypeDocument[itemTypeDoc].isPrinter ? (this.printers.find(printer => printer.name===setting.printer) ? setting.printer : "print-window") : this.scanners.find(scan => scan.id===setting.printer) ? setting.printer : "")
                             })
                         }
                         else {
@@ -470,6 +499,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set("listStickers",stickTemp)
                 localStorage.setItem("stickersSetting",JSON.stringify(this.listStickers))
             }*/
+
+            _isPrinter(it){
+                return it.isPrinter
+            }
         }
 
         customElements.define(HtAdminAccountPrinters.is, HtAdminAccountPrinters)
