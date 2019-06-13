@@ -739,17 +739,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 .catch(error => console.log(error))
         }
 
-        showErrorMessage(e) {
-            if (e.detail && e.detail.title && e.detail.message) {
-                return setTimeout(() => {
-                    console.log(e.detail.error);
-                    this.set('errorTitle', e.detail.title);
-                    this.set('errorMessage', e.detail.message);
-                    this.set("_bodyOverlay", true);
-                    this.$["errorMessageBox"].open();
-                }, 200);
-            }
-        }
+        // showErrorMessage(e) {
+        //     if (e.detail && e.detail.title && e.detail.message) {
+        //         return setTimeout(() => {
+        //             console.log(e.detail.error);
+        //             this.set('errorTitle', e.detail.title);
+        //             this.set('errorMessage', e.detail.message);
+        //             this.set("_bodyOverlay", true);
+        //             this.$["errorMessageBox"].open();
+        //         }, 200);
+        //     }
+        // }
 
         _loadingStatusChanged() {
             if (!this._isLoading) this._resetLoadingMessage();
@@ -1210,21 +1210,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             if (!e.detail.doc || !e.detail.messageId) return;
             this.api.message().getMessage(e.detail.messageId)
                 .then(message => {
-                    message.metas.filename = e.detail.doc.filename
-                    message.metas.documentDate = e.detail.doc.documentDate
-                    message.metas.type = e.detail.doc.type
-                    message.subject = "modified and imported doc in patient folder"
-                    message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
+                    message.metas.filename = e.detail.doc.filename;
+                    message.metas.documentDate = e.detail.doc.documentDate;
+                    message.metas.type = e.detail.doc.type;
+                    message.subject = "modified and imported doc in patient folder";
                     return this.api.document().getDocument(e.detail.doc.id)
                         .then(doc => {
-                            doc.documentType = e.detail.doc.type
+                            doc.documentType = e.detail.doc.type;
                             let extension = _.toLower(doc.name.split('.').pop());
-                            doc.name = e.detail.doc.filename.includes("." + extension) ? _.trim(e.detail.doc.filename) : _.trim(e.detail.doc.filename) + "." + extension
+                            doc.name = e.detail.doc.filename.includes("." + extension) ? _.trim(e.detail.doc.filename) : _.trim(e.detail.doc.filename) + "." + extension;
+                            doc.created = parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime()
                             return this.api.document().modifyDocument(doc)
                         })
                         .then(doc => this.api.register(doc, "document"))
                         .then(doc => {
-                            if (e.detail.patientId !== "") {
+                            if (!e.detail.patientId) {
+                                return message;
+                            } else {
+                                message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
                                 return this.api.patient().getPatientWithUser(this.user, e.detail.patientId)
                                     .then(patient => this.api.contact().newInstance(this.user, patient, {
                                         created: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
@@ -1251,21 +1254,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         'isAssigned': true,
                                         'contactId': contact.id
                                     }]))
-                                    .then(msg => this.api.message().modifyMessage(msg))
-                                    .then(msg => this.api.register(msg, 'message'))
-                                    .then(msg => this._discardCachedMessage(msg))
-                                    .catch(error => console.log(error))
-                                    .then(() => this._refresh())
                             }
                         })
                 })
-                .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
-                    detail: {
-                        title: message.metas.filename,
-                        message: "err.document.update",
-                        detail: error
-                    }, bubbles: true
-                })));
+                .then(msg => this.api.message().modifyMessage(msg))
+                .then(msg => this.api.register(msg, 'message'))
+                .then(msg => this._discardCachedMessage(msg))
+                .then(() => this._refresh())
+                .catch(error => {
+                    this.dispatchEvent(new CustomEvent('show-error-message', {
+                        detail: {
+                            title: e.detail.doc.filename || this.localize("error", "Error", this.language),
+                            message: "err.document.update",
+                            detail: error
+                        }, bubbles: true
+                    }))
+                })
         }
 
         unassignDoc(e) {
@@ -1287,7 +1291,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
-                        title: message.metas.filename,
+                        title: e.detail.doc.filename,
                         message: "err.document.update",
                         detail: error
                     }, bubbles: true
@@ -1297,14 +1301,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         deleteDoc(e) {
             if (!e.detail.doc || !e.detail.messageId) return;
             if (e.detail.contactId) return;
-            let message = this.messages.find(msg => msg.id === e.detail.messageId);
-            this.api.message().deleteMessages(e.detail.messageId)
-                .then(message => this._discardCachedMessage(message))
-                .then(() => this._refresh())
+            this.api.message().getMessage(e.detail.messageId)
+                .then(message => this.api.message().deleteMessages(message.id)
+                    .then(message => this._discardCachedMessage(message))
+                    .then(() => this._refresh())
+                )
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
-                        title: message.metas.filename,
-                        message: "err.document.update",
+                        title: e.detail.doc.filename,
+                        message: "err.document.delete",
                         detail: error
                     }, bubbles: true
                 })));
