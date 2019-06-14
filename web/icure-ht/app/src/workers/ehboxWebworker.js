@@ -104,6 +104,34 @@ onmessage = e => {
             finalMessageStatus = !!_.get(fullMessageFromEHealthBox,"encrypted",false) ? finalMessageStatus|1<<3 : finalMessageStatus
             finalMessageStatus = !!_.size(_.get(fullMessageFromEHealthBox,"annex",[])) ? finalMessageStatus|1<<4 : finalMessageStatus
 
+
+
+
+
+
+            // Backup original message for debugging purposes
+            return iccDocumentXApi.newInstance(this.user, null, {documentType: 'result', mainUti: "", name: "medicationscheme.xml"}).then(
+                doc => this.api.document().createDocument(doc)).then(
+                doc => this.api.document().setAttachment(doc.id, undefined, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.utf82ua(sXml))).then(() => doc)
+
+
+                    .then(createdDocument => encryptContent( user, createDocument, fullMessageFromEHealthBox )
+                        .then(encryptedContent =>
+
+
+            return iccDocumentXApi.newInstance(user, null, {documentType: 'result', mainUti: "application/json", name: _.get(fullMessageFromEHealthBox,"id","") + ".json"})
+                .then(d => docApi.createDocument(d).catch(e => { console.log("ERROR with createDocument: ", e); return promResolve; }))
+                .then(createdDocument => [createdDocument, iccUtils.base64toArrayBuffer(JSON.stringify(fullMessageFromEHealthBox)))
+                .then(([createdDocument, byteContent]) => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId,createdDocument.id,_.get(createdDocument,"encryptionKeys", _.get(createdDocument,"delegations",null)))
+                    .then(({extractedKeys: enckeys}) => docApi.setAttachment(createdDocument.id, enckeys.join(','), byteContent).catch(e => { console.log("ERROR with setAttachment: ", e); return promResolve; }))
+                    .then(() => createdDocument)
+                    .catch(e => { console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return promResolve; })
+                )
+
+
+
+
+
             return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), {
                 created: moment(_.trim(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD")))), "YYYYMMDD").valueOf(),
                 fromAddress: !_.size(_.get(fullMessageFromEHealthBox,"sender",{})) ? "" : _.trim(_.compact([
@@ -146,7 +174,7 @@ onmessage = e => {
         const registerNewDocument = (singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox) => {
 
             const promResolve = Promise.resolve()
-            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || !_.trim(_.get(singleDocumentOrAnnex,"content","")) ?
+            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || ( !_.trim(Base64.decode(_.get(singleDocumentOrAnnex,"content",""))) && !_.trim(_.get(singleDocumentOrAnnex,"textContent","")) ) ?
                 promResolve :
                 iccDocumentXApi.newInstance(user, createdMessage, {
                     documentLocation: (!!_.get(fullMessageFromEHealthBox,"document", false) && _.get(singleDocumentOrAnnex,"content","something") === _.get(fullMessageFromEHealthBox,"document.content","else")) ? 'body' : 'annex',
@@ -222,7 +250,7 @@ onmessage = e => {
 
                     const totalAssignedAnnexes = parseInt(_.size(_.filter(annexesInfos,{isAssigned:true})))
                     const messageCurrentStatus = _.get(createdMessage,"status",0)
-                    const messageStatus = (totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
+                    const messageStatus = (!!totalAnnexesToAssign && totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
 
                     return encryptContent( user, createdMessage, annexesInfos )
                         .then(encryptedContent => msgApi.modifyMessage(_.merge( {}, createdMessage, { status: messageStatus, metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {annexesInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}) })).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
