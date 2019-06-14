@@ -393,37 +393,48 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.api.printers()
                 .then(prt=>{
                     this.set('printers',prt)
-                    Promise.all([
-                        fetch("http://localhost:16042/scanning",{
-                            method: "POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify({
-                            request : "list"})
-                        }),
-                        fetch('http://localhost:16042/getPrinterSetting', {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json; charset=utf-8"
-                            },
-                            body: JSON.stringify({
-                                userId: this.user.id
-                            })
+                    fetch('http://localhost:16042/getPrinterSetting', {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json; charset=utf-8"
+                        },
+                        body: JSON.stringify({
+                            userId: this.user.id
                         })
-                    ])
-                    .then(([responseS,responseP]) => Promise.all([responseP.json(),responseS.json()]))
-                    .then(([responseParsed,scns]) =>{
-                        this.set("scanners",scns.data.all)
+                    })
+                    .then(response => response.json())
+                    .then((responseParsed) =>{
+                        let scanSetting= {}
                         if(responseParsed.ok){
                             const property = JSON.parse(responseParsed.data)
                             property.map(setting => {
-                                const itemTypeDoc =this.listTypeDocument.findIndex(itemDoc => itemDoc.type===setting.type)
-                                this.set("listTypeDocument."+itemTypeDoc+".formatSelected", setting.format)
-                                this.set("listTypeDocument."+itemTypeDoc+".printerSelected", this.listTypeDocument[itemTypeDoc].isPrinter ? (this.printers.find(printer => printer.name===setting.printer) ? setting.printer : "print-window") : this.scanners.find(scan => scan.id===setting.printer) ? setting.printer : "")
+                                if(setting.type==="scanner") scanSetting=setting
+                                else{
+                                    const itemTypeDoc =this.listTypeDocument.findIndex(itemDoc => itemDoc.type===setting.type)
+                                    if(itemTypeDoc===-1)return null;
+                                    this.set("listTypeDocument."+itemTypeDoc+".formatSelected", setting.format)
+                                    this.set("listTypeDocument."+itemTypeDoc+".printerSelected", this.listTypeDocument[itemTypeDoc].isPrinter ? (this.printers.find(printer => printer.name===setting.printer) ? setting.printer : "print-window") : "")
+                                }
                             })
                         }
                         else {
                             console.log("error =>"+responseParsed.msg)
                         }
+                        return scanSetting;
+                    })
+                    .then(scanSetting => {
+                        fetch("http://localhost:16042/scanning",{
+                            method: "POST",
+                            headers: {"Content-Type": "application/json"},
+                            body: JSON.stringify({request : "list"})
+                        }).then(response => response.json())
+                            .then(scns =>{
+                                this.set("scanners",scns.data.all)
+                                const itemTypeDoc =this.listTypeDocument.findIndex(itemDoc => itemDoc.type===scanSetting.type)
+                                if(itemTypeDoc===-1)return;
+                                this.set("listTypeDocument."+itemTypeDoc+".formatSelected", scanSetting.format)
+                                this.set("listTypeDocument."+itemTypeDoc+".printerSelected", !this.listTypeDocument[itemTypeDoc].isPrinter ? (this.scanners.find(scan => scan.id===scanSetting.printer) ? scanSetting.printer : "") : "")
+                            })
                     })
                 })
             }
