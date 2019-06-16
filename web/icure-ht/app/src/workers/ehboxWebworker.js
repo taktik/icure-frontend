@@ -87,6 +87,18 @@ onmessage = e => {
 
         }
 
+        const backupOriginalMessage = (fullMessageFromEHealthBox) => {
+            const promResolve = Promise.resolve()
+            const userHpcId = _.trim(_.get(user,"healthcarePartyId",""))
+            return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), { received: +new Date, transportGuid: "ehBoxBackup" + ":" + _.get(fullMessageFromEHealthBox,"id","") })
+                .then(messageInstance => msgApi.createMessage(messageInstance))
+                .then(createdMessage => iccDocumentXApi.newInstance(user, createdMessage, {documentType: 'result', mainUti: "application/octet-stream", name: _.get(fullMessageFromEHealthBox,"id","") + ".json"}))
+                .then(documentInstance => docApi.createDocument(documentInstance))
+                .then(createdDocument => encryptContent( user, createdDocument, fullMessageFromEHealthBox ).then(encryptedContent => ([createdDocument,encryptedContent])))
+                .then(([createdDocument, encryptedContent]) => docApi.setAttachment(createdDocument.id, null, Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))))
+                .catch(e=>{ console.log("ERROR with backupOriginalMessage:", e); return promResolve; })
+        }
+
         const registerNewMessage = (fullMessageFromEHealthBox, boxId) => {
 
             const promResolve = Promise.resolve()
@@ -104,49 +116,51 @@ onmessage = e => {
             finalMessageStatus = !!_.get(fullMessageFromEHealthBox,"encrypted",false) ? finalMessageStatus|1<<3 : finalMessageStatus
             finalMessageStatus = !!_.size(_.get(fullMessageFromEHealthBox,"annex",[])) ? finalMessageStatus|1<<4 : finalMessageStatus
 
-            return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), {
-                created: moment(_.trim(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD")))), "YYYYMMDD").valueOf(),
-                fromAddress: !_.size(_.get(fullMessageFromEHealthBox,"sender",{})) ? "" : _.trim(_.compact([
-                    _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))),
-                    _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorFirstName",""))),
-                    (!_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName",""))&& !_.trim(_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))?_.trim(_.get(fullMessageFromEHealthBox,"sender.organizationName","")):""),
-                    "(" + _.compact([
-                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderIDType",""))),
-                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderID","")))
-                    ]).join(": ") + ")"
-                ]).join(" ")),
-                subject: _.trim(_.get(fullMessageFromEHealthBox,"document.title",_.trim(_.get(fullMessageFromEHealthBox,"document.textContent",_.trim(_.get(fullMessageFromEHealthBox,"id","")))).substring(0,26)+"...")),
-                metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss",""))}),
-                toAddresses: [boxId],
-                transportGuid: boxId + ":" + _.get(fullMessageFromEHealthBox,"id",""),
-                fromHealthcarePartyId: _.trim(_.get(fullMessageFromEHealthBox,"fromHealthcarePartyId", _.get(fullMessageFromEHealthBox,"sender.id",""))),
-                received: +new Date,
-                status: finalMessageStatus
-            })
-                .then(messageInstance => msgApi.createMessage(messageInstance))
-                .then(createdMessage => {
-
-                    let prom = Promise.resolve();
-                    _.map(_.compact(_.concat(_.get(fullMessageFromEHealthBox,"document",[]),splittedEhBoxAnnexes)), singleDocumentOrAnnex => {
-                        prom = prom.then(promisesCarrier => !!_.size(singleDocumentOrAnnex) ?
-                            registerNewDocument(singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox)
-                                .then(createdDocument => _.concat(promisesCarrier, createdDocument))
-                                .catch(e => { console.log("ERROR with registerNewDocument: ", e); return Promise.resolve(_.concat(promisesCarrier, {})); })
-                            : Promise.resolve(_.concat(promisesCarrier, {}))
-                        )
-                    })
-
-                    return prom
-                        .then(createdDocuments => ([createdMessage, _.compact(createdDocuments)]))
-                        .catch(e=>{ console.log("ERROR with registerNewDocument: ", e); return iccMessageXApi.message().deleteMessages(createdMessage.id).catch(e => {console.log("ERROR with deleteMessages: ", e); return promResolve;}) })
+            return backupOriginalMessage(fullMessageFromEHealthBox)
+                .then((backupDocumentObject) => iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), {
+                    created: moment(_.trim(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD")))), "YYYYMMDD").valueOf(),
+                    fromAddress: !_.size(_.get(fullMessageFromEHealthBox,"sender",{})) ? "" : _.trim(_.compact([
+                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))),
+                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorFirstName",""))),
+                        (!_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName",""))&& !_.trim(_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))?_.trim(_.get(fullMessageFromEHealthBox,"sender.organizationName","")):""),
+                        "(" + _.compact([
+                            _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderIDType",""))),
+                            _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderID","")))
+                        ]).join(": ") + ")"
+                    ]).join(" ")),
+                    subject: _.trim(_.get(fullMessageFromEHealthBox,"document.title",_.trim(_.get(fullMessageFromEHealthBox,"document.textContent",_.trim(_.get(fullMessageFromEHealthBox,"id","")))).substring(0,26)+"...")),
+                    metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss","")), backupOriginalMessageDocumentId:_.trim(_.get(backupDocumentObject,"id",""))}),
+                    toAddresses: [boxId],
+                    transportGuid: boxId + ":" + _.get(fullMessageFromEHealthBox,"id",""),
+                    fromHealthcarePartyId: _.trim(_.get(fullMessageFromEHealthBox,"fromHealthcarePartyId", _.get(fullMessageFromEHealthBox,"sender.id",""))),
+                    received: +new Date,
+                    status: finalMessageStatus
                 })
+                    .then(messageInstance => msgApi.createMessage(messageInstance))
+                    .then(createdMessage => {
+
+                        let prom = Promise.resolve();
+                        _.map(_.compact(_.concat(_.get(fullMessageFromEHealthBox,"document",[]),splittedEhBoxAnnexes)), singleDocumentOrAnnex => {
+                            prom = prom.then(promisesCarrier => !!_.size(singleDocumentOrAnnex) ?
+                                registerNewDocument(singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox)
+                                    .then(createdDocument => _.concat(promisesCarrier, createdDocument))
+                                    .catch(e => { console.log("ERROR with registerNewDocument: ", e); return Promise.resolve(_.concat(promisesCarrier, {})); })
+                                : Promise.resolve(_.concat(promisesCarrier, {}))
+                            )
+                        })
+
+                        return prom
+                            .then(createdDocuments => ([createdMessage, _.compact(createdDocuments)]))
+                            .catch(e=>{ console.log("ERROR with registerNewDocument: ", e); return iccMessageXApi.message().deleteMessages(createdMessage.id).catch(e => {console.log("ERROR with deleteMessages: ", e); return promResolve;}) })
+                    })
+            )
 
         }
 
         const registerNewDocument = (singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox) => {
 
             const promResolve = Promise.resolve()
-            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || !_.trim(_.get(singleDocumentOrAnnex,"content","")) ?
+            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || ( !_.trim(Base64.decode(_.get(singleDocumentOrAnnex,"content",""))) && !_.trim(_.get(singleDocumentOrAnnex,"textContent","")) ) ?
                 promResolve :
                 iccDocumentXApi.newInstance(user, createdMessage, {
                     documentLocation: (!!_.get(fullMessageFromEHealthBox,"document", false) && _.get(singleDocumentOrAnnex,"content","something") === _.get(fullMessageFromEHealthBox,"document.content","else")) ? 'body' : 'annex',
@@ -156,7 +170,7 @@ onmessage = e => {
                 })
                     .then(d => docApi.createDocument(d).catch(e => { console.log("ERROR with createDocument: ", e); return promResolve; }))
                     .then(createdDocument => [createdDocument, iccUtils.base64toArrayBuffer(_.get(singleDocumentOrAnnex,"content",""))])
-                    .then(([createdDocument, byteContent]) => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId,createdDocument.id,_.get(createdDocument,"encryptionKeys", _.get(createdDocument,"delegations",null)))
+                    .then(([createdDocument, byteContent]) => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId,createdDocument.id,_.size(_.get(createdDocument,"encryptionKeys",{})) ? createdDocument.encryptionKeys : _.get(createdDocument,"delegations",{}))
                         .then(({extractedKeys: enckeys}) => docApi.setAttachment(createdDocument.id, enckeys.join(','), byteContent).catch(e => { console.log("ERROR with setAttachment: ", e); return promResolve; }))
                         .then(() => createdDocument)
                         .catch(e => { console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return promResolve; })
@@ -222,7 +236,7 @@ onmessage = e => {
 
                     const totalAssignedAnnexes = parseInt(_.size(_.filter(annexesInfos,{isAssigned:true})))
                     const messageCurrentStatus = _.get(createdMessage,"status",0)
-                    const messageStatus = (totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
+                    const messageStatus = (!!totalAnnexesToAssign && totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
 
                     return encryptContent( user, createdMessage, annexesInfos )
                         .then(encryptedContent => msgApi.modifyMessage(_.merge( {}, createdMessage, { status: messageStatus, metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {annexesInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}) })).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))

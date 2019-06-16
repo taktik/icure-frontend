@@ -2380,6 +2380,16 @@
                             return _.merge(rdom, {patientData:_.get(assignmentResolvedInformation,"patientData",{})})
                         }))
                     })
+                    .then(()=>{
+                        const backupOriginalMessageDocumentId = _.trim(_.get(this,"selectedMessage.metas.backupOriginalMessageDocumentId",""))
+                        return !_.trim(backupOriginalMessageDocumentId) ?
+                            prom:
+                            this.api.document().getDocument(backupOriginalMessageDocumentId)
+                                .then(originalMessageDocumentObject => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(originalMessageDocumentObject,"id","")), _.size(_.get(originalMessageDocumentObject,"encryptionKeys",[])) ? _.get(originalMessageDocumentObject,"encryptionKeys",[]) : _.get(originalMessageDocumentObject,"delegations",[])).then(({extractedKeys: enckeys}) => [originalMessageDocumentObject,enckeys]))
+                                .then(([originalMessageDocumentObject,enckeys]) => this.api.document().getAttachment(_.trim(_.get(originalMessageDocumentObject,"id","")), _.trim(_.get(originalMessageDocumentObject,"attachmentId","")), enckeys.join(',')))
+                                .then(decryptedContent => console.log("ORIGINAL EHB MESSAGE", JSON.parse(this.api.crypto().utils.ua2text(decryptedContent))||[]) )
+                                .catch(e=>{console.log("ERROR with get backupOriginalMessage: ", e); return prom;})
+                    })
                     .catch(e=>console.log("ERROR with _loadMessageDetails: ", e))
                     .finally(()=>{
                         this.set("_linkedPatientsBasedOnMessageSsinAndAnnexes", _.uniqBy(_.compact(
@@ -2396,6 +2406,10 @@
                         )
                         this.set("_messageAttachments", _.orderBy(_.compact(_.map(_.get(this,"documentsOfMessage",[]).filter(d=>_.trim(_.get(d,"documentLocation",""))==="annex"), singleDoc => _.get(singleDoc,"attachmentInfos",{}))), ['filename','size'],['asc','asc']))
                         this._toggleProcessingPopup()
+
+                        console.log("selectedMessage", this.selectedMessage);
+                        console.log("documentsOfMessage", this.documentsOfMessage);
+
                         return (["saveAssignment","deleteAssignment"].indexOf(_.trim(_.get(assignmentCallBack,"action","")))>-1) ? this._toggleAssignmentDialog({assignmentCallBack:assignmentCallBack}) : prom
                     })
 
