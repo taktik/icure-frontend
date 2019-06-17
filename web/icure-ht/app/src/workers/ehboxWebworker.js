@@ -52,7 +52,13 @@ onmessage = e => {
             INBOX: 0,
             SENTBOX: 0
         }
-        let backendVersion = "-"
+
+        let appVersions = {
+            backend: "-",
+            frontend: "[AIV]{version}[/AIV]",
+            electron: "-",
+            isElectron: false
+        }
 
 
 
@@ -133,8 +139,7 @@ onmessage = e => {
                     metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {
                         patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss","")),
                         backupOriginalMessageDocumentId:_.trim(_.get(backupDocumentObject,"id","")),
-                        frontendVersion: "[AIV]{version}[/AIV]",
-                        backendVersion: _.trim(backendVersion)
+                        appVersions: JSON.stringify(appVersions)
                     }),
                     toAddresses: [boxId],
                     transportGuid: boxId + ":" + _.get(fullMessageFromEHealthBox,"id",""),
@@ -184,8 +189,6 @@ onmessage = e => {
                     .catch(e => { console.log("ERROR with base64toArrayBuffer: ", e); return promResolve; })
 
         }
-
-
 
         const tryToAssignAppendices = (createdMessage, fullMessageFromEHealthBox, createdDocumentsToAssign, boxId) => {
 
@@ -397,8 +400,6 @@ onmessage = e => {
 
         }
 
-
-
         const convertFromOldToNewSystemAndCarryOn = (boxId, fullMessageFromEHealthBox, foundExistingMessage) => {
 
             const promResolve = Promise.resolve()
@@ -452,33 +453,38 @@ onmessage = e => {
 
 
 
-        icureApi.getVersion().then(icureVersion => { backendVersion = _.trim(icureVersion) ? _.trim(icureVersion) : backendVersion })
-            .finally(()=>{
+        icureApi.getVersion()
+        .then(icureVersion => appVersions.backend = _.trim(icureVersion))
+        .then(() => fetch("http://127.0.0.1:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
+        .then(isElectron => appVersions.isElectron = !!isElectron)
+        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then(() => response.json()).catch(() => false))
+        .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
+        .finally(()=>{
 
-                let promisesCarrier = []
-                let prom = Promise.resolve()
-                _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
-                    _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
-                        .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
-                        .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
-                        .finally(()=> _.concat(promisesCarrier, []))
-                    )
-                    prom.then(()=> {
+            let promisesCarrier = []
+            let prom = Promise.resolve()
+            _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
+                _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
+                    .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
+                    .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
+                    .finally(()=> _.concat(promisesCarrier, []))
+                )
+                prom.then(()=> {
 
-                        if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
-                            postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
-                            setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
-                        }
+                    if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
+                        postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
+                        setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
+                    }
 
-                        if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
-                            postMessage({forceRefresh: true});
-                            setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
-                        }
+                    if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
+                        postMessage({forceRefresh: true});
+                        setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
+                    }
 
-                    })
-                }))
+                })
+            }))
 
-            })
+        })
 
 
 
