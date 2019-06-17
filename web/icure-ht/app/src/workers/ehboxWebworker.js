@@ -37,6 +37,7 @@ onmessage = e => {
         const accesslogApi      = new iccApi.iccAccesslogApi(iccHost, iccHeaders)
         const iccCryptoXApi     = new iccXApi.IccCryptoXApi(iccHost, iccHeaders, iccHcpartyApi)
         const iccUtils          = new UtilsClass()
+        const icureApi          = new iccApi.iccIcureApi(iccHost, iccHeaders)
 
         //Avoid hitting local storage when loading key pairs
         Object.keys(e.data.keyPairs).forEach( k => iccCryptoXApi.cacheKeyPair(e.data.keyPairs[k], k) )
@@ -51,6 +52,7 @@ onmessage = e => {
             INBOX: 0,
             SENTBOX: 0
         }
+        let backendVersion = "-"
 
 
 
@@ -89,13 +91,12 @@ onmessage = e => {
 
         const backupOriginalMessage = (fullMessageFromEHealthBox) => {
             const promResolve = Promise.resolve()
-            const userHpcId = _.trim(_.get(user,"healthcarePartyId",""))
             return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), { received: +new Date, transportGuid: "ehBoxBackup" + ":" + _.get(fullMessageFromEHealthBox,"id","") })
                 .then(messageInstance => msgApi.createMessage(messageInstance))
                 .then(createdMessage => iccDocumentXApi.newInstance(user, createdMessage, {documentType: 'result', mainUti: "application/octet-stream", name: _.get(fullMessageFromEHealthBox,"id","") + ".json"}))
                 .then(documentInstance => docApi.createDocument(documentInstance))
                 .then(createdDocument => encryptContent( user, createdDocument, fullMessageFromEHealthBox ).then(encryptedContent => ([createdDocument,encryptedContent])))
-                .then(([createdDocument, encryptedContent]) => docApi.setAttachment(createdDocument.id, null, Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))))
+                .then(([createdDocument, encryptedContent]) => docApi.setAttachment(createdDocument.id, null, encryptedContent))
                 .catch(e=>{ console.log("ERROR with backupOriginalMessage:", e); return promResolve; })
         }
 
@@ -129,7 +130,12 @@ onmessage = e => {
                         ]).join(": ") + ")"
                     ]).join(" ")),
                     subject: _.trim(_.get(fullMessageFromEHealthBox,"document.title",_.trim(_.get(fullMessageFromEHealthBox,"document.textContent",_.trim(_.get(fullMessageFromEHealthBox,"id","")))).substring(0,26)+"...")),
-                    metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss","")), backupOriginalMessageDocumentId:_.trim(_.get(backupDocumentObject,"id",""))}),
+                    metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {
+                        patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss","")),
+                        backupOriginalMessageDocumentId:_.trim(_.get(backupDocumentObject,"id","")),
+                        frontendVersion: "[AIV]{version}[/AIV]",
+                        backendVersion: _.trim(backendVersion)
+                    }),
                     toAddresses: [boxId],
                     transportGuid: boxId + ":" + _.get(fullMessageFromEHealthBox,"id",""),
                     fromHealthcarePartyId: _.trim(_.get(fullMessageFromEHealthBox,"fromHealthcarePartyId", _.get(fullMessageFromEHealthBox,"sender.id",""))),
@@ -446,28 +452,33 @@ onmessage = e => {
 
 
 
-        let promisesCarrier = []
-        let prom = Promise.resolve()
-        _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
-            _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
-                .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
-                .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
-                .finally(()=> _.concat(promisesCarrier, []))
-            )
-            prom.then(()=> {
+        icureApi.getVersion().then(icureVersion => { backendVersion = _.trim(icureVersion) ? _.trim(icureVersion) : backendVersion })
+            .finally(()=>{
 
-                if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
-                    postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
-                    setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
-                }
+                let promisesCarrier = []
+                let prom = Promise.resolve()
+                _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
+                    _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
+                        .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
+                        .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
+                        .finally(()=> _.concat(promisesCarrier, []))
+                    )
+                    prom.then(()=> {
 
-                if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
-                    postMessage({forceRefresh: true});
-                    setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
-                }
+                        if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
+                            postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
+                            setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
+                        }
+
+                        if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
+                            postMessage({forceRefresh: true});
+                            setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
+                        }
+
+                    })
+                }))
 
             })
-        }))
 
 
 
