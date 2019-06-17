@@ -49,9 +49,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     margin: 0 auto;
                 }
 
-                #documentTypeFilter {
-                    margin-top: 4px;
-                    width: 250px;
+                #documentTypeFilterCombo {
+                    width:320px;
                 }
 
                 #documentTypeFilter hr {
@@ -461,7 +460,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                              selection-mode="multi"
                              width="100%"
                              pageSize="[[_pageSize]]">
-                    <vaadin-grid-column flex-grow="2">
+                    <vaadin-grid-column flex-grow="1">
                         <template class="header">
                             <vaadin-grid-sorter path="metas.filename">[[localize('title','Title',language)]]
                             </vaadin-grid-sorter>
@@ -470,7 +469,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class$="cell [[_boldIfIsUnread(item)]]">[[item.metas.filename]]</div>
                         </template>
                     </vaadin-grid-column>
-                    <vaadin-grid-column flex-grow="0">
+                    <vaadin-grid-column flex-grow="1">
                         <template class="header">
                             <vaadin-grid-sorter path="metas.importDate" direction="asc">[[localize('import_date','Import
                                 Date',language)]]
@@ -480,7 +479,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class$="cell [[_boldIfIsUnread(item)]]">[[_formatDate(item.metas.importDate)]]</div>
                         </template>
                     </vaadin-grid-column>
-                    <vaadin-grid-column flex-grow="0">
+                    <vaadin-grid-column flex-grow="1">
                         <template class="header">
                             <vaadin-grid-sorter path="metas.documentDate" direction="asc">
                                 [[localize('doc_date','Date',language)]]
@@ -728,27 +727,42 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         }
 
         apiReady() {
-            this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
-                .then(codes => this.set("listType", codes.rows.filter(code => ["careplan", "contactreport", "diarynote", "labrequest", "labresult", "mea", "note", "prescription", "referral", "report", "request", "result"].find(keyWord => code.code.includes(keyWord))).map(code => {
-                    return {
-                        code: code.code,
-                        name: code.label[this.language] || this.localize(code.code, code.code, this.language) || code.label["en"] || ""
-                    }
-                })))
-                // .then(() => this.unshift("listType", {code: "", name: ""}))
-                .catch(error => console.log(error))
-        }
+            this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
+            let exclusions = [
+                "medicaladvisoragreement",
+                "bvt-sample",
+                "clinicalpath",
+                "ecare-safe-consultation",
+                "ecare-tardis-consultation",
+                "perinatal",
+                "population-based-screening",
+                "medicationschemeelement",
+                "vaccinationschemeelement",
+                "genericregistryentry",
+                "ebirth-baby-medicalform",
+                "ebirth-mother-medicalform",
+                "intervention",
+                "applicationlink",
+                "ebirth-baby-notification",
+                "ebirth-mother-notification",
+                "child-prevention",
+                "result",
+                "medicationscheme",
+                "radiationexposuremonitoring",
+                "treatmentsuspension",
+                "vaccinationscheme",
+                "telemonitoring"
+            ];
 
-        showErrorMessage(e) {
-            if (e.detail && e.detail.title && e.detail.message) {
-                return setTimeout(() => {
-                    console.log(e.detail.error);
-                    this.set('errorTitle', e.detail.title);
-                    this.set('errorMessage', e.detail.message);
-                    this.set("_bodyOverlay", true);
-                    this.$["errorMessageBox"].open();
-                }, 200);
-            }
+            this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
+                .then(results => this.set("listType",  _.orderBy(results.rows.filter(r => !exclusions.includes(r.code)).map(result => {
+                    return {
+                        code: result.code,
+                        name: this.localize('cd-transaction-' + result.code, result.code, this.language)
+                    }
+                }), ['name'], ['asc'])))
+                .catch(error => console.log(error));
+            console.log('ht-upload-dialog ready');
         }
 
         _loadingStatusChanged() {
@@ -1210,21 +1224,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             if (!e.detail.doc || !e.detail.messageId) return;
             this.api.message().getMessage(e.detail.messageId)
                 .then(message => {
-                    message.metas.filename = e.detail.doc.filename
-                    message.metas.documentDate = e.detail.doc.documentDate
-                    message.metas.type = e.detail.doc.type
-                    message.subject = "modified and imported doc in patient folder"
-                    message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
+                    message.metas.filename = e.detail.doc.filename;
+                    message.metas.documentDate = e.detail.doc.documentDate;
+                    message.metas.type = e.detail.doc.type;
+                    message.subject = "modified and imported doc in patient folder";
                     return this.api.document().getDocument(e.detail.doc.id)
                         .then(doc => {
-                            doc.documentType = e.detail.doc.type
+                            doc.documentType = e.detail.doc.type;
                             let extension = _.toLower(doc.name.split('.').pop());
-                            doc.name = e.detail.doc.filename.includes("." + extension) ? _.trim(e.detail.doc.filename) : _.trim(e.detail.doc.filename) + "." + extension
+                            doc.name = e.detail.doc.filename.includes("." + extension) ? _.trim(e.detail.doc.filename) : _.trim(e.detail.doc.filename) + "." + extension;
+                            doc.created = parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime()
                             return this.api.document().modifyDocument(doc)
                         })
                         .then(doc => this.api.register(doc, "document"))
                         .then(doc => {
-                            if (e.detail.patientId !== "") {
+                            if (!e.detail.patientId) {
+                                return message;
+                            } else {
+                                message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
                                 return this.api.patient().getPatientWithUser(this.user, e.detail.patientId)
                                     .then(patient => this.api.contact().newInstance(this.user, patient, {
                                         created: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
@@ -1251,21 +1268,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         'isAssigned': true,
                                         'contactId': contact.id
                                     }]))
-                                    .then(msg => this.api.message().modifyMessage(msg))
-                                    .then(msg => this.api.register(msg, 'message'))
-                                    .then(msg => this._discardCachedMessage(msg))
-                                    .catch(error => console.log(error))
-                                    .then(() => this._refresh())
                             }
                         })
                 })
-                .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
-                    detail: {
-                        title: message.metas.filename,
-                        message: "err.document.update",
-                        detail: error
-                    }, bubbles: true
-                })));
+                .then(msg => this.api.message().modifyMessage(msg))
+                .then(msg => this.api.register(msg, 'message'))
+                .then(msg => this._discardCachedMessage(msg))
+                .then(() => this._refresh())
+                .catch(error => {
+                    this.dispatchEvent(new CustomEvent('show-error-message', {
+                        detail: {
+                            title: e.detail.doc.filename || this.localize("error", "Error", this.language),
+                            message: "err.document.update",
+                            detail: error
+                        }, bubbles: true
+                    }))
+                })
         }
 
         unassignDoc(e) {
@@ -1287,7 +1305,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
-                        title: message.metas.filename,
+                        title: e.detail.doc.filename,
                         message: "err.document.update",
                         detail: error
                     }, bubbles: true
@@ -1297,14 +1315,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         deleteDoc(e) {
             if (!e.detail.doc || !e.detail.messageId) return;
             if (e.detail.contactId) return;
-            let message = this.messages.find(msg => msg.id === e.detail.messageId);
-            this.api.message().deleteMessages(e.detail.messageId)
-                .then(message => this._discardCachedMessage(message))
-                .then(() => this._refresh())
+            this.api.message().getMessage(e.detail.messageId)
+                .then(message => this.api.message().deleteMessages(message.id)
+                    .then(message => this._discardCachedMessage(message))
+                    .then(() => this._refresh())
+                )
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
-                        title: message.metas.filename,
-                        message: "err.document.update",
+                        title: e.detail.doc.filename,
+                        message: "err.document.delete",
                         detail: error
                     }, bubbles: true
                 })));
