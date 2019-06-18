@@ -1059,7 +1059,7 @@
                                     <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
                                 </div>
                                 <div class="input-form">
-                                    <vaadin-text-field id="hcpTextField" label="[[localize('hcp','Medecin',language)]]" value="{{selectedMessage.hcp}}" disabled>
+                                    <vaadin-text-field id="hcpTextField" label="[[localize('persphysicianRole','Recipient',language)]]" value="{{selectedMessage.hcp}}" disabled>
                                     </vaadin-text-field>
                                 </div>
                                 <div class="input-form">
@@ -1259,6 +1259,7 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
 	static get observers() {
 		return [
+            'apiReady(api,user,opened)',
 		    '_focusChanged(selectedMessage)',
             '_filterPatChanged(filterPatient)',
             // '_selectedDocChanged(selectedMessage.*)',
@@ -1273,9 +1274,43 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
 	ready() {
 		super.ready();
-        this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
-            .then(codes => this.set("listType",codes.rows.filter(code=>["careplan","contactreport","diarynote","labrequest","labresult","mea","note","prescription","referral","report","request","result"].find(keyWord=>code.code.includes(keyWord))).map(code => {return{code:code.code,name:code.label[this.language]||this.localize(code.code, code.code, this.language)||code.label["en"]||""}})))
     }
+
+    apiReady() {
+        this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
+        let exclusions = [
+            "medicaladvisoragreement",
+            "bvt-sample",
+            "clinicalpath",
+            "ecare-safe-consultation",
+            "ecare-tardis-consultation",
+            "perinatal",
+            "population-based-screening",
+            "medicationschemeelement",
+            "vaccinationschemeelement",
+            "genericregistryentry",
+            "ebirth-baby-medicalform",
+            "ebirth-mother-medicalform",
+            "intervention",
+            "applicationlink",
+            "ebirth-baby-notification",
+            "ebirth-mother-notification",
+            "child-prevention",
+            "radiationexposuremonitoring",
+            "treatmentsuspension",
+            "telemonitoring"
+        ];
+
+        this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
+            .then(results => this.set("listType",  _.orderBy(results.rows.filter(r => !exclusions.includes(r.code)).map(result => {
+                return {
+                    code: result.code,
+                    name: this.localize('cd-transaction-' + result.code, result.code, this.language)
+                }
+            }), ['name'], ['asc'])))
+            .catch(error => console.log(error));
+    }
+
 
     _deleteSingleMessage(e){
         //@ToDo
@@ -1437,16 +1472,12 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     update(e){
-	    let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id, 'status': this.selectedMessage.status }
+	    let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id, 'status': this.selectedMessage.status, 'patientId': this.selectedMessage.patientId };
 	    detail.doc.id = this.document.id;
-	    if (this.selectedMessage.patientId !== '') {
-	        detail.patientId = this.selectedMessage.patientId
-        }
-	    if (!this.selectedMessage.metas.type || !this.selectedMessage.patientId || ! this.selectedMessage.patientSsin) {
+	    if (!this.selectedMessage.metas.type || !this.selectedMessage.metas.documentDate) {
 	        let errors = [];
-            errors.push(!this.selectedMessage.metas.type && this.localize('type-doc', 'Type de document', this.language));
-	        errors.push(!this.selectedMessage.patientSsin && this.localize('ssin', 'Ssin', this.language));
-	        errors.push(!this.selectedMessage.patientId && this.localize('patient', 'Patient', this.language));
+            errors.push(!this.selectedMessage.metas.type && this.localize('type-doc', 'Document type', this.language));
+            errors.push(!this.selectedMessage.metas.documentDate && this.localize('doc_date', 'Document date', this.language));
 	        let errorDetail = errors.filter(item => !!item).join(', ');
             this.dispatchEvent(new CustomEvent("show-error-message", {
                 detail: {
