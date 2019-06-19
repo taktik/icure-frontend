@@ -423,7 +423,7 @@
                 <paper-tab>
                     <iron-icon class="tabIcon" icon="maps:local-library"></iron-icon> [[localize('tra_acc_tra','Trace',language)]]
                 </paper-tab>
-               <!--<paper-tab>[[localize('json_vwr','JSON View',language)]]</paper-tab>-->
+               <paper-tab>[[localize('json_vwr','JSON View',language)]]</paper-tab>
             </paper-tabs>
             <iron-pages selected="[[tabs]]">
                 <page>
@@ -909,6 +909,10 @@
                         type: Object,
                         value:null
                     },
+                    isPreview:{
+                        type: Boolean,
+                        value: false
+                    },
                     administrationUnit:{
                         type: Object,
                         value : [
@@ -1096,23 +1100,39 @@
             }
 
 
-            open(htPatHubDetail, transInfo, tranRespPromise) {
+
+            open(htPatHubDetail, transInfo, tranRespPromise, preview) {
                 this.set('parent', htPatHubDetail)
                 this.set('attachmentCount', 0);
                 this.set('message', null);
                 this.set('transInfo', transInfo);
                 this.set('isLoading',true);
-                this._getTrail(transInfo).then(trail => this.set('auditTrail',trail));
+                this.set('isPreview', preview ? preview : false);
+                if(transInfo)this._getTrail(transInfo).then(trail => this.set('auditTrail',trail));
                 if(tranRespPromise){
                     tranRespPromise.then(tranResp => {
-                        this.set('message', tranResp);
-                        this.set('isLoading',false);
-                        if(this._isMedicationScheme(transInfo)) {
-                            this.set("currentMedicationScheme", this._getMedicationSchemeFromTransactionSet(tranResp));
+                        if(preview){
+                            let reader = new FileReader();
+                            const myself = this
+                            reader.onload = function() {
+                                console.log("sumehr = ", reader.result);
+                                myself.set('message', JSON.parse(reader.result));
+                                myself.set('isLoading',false);
+                                myself.set("currentMedicationScheme", null);
+                            }
+                            reader.readAsText(tranResp);
                         }
                         else
                         {
-                            this.set("currentMedicationScheme", null);
+                            this.set('message', tranResp);
+                            this.set('isLoading',false);
+                            if(this._isMedicationScheme(transInfo)) {
+                                this.set("currentMedicationScheme", this._getMedicationSchemeFromTransactionSet(tranResp));
+                            }
+                            else
+                            {
+                                this.set("currentMedicationScheme", null);
+                            }
                         }
                     }).catch( error=> {
                         this.set('message', null);
@@ -1579,9 +1599,15 @@
             }
 
             _processTransactionItemAndHeadingItem(trn){
-                const trnListOfItem = this._processItem(trn.item, "transaction");
-                const headingListOfItem = trn.heading ? this._processItem(_.flatMap(trn.heading.map(it => it.item)), "heading") : [];
-                return headingListOfItem.concat(trnListOfItem);
+                if(this.isPreview){
+                    //const trnListOfItem = this._processItem(trn.item, "transaction");
+                    const headingListOfItem = trn.headingsAndItemsAndTexts ? this._processItem(_.flatMap(trn.headingsAndItemsAndTexts.map(it => it.headingsAndItemsAndTexts)), "heading") : [];
+                    return headingListOfItem;//.concat(trnListOfItem);
+                }else {
+                    const trnListOfItem = this._processItem(trn.item, "transaction");
+                    const headingListOfItem = trn.heading ? this._processItem(_.flatMap(trn.heading.map(it => it.item)), "heading") : [];
+                    return headingListOfItem.concat(trnListOfItem);
+                }
             }
 
             _processItem(listOfItem, itemParent){
@@ -1589,7 +1615,7 @@
                 let newListOfItem = []
 
                 if(listOfItem){
-                    listOfItem.map(item => newListOfItem.push({
+                    listOfItem.filter(item => item ? true : false).map(item => newListOfItem.push({
                         type: item && item.cds && item.cds.find(cd => cd && cd.s === "CD_ITEM") && item.cds.find(cd => cd && cd.s === "CD_ITEM").value ? item.cds.find(cd => cd && cd.s === "CD_ITEM").value : null,
                         contents: this._getItemsContents(item.contents),
                         beginMoment: item && item.beginmoment && item.beginmoment.date || null,

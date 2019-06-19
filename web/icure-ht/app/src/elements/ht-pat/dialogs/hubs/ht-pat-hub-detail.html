@@ -434,8 +434,12 @@
                     <ht-pat-hub-transaction-view id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
                 </div>
                 <div class="buttons">
-                    <paper-button class="modal-button" on-tap="_generateSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]]</paper-button>
-                    <paper-button class="modal-button" on-tap="_runPutSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]]</paper-button>
+                    <paper-button class="modal-button" on-tap="_runRevokeHubTransaction"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> _revoke</paper-button>
+<!--                    <paper-button class="modal-button" on-tap="_generateSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]]</paper-button>-->
+<!--                    <paper-button class="modal-button" on-tap="_runPutSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]]</paper-button>-->
+                    <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>
+                    <paper-button class="modal-button" on-tap="_generateSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
+                    <paper-button class="modal-button" on-tap="_runPutSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]] V2</paper-button>
                     <paper-button class="modal-button" on-tap="_refresh"><iron-icon icon="icons:refresh" class="mr5 smallIcon" ></iron-icon> [[localize('refresh','Refresh',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
@@ -750,6 +754,16 @@
                 });
             }
 
+            _runPutSumehrV2(){
+                this.generateAndPutSumehrV2().then(putResp => {
+                    this.set('putTransactionResponse', putResp);
+                    console.log("putTransactionResponse = ", putResp);
+                    this._getHubTransactionList().then(tranResp => this.set('hubTransactionList', tranResp));
+                }).catch(error => {
+                    console.log(error);
+                });
+            }
+
 
 
             generateAndPutSumehr(){
@@ -779,6 +793,50 @@
                                                     this.patient.ssin,
                                                     output,
                                                     this.hubPackageId, this.hubApplication
+                                                    )}
+                                                ).then(putResp => {
+                                                    if (putResp) {
+                                                        return putResp;
+                                                    } else {
+                                                        return null;
+                                                    }
+                                                }
+                                            )
+                                        )
+                                    )
+                            ))
+                }else{
+                    return Promise.resolve(null)
+                }
+            }
+
+            generateAndPutSumehrV2(){
+                if (this.patient && this.patient.ssin && this.api.tokenId) {
+                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto().extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys =>
+                                        this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp,
+                                            comment: "mycomment"
+                                        }).then(output =>
+                                            this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
+                                                .then(hcp =>{
+                                                    let reader = new FileReader();
+                                                    reader.onload = function() {
+                                                        console.log("sumehr = ", reader.result);
+                                                    }
+                                                    reader.readAsText(output);
+
+                                                    return this.api.fhc().Hubcontroller().putTransactionUsingPOST(this.hubEndPoint,
+                                                        this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
+                                                        hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip,
+                                                        this.hubId,
+                                                        this.patient.ssin,
+                                                        output,
+                                                        this.hubPackageId, this.hubApplication
                                                     )}
                                                 ).then(putResp => {
                                                     if (putResp) {
@@ -829,6 +887,147 @@
                                             window.URL.revokeObjectURL(url);
 
                                             document.body.removeChild(a);
+                                        }).catch( error=> console.log(error))
+                                    })
+                            ))
+                }
+            }
+
+            _runPreviewSumehr(){
+                    this.$['htPatHubTransactionViewer'].open(this,
+                        JSON.parse("{\"ids\": [{\"sv\": \"1.0\",\"sl\": null,\"dn\": null,\"l\": null,\"s\": \"ID-KMEHR\",\"value\": \"1\"}],\"cds\": [{\"sv\": \"1.0\",\"sl\": null,\"dn\": null,\"l\": null,\"s\": \"CD-TRANSACTION\",\"value\": \"sumehr\"}]}"),
+                        this._getSumehrV2Preview(), true).catch( error=> console.log(error));
+            }
+
+            _getSumehrV2Preview(){
+                if (this.patient) {
+                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto()
+                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys =>
+                                        this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp,
+                                            comment: "mycomment"
+                                        }, true)
+                                    )
+                            ))
+                }
+            }
+
+            _previewSumehrV2old(){
+                if (this.patient) {
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto()
+                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys => {
+                                        return this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp,
+                                            comment: "mycomment"
+                                        }, true).then(output => {
+                                            //creation of the xml file
+                                            let file = typeof output === "string" ? new Blob([output] ,{type: "application/xml"}) : output
+
+                                            //creation the downloading link
+                                            let a = document.createElement("a");
+                                            document.body.appendChild(a);
+                                            a.style = "display: none";
+
+                                            //download the new file
+                                            let url = window.URL.createObjectURL(file);
+                                            a.href = url;
+                                            a.download = (patientDto.lastName || "Doe").replace(" ","_") + "_" + (patientDto.firstName || "John").replace(" ","_") + "_" + (moment().format("x"))+"_sumehr.json";
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+
+                                            document.body.removeChild(a);
+
+                                        }).catch( error=> console.log(error))
+                                    })
+                            ))
+                }
+            }
+
+            // xml2json(srcDOM) {
+            //     let children = [...srcDOM.children];
+            //
+            //     // base case for recursion.
+            //     if (!children.length) {
+            //         return srcDOM.innerHTML
+            //     }
+            //
+            //     // initializing object to be returned.
+            //     let jsonResult = {};
+            //
+            //     for (let child of children) {
+            //
+            //         // checking is child has siblings of same name.
+            //         let childIsArray = children.filter(eachChild => eachChild.nodeName === child.nodeName).length > 1;
+            //
+            //         // if child is array, save the values as array, else as strings.
+            //         if (childIsArray) {
+            //             if (jsonResult[child.nodeName] === undefined) {
+            //                 jsonResult[child.nodeName] = [this.xml2json(child)];
+            //             } else {
+            //                 jsonResult[child.nodeName].push(this.xml2json(child));
+            //             }
+            //         } else {
+            //             jsonResult[child.nodeName] = this.xml2json(child);
+            //         }
+            //     }
+            //
+            //     return jsonResult;
+            // }
+
+            _generateSumehrV2(){
+                if (this.patient) {
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto()
+                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys => {
+                                        return this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp,
+                                            comment: "mycomment"
+                                        }, false).then(output => {
+                                            let reader = new FileReader();
+                                            const myself = this;
+                                            reader.onload = function() {
+                                                console.log("sumehr = ", reader.result);
+                                                // const parser = new DOMParser();
+                                                // const srcDOM = parser.parseFromString(reader.result, "application/xml");
+                                                // Converting DOM Tree To JSON.
+                                                // console.log("json = ", JSON.stringify(myself.xml2json(srcDOM)));
+                                                console.log("json = ", parser.toXml(reader.result))
+
+                                            }
+                                            reader.readAsText(output);
+
+
+                                            //creation of the xml file
+                                            let file = typeof output === "string" ? new Blob([output] ,{type: "application/xml"}) : output
+
+                                            //creation the downloading link
+                                            let a = document.createElement("a");
+                                            document.body.appendChild(a);
+                                            a.style = "display: none";
+
+                                            //download the new file
+                                            let url = window.URL.createObjectURL(file);
+                                            a.href = url;
+                                            a.download = (patientDto.lastName || "Doe").replace(" ","_") + "_" + (patientDto.firstName || "John").replace(" ","_") + "_" + (moment().format("x"))+"_sumehr.xml";
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+
+                                            document.body.removeChild(a);
+
                                         }).catch( error=> console.log(error))
                                     })
                             ))
@@ -1414,9 +1613,8 @@
 
             _runRevokeHubTransaction(e){
                 e.stopPropagation();
-                if(e && e.target && e.target.item) {
-                    this.set("selectedTransaction", e.target.item);
-                    this._revokeHubTransaction(e.target.item).then(tranResp =>{
+                if(this.selectedTransaction) {
+                    this._revokeHubTransaction(this.selectedTransaction).then(tranResp =>{
                         this.set("revokeTransactionResp", tranResp);
                         this._getHubTransactionList().then(tranResp => this.set('hubTransactionList', tranResp));
                     })
