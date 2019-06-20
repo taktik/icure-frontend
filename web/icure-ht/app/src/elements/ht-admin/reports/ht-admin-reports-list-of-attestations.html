@@ -310,6 +310,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <div>[[item.invoiceReference]]</div>
                     </template>
                 </vaadin-grid-column>
+                <vaadin-grid-column flex-grow="1" width="200px">
+                    <template class="header">
+                        <vaadin-grid-sorter  path="paymentReference">
+                            [[localize('paymentReference','Ref payment',language)]]
+                        </vaadin-grid-sorter>
+                    </template>
+                    <template>
+                        <div>[[item.paymentReference]]</div>
+                    </template>
+                </vaadin-grid-column>
                 <vaadin-grid-column flex-grow="0" width="48px">
                     <template class="header">
                         <vaadin-grid-sorter path="oa">
@@ -659,6 +669,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             return {};
                         }
                     },
+                    messagesByInvoiceId: {
+                        type: Object,
+                        noReset: true,
+                        value: function () {
+                            return {};
+                        }
+                    }
                 }
             }
 
@@ -788,7 +805,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
             }
 
-            getRawInvoiceList() {
+            getRawInvoiceList_old() {
                 return this.api.user().getCurrentUser().then(user  => {
                     return this.api.hcparty().getCurrentHealthcareParty().then(currentHcp => {
                         const dateFrom = this.dateFrom !== "" ? parseInt(this.dateFrom.replace("-", "").replace("-", ""), 10) : null
@@ -808,6 +825,48 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         done: !pl.nextKeyPair,
                                     }})
                         ) .catch(e=>{ console.log(e); return Promise.resolve([]); })
+                    })
+                })
+            }
+
+            getRawInvoiceList() {
+                return this.api.user().getCurrentUser().then(user  => {
+                    return this.api.hcparty().getCurrentHealthcareParty().then(currentHcp => {
+                        const dateFrom = this.dateFrom !== "" ? parseInt(this.dateFrom.replace("-", "").replace("-", ""), 10) : null
+                        let dateTo = this.dateTo !== "" ? parseInt(this.dateTo.replace("-", "").replace("-", ""), 10) : null
+                        if(dateTo && dateFrom && dateTo < dateFrom) {
+                            dateTo = dateFrom // prevent error in API
+                        }
+                        //console.log("from to", dateFrom, dateTo)
+                        this.messagesByInvoiceId = {}
+
+                        return this.api.getRowsUsingPagination( (key,docId) =>
+                            this.api.invoice().findByAuthor(currentHcp.parentId || currentHcp.id, dateFrom, dateTo, key, docId, 2000)
+                                .then(pl => {
+                                    return this.api.message().listMessagesByInvoiceIds(new models.ListOfIdsDto({ids: pl.rows.map(inv => inv.id)})).then(messages => {
+                                        messages.map(msg => {
+                                            msg.invoiceIds.map(invid => {
+                                                this.messagesByInvoiceId[invid]= msg
+                                            })
+                                        })
+                                        //console.log("messages", messages)
+                                    }).then(() => {
+                                        return {
+                                            rows:  pl.rows.map(inv=> {
+                                                if(this.messagesByInvoiceId[inv.id] && this.messagesByInvoiceId[inv.id].metas && this.messagesByInvoiceId[inv.id].metas.paymentReferenceAccount1) {
+                                                    inv.paymentReference = this.messagesByInvoiceId[inv.id].metas.paymentReferenceAccount1
+                                                    console.log("ref: ", inv.id, inv.paymentReference)
+                                                }
+                                                return inv
+                                            }),
+                                            nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                            nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                            done: !pl.nextKeyPair,
+                                        }
+                                    })
+                                })
+                        )
+                            .catch(e=>{ console.log(e); return Promise.resolve([]); })
                     })
                 })
             }
@@ -856,6 +915,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     sentDateToSort: sentDateToSort,
                                     //patient: after
                                     invoiceReference: invoice.invoiceReference,
+                                    paymentReference: invoice.paymentReference,
                                     //oa: after
                                     //insurance: after
                                     invoiceType: this.getInvoiceTypeLabel(invoice.invoiceType),

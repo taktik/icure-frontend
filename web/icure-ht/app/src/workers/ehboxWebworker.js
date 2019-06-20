@@ -37,6 +37,7 @@ onmessage = e => {
         const accesslogApi      = new iccApi.iccAccesslogApi(iccHost, iccHeaders)
         const iccCryptoXApi     = new iccXApi.IccCryptoXApi(iccHost, iccHeaders, iccHcpartyApi)
         const iccUtils          = new UtilsClass()
+        const icureApi          = new iccApi.iccIcureApi(iccHost, iccHeaders)
 
         //Avoid hitting local storage when loading key pairs
         Object.keys(e.data.keyPairs).forEach( k => iccCryptoXApi.cacheKeyPair(e.data.keyPairs[k], k) )
@@ -50,6 +51,13 @@ onmessage = e => {
         let totalNewMessages = {
             INBOX: 0,
             SENTBOX: 0
+        }
+
+        let appVersions = {
+            backend: "-",
+            frontend: "[AIV]{version}[/AIV]",
+            electron: "-",
+            isElectron: false
         }
 
 
@@ -87,6 +95,17 @@ onmessage = e => {
 
         }
 
+        const backupOriginalMessage = (fullMessageFromEHealthBox) => {
+            const promResolve = Promise.resolve()
+            return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), { received: +new Date, transportGuid: "ehBoxBackup" + ":" + _.get(fullMessageFromEHealthBox,"id","") })
+                .then(messageInstance => msgApi.createMessage(messageInstance))
+                .then(createdMessage => iccDocumentXApi.newInstance(user, createdMessage, {documentType: 'result', mainUti: "application/octet-stream", name: _.get(fullMessageFromEHealthBox,"id","") + ".json"}))
+                .then(documentInstance => docApi.createDocument(documentInstance))
+                .then(createdDocument => encryptContent( user, createdDocument, fullMessageFromEHealthBox ).then(encryptedContent => ([createdDocument,encryptedContent])))
+                .then(([createdDocument, encryptedContent]) => docApi.setAttachment(createdDocument.id, null, encryptedContent))
+                .catch(e=>{ console.log("ERROR with backupOriginalMessage:", e); return promResolve; })
+        }
+
         const registerNewMessage = (fullMessageFromEHealthBox, boxId) => {
 
             const promResolve = Promise.resolve()
@@ -104,49 +123,55 @@ onmessage = e => {
             finalMessageStatus = !!_.get(fullMessageFromEHealthBox,"encrypted",false) ? finalMessageStatus|1<<3 : finalMessageStatus
             finalMessageStatus = !!_.size(_.get(fullMessageFromEHealthBox,"annex",[])) ? finalMessageStatus|1<<4 : finalMessageStatus
 
-            return iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), {
-                created: moment(_.trim(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD")))), "YYYYMMDD").valueOf(),
-                fromAddress: !_.size(_.get(fullMessageFromEHealthBox,"sender",{})) ? "" : _.trim(_.compact([
-                    _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))),
-                    _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorFirstName",""))),
-                    (!_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName",""))&& !_.trim(_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))?_.trim(_.get(fullMessageFromEHealthBox,"sender.organizationName","")):""),
-                    "(" + _.compact([
-                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderIDType",""))),
-                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderID","")))
-                    ]).join(": ") + ")"
-                ]).join(" ")),
-                subject: _.trim(_.get(fullMessageFromEHealthBox,"document.title",_.trim(_.get(fullMessageFromEHealthBox,"document.textContent",_.trim(_.get(fullMessageFromEHealthBox,"id","")))).substring(0,26)+"...")),
-                metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss",""))}),
-                toAddresses: [boxId],
-                transportGuid: boxId + ":" + _.get(fullMessageFromEHealthBox,"id",""),
-                fromHealthcarePartyId: _.trim(_.get(fullMessageFromEHealthBox,"fromHealthcarePartyId", _.get(fullMessageFromEHealthBox,"sender.id",""))),
-                received: +new Date,
-                status: finalMessageStatus
-            })
-                .then(messageInstance => msgApi.createMessage(messageInstance))
-                .then(createdMessage => {
-
-                    let prom = Promise.resolve();
-                    _.map(_.compact(_.concat(_.get(fullMessageFromEHealthBox,"document",[]),splittedEhBoxAnnexes)), singleDocumentOrAnnex => {
-                        prom = prom.then(promisesCarrier => !!_.size(singleDocumentOrAnnex) ?
-                            registerNewDocument(singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox)
-                                .then(createdDocument => _.concat(promisesCarrier, createdDocument))
-                                .catch(e => { console.log("ERROR with registerNewDocument: ", e); return Promise.resolve(_.concat(promisesCarrier, {})); })
-                            : Promise.resolve(_.concat(promisesCarrier, {}))
-                        )
-                    })
-
-                    return prom
-                        .then(createdDocuments => ([createdMessage, _.compact(createdDocuments)]))
-                        .catch(e=>{ console.log("ERROR with registerNewDocument: ", e); return iccMessageXApi.message().deleteMessages(createdMessage.id).catch(e => {console.log("ERROR with deleteMessages: ", e); return promResolve;}) })
+            return backupOriginalMessage(fullMessageFromEHealthBox)
+                .then((backupDocumentObject) => iccMessageXApi.newInstance(_.omit(user, ['autoDelegations']), {
+                    created: moment(_.trim(_.get(fullMessageFromEHealthBox,"publicationDateTime",_.trim(moment().format("YYYYMMDD")))), "YYYYMMDD").valueOf(),
+                    fromAddress: !_.size(_.get(fullMessageFromEHealthBox,"sender",{})) ? "" : _.trim(_.compact([
+                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))),
+                        _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.firstName","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorFirstName",""))),
+                        (!_.trim(_.get(fullMessageFromEHealthBox,"sender.lastName",""))&& !_.trim(_.get(fullMessageFromEHealthBox,"customMetas.CM-AuthorLastName",""))?_.trim(_.get(fullMessageFromEHealthBox,"sender.organizationName","")):""),
+                        "(" + _.compact([
+                            _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.identifierType.type","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderIDType",""))),
+                            _.trim(_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")?_.trim(_.get(fullMessageFromEHealthBox,"sender.id","")):_.get(fullMessageFromEHealthBox,"customMetas.CM-SenderID","")))
+                        ]).join(": ") + ")"
+                    ]).join(" ")),
+                    subject: _.trim(_.get(fullMessageFromEHealthBox,"document.title",_.trim(_.get(fullMessageFromEHealthBox,"document.textContent",_.trim(_.get(fullMessageFromEHealthBox,"id","")))).substring(0,26)+"...")),
+                    metas: _.merge(_.get(fullMessageFromEHealthBox,"customMetas",{}), {
+                        patientSsin: _.trim(_.get(fullMessageFromEHealthBox,"patientInss","")),
+                        backupOriginalMessageDocumentId:_.trim(_.get(backupDocumentObject,"id","")),
+                        appVersions: JSON.stringify(appVersions)
+                    }),
+                    toAddresses: [boxId],
+                    transportGuid: boxId + ":" + _.get(fullMessageFromEHealthBox,"id",""),
+                    fromHealthcarePartyId: _.trim(_.get(fullMessageFromEHealthBox,"fromHealthcarePartyId", _.get(fullMessageFromEHealthBox,"sender.id",""))),
+                    received: +new Date,
+                    status: finalMessageStatus
                 })
+                    .then(messageInstance => msgApi.createMessage(messageInstance))
+                    .then(createdMessage => {
+
+                        let prom = Promise.resolve();
+                        _.map(_.compact(_.concat(_.get(fullMessageFromEHealthBox,"document",[]),splittedEhBoxAnnexes)), singleDocumentOrAnnex => {
+                            prom = prom.then(promisesCarrier => !!_.size(singleDocumentOrAnnex) ?
+                                registerNewDocument(singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox)
+                                    .then(createdDocument => _.concat(promisesCarrier, createdDocument))
+                                    .catch(e => { console.log("ERROR with registerNewDocument: ", e); return Promise.resolve(_.concat(promisesCarrier, {})); })
+                                : Promise.resolve(_.concat(promisesCarrier, {}))
+                            )
+                        })
+
+                        return prom
+                            .then(createdDocuments => ([createdMessage, _.compact(createdDocuments)]))
+                            .catch(e=>{ console.log("ERROR with registerNewDocument: ", e); return iccMessageXApi.message().deleteMessages(createdMessage.id).catch(e => {console.log("ERROR with deleteMessages: ", e); return promResolve;}) })
+                    })
+            )
 
         }
 
         const registerNewDocument = (singleDocumentOrAnnex, createdMessage, fullMessageFromEHealthBox) => {
 
             const promResolve = Promise.resolve()
-            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || !_.trim(_.get(singleDocumentOrAnnex,"content","")) ?
+            return !_.size(singleDocumentOrAnnex) || !_.size(createdMessage) || !_.size(fullMessageFromEHealthBox) || ( !_.trim(Base64.decode(_.get(singleDocumentOrAnnex,"content",""))) && !_.trim(_.get(singleDocumentOrAnnex,"textContent","")) ) ?
                 promResolve :
                 iccDocumentXApi.newInstance(user, createdMessage, {
                     documentLocation: (!!_.get(fullMessageFromEHealthBox,"document", false) && _.get(singleDocumentOrAnnex,"content","something") === _.get(fullMessageFromEHealthBox,"document.content","else")) ? 'body' : 'annex',
@@ -156,7 +181,7 @@ onmessage = e => {
                 })
                     .then(d => docApi.createDocument(d).catch(e => { console.log("ERROR with createDocument: ", e); return promResolve; }))
                     .then(createdDocument => [createdDocument, iccUtils.base64toArrayBuffer(_.get(singleDocumentOrAnnex,"content",""))])
-                    .then(([createdDocument, byteContent]) => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId,createdDocument.id,_.get(createdDocument,"encryptionKeys", _.get(createdDocument,"delegations",null)))
+                    .then(([createdDocument, byteContent]) => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(user.healthcarePartyId,createdDocument.id,_.size(_.get(createdDocument,"encryptionKeys",{})) ? createdDocument.encryptionKeys : _.get(createdDocument,"delegations",{}))
                         .then(({extractedKeys: enckeys}) => docApi.setAttachment(createdDocument.id, enckeys.join(','), byteContent).catch(e => { console.log("ERROR with setAttachment: ", e); return promResolve; }))
                         .then(() => createdDocument)
                         .catch(e => { console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return promResolve; })
@@ -164,8 +189,6 @@ onmessage = e => {
                     .catch(e => { console.log("ERROR with base64toArrayBuffer: ", e); return promResolve; })
 
         }
-
-
 
         const tryToAssignAppendices = (createdMessage, fullMessageFromEHealthBox, createdDocumentsToAssign, boxId) => {
 
@@ -222,7 +245,7 @@ onmessage = e => {
 
                     const totalAssignedAnnexes = parseInt(_.size(_.filter(annexesInfos,{isAssigned:true})))
                     const messageCurrentStatus = _.get(createdMessage,"status",0)
-                    const messageStatus = (totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
+                    const messageStatus = (!!totalAnnexesToAssign && totalAnnexesToAssign === totalAssignedAnnexes) ? (messageCurrentStatus | (1<<20)) | (1<<26) : messageCurrentStatus   // All annexes assigned ? Set both STATUS_SHOULD_BE_DELETED_ON_SERVER (20) && STATUS_TRAITED (26)
 
                     return encryptContent( user, createdMessage, annexesInfos )
                         .then(encryptedContent => msgApi.modifyMessage(_.merge( {}, createdMessage, { status: messageStatus, metas: _.merge( {}, _.get(createdMessage,"metas",{}) , {annexesInfos: Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))}) })).catch(e=>{ console.log("ERROR with modifyMessage: ", e); return promResolve; }))
@@ -377,8 +400,6 @@ onmessage = e => {
 
         }
 
-
-
         const convertFromOldToNewSystemAndCarryOn = (boxId, fullMessageFromEHealthBox, foundExistingMessage) => {
 
             const promResolve = Promise.resolve()
@@ -393,67 +414,77 @@ onmessage = e => {
                 // Auto-clean on EH BOX after six month
                 !!(parseInt(_.get(foundExistingMessage, "created", Date.now())) < (Date.now() - (180 * 24 * 3600000))) ? removeMsgFromEhboxServer(foundExistingMessage) :
 
-                    promResolve.then(()=>{
+                promResolve.then(()=>{
 
-                        const userHpcId = _.trim(_.get(user,"healthcarePartyId",""))
-                        const receivedDate = parseInt(_.get(foundExistingMessage,"received",0))
-                        const isAlreadyHidden = !!(_.get(foundExistingMessage,"status",0)&(1<<14))
-                        const isAlreadyProcessed = !!(_.get(foundExistingMessage,"status",0)&(1<<26))
-                        const sourceBox = _.trim(_.get(_.trim(_.get(foundExistingMessage,"transportGuid","")).split(':'), "[0]", ""))
+                    const userHpcId = _.trim(_.get(user,"healthcarePartyId",""))
+                    const receivedDate = parseInt(_.get(foundExistingMessage,"received",0))
+                    const isAlreadyHidden = !!(_.get(foundExistingMessage,"status",0)&(1<<14))
+                    const isAlreadyProcessed = !!(_.get(foundExistingMessage,"status",0)&(1<<26))
+                    const sourceBox = _.trim(_.get(_.trim(_.get(foundExistingMessage,"transportGuid","")).split(':'), "[0]", ""))
 
-                        return iccDocumentXApi.findByMessage(userHpcId, foundExistingMessage).catch(e=>{console.log("ERROR with findByMessage: ", e); return promResolve;})
-                            .then(documentsOfMessage => !_.size(documentsOfMessage) ?
+                    return iccDocumentXApi.findByMessage(userHpcId, foundExistingMessage).catch(e=>{console.log("ERROR with findByMessage: ", e); return promResolve;})
+                        .then(documentsOfMessage => !_.size(documentsOfMessage) ?
+                            promResolve :
+                            Promise.all(_.compact(_.filter(documentsOfMessage,d=>!!_.trim(_.get(d,"attachmentId",""))&&!!_.trim(_.get(d,"secretForeignKeys","")))).map(singleDocument => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(userHpcId, _.trim(_.get(singleDocument,"id","")), _.size(_.get(singleDocument,"encryptionKeys",[])) ? _.get(singleDocument,"encryptionKeys",[]) : _.get(singleDocument,"delegations",[]))
+                                .then(({extractedKeys: enckeys}) => beResultApi.canHandle(_.trim(_.get(singleDocument,"id","")), enckeys.join(',')).then(canHandle=>!!canHandle).catch(e=>{console.log("ERROR with canHandle: ", e); return Promise.resolve(false);}))
+                                .then(canHandle=>([singleDocument,!!canHandle]))
+                            ))
+                        )
+                        .then(documentsAndCanHandleResults => {
+
+                            const newSystemProdCommitDate = 1560231000000 // 20190611 @ 7.30 AM
+                            const atLeastOneLabResult = !!_.size(_.filter(documentsAndCanHandleResults, i => !!i[1]))
+
+                            return !!(boxId !== "INBOX" || sourceBox !== "INBOX" || !atLeastOneLabResult || !!isAlreadyHidden || !!isAlreadyProcessed || !(receivedDate < newSystemProdCommitDate )) ?
                                 promResolve :
-                                Promise.all(_.compact(_.filter(documentsOfMessage,d=>!!_.trim(_.get(d,"attachmentId",""))&&!!_.trim(_.get(d,"secretForeignKeys","")))).map(singleDocument => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy(userHpcId, _.trim(_.get(singleDocument,"id","")), _.size(_.get(singleDocument,"encryptionKeys",[])) ? _.get(singleDocument,"encryptionKeys",[]) : _.get(singleDocument,"delegations",[]))
-                                    .then(({extractedKeys: enckeys}) => beResultApi.canHandle(_.trim(_.get(singleDocument,"id","")), enckeys.join(',')).then(canHandle=>!!canHandle).catch(e=>{console.log("ERROR with canHandle: ", e); return Promise.resolve(false);}))
-                                    .then(canHandle=>([singleDocument,!!canHandle]))
-                                ))
-                            )
-                            .then(documentsAndCanHandleResults => {
+                                msgApi.deleteMessages(_.trim(_.get(foundExistingMessage,"id",""))).then(()=>{
+                                    _.map(documentsAndCanHandleResults, documentAndCanHandleResult => docApi.deleteDocument(_.trim(_.get(documentAndCanHandleResult,"[0].id",""))).catch(e=>console.log("ERROR with deleteDocument", e)))
+                                    return registerNewMessage(fullMessageFromEHealthBox, boxId)
+                                        .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
+                                        .then(() => totalNewMessages[boxId]++ )
 
-                                const newSystemProdCommitDate = 1560231000000 // 20190611 @ 7.30 AM
-                                const atLeastOneLabResult = !!_.size(_.filter(documentsAndCanHandleResults, i => !!i[1]))
+                                })
 
-                                return !!(boxId !== "INBOX" || sourceBox !== "INBOX" || !atLeastOneLabResult || !!isAlreadyHidden || !!isAlreadyProcessed || !(receivedDate < newSystemProdCommitDate )) ?
-                                    promResolve :
-                                    msgApi.deleteMessages(_.trim(_.get(foundExistingMessage,"id",""))).then(()=>{
-                                        _.map(documentsAndCanHandleResults, documentAndCanHandleResult => docApi.deleteDocument(_.trim(_.get(documentAndCanHandleResult,"[0].id",""))).catch(e=>console.log("ERROR with deleteDocument", e)))
-                                        return registerNewMessage(fullMessageFromEHealthBox, boxId)
-                                            .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
-                                            .then(() => totalNewMessages[boxId]++ )
+                        })
 
-                                    })
-
-                            })
-
-                    })
+                })
 
         }
 
 
 
-        let promisesCarrier = []
-        let prom = Promise.resolve()
-        _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
-            _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
-                .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
-                .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
-                .finally(()=> _.concat(promisesCarrier, []))
-            )
-            prom.then(()=> {
+        icureApi.getVersion()
+        .then(icureVersion => appVersions.backend = _.trim(icureVersion))
+        .then(() => fetch("http://127.0.0.1:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
+        .then(isElectron => appVersions.isElectron = !!isElectron)
+        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then(() => response.json()).catch(() => false))
+        .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
+        .finally(()=>{
 
-                if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
-                    postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
-                    setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
-                }
+            let promisesCarrier = []
+            let prom = Promise.resolve()
+            _.map((boxIds||[]), singleBoxId => ehboxApi.loadMessagesUsingPOST(keystoreId, tokenId, ehpassword, singleBoxId, 200, alternateKeystores).then(messagesFromEHealthBox => {
+                _.map(_.filter(messagesFromEHealthBox, m => !!_.trim(_.get(m, "id",""))), singleMessage => prom = prom
+                    .then(promisesCarrier => createDbMessageWithAppendicesAndTryToAssign(singleMessage, singleBoxId).then(x=>x))
+                    .catch((e) => console.log("ERROR with createDbMessageWithAppendicesAndTryToAssign: ", e))
+                    .finally(()=> _.concat(promisesCarrier, []))
+                )
+                prom.then(()=> {
 
-                if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
-                    postMessage({forceRefresh: true});
-                    setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
-                }
+                    if(singleBoxId === "INBOX" && parseInt(totalNewMessages["INBOX"])) {
+                        postMessage({totalNewMessages: parseInt(totalNewMessages["INBOX"])});
+                        setTimeout(()=>{totalNewMessages["INBOX"] = 0; },100)
+                    }
 
-            })
-        }))
+                    if(singleBoxId === "SENTBOX" && parseInt(totalNewMessages["SENTBOX"])) {
+                        postMessage({forceRefresh: true});
+                        setTimeout(()=>{totalNewMessages["SENTBOX"] = 0; },100)
+                    }
+
+                })
+            }))
+
+        })
 
 
 
