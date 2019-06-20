@@ -237,7 +237,8 @@ onmessage = e => {
                                 firstName: _.trim(_.get(singleAssignResult,"docInfo.firstName","")),
                                 lastName: _.trim(_.get(singleAssignResult,"docInfo.lastName","")),
                                 sex: _.trim(_.get(singleAssignResult,"docInfo.sex","")),
-                                ssin: _.trim(_.get(singleAssignResult,"docInfo.ssin",""))
+                                ssin: _.trim(_.get(singleAssignResult,"docInfo.ssin","")),
+                                labo: _.trim(_.get(singleAssignResult,"docInfo.labo",""))
                             }
                         })
 
@@ -274,6 +275,7 @@ onmessage = e => {
                             .then(assignResult => _.concat(promisesCarrier, {
                                 assigned: !!_.trim(_.get(assignResult, "patientId", "")),
                                 protocolId: _.trim(_.get(docInfo, "protocol", "")),
+                                labo: _.trim(_.get(docInfo, "labo", "")),
                                 contactId: _.trim(_.get(assignResult, "id", "")),
                                 documentId: _.trim(_.get(createdDocumentToAssign, "id", "")),
                                 docInfo: docInfo,
