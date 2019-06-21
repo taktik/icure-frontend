@@ -994,6 +994,10 @@
                 height: 40px;
             }
 
+            vaadin-combo-box {
+                --vaadin-combo-box-overlay-max-height: 30vh;
+            }
+
             vaadin-text-field{
                 height: 40px;
                 margin-top: -16px;
@@ -1004,7 +1008,7 @@
             #importPicker,#docPicker{
                 width: calc(50% - 2px);
             }
-            #PatCombo {
+            #patCombo {
                 width: calc(50% - 4px);
             }
             #NissTextField{
@@ -1030,7 +1034,7 @@
                             </template>
                         </div>
                         <template is="dom-if" if="[[!disabled]]">
-                            <paper-button class="save-button" on-tap="save">[[localize('save','Sauver',language)]]</paper-button>
+                            <paper-button class="save-button" on-tap="update">[[localize('save','Sauver',language)]]</paper-button>
                         </template>
                         <template is="dom-if" if="[[disabled]]">
                             <paper-button class="save-button" on-tap="unassign">[[localize('unassign','Désaffecter',language)]]</paper-button>
@@ -1055,7 +1059,7 @@
                                     <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
                                 </div>
                                 <div class="input-form">
-                                    <vaadin-text-field id="hcpTextField" label="[[localize('hcp','Medecin',language)]]" value="{{selectedMessage.hcp}}" disabled>
+                                    <vaadin-text-field id="hcpTextField" label="[[localize('persphysicianRole','Recipient',language)]]" value="{{selectedMessage.hcp}}" disabled>
                                     </vaadin-text-field>
                                 </div>
                                 <div class="input-form">
@@ -1063,7 +1067,7 @@
                                     </vaadin-combo-box>
                                 </div>
                                 <div class="input-form">
-                                    <vaadin-combo-box id="patCombo" filter="{{filterPatient}}" label="[[localize('pat-name','Nom du patient',language)]]" filtered-items="[[listPat]]" item-label-path="name" item-value-path="id" value="{{selectedMessage.patientId}}" disabled="[[disabled]]"></vaadin-combo-box>
+                                    <vaadin-combo-box id="patCombo" filter="{{filterPatient}}" label="[[localize('pat-name','Nom du patient',language)]]" filtered-items="[[patientList]]" item-label-path="name" item-value-path="id" value="{{selectedMessage.patientId}}" disabled="[[disabled]]"></vaadin-combo-box>
                                     <vaadin-text-field id="NissTextField" label="[[localize('ssin','NISS',language)]]" value="{{selectedMessage.patientSsin}}" disabled="[[disabled]]"></vaadin-text-field>
                                 </div>
                             </div>
@@ -1124,18 +1128,13 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             selectedMessage: {
 			    type: Object
 			},
-			messages: {
-			    type: Object,
-				value: null
-			},
             selectedData: {
 			    type: Object,
                 value: null
             },
-
-			selectedDocuments:{
-				type: Object
-			},
+			// selectedDocuments:{
+			// 	type: Object
+			// },
 			documentAttachment:{
 				type: String,
 				value: null
@@ -1160,10 +1159,6 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			    type: Number,
                 value: 0
             },
-            hasUnassignedResults: {
-			    type: Boolean,
-                value: false
-            },
             unassignedResults: {
 			    type: Array,
                 value: []
@@ -1175,10 +1170,6 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             unimportedPats: {
 			    type: Array,
                 value: () => []
-            },
-            thisDocument: {
-			    type: Object,
-                value: null
             },
             toImportPatsSuggestions: {
 			    type: Array,
@@ -1208,10 +1199,10 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			    type: String,
                 value: ''
             },
-            docInfo: {
-			    type: Object,
-                value: null
-            },
+            // docInfo: {
+			//     type: Object,
+            //     value: null
+            // },
             canAssign: {
 			    type: Boolean,
                 value: false
@@ -1235,14 +1226,14 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             hasLabResult: {
 			    type: Boolean
             },
-            docTxt: {
-			    type: Object,
-                value: null
-            },
+            // docTxt: {
+			//     type: Object,
+            //     value: null
+            // },
             ehealthSession: {
                 type: Boolean
             },
-            listPat:{
+            patientList:{
                 type : Array,
                 value: ()=>[]
             },
@@ -1257,12 +1248,18 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             disabled: {
 			    type: Boolean,
                 value: true
-            }
+            },
+            _currentPageNumber: {
+                type: Number,
+                value: 1
+            },
+
         };
 	}
 
 	static get observers() {
 		return [
+            'apiReady(api,user,opened)',
 		    '_focusChanged(selectedMessage)',
             '_filterPatChanged(filterPatient)',
             // '_selectedDocChanged(selectedMessage.*)',
@@ -1277,8 +1274,41 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
 	ready() {
 		super.ready();
+    }
+
+    apiReady() {
+        this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
+        let exclusions = [
+            "medicaladvisoragreement",
+            "bvt-sample",
+            "clinicalpath",
+            "ecare-safe-consultation",
+            "ecare-tardis-consultation",
+            "perinatal",
+            "population-based-screening",
+            "medicationschemeelement",
+            "vaccinationschemeelement",
+            "genericregistryentry",
+            "ebirth-baby-medicalform",
+            "ebirth-mother-medicalform",
+            "intervention",
+            "applicationlink",
+            "ebirth-baby-notification",
+            "ebirth-mother-notification",
+            "child-prevention",
+            "radiationexposuremonitoring",
+            "treatmentsuspension",
+            "telemonitoring"
+        ];
+
         this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
-            .then(codes => this.set("listType",codes.rows.filter(code=>["careplan","contactreport","diarynote","labrequest","labresult","mea","note","prescription","referral","report","request","result"].find(keyWord=>code.code.includes(keyWord))).map(code => {return{code:code.code,name:code.label[this.language]||this.localize(code.code, code.code, this.language)||code.label["en"]||""}})))
+            .then(results => this.set("listType",  _.orderBy(results.rows.filter(r => !exclusions.includes(r.code)).map(result => {
+                return {
+                    code: result.code,
+                    name: this.localize('cd-transaction-' + result.code, result.code, this.language)
+                }
+            }), ['name'], ['asc'])))
+            .catch(error => console.log(error));
     }
 
 
@@ -1290,42 +1320,21 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         //@ToDo
     }
 
+    _setMessageStatus(message) {
+        message.status = (message.status ^ 1 << 26) | (e.detail.patientId ? 1 << 26 : 0)
+        this.api.message().modifyMessage(message)
+            .then(msg => this.api.register(msg, 'message'))
+    }
+
     _focusChanged() {
-	    if (!this.selectedMessage) {
+        let selMsg = this.selectedMessage;
+	    if (!selMsg) {
             this.set('isLoadingMessage', false)
-            this.set('messages', null)
-            this.set('hasUnassignedResults', false)
-            this.set('thisDocument', null)
             return;
         }
 
-        let selMsg = this.selectedMessage;
         this.set('disabled', ((selMsg.status & (1 << 26)) !== 0));
-        console.log('this message', selMsg);
-        let getPatientIdProm = null;
-        try {
-            getPatientIdProm = this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, selMsg, new Uint8Array(this.api.crypto().utils.base64toArrayBuffer(this.selectedMessage.metas.cryptedInfo)))
-                .then(decrypted => JSON.parse(this.api.crypto().utils.ua2text(decrypted)))
-                .then(secretInfo => {
-                    if (secretInfo.length > 0 && secretInfo[0].patientId && secretInfo[0].contactId) {
-                        this.selectedMessage.contactId = secretInfo[0].contactId;
-                        return this.api.patient().getPatientWithUser(this.user, secretInfo[0].patientId)
-                            .then(patient => {
-                                this.push("listPat", {
-                                    id: patient.id,
-                                    name: patient.firstName + " " + patient.lastName || patient.id,
-                                    ssin: patient.ssin
-                                });
-                                this.set('selectedMessage.patientId', patient.id);
-                            })
-                    }
-                    // return Promise.resolve();
-                });
-        } catch(error) {
-            getPatientIdProm = Promise.reject(error);
-        }
-
-        let getMessageDocumentProm = this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
+        this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
             .then(found => {
                 this.set("document",found[0]);
                 return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys);
@@ -1344,8 +1353,7 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     this.set('selectedData',base64);
                     this.set('isPdf', true);
                 }
-            });
-        Promise.all([getPatientIdProm, getMessageDocumentProm])
+            })
             .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', { detail: {title: selMsg.metas.filename, message: "err.document.open", detail: error}, bubbles: true })))
             .finally(() => this.set('isLoadingMessage', false))
 	}
@@ -1358,11 +1366,44 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         return !!((m.status & (1 << 26)) === 0)
     }
 
+    _wrapPatient(patient) {
+        return {
+            id: patient.id,
+            name: patient.firstName + " " + patient.lastName || patient.id,
+            ssin: patient.ssin
+        };
+    }
+
+    _pushDistinctPatient(listPath, patient) {
+        if (!patient || !patient.id) return;
+        if (this.get(listPath).find(item => item.id === patient.id)) return;
+        this.push(listPath, this._wrapPatient(patient));
+    }
 
     _patientIdChanged(){
-        if(!this.selectedMessage) return;
-        let found = (this.listPat.find(pat => pat.id===this.selectedMessage.patientId) || {ssin:""}).ssin
-        found !==this.selectedMessage.patientSsin && this.set("selectedMessage.patientSsin", found)
+        if (!this.selectedMessage || !this.selectedMessage.id || !this.selectedMessage.patientId) return;
+        let pat = this.patientList.find(p => p.id === this.selectedMessage.patientId);
+        if (pat) (pat.ssin !== this.selectedMessage.patientSsin) && this.set("selectedMessage.patientSsin", pat.ssin)
+        else {
+            return this.api.patient().filterByWithUser(this.user, null, null, 10, null, null, "desc", {
+                filter: {
+                    '$type': 'PatientByHcPartyAndSsinFilter',
+                    'healthcarePartyId': this.selectedMessage.fromHealthcarePartyId,
+                    'id': this.selectedMessage.patientId
+                }
+            })
+                .then(pats => {
+                    pats.rows.map(pat => this._pushDistinctPatient("patientList", pat));
+                    const pat = this.patientList.find(p => p.id === this.selectedMessage.patientId) || {
+                        id: "",
+                        ssin: "",
+                        name: ""
+                    };
+                    this.set("selectedMessage.patientId", pat.id);
+                    this.shadowRoot.querySelector("#patCombo").selectedItem = pat;
+                    (pat.ssin !== this.selectedMessage.patientSsin) && this.set("selectedMessage.patientSsin", pat.ssin)
+                })
+        }
     }
 
     _validSsin(ssin) {
@@ -1372,9 +1413,9 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
     _patientNissChanged(){
         if(!this.selectedMessage)return;
         if(!this.selectedMessage.patientSsin || !this._validSsin(this.selectedMessage.patientSsin)) return;
-        const found =this.listPat.find(pat => pat.ssin===this.selectedMessage.patientSsin)
+        const found =this.patientList.find(pat => pat.ssin===this.selectedMessage.patientSsin)
         if(found){
-            this.selectedMessage.patientId!==found.id && this.set("patientId",found.id)
+            this.selectedMessage.patientId!==found.id && this.set("selectedMessage.patientId",found.id)
         }
         else{
             this.api.patient().filterByWithUser(this.user,null,null,10,null,null,"desc",{
@@ -1384,19 +1425,14 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     'ssin': this.selectedMessage.patientSsin
                 }
             }).then(pats => {
-
-                pats.rows.map(pat => this.push("listPat",{
-                    id: pat.id,
-                    name: pat.firstName + " " + pat.lastName || pat.id,
-                    ssin: pat.ssin
-                }))
-                this.set("selectedMessage.patientId",this.listPat.find(pat => pat.ssin===this.selectedMessage.patientSsin).id)
+                pats.rows.map(pat => this._pushDistinctPatient("patientList",pat))
+                this.set("selectedMessage.patientId",this.patientList.find(pat => pat.ssin===this.selectedMessage.patientSsin).id)
             })
         }
     }
 
     _filterPatChanged(e){
-        if(!this.filterPatient)return;
+        if(!this.filterPatient || !this.selectedMessage) return;
         this.api.patient().filterByWithUser(this.user, null, null, 50, null, null, true, {
             filter: {
                 '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
@@ -1404,7 +1440,7 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 'searchString': this.filterPatient
             }
         }).then(pats =>{
-            this.set("listPat",pats.rows.map(pat =>{
+            this.set("patientList",pats.rows.map(pat =>{
                 return {
                     id : pat.id,
                     name : pat.firstName+" "+pat.lastName || pat.id,
@@ -1435,17 +1471,13 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.dispatchEvent(new CustomEvent("document-delete",  { detail: detail, bubbles: true }))
     }
 
-    save(e){
-	    let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id}
+    update(e){
+	    let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id, 'status': this.selectedMessage.status, 'patientId': this.selectedMessage.patientId };
 	    detail.doc.id = this.document.id;
-	    if (this.selectedMessage.patientId !== '') {
-	        detail.patientId = this.selectedMessage.patientId
-        }
-	    if (!this.selectedMessage.metas.type || !this.selectedMessage.patientId || ! this.selectedMessage.patientSsin) {
+	    if (!this.selectedMessage.metas.type || !this.selectedMessage.metas.documentDate) {
 	        let errors = [];
-            errors.push(!this.selectedMessage.metas.type && this.localize('type-doc', 'Type de document', this.language));
-	        errors.push(!this.selectedMessage.patientSsin && this.localize('ssin', 'Ssin', this.language));
-	        errors.push(!this.selectedMessage.patientId && this.localize('patient', 'Patient', this.language));
+            errors.push(!this.selectedMessage.metas.type && this.localize('type-doc', 'Document type', this.language));
+            errors.push(!this.selectedMessage.metas.documentDate && this.localize('doc_date', 'Document date', this.language));
 	        let errorDetail = errors.filter(item => !!item).join(', ');
             this.dispatchEvent(new CustomEvent("show-error-message", {
                 detail: {
@@ -1458,6 +1490,15 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	    else
 	        this.dispatchEvent(new CustomEvent("document-update",  { detail: detail, bubbles: true }))
     }
+
+    _gotoPreviousGridPage() {
+        if ( parseInt(_.get(this,"_currentPageNumber",1)) > 1 ) this.set( '_currentPageNumber',( parseInt(_.get(this,"_currentPageNumber",2)) - 1 ) )
+    }
+
+    _gotoNextGridPage() {
+        if ( parseInt(_.get(this,"_currentPageNumber",1)) < parseInt(_.get(this,"_totalPagesForCurrentFolderAndCurrentFilter",1)) ) this.set('_currentPageNumber', ( parseInt(_.get(this,"_currentPageNumber",1)) + 1 ) )
+    }
+
 
 }
 
