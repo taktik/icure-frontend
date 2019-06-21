@@ -459,7 +459,7 @@ onmessage = e => {
         .then(icureVersion => appVersions.backend = _.trim(icureVersion))
         .then(() => fetch("http://127.0.0.1:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
         .then(isElectron => appVersions.isElectron = !!isElectron)
-        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then(() => response.json()).catch(() => false))
+        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then((response) => response.json()).catch(() => false))
         .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
         .finally(()=>{
 
