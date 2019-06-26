@@ -22,7 +22,7 @@
 <link rel="import" href="../../../ht-spinner/ht-spinner.html">
 <link rel="import" href="../../../dynamic-form/dynamic-doc.html">
 <link rel="import" href="../../../collapse-button/collapse-button.html">
-<link rel="import" href="ht-pat-hub-transaction-view.html">
+<link rel="import" href="ht-pat-hub-transaction-preview.html">
 <link rel="import" href="../../../../dialog-style.html">
 <link rel="import" href="../../../../scrollbar-style.html">
 
@@ -431,9 +431,11 @@
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                 </div>
                 <div class="hub-menu-view">
-<!--                    <ht-pat-hub-transaction-view id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>-->
+                    <ht-pat-hub-transaction-preview id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-preview>
                 </div>
                 <div class="buttons">
+<!--                    vaadin-grid-selection-column-->
+                    <paper-button class="modal-button" on-tap="_getItemsToExclude"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_getItemsToExclude','_getItemsToExclude',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_generateSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
                     <paper-button class="modal-button" on-tap="_runPutSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]] V2</paper-button>
@@ -561,12 +563,22 @@
                     breakTheGlassReason:{
                         type: String,
                         value: null
+                    },
+                    currentSumehr:{
+                        type: Object,
+                        value: null
+                    },
+                    itemsToExclude:{
+                        type:Array,
+                        value: function(){
+                            return [];
+                        }
                     }
                 };
             }
 
             static get observers() {
-                return ['apiReady(api,user,opened)'];
+                return ['apiReady(api,user,opened)','sumehrChanged(currentSumehr)'];
             }
 
             ready() {
@@ -596,7 +608,8 @@
                 this.$['sumehrPreviewDialog'].open();
 
                 this.set('selectedTransaction', null);
-                //this.$['htPatHubTransactionViewer'].open(this,  null);
+                this.set('currentSumehr', null);
+                this.$['htPatHubTransactionViewer'].open(this,  null);
 
                 this._refresh();
             }
@@ -742,6 +755,7 @@
 
             generateAndPutSumehrV2(){
                 if (this.patient && this.patient.ssin && this.api.tokenId) {
+                    const excludedIds = this._getItemsToExclude();
                     return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                         this.api.patient().getPatientWithUser(this.user,this.patient.id)
                             .then(patientDto =>
@@ -750,7 +764,8 @@
                                         this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
                                             secretForeignKeys: secretForeignKeys.extractedKeys,
                                             recipient: hcp,
-                                            comment: "mycomment"
+                                            comment: "mycomment",
+                                            excludedIds : excludedIds
                                         }).then(output =>
                                             this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
                                                 .then(hcp =>{
@@ -788,11 +803,24 @@
                 return (a === b)
             }
 
+            sumehrChanged(sumehr){
+                this.$['htPatHubTransactionViewer'].open(this,  sumehr);
+            }
+
             _runPreviewSumehr(){
+                this.set("itemsToExclude", []);
                 console.log("Getting sumehr preview data");
                 this._getSumehrV2Preview().then(resp =>{
                     console.log(resp);
+                    this.set('currentSumehr', resp);
                 });
+            }
+
+            _getItemsToExclude(){
+                const items =  this.$['htPatHubTransactionViewer'].getIdsToExclude();
+                console.log("exclude = " + items);
+                this.set("itemsToExclude", items);
+                return items;
             }
 
             _getSumehrV2Preview(){
@@ -809,7 +837,6 @@
                                 }).then(resp =>
                                     this.api.contacticc.decryptServices(hcp.id, resp.services).then(
                                         svcs => {
-                                            //resp.decrypterServices = svcs;
                                             return resp;
                                         }
                                     )
@@ -821,6 +848,7 @@
 
             _generateSumehrV2(){
                 if (this.patient) {
+                    const excludedIds = this._getItemsToExclude();
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                         this.api.patient().getPatientWithUser(this.user,this.patient.id)
                             .then(patientDto =>
@@ -830,18 +858,13 @@
                                         return this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
                                             secretForeignKeys: secretForeignKeys.extractedKeys,
                                             recipient: hcp,
-                                            comment: "mycomment"
+                                            comment: "mycomment",
+                                            excludedIds : excludedIds
                                         }).then(output => {
                                             let reader = new FileReader();
                                             const myself = this;
                                             reader.onload = function() {
                                                 console.log("sumehr = ", reader.result);
-                                                // const parser = new DOMParser();
-                                                // const srcDOM = parser.parseFromString(reader.result, "application/xml");
-                                                // Converting DOM Tree To JSON.
-                                                // console.log("json = ", JSON.stringify(myself.xml2json(srcDOM)));
-                                                console.log("json = ", parser.toXml(reader.result))
-
                                             }
                                             reader.readAsText(output);
 
