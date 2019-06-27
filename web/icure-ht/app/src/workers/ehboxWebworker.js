@@ -237,7 +237,8 @@ onmessage = e => {
                                 firstName: _.trim(_.get(singleAssignResult,"docInfo.firstName","")),
                                 lastName: _.trim(_.get(singleAssignResult,"docInfo.lastName","")),
                                 sex: _.trim(_.get(singleAssignResult,"docInfo.sex","")),
-                                ssin: _.trim(_.get(singleAssignResult,"docInfo.ssin",""))
+                                ssin: _.trim(_.get(singleAssignResult,"docInfo.ssin","")),
+                                labo: _.trim(_.get(singleAssignResult,"docInfo.labo",""))
                             }
                         })
 
@@ -274,6 +275,7 @@ onmessage = e => {
                             .then(assignResult => _.concat(promisesCarrier, {
                                 assigned: !!_.trim(_.get(assignResult, "patientId", "")),
                                 protocolId: _.trim(_.get(docInfo, "protocol", "")),
+                                labo: _.trim(_.get(docInfo, "labo", "")),
                                 contactId: _.trim(_.get(assignResult, "id", "")),
                                 documentId: _.trim(_.get(createdDocumentToAssign, "id", "")),
                                 docInfo: docInfo,
@@ -457,7 +459,7 @@ onmessage = e => {
         .then(icureVersion => appVersions.backend = _.trim(icureVersion))
         .then(() => fetch("http://127.0.0.1:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
         .then(isElectron => appVersions.isElectron = !!isElectron)
-        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then(() => response.json()).catch(() => false))
+        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then((response) => response.json()).catch(() => false))
         .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
         .finally(()=>{
 
