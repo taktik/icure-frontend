@@ -825,7 +825,7 @@
             }
 
             static get observers() {
-                return ['apiReady(api,user,opened)'];
+                return ['apiReady(api,user,opened)', 'sumehrChanged(currentSumehr)'];
             }
 
             ready() {
@@ -887,6 +887,11 @@
                 this.set('message', null);
                 this.set('isLoading',false);
                 this.set('currentSumehr', sumehr);
+            }
+
+            sumehrChanged(sumehr){
+                console.log("sumehr changed detected")
+                //this.set('currentSumehr', sumehr);
             }
 
             getGridUnsSelectedItems(gridId) {
@@ -1354,17 +1359,13 @@
                                         });
                                         console.log("secret applied");
                                     }
-
-                                    this.api.helement().modifyHealthElement(he).then(() => {
-                                        this.refreshPatient();
-                                    });
-
+                                    let heTmp = this.currentSumehr.healthElements.find(s => s.id === he.id);
+                                    heTmp.tags = he.tags;
+                                    this.$['he-list'].clearCache();
+                                    this._sendHEChanged(he);
                                 });
                             } else{
                                 //service
-
-                                this.api.contacticc.findBy(hcp.id, patientDto).then(ctcs => this.api.contacticc.decrypt(hcp.id, ctcs).then(ctcs =>
-
                                 this.api.contacticc.getContactWithUser(this.user, this.confidentialityItem.contactId).then(ctc => {
                                         console.log(ctc);
                                         this.api.contacticc.decrypt(hcp.id, [ctc]).then(ctcsTmp => {
@@ -1383,11 +1384,15 @@
                                                 });
                                                 console.log("secret applied");
                                             }
-                                            this.set('contacts', ctcs);
-                                            this.saveNewService(svc);
+                                            let svcTmp = this.currentSumehr.services.find(s => s.id === svc.id);
+                                            svcTmp.tags = svc.tags;
+                                            this.$['med-list'].clearCache();
+                                            this.$['svc-list'].clearCache();
+                                            //this.set("currentSumehr.services", );
+                                            this._sendServiceChanged(svc);
                                         })
                                     }
-                                )))
+                                )
                             }
                         }
                     )
@@ -1396,61 +1401,12 @@
                 })
             }
 
-            saveNewService(svc) {
-                svc.modified = +new Date();
-                if (!svc.id) {
-                    svc.id = this.api.crypto().randomUuid();
-                }
-                if (!svc.valueDate) {
-                    svc.valueDate = parseInt(moment().format('YYYYMMDDHHmmss'));
-                }
-                if (!svc.openingDate) {
-                    svc.openingDate = svc.valueDate;
-                }
-                if (!svc.created) {
-                    svc.created = svc.modified;
-                }
-                const ctc = this.api.contact().contactOfService(this.get('contacts'), svc.id) || this.currentContact;
-                let sc = this.currentContact.subContacts.find(sc => sc.services.find(sId => svc.id));
-                if (!sc) {
-                    sc = ctc.subContacts.find(sc => sc.services.find(sId => svc.id)) || {};
-                    this.currentContact.subContacts.push(sc = { formId: sc.formId, planOfActionId: sc.planOfActionId, healthElementId: sc.healthElementId, services: [] });
-                    sc.services.push({ serviceId: svc.id });
-                }
-                const oldSvcIdx = this.currentContact.services.findIndex(s => s.id === svc.id);
-                if (oldSvcIdx > -1) {
-                    this.currentContact.services.splice(oldSvcIdx, 1);
-                }
-                this.currentContact.services.push(svc);
-                return this.saveCurrentContact();
+            _sendHEChanged(he){
+                this.dispatchEvent(new CustomEvent('healthelement-changed', {detail: {healthelement: he}, bubbles: true, composed: true}))
             }
 
-            saveContact(ctc, preSave, postSave, postError) {
-                return (preSave ? preSave() : Promise.resolve()).catch(e => console.log(e)).then(() => (ctc.rev ? this.api.contact().modifyContactWithUser(this.user, ctc) : this.api.contact().createContactWithUser(this.user, ctc))).then(c=>{
-                    console.log('Registering ...',c)
-                    return this.api.register(c,'contact')
-                }).then(c => {
-                    ctc.rev = c.rev;
-                    console.log("contact saved: " + ctc.id + ":" + ctc.rev);
-
-                    // setTimeout(() => this.$.savedIndicator.classList.remove("saved"), 2000);
-                    // this.$.savedIndicator.classList.add("saved");
-
-                    // need to push the new contact in this.contacts because that's how it is when reloading the page
-                    this.contacts.find(con=> con.id === ctc.id ) || this.push('contacts', ctc)
-                    console.log("ht-pat-detail: after save: currentContact", this.currentContact, "contacts", this.contacts, "selected", this.selectedContacts)
-                    // this._refreshFromServices()
-
-                    postSave && postSave(c)
-                    return c;
-                }).catch(e => {
-                    postError && postError(e)
-                    throw e
-                })
-            }
-
-            saveCurrentContact() {
-                return this.saveContact(this.currentContact);
+            _sendServiceChanged(svc){
+                this.dispatchEvent(new CustomEvent('service-changed', {detail: {service: svc}, bubbles: true, composed: true}))
             }
 
             _closeDialogs() {
