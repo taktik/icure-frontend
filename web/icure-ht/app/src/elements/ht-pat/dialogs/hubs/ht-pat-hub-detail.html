@@ -439,8 +439,8 @@
 <!--                    <paper-button class="modal-button" on-tap="_generateSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]]</paper-button>-->
 <!--                    <paper-button class="modal-button" on-tap="_runPutSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]]</paper-button>-->
                     <paper-button class="modal-button" on-tap="_openPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_openPreviewSumehr','_openPreviewSumehr',language)]]</paper-button>
-                    <paper-button class="modal-button" on-tap="_generateSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
-                    <paper-button class="modal-button" on-tap="_runPutSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]] V2</paper-button>
+<!--                    <paper-button class="modal-button" on-tap="_generateSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>-->
+<!--                    <paper-button class="modal-button" on-tap="_runPutSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]] V2</paper-button>-->
                     <paper-button class="modal-button" on-tap="_refresh"><iron-icon icon="icons:refresh" class="mr5 smallIcon" ></iron-icon> [[localize('refresh','Refresh',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
@@ -745,16 +745,6 @@
                 });
             }
 
-            _runPutSumehr(){
-                this.generateAndPutSumehr().then(putResp => {
-                    this.set('putTransactionResponse', putResp);
-                    console.log("putTransactionResponse = ", putResp);
-                    this._getHubTransactionList().then(tranResp => this.set('hubTransactionList', tranResp));
-                }).catch(error => {
-                    console.log(error);
-                });
-            }
-
             _runPutSumehrV2(){
                 this.generateAndPutSumehrV2().then(putResp => {
                     this.set('putTransactionResponse', putResp);
@@ -763,52 +753,6 @@
                 }).catch(error => {
                     console.log(error);
                 });
-            }
-
-
-
-            generateAndPutSumehr(){
-                if (this.patient && this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
-                            .then(patientDto =>
-                                this.api.crypto().extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
-                                    .then(secretForeignKeys =>
-                                        this.api.bekmehr().generateSumehrExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
-                                            secretForeignKeys: secretForeignKeys.extractedKeys,
-                                            recipient: hcp,
-                                            comment: "mycomment"
-                                        }).then(output =>
-                                            this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                                                .then(hcp =>{
-                                                    let reader = new FileReader();
-                                                    reader.onload = function() {
-                                                        console.log("sumehr = ", reader.result);
-                                                    }
-                                                    reader.readAsText(output);
-
-                                                    return this.api.fhc().Hubcontroller().putTransactionUsingPOST(this.hubEndPoint,
-                                                    this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                                    hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip,
-                                                    this.hubId,
-                                                    this.patient.ssin,
-                                                    output,
-                                                    this.hubPackageId, this.hubApplication
-                                                    )}
-                                                ).then(putResp => {
-                                                    if (putResp) {
-                                                        return putResp;
-                                                    } else {
-                                                        return null;
-                                                    }
-                                                }
-                                            )
-                                        )
-                                    )
-                            ))
-                }else{
-                    return Promise.resolve(null)
-                }
             }
 
             generateAndPutSumehrV2(){
@@ -859,61 +803,8 @@
                 return (a === b)
             }
 
-            _generateSumehr(){
-                if (this.patient) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
-                            .then(patientDto =>
-                                this.api.crypto()
-                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
-                                    .then(secretForeignKeys => {
-                                        return this.api.bekmehr().generateSumehrExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
-                                            secretForeignKeys: secretForeignKeys.extractedKeys,
-                                            recipient: hcp,
-                                            comment: "mycomment"
-                                        }).then(output => {
-                                            //creation of the xml file
-                                            let file = typeof output === "string" ? new Blob([output] ,{type: "application/xml"}) : output
-
-                                            //creation the downloading link
-                                            let a = document.createElement("a");
-                                            document.body.appendChild(a);
-                                            a.style = "display: none";
-
-                                            //download the new file
-                                            let url = window.URL.createObjectURL(file);
-                                            a.href = url;
-                                            a.download = (patientDto.lastName || "Doe").replace(" ","_") + "_" + (patientDto.firstName || "John").replace(" ","_") + "_" + (moment().format("x"))+"_sumehr.xml";
-                                            a.click();
-                                            window.URL.revokeObjectURL(url);
-
-                                            document.body.removeChild(a);
-                                        }).catch( error=> console.log(error))
-                                    })
-                            ))
-                }
-            }
-
             _openPreviewSumehr(){
                     this.$['htPatHubSumehrPreview'].open();
-            }
-
-            _getSumehrV2Preview(){
-                // if (this.patient) {
-                //     return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                //         this.api.patient().getPatientWithUser(this.user,this.patient.id)
-                //             .then(patientDto =>
-                //                 this.api.crypto()
-                //                     .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
-                //                     .then(secretForeignKeys =>
-                //                         this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
-                //                             secretForeignKeys: secretForeignKeys.extractedKeys,
-                //                             recipient: hcp,
-                //                             comment: "mycomment"
-                //                         }, true)
-                //                     )
-                //             ))
-                // }
             }
 
             _generateSumehrV2(){
