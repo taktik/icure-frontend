@@ -22,7 +22,14 @@ import {EditorState, TextSelection, Transaction} from 'prosemirror-state'
 import {EditorView, NodeView} from 'prosemirror-view'
 import {Schema, DOMParser, NodeSpec, Node, MarkType, MarkSpec, ParseRule, Mark, ResolvedPos, Slice, Fragment} from 'prosemirror-model'
 import {schema} from 'prosemirror-schema-basic'
-import {baseKeymap, toggleMark, setBlockType} from "prosemirror-commands";
+import {
+  baseKeymap,
+  toggleMark,
+  setBlockType,
+  chainCommands,
+  newlineInCode,
+  createParagraphNear, liftEmptyBlock, splitBlockKeepMarks
+} from "prosemirror-commands";
 import {Plugin} from "prosemirror-state"
 import {dropCursor} from 'prosemirror-dropcursor';
 import {gapCursor} from 'prosemirror-gapcursor';
@@ -362,29 +369,26 @@ export class ProseEditor extends Polymer.Element {
             var state = view.state;
 
             if (!(prevState && prevState.doc.eq(state.doc) && prevState.selection.eq(state.selection))) {
-              let {$anchor, $cursor} = state.selection as TextSelection, index = $anchor.pos
-              let node = state.doc.nodeAt(index)
-
-              if (!node && !$cursor) {
-                proseEditor.set('currentHeading', null)
-                proseEditor.set('currentFont', null)
-                proseEditor.set('currentSize', null)
-                return
-              }
+              const {$anchor, $head, $cursor} = state.selection as TextSelection
+              const node = state.doc.nodeAt($anchor.pos) || ($head && state.doc.nodeAt($head.pos))
 
               if (node && node.type.name === 'heading') {
                 proseEditor.set('currentHeading', 'Heading ' + node.attrs.level)
               } else {
                 proseEditor.set('currentHeading', 'Normal')
               }
-              const marks = (node && node.marks || $cursor && $cursor.marks() || [])
+              //Might want to restrict node marks analysis to paragraphs and headings
+              let marks = ($cursor && $cursor.marks() && $cursor.marks().length ? $cursor.marks() : state.storedMarks) || []
 
+              const {from, to} = state.selection
 
-              let {from, to} = state.selection
               let align : string | null = null
               state.doc.nodesBetween(from, to, (node, pos) => {
                 if ((node.type === proseEditor.editorSchema.nodes.paragraph || node.type === proseEditor.editorSchema.nodes.heading) && node.attrs.align != align) {
                   align = node.attrs.align
+                }
+                if (!marks.length && node.marks.length) {
+                  marks = node.marks
                 }
               })
 
@@ -493,6 +497,7 @@ export class ProseEditor extends Polymer.Element {
         columnResizing({}),
         tableEditing(),
         keymap(Object.assign(baseKeymap,{
+          "Enter": chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlockKeepMarks),
           "Tab": goToNextCell(1),
           "Shift-Tab": goToNextCell(-1),
           "Mod-b": toggleMark(this.editorSchema.marks.strong, {}),
