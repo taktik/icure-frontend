@@ -112,7 +112,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 width: 100%;
                 height: 100%;
                 box-sizing: border-box;
-                overflow-y: auto; 
+                overflow-y: auto;
             }
 
             :host #institution-list {
@@ -1775,71 +1775,66 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     fillWithCard(){
-        if(Object.keys(this.cardData).length!==0 && this.patient.ssin === this.cardData.nationalNumber){
-            let streetData = _.trim(this.cardData.street).split(" ")
-            const number = streetData.find(str => str.match(/\d/g))
-            const boxNumber = streetData[streetData.length-1]!==number ? streetData[streetData.length-1] :""
-            const street = streetData.reduce((tot,str)=>{
-                if(!tot)tot="";
-                if(!(str===number || str===boxNumber ))
-                    tot = tot.concat(" ",str)
-                return tot;
+        fetch('http://127.0.0.1:16042/read')
+            .then((response) => {
+                return response.json()
             })
+            .then(res => {
+                if (res.cards[0]) {
+                    this.set('cardData',res.cards[0])
+                    this.dispatchEvent(new CustomEvent('card-changed', {detail: {cardData: this.cardData}, composed: true, bubbles: true}));
+                }
+                if(Object.keys(this.cardData).length!==0 && this.patient.ssin === this.cardData.nationalNumber){
+                    let streetData = _.trim(this.cardData.street).split(" ")
+                    const number = streetData.find(str => str.match(/\d/g))
+                    const boxNumber = streetData[streetData.length-1]!==number ? streetData[streetData.length-1] :""
+                    const street = streetData.reduce((tot,str)=>{
+                        if(!tot)tot="";
+                        if(!(str===number || str===boxNumber ))
+                            tot = tot.concat(" ",str)
+                        return tot;
+                    })
 
-            this.set("patient.lastName", this.cardData.surname)
-            this.set("patient.firstName", this.cardData.firstName)
-            this.set("patient.placeOfBirth", this.cardData.locationOfBirth)
-            this.set("patient.dateOfBirth", parseInt(this.api.moment(this.cardData.dateOfBirth * 1000).format('YYYYMMDD')))
-            this.set("patient.nationality", this.cardData.nationality)
-            this.set("patient.picture", this.cardData.picture)
-            this.set("patient.gender", this.cardData.gender === 'M' ? 'male' : 'female')
+                    this.set("patient.lastName", this.cardData.surname)
+                    this.set("patient.firstName", this.cardData.firstName)
+                    this.set("patient.placeOfBirth", this.cardData.locationOfBirth)
+                    this.set("patient.dateOfBirth", parseInt(this.api.moment(this.cardData.dateOfBirth * 1000).format('YYYYMMDD')))
+                    this.set("patient.nationality", this.cardData.nationality)
+                    this.set("patient.picture", this.cardData.picture)
+                    this.set("patient.gender", this.cardData.gender === 'M' ? 'male' : 'female')
 
-            if(!this.patient.addresses.find(adr => adr.addressType==="home")) {
-                this.push("patient.addresses", {
-                    addressType: "home",
-                    street: street,
-                    houseNumber: number,
-                    postboxNumber: boxNumber,
-                    postalCode: this.cardData.zipCode,
-                    city: this.cardData.municipality,
-                    country: this.cardData.country
-                })
-            }
-            else{
-                this.set("patient.addresses."+this.patient.addresses.findIndex(adr => adr.addressType==="home"), {
-                    street: street,
-                    houseNumber: number,
-                    postboxNumber: boxNumber,
-                    postalCode: this.cardData.zipCode,
-                    city: this.cardData.municipality,
-                    country: this.cardData.country,
-                    telecoms : this.patient.addresses[this.patient.addresses.findIndex(adr => adr.addressType==="home")].telecoms
-                })
-            }
-
-            this.api.patient().modifyPatientWithUser(this.user,this.patient)
-                .then(p => this.api.register(p,'patient'))
-                .then(p => {
-                    this.set('patient',p)
-                    this.patientChanged()
-                })
-        }
-        else if(Object.keys(this.cardData).length===0){
-            fetch('http://127.0.0.1:16042/read')
-                .then((response) => {
-                    return response.json()
-                })
-                .then(res => {
-                    if (res.cards[0]) {
-                        this.set('cardData',res.cards[0])
-                        this.fillWithCard()
-                        this.dispatchEvent(new CustomEvent('card-changed', {detail: {cardData: this.cardData}, composed: true, bubbles: true}));
+                    if(!this.patient.addresses.find(adr => adr.addressType==="home")) {
+                        this.push("patient.addresses", {
+                            addressType: "home",
+                            street: street,
+                            houseNumber: number,
+                            postboxNumber: boxNumber,
+                            postalCode: this.cardData.zipCode,
+                            city: this.cardData.municipality,
+                            country: this.cardData.country
+                        })
                     }
-                })
-        }
-        else {
-            console.log("mauvaise carte inserer")
-        }
+                    else{
+                        this.set("patient.addresses."+this.patient.addresses.findIndex(adr => adr.addressType==="home"), {
+                            addressType: "home",
+                            street: street,
+                            houseNumber: number,
+                            postboxNumber: boxNumber,
+                            postalCode: this.cardData.zipCode,
+                            city: this.cardData.municipality,
+                            country: this.cardData.country,
+                            telecoms : this.patient.addresses[this.patient.addresses.findIndex(adr => adr.addressType==="home")].telecoms
+                        })
+                    }
+
+                    this.api.patient().modifyPatientWithUser(this.user,this.patient)
+                        .then(p => this.api.register(p,'patient'))
+                        .then(p => {
+                            this.set('patient',p)
+                            this.patientChanged()
+                        })
+                }
+            })
     }
 
     _tabIndexChanged() {
