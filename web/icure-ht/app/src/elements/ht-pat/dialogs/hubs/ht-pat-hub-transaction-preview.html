@@ -813,6 +813,10 @@
                         type: Object,
                         value: null
                     },
+                    hubSumehr: {
+                        type: Object,
+                        value: null
+                    },
                     cdTransaction: {
                         type: Object,
                         value: () => [
@@ -962,15 +966,91 @@
             }
 
 
-            open(htPatHubDetail, sumehr) {
+            open(htPatHubDetail, newSumehr, hubSumehr) {
                 this.set('parent', htPatHubDetail)
                 this.set('attachmentCount', 0);
                 this.set('message', null);
                 this.set('isLoading', false);
-                this.set('newSumehr', sumehr);
-                if (sumehr) this.checkAll('he-list', this._itemTypes(sumehr.healthElements));
+                this.matchSumehrElements(newSumehr, hubSumehr);
+                this.set('newSumehr', newSumehr);
+                this.set('hubSumehr', hubSumehr);
+                if (newSumehr) this.checkAll('he-list', this._itemTypes(newSumehr.healthElements));
                 this.checkAll('svc-list');
                 this.checkAll('med-list');
+            }
+
+            //find corresponding info between new generated sumehr and the version on the hub,
+            matchSumehrElements(newSumehr, hubSumehr){
+                if(newSumehr && hubSumehr) {
+                    let unMatched = [];
+                    let matched = [];
+                    //collect all items ( transaction.item[] and transaction.heading[].item[])
+                    const items = hubSumehr && hubSumehr.folders && hubSumehr.folders[0].transactions ? hubSumehr.folders[0].transactions[0].item.concat(_.flatMap(hubSumehr.folders[0].transactions[0].heading.map(h => h.item))) : [];
+                    console.log(items);
+                    items.forEach(it => {
+                        //1.has icure id ? [iCure-Person-Id, iCure-Item(transaction), *iCure-Service, iCure-Label, *iCure-HealthElement]
+                        const icureId = it.ids.find(id => id.sl === "iCure-HealthElement" || id.sl === "iCure-Service");
+                        if(icureId) {
+                            //1.1  matches ?
+                            const match = newSumehr.services.filter(svc => svc.id === icureId.value).concat(newSumehr.healthElements.filter(he => he.id === icureId.value));
+                            if (match.length > 0){
+                                console.log("icureid: match found : ", match);
+                                matched.push({"hubItem":it,"newItem": match[0]});
+                            } else {
+                                console.log("icureid: no match found for : ", icureId);
+                                unMatched.push(it)
+                            }
+                        } else {
+                            console.log("no icureid");
+                            let match = null;
+                            newSumehr.services.forEach(newItem => {
+                                if(this.codeMatch(newItem, it) && this.typeMatch(newItem, it) && this.dateMatch(newItem, it)) {
+                                    match = {"hubItem":it,"newItem": newItem};
+                                    console.log("byvalue: match found : ", match);
+                                }
+                            });
+                            newSumehr.healthElements.forEach(newItem => {
+                                if(this.codeMatch(newItem, it) && this.typeMatch(newItem, it) && this.dateMatch(newItem, it)) {
+                                    console.log("icureid: match found : ", match);
+                                    match = {"hubItem":it,"newItem": newItem};
+                                }
+                            });
+                            if(match){
+                                matched.push(match)
+                            }else{
+                                console.log("byvalue: no match found : ", it);
+                                unMatched.push(it)
+                            }
+                        }
+                    });
+                    console.log("matched:", matched);
+                    console.log("unmatched:", unMatched);
+                }
+                //note: when item has an icure id matching can be done on this first
+
+                //matching
+                // icureId ? match ? :
+                //   he by code (icpc, icd, ...) and type (he, risk, ...) and startDate ?
+                //     startDate: add tolerance (1 week ?, 1month ?)
+                //                earliest wins/local wins
+                //   medication by code (atc, cnk, ...) and startDate
+                //      posology: merge ?
+                //      startDAte: no tolerance ?
+
+            }
+
+            codeMatch(newItem, hubItem){
+                const heCodeTypes = ["ICPC", "ICD", "BE-THESAURUS"]
+                const medCodeTypes = ["CD-DRUG-CNK", "CD-ATC", "CD-INNCLUSTER"]; //TODO: missing: magistral/compound prescription
+                return false;
+            }
+
+            typeMatch(newItem, hubItem){
+                return false;
+            }
+
+            dateMatch(newItem, hubItem){
+                return false;
             }
 
             sumehrChanged(sumehr) {
@@ -999,8 +1079,8 @@
 
             getGridUnsSelectedItems(gridId, types) {
                 if (types) {
-                    const all = _.flatMap(t.map(t => _.get(this.shadowRoot.querySelector('#' + gridId + "-" + t), "items", [])));
-                    const selected = _.flatMap(t.map(t => _.get(this.shadowRoot.querySelector('#' + gridId + "-" + t), "selectedItems", [])));
+                    const all = _.flatMap(types.map(t => _.get(this.shadowRoot.querySelector('#' + gridId + "-" + t), "items", [])));
+                    const selected = _.flatMap(types.map(t => _.get(this.shadowRoot.querySelector('#' + gridId + "-" + t), "selectedItems", [])));
                     const unselected = all.filter(x => !selected.includes(x));
                     return unselected;
                 } else {
