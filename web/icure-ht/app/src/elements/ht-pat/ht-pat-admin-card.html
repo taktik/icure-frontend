@@ -112,7 +112,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 width: 100%;
                 height: 100%;
                 box-sizing: border-box;
-                overflow-y: auto; 
+                overflow-y: auto;
             }
 
             :host #institution-list {
@@ -1105,9 +1105,9 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     ;(this.patient.partnerships.length ? this.api.patient().getPatientsWithUser(this.user,{ids:this.patient.partnerships.map(ps => ps.partnerId)}) : Promise.resolve([]))
                         .then(ppss => ppss.map(p => this.api.register(p, 'patient')))
                         .then(ppss =>
-                        this.set('patient.partnerships', this.patient.partnerships.map(pp => {
-                            return Object.assign({}, pp, { partnerInfo: ppss.find(ps => ps.partnerId === pp.id) || {id: pp.partnerId} })
-                        }))
+                        this.set('patient.partnerships',this.patient.partnerships.map(pp => {
+                            return Object.assign({}, pp, { partnerInfo: ppss.find(ps => ps.id === pp.partnerId) || {} })
+                        }).filter(p => _.isEmpty(p.partnerInfo)))
                     ).finally(() => {
                         this.dataProvider = this.patientDataProvider(this.patient, '', '', this.patient && this.patient.id, codes);
                         this.set('patientMap', _.cloneDeep(this.patient));
@@ -1161,7 +1161,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
                 ((patient.partnerships && patient.partnerships.length) ?
                     Promise.all(patient.partnerships.map((partner, index) => {
-
+                        if(!partner.partnerInfo || (!partner.partnerInfo.lastName && !partner.partnerInfo.name))
+                            return Promise.resolve({})
                         if (!partner.partnerId || !partner.partnerInfo.rev) {
                             //patient not present
                             partner.partnerInfo.active = false
@@ -1169,9 +1170,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
                             return this.api.patient().newInstance(this.user, partner.partnerInfo)
                                 .then(np => {
-                                    partner.partnerId = np.id
                                     return this.api.patient().createPatientWithUser(this.user, np).then(np => this.api.register(np, 'patient')).then(np => {
-                                        this.set('patient.partnerships.' + index + '.partnerInfo', np)
+                                        this.set('patient.partnerships.' + index,{partnerId: np.id, partnerInfo: np})
                                     })
                                 })
                                 .catch(e => {console.log("Cannot save "+e.message); return null})
@@ -1185,7 +1185,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                                 //      this.set('patient.partnerships.' + index + '.partnerInfo', partner)
                                 //      return partner
                                 //  })
-                                .catch(e => {console.log("Cannot save "+e.message); return null})
+                                .catch(e => {console.log("Cannot save "+e.message,partner.partnerInfo); return null})
                         }
                     }))
                 : Promise.resolve([]))
@@ -1292,6 +1292,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             },
             addSubForm: (key, guid) => {
                 this.flushSave(); //Important
+                if(key==="partnerInfo.addresses" && (!root().partnerInfo.lastName && !root().partnerInfo.name))return;
                 (_.get(root(), key) || _.get(_.set(root(), key, []), key)).push(key==='partnerships'?{partnerId: this.api.crypto().randomUuid(), partnerInfo:{}}:{});
 
                 this.$[this.root.activeElement.id].notify((rootPath.length ? rootPath + '.' : '') + key + '.*');
