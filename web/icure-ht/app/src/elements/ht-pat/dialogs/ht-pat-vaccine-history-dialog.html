@@ -12,6 +12,7 @@
                 width: 90vw;
                 overflow: hidden;
                 margin: 0;
+                padding-bottom: 13px;
             }
             h2 {
                 min-height: 24px;
@@ -230,6 +231,10 @@
                         type: Array,
                         value: []
                     },
+                    servicesRefresher: {
+                        type: Number,
+                        value: 0
+                    },
                     comboStatus: {
                         type: Array,
                         value : () => [
@@ -252,7 +257,9 @@
             }
 
             static get observers() {
-                return ['setList(contacts)','getAllVaccFromThesaurus(vaccines)']
+                return [
+                    'setList(contacts, servicesRefresher)','getAllVaccFromThesaurus(vaccines)',
+                ]
             }
 
             constructor() {
@@ -263,27 +270,35 @@
                 super.ready();
             }
 
+            reset() {
+                this.set("services", [])
+            }
+
             setList(){
-                if(!(this.contacts && this.contacts.length)) return;
-                this.api.contact().filterServices(this.contacts,s => s.label==='Actes').then(services =>{
-                    let vaccines = []
-                    services.forEach(svc=>{
-                        Object.keys(svc.tags).forEach(k=>{
-                            if (svc.tags[k].code == 'vaccine') {
-                                let thesCode = '0'
-                                Object.keys(svc.codes).forEach(c=>{if(svc.codes[c].type == "BE-THESAURUS-PROCEDURES") {thesCode = svc.codes[c].code}})
-                                const vacc = {name: this._getName(svc),intDate:svc.valueDate, date: this._timeFormat(svc.valueDate),status: this._getStatut(svc),code: thesCode}
-                                if (vacc.status == 'Fait' || vacc.status == 'Geëxecuteerd' || vacc.status == 'Done') vaccines.push(vacc)
-                            }
+                console.log("ht-pat-vaccine-history-dialog: setList", this.contacts)
+                if(!(this.contacts && this.contacts.length)) {
+                    this.reset()
+                } else {
+                    this.api.contact().filterServices(this.contacts,s => s.label==='Actes').then(services =>{
+                        let vaccines = []
+                        services.forEach(svc=>{
+                            Object.keys(svc.tags).forEach(k=>{
+                                if (svc.tags[k].code == 'vaccine') {
+                                    let thesCode = '0'
+                                    Object.keys(svc.codes).forEach(c=>{if(svc.codes[c].type == "BE-THESAURUS-PROCEDURES") {thesCode = svc.codes[c].code}})
+                                    const vacc = {name: this._getName(svc),intDate:svc.valueDate, intCreated:svc.created, date: this._timeFormat(svc.valueDate),status: this._getStatut(svc),code: thesCode}
+                                    if (vacc.status == 'Fait' || vacc.status == 'Geëxecuteerd' || vacc.status == 'Done') vaccines.push(vacc)
+                                }
+                            })
                         })
+                        this.set("vaccines",_.orderBy(vaccines,['intDate', 'intCreated'],['desc','desc']))
                     })
-                    this.set("vaccines",_.orderBy(vaccines,'intDate','desc'))
-                })
+                }
             }
 
             _getName(svc){
                 const content = svc && this.api.contact().preferredContent(svc, this.language) || svc.content[this.language]
-                return (content && content.medicationValue && content.medicationValue.medicinalProduct && content.medicationValue.medicinalProduct.intendedname) || this.localize('obs_val','obsolete value',this.language)
+                return (content && content.medicationValue && content.medicationValue.medicinalProduct && content.medicationValue.medicinalProduct.intendedname) || this.localize('not_specified','n/a',this.language)
             }
             _timeFormat(date) {
                 return date && this.api.moment(date).format(date > 99991231 ? 'DD/MM/YYYY' : 'DD/MM/YYYY') || '';
