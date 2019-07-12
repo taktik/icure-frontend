@@ -392,12 +392,24 @@
                     </div>
                     <div class="hub-submenu-container">history of sumehr changes by topaz<br/>[[_sumehrInfo(hubSumehr)]]</div>
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
+                    <vaadin-grid id="updatelist" class="vaadinStyle"
+                                 items="[[updateList]]">
+                        <vaadin-grid-column>
+                            <template class="header">
+                                [[localize('date','Date',language)]]
+                            </template>
+                            <template>
+                                [[item.created]]
+                            </template>
+                        </vaadin-grid-column>
+                    </vaadin-grid>
                 </div>
                 <div class="hub-menu-view">
                     <ht-pat-hub-transaction-preview id="htPatHubTransactionPreViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-preview>
                 </div>
                 <div class="buttons">
 <!--                    <paper-button class="modal-button" on-tap="_getItemsToExclude"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_getItemsToExclude','_getItemsToExclude',language)]]</paper-button>-->
+                    <paper-button class="modal-button" on-tap="getSumehrUpdateServices"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('getSumehrUpdateServices','getSumehrUpdateServices',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_runLogMessage"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runLogMessage','_runLogMessage',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_generateSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
@@ -544,6 +556,12 @@
                     newSumehrToLog:{
                         type: Object,
                         value: null
+                    },
+                    updateList:{
+                        type:Array,
+                        value: function(){
+                            return [];
+                        }
                     }
                 };
             }
@@ -576,6 +594,7 @@
             }
 
             open(hubSumehrPromise) {
+                this.set('updateList', []);
                 this.$['sumehrPreviewDialog'].open();
                 this.$['htPatHubTransactionPreViewer'].open(this,  null);
                 this.set('selectedTransaction', null);
@@ -586,6 +605,7 @@
                         this.set('isLoading',false);
                         this._refresh();
                         this._runPreviewSumehr();
+                        this.getSumehrUpdateServices();
                     }).catch( error=> {
                         this.set('message', null);
                         console.log('getTransaction failed : ' + error);
@@ -597,6 +617,7 @@
                     this.set('hubSumehr', null);
                     this._runPreviewSumehr();
                 }
+                this.getSumehrUpdateServices();
             }
 
             _refresh(){
@@ -854,6 +875,48 @@
                     this.currentContact.id = this.api.crypto().randomUuid()
                 }
                 return (this.currentContact.rev ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
+            }
+
+            getSumehrUpdateServices(){
+                const patient = this.patient;
+                this.api.contact().findBy(this.user.healthcarePartyId, patient).then(ctcs => ctcs.map(ctc => this.api.register(ctc, 'contact'))).then(ctcs => {
+                    ctcs.sort((a, b) => (a.created || 0) - (b.created || 0));
+                    // const sorter = x => [
+                    //     ((x.codes || []).find(c => c.type === 'ICPC' || c.type === 'ICPC2') || {}).code || "\uff0f",
+                    //     -(x.valueDate || x.openingDate || 0),
+                    //     -(x.closingDate || 0)
+                    // ];
+                    console.log("Contacts", ctcs);
+                    this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-TRANSACTION' && ['sumehr'].includes(c.code))).then(svcs => {
+                        //console.log("sumehr svcs",svcs);
+                        const contents = svcs.map(svc => this.api.contact().preferredContent(svc, this.language));
+                        Promise.all(contents.map(cnt => this.api.document().getDocument(cnt.documentId))).then(docs => {
+                            //console.log("sumehr docs", docs)
+                            Promise.all(docs.map(doc => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, doc.id, doc.cryptedForeignKeys).then(cfks => ([cfks,doc]))))
+                                .then(promResults => {
+                                    const idsAndDocs = promResults.map(res => {
+                                        return {messageId: res[0].extractedKeys[0], doc: res[1] };
+                                    });
+                                    return Promise.all(idsAndDocs.map(idDoc => this.api.message().getMessage(idDoc.messageId).then(msg => [msg, idDoc.doc]))).then(msgAndDocs => {
+                                        //console.log("msgAndDocs",msgAndDocs);
+                                        return msgAndDocs.map(msgNdoc => {return {msg: msgNdoc[0], doc: msgNdoc[1]}});
+                                    })
+                                })
+                                .then(msgNdocs => {
+                                    console.log("msgNdocs", msgNdocs);
+                                    const docList = msgNdocs.filter(m => m.msg && m.msg.transportGuid && m.msg.transportGuid === "HUB:OUT:UPDATE-SUMEHR" && m.msg.metas.updateReference);
+                                    const oldDocList = docList.filter(m => m.msg.metas.filename && m.msg.metas.filename === "old");
+                                    const newDocList = docList.filter(m => m.msg.metas.filename && m.msg.metas.filename === "new");
+                                    const pairList = oldDocList.map(m => {
+                                        const newDoc = newDocList.find(mn => mn.msg.metas.updateReference === m.msg.metas.updateReference);
+                                        return {old : m, new: newDoc, updateReference: m.msg.metas.updateReference, created: m.msg.created};
+                                    }).filter(m => m.new);
+                                    this.set("updateList", _.orderBy(pairList, "created", "desc"));
+                                    return pairList;
+                                })
+                        });
+                    })
+                })
             }
 
             _runPreviewSumehr(){
