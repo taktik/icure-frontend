@@ -948,7 +948,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     </vaadin-grid-column>
                 </vaadin-grid>
                 <div class="panel-bottom-btns">
-                    <paper-button on-tap="confirm"><iron-icon icon="add-circle"></iron-icon> [[localize('create_new_pat','Create New Patient',language)]]</paper-button>
+                    <paper-button on-tap="confirmAddAndOpenPatientWithEid"><iron-icon icon="add-circle"></iron-icon> [[localize('create_new_pat','Create New Patient',language)]]</paper-button>
                     <paper-button on-tap="closeEidPanel" panel="eidOpenPatientMessage"><iron-icon icon="cancel" panel="eidOpenPatientMessage"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
             </paper-item>
@@ -1813,8 +1813,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             static get observers() {
                 return [
-                    '_hcpChanged(hcp)','_selectedFilterIndexesChanged(selectedFilterIndexes.splices)', '_filterValueChanged(filterValue)', '_showInactivePatientsChanged(showInactive)', '_hcpFilterChanged(hcpFilterValue, _allHcpsChecked)', '_canAddPat(lastName,firstName,dateAsString)',
-                    '_resetSearchField(selectedPatient)'
+                    '_hcpChanged(hcp)','_selectedFilterIndexesChanged(selectedFilterIndexes.splices)', '_filterValueChanged(filterValue)', '_showInactivePatientsChanged(showInactive)', '_hcpFilterChanged(hcpFilterValue, _allHcpsChecked)',
+                    '_canAddPat(lastName,firstName,dateAsString,ssin,listResultPatients)', '_resetSearchField(selectedPatient)'
                 ]
             }
 
@@ -2348,7 +2348,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             confirmAddPatient() {
-                if (this.lastName.length && this.firstName.length && this.dateAsString.length) { // name and birthdate are needed
+                if ((!this.ssin || (this.api.patient().isValidSsin(this.ssin) && this.listResultPatients.length && !this.listResultPatients.find(pat => pat.ssin===this.ssin))) && this.lastName.length && this.firstName.length && this.dateAsString.length) { // name and birthdate are needed
                     // Trigger update
                     let newPatient = {
                         lastName: this.lastName,
@@ -2408,8 +2408,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
             }
 
+            confirmAddAndOpenPatientWithEid(){
+                const filter = {
+                    filter: {'$type': 'PatientByHcPartyAndSsinFilter',
+                        'healthcarePartyId': this.user.healthcarePartyId,
+                        'ssin': this.ssin}}
+                this.api.patient().filterByWithUser(this.user, null, null, 50, 0, 1, 'desc', filter ).then(response => {
+                    if (!response || !response["totalSize"].length || !response["rows"].find(pat => pat.ssin === this.ssin))
+                        this.confirmAddAndOpenPatient()
+                })
+            }
+
             _canAddPat() {
-                this.set('canAddPat', (this.lastName && this.firstName && this.dateAsString && this.lastName.length && this.firstName.length && this.dateAsString.length) ? true : false)
+                this.set('canAddPat', ((!this.ssin || (this.api.patient().isValidSsin(this.ssin) && this.listResultPatients.length && !this.listResultPatients.find(pat => pat.ssin===this.ssin))) &&
+                    this.lastName && this.firstName && this.dateAsString && this.lastName.length && this.firstName.length && this.dateAsString.length) ? true : false)
             }
 
             _resetSearchField() {
@@ -2853,6 +2865,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _searchDuplicate() {
                 if (!this.user) return
+                this.set("canAddPat",false)
                 const fingerPrint = this.firstName + '|' + this.lastName + '|' + this.dateAsString + '|' + this.ssin
                 //creation of filters
                 const totalChars = (this.firstName && this.firstName.length || 0) + (this.lastName && this.lastName.length || 0)
@@ -2928,11 +2941,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 this.set("listResultPatients", [])
                                 this.set("displayResult", false)
                             }
+                            this._canAddPat()
                         })
                     }, 300)
                 } else {
                     this.set("listResultPatients", [])
                     this.set("displayResult", false)
+                    this._canAddPat()
                 }
             }
 
