@@ -408,12 +408,10 @@
                     <ht-pat-hub-transaction-preview id="htPatHubTransactionPreViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-preview>
                 </div>
                 <div class="buttons">
-<!--                    <paper-button class="modal-button" on-tap="_getItemsToExclude"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_getItemsToExclude','_getItemsToExclude',language)]]</paper-button>-->
                     <paper-button class="modal-button" on-tap="getSumehrUpdateServices"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('getSumehrUpdateServices','getSumehrUpdateServices',language)]]</paper-button>
-                    <paper-button class="modal-button" on-tap="_runLogMessage"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runLogMessage','_runLogMessage',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_generateSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
-                    <paper-button class="modal-button" on-tap="_runPutSumehrV2"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]] V2</paper-button>
+                    <paper-button class="modal-button" on-tap="_runPutSumehrV2WithGetTransaction"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_runPutSumehr','_runPutSumehr',language)]] V2</paper-button>
                     <paper-button class="modal-button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
             </div>
@@ -562,6 +560,10 @@
                         value: function(){
                             return [];
                         }
+                    },
+                    parentDialog:{
+                        type: Object,
+                        value: null
                     }
                 };
             }
@@ -593,8 +595,9 @@
                 this.async(this.notifyResize, 1);
             }
 
-            open(hubSumehrPromise) {
+            open(hubSumehrPromise, parentDialog) {
                 this.set('updateList', []);
+                this.set('parentDialog', parentDialog);
                 this.$['sumehrPreviewDialog'].open();
                 this.$['htPatHubTransactionPreViewer'].open(this,  null);
                 this.set('selectedTransaction', null);
@@ -737,6 +740,27 @@
                 });
             }
 
+            _runPutSumehrV2WithGetTransaction(){
+                this.generateAndPutSumehrV2().then(putResp => {
+                    this.set('putTransactionResponse', putResp);
+                    console.log("putTransactionResponse = ", putResp);
+                    if(putResp && putResp.ids && putResp.ids.length && putResp.ids[0].value){
+                        console.log("new transaction id", putResp.ids[0].value);
+                        let transaction = {ids: putResp.ids, cds: [{value:"sumehr"}]};
+                        this.parentDialog._getHubTransactionMessage(transaction).then(getResp => {
+                            console.log("new transaction on hub", getResp);
+                            const updateReference = this.api.crypto().randomUuid();
+                            this._logUpdateMessage(JSON.stringify(getResp), "new", updateReference, "text/xml").then(() => this._logUpdateMessage(JSON.stringify(this.hubSumehr), "old", updateReference, "text/xml"));
+                        });
+                        this.parentDialog._runGetTransactionList();
+                    }else{
+                        console.log("an put transaction error occured");
+                    };
+                }).catch(error => {
+                    console.log(error);
+                });
+            }
+
             generateAndPutSumehrV2(){
                 if (this.patient && this.patient.ssin && this.api.tokenId) {
                     const excludedIds = this._getItemsToExclude();
@@ -793,17 +817,6 @@
                 this.$['htPatHubTransactionPreViewer'].open(this,  sumehr, this.hubSumehr);
             }
 
-            _runLogMessage(){
-                console.log("log message");
-                //create message
-                //create doc
-                //attach original sumehr
-                //attach new sumehr
-                //this.set("newSumehrToLog", this.hubSumehr);
-                this.set("replacedSumehrToLog", this.hubSumehr);
-                this._logMessage();
-            }
-
             _logUpdateMessage(message, messageName, updateReference, mime){
                 //updateRerence --> uuid to link old and new sumehr
                 if(message){
@@ -855,12 +868,7 @@
                                     }).then(res => res);
                                     
                                 }).finally(() => {
-                                    // this.set('newSumehrToLog', {
-                                    //     transaction : null,
-                                    //     document: null,
-                                    //     title: null,
-                                    //     docType: null
-                                    // })
+                                    console.log("finally of _logUpdateMessage")
                                 }).catch(e => {
                                     console.log("---error upload attachment---", e)
                                 })
@@ -869,6 +877,67 @@
                     return Promise.resolve(null);
                 }
             }
+
+            // _logUpdateMessagePair(message, message2, messageName, updateReference, mime){
+            //     //updateRerence --> uuid to link old and new sumehr
+            //     if(message){
+            //         return this.api.message().newInstance(this.user)
+            //             .then(nmi => this.api.message().createMessage(_.merge(nmi, { //creation of container message
+            //                     transportGuid: "HUB:OUT:UPDATE-SUMEHR",
+            //                     recipients: [this.user && this.user.healthcarePartyId],
+            //                     metas: {filename: messageName,
+            //                         mediaType: "hub",
+            //                         updateReference: updateReference}, //-->"hub",
+            //                     toAddresses: [_.get(this.user, 'email', this.user && this.user.healthcarePartyId)], //email needed ?
+            //                     subject: "Hub Sumehr Update",
+            //                     status : 0 | 1<<25 | (this.patient.id ? 1<<26 : 0)
+            //                 }))
+            //                     .then(createdMessage => Promise.all([createdMessage,
+            //                         this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt",
+            //                             this.user, createdMessage,
+            //                             this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify({patientId : this.patient.id, isAssigned: true}))))]))
+            //                     .then(([createdMessage, cryptedMeta]) => {
+            //                         createdMessage.metas.cryptedInfo = Base64.encode(String.fromCharCode.apply(null, new Uint8Array(cryptedMeta)))
+            //                         return this.api.message().modifyMessage(createdMessage)
+            //                     })
+            //                     .then(createdMessage => this.api.document().newInstance(this.user, createdMessage, { //creation of first document (before)
+            //                         documentType: 'sumehr',
+            //                         mainUti: this.api.document().uti(mime),
+            //                         name: "sumehrUpdate_" + messageName + "_" +moment().format("YYYYMMDDhhmmss")
+            //                     }))
+            //                     .then(newDocInstance => this.api.document().createDocument(newDocInstance))
+            //                     .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject('encrypt', this.user, createdDocument, this.api.crypto().utils.base64toArrayBuffer(btoa(message)))
+            //                         .then(encryptedFileContent => ({createdDocument, encryptedFileContent })))
+            //                     .then(({createdDocument, encryptedFileContent}) => this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent))
+            //                     .then(resourcesObject => {
+            //                         //Import into currentContact
+            //                         let sc = this.currentContact.subContacts.find(sbc => (sbc.status || 0) & 64);
+            //                         if (!sc) {
+            //                             sc = { status: 64, services: [] };
+            //                             this.currentContact.subContacts.push(sc);
+            //                         }
+            //                         const svc = this.api.contact().service().newInstance(this.user, {
+            //                             content: _.fromPairs([[this.language, { documentId: resourcesObject.id, stringValue: resourcesObject.name }]]),
+            //                             label: 'document',
+            //                             tags: [{type: 'CD-TRANSACTION', code: 'sumehr'}]
+            //                         });
+            //                         this.currentContact.services.push(svc);
+            //                         sc.services.push({ serviceId: svc.id });
+            //
+            //                         this.saveCurrentContact().then(c => {
+            //                             this.dispatchEvent(new CustomEvent('hub-download', {}))
+            //                         }).then(res => res);
+            //
+            //                     }).finally(() => {
+            //                         console.log("finally of _logUpdateMessagePair")
+            //                     }).catch(e => {
+            //                         console.log("---error upload attachment---", e)
+            //                     })
+            //             )
+            //     }else{
+            //         return Promise.resolve(null);
+            //     }
+            // }
 
             saveCurrentContact() {
                 if(!this.currentContact.id ) {
@@ -881,24 +950,16 @@
                 const patient = this.patient;
                 this.api.contact().findBy(this.user.healthcarePartyId, patient).then(ctcs => ctcs.map(ctc => this.api.register(ctc, 'contact'))).then(ctcs => {
                     ctcs.sort((a, b) => (a.created || 0) - (b.created || 0));
-                    // const sorter = x => [
-                    //     ((x.codes || []).find(c => c.type === 'ICPC' || c.type === 'ICPC2') || {}).code || "\uff0f",
-                    //     -(x.valueDate || x.openingDate || 0),
-                    //     -(x.closingDate || 0)
-                    // ];
                     console.log("Contacts", ctcs);
                     this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-TRANSACTION' && ['sumehr'].includes(c.code))).then(svcs => {
-                        //console.log("sumehr svcs",svcs);
                         const contents = svcs.map(svc => this.api.contact().preferredContent(svc, this.language));
                         Promise.all(contents.map(cnt => this.api.document().getDocument(cnt.documentId))).then(docs => {
-                            //console.log("sumehr docs", docs)
                             Promise.all(docs.map(doc => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, doc.id, doc.cryptedForeignKeys).then(cfks => ([cfks,doc]))))
                                 .then(promResults => {
                                     const idsAndDocs = promResults.map(res => {
                                         return {messageId: res[0].extractedKeys[0], doc: res[1] };
                                     });
                                     return Promise.all(idsAndDocs.map(idDoc => this.api.message().getMessage(idDoc.messageId).then(msg => [msg, idDoc.doc]))).then(msgAndDocs => {
-                                        //console.log("msgAndDocs",msgAndDocs);
                                         return msgAndDocs.map(msgNdoc => {return {msg: msgNdoc[0], doc: msgNdoc[1]}});
                                     })
                                 })
@@ -911,6 +972,10 @@
                                         const newDoc = newDocList.find(mn => mn.msg.metas.updateReference === m.msg.metas.updateReference);
                                         return {old : m, new: newDoc, updateReference: m.msg.metas.updateReference, created: m.msg.created};
                                     }).filter(m => m.new);
+                                    //TODO: get Attachments for docs in pairList;
+
+
+
                                     this.set("updateList", _.orderBy(pairList, "created", "desc"));
                                     return pairList;
                                 })
