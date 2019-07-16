@@ -946,6 +946,10 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             valuePartner:{
                 type:String,
                 value:""
+            },
+            listValidSsin:{
+                type: Object,
+                value:{}
             }
         };
     }
@@ -1110,12 +1114,14 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
         this.set('dataProvider', this.patientDataProvider({}, '', '', null, []));
         this.set('patientMap', {});
+        this.set("listValidSsin",{})
 
 
         if (this.patient) {
 
             this.set('administrativePostit', this.patient.administrativeNote || "")
             this.set('medicalPostit', this.patient.note || '')
+            this.listValidSsin[this.patient.id]=this.patient.ssin
 
             this.api.getRegistry('patient').listeners['ht-pat-admin'] = {target: this, pool: [this.patient.id], callbacks: [this.partnershipsChanged.bind(this)]}
 
@@ -1130,6 +1136,10 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                             return Object.assign({}, pp, { partnerInfo: ppss.find(ps => ps.id === pp.partnerId)} || {})
                         }).filter(p => !_.isEmpty(p.partnerInfo)))
                     ).finally(() => {
+                        this.patient.partnerships.map(pat=>{
+                            this.listValidSsin[pat.partnerId]=pat.partnerInfo.ssin
+                        })
+
                         this.dataProvider = this.patientDataProvider(this.patient, '', '', this.patient && this.patient.id, codes);
                         this.set('patientMap', _.cloneDeep(this.patient));
 
@@ -1186,6 +1196,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     Promise.all(patient.partnerships.map((partner, index) => {
                         if(!partner.partnerInfo || (!partner.partnerInfo.lastName && !partner.partnerInfo.name))
                             return Promise.resolve({})
+                        partner.partnerInfo.ssin= (partner.partnerId && this.listValidSsin[partner.partnerId]) || ""
                         if (!partner.partnerId || !partner.partnerInfo.rev) {
                             //patient not present
                             partner.partnerInfo.active = false
@@ -1212,24 +1223,29 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                         }
                     }))
                 : Promise.resolve([]))
-                    .finally(() =>
-                    this.api.patient().modifyPatientWithUser(this.user,patient)
-                        .catch(() => defer.resolve(patient))
-                        .then(p => this.api.register(p, 'patient', defer))
-                        .then(p => this.dispatchEvent(new CustomEvent("patient-saved", {detail: p, bubbles: true, composed: true})))
-                        .catch(e => {
-                            if (this.patient) {
-                                return this.api.patient().getPatientWithUser(this.user,this.patient.id).then(p => this.api.register(p, 'patient')).then(p => {
-                                    this.patient = p
-                                    this.saveTimeout = undefined
-                                    this.saveAction = undefined
+                    .finally(() => {
+                        patient.ssin = this.listValidSsin[patient.id];
+                        this.api.patient().modifyPatientWithUser(this.user, patient)
+                            .catch(() => defer.resolve(patient))
+                            .then(p => this.api.register(p, 'patient', defer))
+                            .then(p => this.dispatchEvent(new CustomEvent("patient-saved", {
+                                detail: p,
+                                bubbles: true,
+                                composed: true
+                            })))
+                            .catch(e => {
+                                if (this.patient) {
+                                    return this.api.patient().getPatientWithUser(this.user, this.patient.id).then(p => this.api.register(p, 'patient')).then(p => {
+                                        this.patient = p
+                                        this.saveTimeout = undefined
+                                        this.saveAction = undefined
+                                        throw e
+                                    })
+                                } else {
                                     throw e
-                                })
-                            } else {
-                                throw e
-                            }
-                        })
-                    )
+                                }
+                            })
+                    })
             })
         }
 
@@ -1258,7 +1274,22 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
             if (resolvedRoot && !_.isEqual( _.get(resolvedRoot, key) , value)) {
                 resolvedRoot === this.patient ? this.set('patient.' + key, value) : _.set(resolvedRoot, key, value);
-                this.scheduleSave(this.patient);
+
+                if(key.includes("ssin")){
+                    this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, value, null, null, 100, "asc").then(patients =>{
+                        if(patients.rows.length && patients.rows.find(pat => pat.ssin===value && pat.id!==_.get(resolvedRoot,key.includes("partnerInfo") ? 'partnerId' : 'id',""))){
+                            //ajout du message
+                        }else{
+                            if(this.api.patient().isValidSsin(value)){
+                                this.listValidSsin[_.get(resolvedRoot,key.includes("partnerInfo") ? 'partnerId' : 'id')]=value;
+                            }
+                            this.scheduleSave(this.patient);
+                        }
+                    })
+                }
+                else{
+                    this.scheduleSave(this.patient);
+                }
             }
         };
         return {
