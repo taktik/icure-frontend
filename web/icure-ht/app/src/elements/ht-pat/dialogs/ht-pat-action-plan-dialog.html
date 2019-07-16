@@ -139,10 +139,10 @@
                             <vaadin-combo-box id="vaccine" filtered-items="[[drugsListItem]]" item-label-path="name" item-value-path="id" on-filter-changed="_drugsFilterChanged" selected-item="{{selectedVaccineItem}}" label="[[localize('commercial_name','Commercial name',language)]]" readonly="[[readonly]]"></vaadin-combo-box>
                         </vaadin-form-item>
                         <vaadin-form-item>
-                            <paper-input label="N° de la dose" value="{{plannedAction.DoseNumber}}" readonly="[[readonly]]"></paper-input>
+                            <paper-input label="N° de la dose" value="{{plannedAction.DoseNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]"></paper-input>
                         </vaadin-form-item>
                         <vaadin-form-item>
-                            <paper-input label="N° de lot" value="{{plannedAction.BatchNumber}}" readonly="[[readonly]]"></paper-input>
+                            <paper-input label="N° de lot" value="{{plannedAction.BatchNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]"></paper-input>
                         </vaadin-form-item>
                     </vaadin-form-layout>
                 </template>
@@ -384,6 +384,19 @@
                 }
             }
 
+            reset() {
+                this.set("service", {})
+                this.set('errMsg','')
+                this.set("plannedAction",{})
+                this.set('drugsListItem',[]);
+                this.set("selectedHcpItem","")
+                this.set("selectedVaccineItem","")
+                this.set("selectedProfessionItem","")
+                this.set("isExistingSvc",false)
+                this.set("hasSurgical",false)
+                this.set("isVaccineProcedure",false)
+            }
+
             attached() {
                 super.attached();
                 this.async(this.notifyResize, 1);
@@ -396,6 +409,10 @@
                     this.set('plannedAction.isDeadline', false)
                 }
 
+            }
+
+            hasNoMedication() {
+                return !this.plannedAction.VaccineCommercialNameId
             }
 
             _isSendMailCheck(e){
@@ -618,7 +635,7 @@
 
                 const action = this.plannedAction
                 const contactId = this.currentContact.id
-                const responsible = action.HcpId !== "" ? action.HcpId : this.user.healthcarePartyId
+                const responsible = action.HcpId && action.HcpId !== "" ? action.HcpId : this.user.healthcarePartyId
                 const valueDate = action.Deadline && action.Deadline !== "" ? this.api.moment(action.Deadline).format('YYYYMMDD') : ""
 
                 if (!action || !contactId || !valueDate) {
@@ -626,7 +643,7 @@
                     return
                 }
 
-                const medication = action.VaccineInfo && {
+                const medication = this.isVaccineProcedure && action.VaccineInfo && {
                     medicinalProduct: {
                         intendedcds: [
                             {
@@ -643,7 +660,7 @@
                             stringValue: action.DoseNumber
                         }
                     }
-                }
+                } || null
 
                 this.service.label="Actes"
                 this.service.modified= +new Date()
@@ -651,15 +668,15 @@
                 this.service.content= {
                     fr: {
                         stringValue: action.ProcedureInfo.label.fr,
-                        medicationValue: action.ProcedureId.startsWith('A44') ? medication : null
+                        medicationValue: medication
                     },
                     nl: {
                         stringValue: action.ProcedureInfo.label.nl,
-                        medicationValue: action.ProcedureId.startsWith('A44') ? medication : null
+                        medicationValue: medication
                     },
                     en: {
                         stringValue: action.ProcedureInfo.label.nl,
-                        medicationValue: action.ProcedureId.startsWith('A44') ? medication : null
+                        medicationValue: medication
                     }
                 }
                 this.service.codes= [ action.ProcedureInfo ]
@@ -677,10 +694,11 @@
                 if (action.Status === "refused") status.label = {fr: action.ReasonOfRef}
                 this.service.tags.push(status)
 
-                if (action.VaccineCommercialNameId) {
+                //if (action.VaccineCommercialNameId) {
+                if (this.isVaccineProcedure) {
 
                     const vaccine = {
-                        region: ["be", action.VaccineInfo.id.lang],
+                        region: ["be", action.VaccineInfo && action.VaccineInfo.id.lang].filter(x=>!!x),
                         type: "CD-ITEM",
                         code: "vaccine",
                         version: "1.0",
@@ -736,18 +754,11 @@
             }
 
             open(svc,readonly) {
+                this.reset()
 
                 if(!readonly)readonly=false;
                 this.set("readonly",readonly)
 
-                this.set('errMsg','')
-                this.set("plannedAction",{})
-                this.set('drugsListItem',[]);
-                this.set("selectedHcpItem","")
-                this.set("selectedVaccineItem","")
-                this.set("selectedProfessionItem","")
-                this.set("isExistingSvc",false)
-                this.set("hasSurgical",false)
 
                 if(svc && svc.tags && (svc.tags.some(t => t.type == "SOAP" && t.code == "Plan") && svc.tags.some(t => t.type == 'CD-ITEM-TASK'))) {
                     this.convertMedispringPlan(svc)
@@ -766,6 +777,16 @@
 
                     const content = this.api.contact().preferredContent(service, this.language)
                     const codeMedication = content && content.medicationValue && content.medicationValue.medicinalProduct && ((content.medicationValue.medicinalProduct.intendedcds || []).find(code => code.type === "CD-DRUG-CNK") || {})
+
+                    let codeExp = codeProcedure.code.split(".");
+                    let CISPType = codeExp[0].substr(1,3)
+
+                    if(CISPType === "44"){
+                        this.set("isVaccineProcedure", true)
+                    }else{
+                        this.set("isVaccineProcedure", false)
+                    }
+
                     Promise.all([
                         this.api.hcparty().getHealthcareParty(service.responsible),
                         (codeProcedure && codeProcedure.id ? this.api.code().getCode(codeProcedure.id) : this.api.code().getCode(codeProcedure.type + '|' + codeProcedure.code + '|' + codeProcedure.version)) || Promise.resolve({}),
