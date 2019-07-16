@@ -853,8 +853,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     }).then(() => {
                                         return {
                                             rows:  pl.rows.map(inv=> {
-                                                if(this.messagesByInvoiceId[inv.id] && this.messagesByInvoiceId[inv.id].metas && this.messagesByInvoiceId[inv.id].metas.paymentReferenceAccount1) {
+                                                if(
+                                                    this.messagesByInvoiceId[inv.id]
+                                                    && this.messagesByInvoiceId[inv.id].metas
+                                                    && this.messagesByInvoiceId[inv.id].metas.paymentReferenceAccount1
+                                                ) {
                                                     inv.paymentReference = this.messagesByInvoiceId[inv.id].metas.paymentReferenceAccount1
+                                                    if(inv.invoicingCodes && inv.invoicingCodes.some(c => c.canceled === true)) {
+                                                        inv.paymentReference = "Canceled"
+                                                    }
+                                                    if(inv.invoicingCodes && inv.invoicingCodes.some(c => c.resent === true)) {
+                                                        inv.paymentReference = "Resent"
+                                                    }
                                                     console.log("ref: ", inv.id, inv.paymentReference)
                                                 }
                                                 return inv
@@ -876,7 +886,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return this.getRawInvoiceList().then(invoices => {
                     return Promise.all(invoices.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]])))
                         .then(invAndIdsPat =>
-                            this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
+                            this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))}))
+                                .then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
+                                .catch(err => {
+                                    console.log("error when getting patients", err);
+                                    return invAndIdsPat.map(it => [it[0], null])
+                                })
                         ).then(invAndPats => {
                             console.log("invAndPats", invAndPats)
                             return invAndPats.filter(iap => iap[1] !== undefined && iap[1] !== null)
