@@ -467,6 +467,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 transform: scale(.9);
             }
 
+            vaadin-combo-box {
+                width:calc(100% - 50px);
+                padding-left: 25px;
+            }
+
         </style>
         <div class="administrative-panel">
             <paper-tabs selected="{{tabs}}">
@@ -505,6 +510,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </page>
                 <page>
                     <div class="page-container">
+                        <vaadin-combo-box id="researchFuturPartnerShip" filtered-items="[[listPatient]]" on-filter-changed="researchPat" filter="{{filterPartner}}"
+                                          label="[[localize('add-patient','Lier un patient déjà existant',language)]]" item-label-path="prettyName" item-value-path="id"
+                                          on-value-changed="searchPatient" value="{{valuePartner}}"></vaadin-combo-box>
                         <dynamic-form id="dynamic-form-partnerships" class="page-content" api="[[api]]" user="[[user]]" template="[[partnershipsContainerForm]]"
                                       data-map="[[patientMap]]" data-provider="[[dataProvider]]" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" no-print></dynamic-form>
                     </div>
@@ -783,6 +791,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 	<script>
 
         import moment from 'moment/src/moment';
+        import levenshtein from 'js-levenshtein';
 
 class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
@@ -925,6 +934,18 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             cardData: {
                 type: Object,
                 value: {}
+            },
+            listPatient:{
+                type: Array,
+                value: ()=> []
+            },
+            filterPartner:{
+                type: String,
+                value:''
+            },
+            valuePartner:{
+                type:String,
+                value:""
             }
         };
     }
@@ -1295,9 +1316,9 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             addSubForm: (key, guid) => {
                 this.flushSave(); //Important
                 if(key==="partnerInfo.addresses" && (!root().partnerInfo.lastName && !root().partnerInfo.name))return;
-                (_.get(root(), key) || _.get(_.set(root(), key, []), key)).push(key==='partnerships'?{partnerId: this.api.crypto().randomUuid(), partnerInfo:{}}:{});
+                (_.get(root(), key) || _.get(_.set(root(), key, []), key)).push(key==='partnerships'?{partnerId: guid || this.api.crypto().randomUuid(), partnerInfo:{}}:{});
 
-                this.$[this.root.activeElement.id].notify((rootPath.length ? rootPath + '.' : '') + key + '.*');
+                this.$[this.root.activeElement.id==="researchFuturPartnerShip"? "dynamic-form-partnerships" : this.root.activeElement.id].notify((rootPath.length ? rootPath + '.' : '') + key + '.*');
                 this.scheduleSave(this.patient);
             },
             filter: (data, text, uuid, id) => {
@@ -1851,6 +1872,103 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
         }
     }
 
+    searchPatient(e){
+        if(!e.detail.value)return;
+        this.api.patient().getPatientWithUser(this.user,e.detail.value).then( pat =>{
+            let partner = this.patient.partnerships.findIndex(partner => !partner.partnerId || !partner.partnerInfo || (partner.partnerId && !partner.partnerInfo.id))
+            if(partner===-1) {
+                this.dataProvider.addSubForm("partnerships", pat.id)
+                partner = this.patient.partnerships.findIndex(partner => partner.partnerId===pat.id)
+            }
+            this.set("patient.partnerships."+partner,{partnerId:pat.id,partnerInfo:pat})
+
+            this.$["dynamic-form-partnerships"].notify('partnerships.*');
+            this.scheduleSave(this.patient);
+            this.set("filterPartner","")
+            this.set("valuePartner","")
+        })
+
+    }
+
+    researchPat(e){
+        const searchValue = e.detail.value
+        if( _.trim(searchValue).length < 3 ) {
+            this.set("listPatient",[]);
+            clearTimeout(this.launchFilterBy)
+            return;
+        }
+
+        const parentOrCurrentHcpId =_.trim(_.get(this,"user.healthcarePartyId",""))
+
+        const filter = {
+            '$type': 'IntersectionFilter',
+            'healthcarePartyId': parentOrCurrentHcpId,
+            'filters': _.compact(_.trim(searchValue).split(/[ ,;:]+/).filter(w => w.length >= 2).map( word => /^[0-9]{11}$/.test(word) ? {
+                '$type': 'PatientByHcPartyAndSsinFilter',
+                'healthcarePartyId': parentOrCurrentHcpId,
+                'ssin': word
+            } : /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? {
+                '$type': 'PatientByHcPartyDateOfBirthFilter',
+                'healthcarePartyId': parentOrCurrentHcpId,
+                'dateOfBirth': word.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3) => (p3.length === 4 ? p3 : (p3 > 20) ? "19" + p3 : "20" + p3) + (p2.length === 2 ? p2 : "0" + p2) + (p1.length === 2 ? p1 : "0" + p1))
+            } : /^[0-9]{3}[0-9]+$/.test(word) ? {
+                '$type': 'UnionFilter',
+                'healthcarePartyId': parentOrCurrentHcpId,
+                'filters': [
+                    {
+                        '$type': 'PatientByHcPartyDateOfBirthBetweenFilter', 'healthcarePartyId': parentOrCurrentHcpId,
+                        'minDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '00') : Number(word.substr(0,4) + '0000'),
+                        'maxDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '99') : Number(word.substr(0,4) + '9999')
+                    },
+                    {
+                        '$type': 'PatientByHcPartyAndExternalIdFilter', 'healthcarePartyId': parentOrCurrentHcpId,
+                        'externalId': word
+                    }
+                ]
+            } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
+                '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                'healthcarePartyId': parentOrCurrentHcpId,
+                'searchString': word
+            } : null))
+        }
+
+        const predicates = _.trim(searchValue).split(/[ ,;:]+/).filter(w => w.length >= 2).map( word =>
+            /^[0-9]{11}$/.test(word) ? (() => true) :
+                /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? (() => true) :
+                    /^[0-9]{3}[0-9]+$/.test(word) ? ((p) => (p.dateOfBirth && (`${p.dateOfBirth}`.includes(word))) || (p.externalId && p.externalId.includes(word))) :
+                        (p => {
+                            const w = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'')
+                            return w.length<2 ?
+                                true :
+                                (p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
+                        })
+        )
+
+        clearTimeout(this.launchFilterBy)
+        this.launchFilterBy = setTimeout(() =>{
+            this.api.getRowsUsingPagination((key, docId, pageSize) =>
+                    this.api.patient().filterByWithUser(this.user, key, docId, pageSize || 50, 0, "lastName", false, { filter: _.assign({}, filter, {filters: filter.filters}) })
+                        .then(pl => {
+                            const filteredRows = pl.rows.filter(p => predicates.every(f => f(p)))
+                            return {
+                                rows: filteredRows,
+                                nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                done: !pl.nextKeyPair
+                            }
+                        })
+                        .catch(() => { return Promise.resolve() }),
+                p => ( !!_.get(p,"active",false) && ( !!_.trim(_.get(p,"dateOfBirth","")) || !!_.trim(_.get(p,"ssin","")) ) ), 0, 50, []
+            )
+                .then(searchResults => {
+                    return this.set("listPatient", searchResults.filter(pat => pat.id!==this.patient.id && !this.patient.partnerships.find(partner => partner.partnerId===pat.id)).map(pat =>{
+                        return _.assign(pat,{"prettyName": ((pat.lastName ? pat.lastName+" " : "")+(pat.firstName ? pat.firstName : "")) || pat.name })
+                    }))
+                })
+                .catch(e=>{console.log("ERROR with searching patient: ", e);})
+        }, 500)
+    }
 }
 
 customElements.define(HtPatAdminCard.is, HtPatAdminCard);
