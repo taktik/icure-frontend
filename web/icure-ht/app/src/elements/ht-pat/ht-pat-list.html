@@ -958,7 +958,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     </vaadin-grid-column>
                 </vaadin-grid>
                 <div class="panel-bottom-btns">
-                    <paper-button on-tap="confirm"><iron-icon icon="add-circle"></iron-icon> [[localize('create_new_pat','Create New Patient',language)]]</paper-button>
+                    <paper-button on-tap="confirmAddAndOpenPatient"><iron-icon icon="add-circle"></iron-icon> [[localize('create_new_pat','Create New Patient',language)]]</paper-button>
                     <paper-button on-tap="closeEidPanel" panel="eidOpenPatientMessage"><iron-icon icon="cancel" panel="eidOpenPatientMessage"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
             </paper-item>
@@ -2673,7 +2673,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     //export here
                     this.set('taskProgress', 0.001)
                     let p = Promise.resolve([])
-                    this.patientSelected.forEach((patient, pidx) => {
+                    const selectedPatientsForExport = this.patientSelected.filter(pat => pat.check && pat.id)
+                    selectedPatientsForExport.forEach((patient, pidx) => {
                         p = p.then(acc =>
                             this.api.patient().getPatientWithUser(this.user, patient.id)
                                 .then(patientDto => {
@@ -2683,7 +2684,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                             return this.api.bekmehr().generateSmfExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
                                                 secretForeignKeys: secretForeignKeys.extractedKeys,
                                                 comment: null
-                                            }, (progress) => this.set('taskProgress', (pidx + progress) / this.patientSelected.length), this.api.sessionId).then(output => {
+                                            }, (progress) => this.set('taskProgress', (pidx + progress) / selectedPatientsForExport.length), this.api.sessionId).then(output => {
                                                 //creation of the xml file
                                                 var file = typeof output === "string" ? new Blob([output], {type: "application/xml"}) : output
 
@@ -3426,8 +3427,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
                 })
                     .then((response) => {
-                        console.log(response.json())
+                       return response.json()
                     })
+                    .then(response => {if(response.code!==0){
+                        this.dispatchEvent(new CustomEvent("error-electron", {detail: {message : this.localize("pat-already-open","patient déjà ouvert",this.language)}, bubbles:true, composed:true }))
+                    }})
             }
 
             cleanNiss(niss){
