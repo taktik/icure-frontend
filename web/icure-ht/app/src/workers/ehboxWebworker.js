@@ -14,39 +14,48 @@ onmessage = e => {
 
 
 
-        const iccHost           = e.data.iccHost
-        const iccHeaders        = JSON.parse(e.data.iccHeaders)
+        const iccHost               = e.data.iccHost
+        const iccHeaders            = JSON.parse(e.data.iccHeaders)
 
-        const fhcHost           = e.data.fhcHost
-        const fhcHeaders        = JSON.parse(e.data.fhcHeaders)
+        const fhcHost               = e.data.fhcHost
+        const fhcHeaders            = JSON.parse(e.data.fhcHeaders)
 
-        const tokenId           = e.data.tokenId
-        const keystoreId        = e.data.keystoreId
-        const user              = e.data.user
-        const parentHcp         = e.data.parentHcp
-        const ehpassword        = e.data.ehpassword
-        const boxIds            = e.data.boxId
-        const alternateKeystores= e.data.alternateKeystores
-        const language          = e.data.language
+        const tokenId               = e.data.tokenId
+        const keystoreId            = e.data.keystoreId
+        const user                  = e.data.user
+        const parentHcp             = e.data.parentHcp
+        const ehpassword            = e.data.ehpassword
+        const boxIds                = e.data.boxId
+        const alternateKeystores    = e.data.alternateKeystores
+        const language              = e.data.language
 
-        const ehboxApi          = new fhcApi.fhcEhboxcontrollerApi(fhcHost, fhcHeaders)
-        const docApi            = new iccApi.iccDocumentApi(iccHost, iccHeaders)
-        const msgApi            = new iccApi.iccMessageApi(iccHost, iccHeaders)
-        const beResultApi       = new iccApi.iccBeresultimportApi(iccHost, iccHeaders)
-        const iccHcpartyApi     = new iccApi.iccHcpartyApi(iccHost, iccHeaders)
-        const accesslogApi      = new iccApi.iccAccesslogApi(iccHost, iccHeaders)
-        const iccCryptoXApi     = new iccXApi.IccCryptoXApi(iccHost, iccHeaders, iccHcpartyApi)
-        const iccUtils          = new UtilsClass()
-        const icureApi          = new iccApi.iccIcureApi(iccHost, iccHeaders)
+        const iccPatientApi         = new iccApi.iccPatientApi(iccHost, iccHeaders)
+        const ehboxApi              = new fhcApi.fhcEhboxcontrollerApi(fhcHost, fhcHeaders)
+        const docApi                = new iccApi.iccDocumentApi(iccHost, iccHeaders)
+        const msgApi                = new iccApi.iccMessageApi(iccHost, iccHeaders)
+        const beResultApi           = new iccApi.iccBeResultImportApi(iccHost, iccHeaders)
+        const iccHcpartyApi         = new iccApi.iccHcpartyApi(iccHost, iccHeaders)
+        const accesslogApi          = new iccApi.iccAccesslogApi(iccHost, iccHeaders)
+        const iccCryptoXApi         = new iccXApi.IccCryptoXApi(iccHost, iccHeaders, iccHcpartyApi,iccPatientApi)
+        const iccUtils              = new UtilsClass()
+        const icureApi              = new iccApi.iccIcureApi(iccHost, iccHeaders)
+        const iccEntityrefApi       = new iccApi.iccEntityrefApi(iccHost, iccHeaders)
+        const iccInsuranceApi       = new iccApi.iccInsuranceApi(iccHost, iccHeaders)
 
         //Avoid hitting local storage when loading key pairs
         Object.keys(e.data.keyPairs).forEach( k => iccCryptoXApi.cacheKeyPair(e.data.keyPairs[k], k) )
 
-        const iccDocumentXApi   = new iccXApi.IccDocumentXApi(iccHost, iccHeaders, iccCryptoXApi)
-        const iccContactXApi	= new iccXApi.IccContactXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccFormXApi		= new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccMessageXApi    = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi)
-        const iccPatientXApi    = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi)
+        const iccHcpartyXApi        = new iccXApi.IccHcpartyXApi(iccHost, iccHeaders)
+        const iccDocumentXApi       = new iccXApi.IccDocumentXApi(iccHost, iccHeaders, iccCryptoXApi)
+        const iccContactXApi	    = new iccXApi.IccContactXApi(iccHost, iccHeaders,iccCryptoXApi)
+        const iccHelementXApi  	    = new iccXApi.IccHelementXApi(iccHost, iccHeaders,iccCryptoXApi)
+        const iccReceiptXApi	    = new iccXApi.IccReceiptXApi(iccHost, iccHeaders,iccCryptoXApi)
+        const iccIccInvoiceXApi     = new iccXApi.IccInvoiceXApi(iccHost, iccHeaders,iccCryptoXApi, iccEntityrefApi)
+        const iccClassificationXApi = new iccXApi.IccClassificationXApi(iccHost, iccHeaders,iccCryptoXApi)
+
+        const iccFormXApi		    = new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
+        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
+        const iccMessageXApi        = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi, iccInsuranceApi, iccEntityrefApi, iccIccInvoiceXApi, iccDocumentXApi, iccReceiptXApi, iccPatientXApi)
 
         let totalNewMessages = {
             INBOX: 0,
