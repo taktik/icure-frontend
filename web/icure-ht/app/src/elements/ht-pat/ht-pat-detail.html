@@ -2365,7 +2365,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         <!--<ht-pat-mcn-chapteriv-agreement id="chapterivdialog" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" medications="[[medications]]" on-create-service="_createService" on-update-services="_updateServices"></ht-pat-mcn-chapteriv-agreement>-->
         <ht-pat-edmg-dialog id="edmgDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-edmg-dialog>
         <!--<ht-pat-hub-transaction-view id="transactionViewDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-hub-transaction-view>-->
-        <ht-pat-hub-detail id="patHubDetail" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload" on-close-hub-dialog="_closeOverlay" on-service-changed="_serviceChanged" on-healthelement-changed="_healthElementChanged"></ht-pat-hub-detail>
+        <ht-pat-hub-detail id="patHubDetail" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload" on-close-hub-dialog="_closeOverlay" on-service-changed="_serviceChanged" on-healthelement-changed="_healthElementChanged" on-import-hub-sumehr-item="_importHubSumehrItem"></ht-pat-hub-detail>
         <!-- ht-pat-detail-ctc-detail-panel dialogs -->
         <ht-pat-hub-upload id="patHubUpload" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" patient-consent="[[patientConsent]]" selected-document-id-to-upload="[[documentIdToUpload]]" ehealth-session="[[ehealthSession]]" have-ther-links="[[haveTherLinks]]" hub-end-point="[[hubEndPoint]]" hub-id="[[hubId]]" hub-application="[[hubApplication]]" hub-package-id="[[hubPackageId]]"></ht-pat-hub-upload>
 
@@ -5427,6 +5427,63 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.api.helement().modifyHealthElement(e.detail.healthelement).then(() => {
                     this.refreshPatient();
                 });
+            }
+
+            _LodashDash(txt){
+                return txt.replace("_", "-");
+            }
+
+            _importHubSumehrItem(e){
+                const item = e.detail && e.detail.item ? JSON.parse(e.detail.item) : null;
+                console.log("import hub sumehr item event arrived", item);
+                //check Type of item
+                if(item.cds.find(cd => cd.value === "healthcareelement")){
+                    console.log("item is healthcareelement");
+                    let healthElement = {};
+
+                    //this.api.helement().newInstance(this.user, this.patient, this._normalizedHealthElement(healthElement)).then(he => this.api.helement().createHealthElement(he)).then(() => this.refreshPatient());
+                }
+                else if(item.cds.find(cd => cd.value === "medication")) {
+                    console.log("item is medication");
+                    let medication = {};
+                    medication.label = "Médications";
+                    medication.content = {fr: {medicationValue:{}}};
+                    //  medicinalproduct
+                    const hubMP = item.contents.find(cnt => cnt.medicinalproduct) ? item.contents.find(cnt => cnt.medicinalproduct).medicinalproduct : null;
+                    const hubSP = item.contents.find(cnt => cnt.substanceproduct) ? item.contents.find(cnt => cnt.substanceproduct).substanceproduct : null;
+                    const hubCP = item.contents.find(cnt => cnt.compoundprescription) ? item.contents.find(cnt => cnt.compoundprescription).compoundprescription : null;
+                    if(hubMP){
+                        medication.content.fr.medicationValue.medicinalProduct = {intendedname: hubMP.intendedname, intendedcds: hubMP.intendedcds.map(icd => { return{type: this._LodashDash(icd.s), code: icd.value}})};
+                        //codes
+                        medication.codes = [];
+                        //ATC
+                        if(item.contents.find(cnt => cnt.cds && cnt.cds.length > 0 && cnt.cds.find(cd => cd.s === "CD_ATC"))){
+                            const cd = item.contents.find(cnt => cnt.cds && cnt.cds.length > 0 && cnt.cds.find(cd => cd.s === "CD_ATC")).cds.find(cd => cd.s === "CD_ATC");
+                            medication.codes.push({type: "CD-ATC", version: "1", code: cd.value});
+                        }
+                        //CNK
+                        if(hubMP.intendedcds.find(icd => icd.s === "CD_DRUG_CNK")) {
+                            medication.codes.push({type: "CD-DRUG-CNK", version: "1", code: hubMP.intendedcds.find(icd => icd.s === "CD_DRUG_CNK").value});
+                        }
+                    }
+                    if(hubSP){}
+                    if(hubCP){}
+                    //  begin/endmoment yyyyMMdd
+                    medication.content.fr.medicationValue.beginMoment = item.beginmoment.date ? item.beginmoment.date / 1000000 : "";
+                    medication.content.fr.medicationValue.endMoment = item.endmoment.date ? item.endmoment.date / 1000000 : "";
+                    //tags
+                    medication.tags = [{id: "CD-ITEM|medication|1.0", type: "CD-ITEM", code: "medication", version: "1.0"}];
+                    //TODO:  regimen
+                    medication.content.fr.medicationValue.regimen = [{administratedQuantity: {quantity: "99"}, dayPeriod: {type: "CD-DAYPERIOD", code: "beforebreakfast"}, frequency: "daily"}];
+                    console.log("new created medication", medication);
+                    this.saveNewService(this.api.contact().service().newInstance(this.user, medication)).then(()=>this.refreshPatient());
+                } else {
+                    console.log("can't process item (yet)");
+                    //contactperson
+                    //patienthcp
+                    //
+                    //don't put import button on the unmatched list in this case
+                }
             }
 
         }
