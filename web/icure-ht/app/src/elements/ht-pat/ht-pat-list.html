@@ -909,6 +909,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 .search-field-container paper-button {
                     margin: 20px 24px 0 0;
                 }
+
+                .loadingContainer{
+                    position:absolute;
+                    width: 100%;
+                    height: 100%;
+                    top: 0;left: 0;
+                    background-color: rgba(0,0,0,.3);
+                    z-index: 10;
+                    text-align: center;
+                }
             </style>
         </custom-style>
 
@@ -948,7 +958,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     </vaadin-grid-column>
                 </vaadin-grid>
                 <div class="panel-bottom-btns">
-                    <paper-button on-tap="confirm"><iron-icon icon="add-circle"></iron-icon> [[localize('create_new_pat','Create New Patient',language)]]</paper-button>
+                    <paper-button on-tap="confirmAddAndOpenPatientWithEid"><iron-icon icon="add-circle"></iron-icon> [[localize('create_new_pat','Create New Patient',language)]]</paper-button>
                     <paper-button on-tap="closeEidPanel" panel="eidOpenPatientMessage"><iron-icon icon="cancel" panel="eidOpenPatientMessage"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 </div>
             </paper-item>
@@ -1000,8 +1010,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     </div>
                 </template>
 
-
-                <ht-spinner class="center" active="[[isLoadingPatient]]"></ht-spinner>
+                <template is="dom-if" if="[[isLoadingPatient]]">
+                    <div class="loadingContainer">
+                        <div class="loadingContentContainer">
+                            <div style="max-width:200px; margin:0 auto"><ht-spinner class="spinner" alt="Loading..." active></ht-spinner></div>
+                        </div>
+                    </div>
+                </template>
                 <vaadin-grid id="patients-list" class="material" multi-sort="[[multiSort]]" active-item="{{activeItem}}"
                              on-tap="clickOnRow">
                     <template is="dom-if" if="[[onElectron]]">
@@ -1444,7 +1459,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         <paper-dialog id="sharingPatientStatus">
             <h2 class="modal-title">[[localize("pat_sha_sta","Patient sharing status",language)]]</h2>
             <div class="content">
-                <ht-spinner class="sharePatSpinner" active="[[isSharingPatient]]"></ht-spinner>
+                <template is="dom-if" if="[[isSharingPatient]]">
+                    <div class="loadingContainer">
+                        <div class="loadingContentContainer">
+                            <div style="max-width:200px; margin:0 auto"><ht-spinner class="spinner" alt="Loading..." active></ht-spinner></div>
+                        </div>
+                    </div>
+                </template>
                 <vaadin-grid items="[[patientShareStatuses]]">
                     <vaadin-grid-column width="150px">
                         <template class="header">
@@ -1500,7 +1521,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="modal-button modal-button--save" dialog-dismiss>[[localize('done','Done',language)]]</paper-button>
             </div>
         </paper-dialog>
-
 
         <paper-dialog id="fusionDialog">
             <h2 class="modal-title">[[localize('fus_pat','Fusion patients',language)]]</h2>
@@ -1813,8 +1833,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             static get observers() {
                 return [
-                    '_hcpChanged(hcp)','_selectedFilterIndexesChanged(selectedFilterIndexes.splices)', '_filterValueChanged(filterValue)', '_showInactivePatientsChanged(showInactive)', '_hcpFilterChanged(hcpFilterValue, _allHcpsChecked)', '_canAddPat(lastName,firstName,dateAsString)',
-                    '_resetSearchField(selectedPatient)'
+                    '_hcpChanged(hcp)','_selectedFilterIndexesChanged(selectedFilterIndexes.splices)', '_filterValueChanged(filterValue)', '_showInactivePatientsChanged(showInactive)', '_hcpFilterChanged(hcpFilterValue, _allHcpsChecked)',
+                    '_canAddPat(lastName,firstName,dateAsString,ssin,listResultPatients)', '_resetSearchField(selectedPatient)'
                 ]
             }
 
@@ -2128,6 +2148,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 // Must click on a row
                 if (e.path[0].nodeName === 'TABLE') return
                 if(this.activeItem) {
+                    this.set('isLoadingPatient', true)
                     const selected = this.activeItem
                     console.log('selected ', selected, ' - ' + this.latestSelected)
                     this.api.patient().getPatientWithUser(this.user, selected.id).then(p => this.api.register(p, 'patient')).then(p => {
@@ -2292,14 +2313,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _exportListToXls() {
+                this.set("isLoadingPatient",true)
                 this.getAllPatients().then(
-                    pl => ({
-                        rows: this.generateXlsFile(pl),
-                        nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
-                        nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
-                        done: !pl.nextKeyPair
-                    })
-                )
+                    pl => {
+                        return ({
+                            rows: this.generateXlsFile(pl),
+                            nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                            nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                            done: !pl.nextKeyPair
+                        })
+                    }
+                ).finally( () => this.set('isLoadingPatient',false))
             }
 
             _openImportPatientFromMfDialog() {
@@ -2348,7 +2372,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             confirmAddPatient() {
-                if (this.lastName.length && this.firstName.length && this.dateAsString.length) { // name and birthdate are needed
+                if ((!this.ssin || (this.api.patient().isValidSsin(this.ssin) && this.listResultPatients.length && !this.listResultPatients.find(pat => pat.ssin===this.ssin))) && this.lastName.length && this.firstName.length && this.dateAsString.length) { // name and birthdate are needed
+                    this.set('isLoadingPatient',true)
                     // Trigger update
                     let newPatient = {
                         lastName: this.lastName,
@@ -2398,7 +2423,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.resetNewPatientDialog()
                             return p
                         }
-                    )
+                    ).finally(x =>{
+                        this.set('isLoadingPatient',false)
+                    })
                 }
             }
 
@@ -2408,8 +2435,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
             }
 
+            confirmAddAndOpenPatientWithEid(){
+                const filter = {
+                    filter: {'$type': 'PatientByHcPartyAndSsinFilter',
+                        'healthcarePartyId': this.user.healthcarePartyId,
+                        'ssin': this.ssin}}
+                this.api.patient().filterByWithUser(this.user, null, null, 50, 0, 1, 'desc', filter ).then(response => {
+                    if (!response || !response["totalSize"].length || !response["rows"].find(pat => pat.ssin === this.ssin))
+                        this.confirmAddAndOpenPatient()
+                })
+            }
+
             _canAddPat() {
-                this.set('canAddPat', (this.lastName && this.firstName && this.dateAsString && this.lastName.length && this.firstName.length && this.dateAsString.length) ? true : false)
+                this.set('canAddPat', ((!this.ssin || (this.api.patient().isValidSsin(this.ssin) && this.listResultPatients.length && !this.listResultPatients.find(pat => pat.ssin===this.ssin))) &&
+                    this.lastName && this.firstName && this.dateAsString && this.lastName.length && this.firstName.length && this.dateAsString.length) ? true : false)
             }
 
             _resetSearchField() {
@@ -2854,6 +2893,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _searchDuplicate() {
                 if (!this.user) return
+                this.set("canAddPat",false)
                 const fingerPrint = this.firstName + '|' + this.lastName + '|' + this.dateAsString + '|' + this.ssin
                 //creation of filters
                 const totalChars = (this.firstName && this.firstName.length || 0) + (this.lastName && this.lastName.length || 0)
@@ -2929,11 +2969,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 this.set("listResultPatients", [])
                                 this.set("displayResult", false)
                             }
+                            this._canAddPat()
                         })
                     }, 300)
                 } else {
                     this.set("listResultPatients", [])
                     this.set("displayResult", false)
+                    this._canAddPat()
                 }
             }
 
@@ -3048,6 +3090,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             confirmFusion() {
+                this.set("isLoadingPatient",true)
                 let listIds = ""
                 this.patientSelected.forEach(patient => {
                     if (patient.id !== this.fusionSelected)
@@ -3059,7 +3102,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.api.patient().mergeIntoWithUser(this.user, this.fusionSelected, listIds).then(response => {
                         console.log(response)
                         this.set('selectedPatient', response)
+                        this.set('isLoadingPatient',false)
                     })
+                else this.set('isLoadingPatient',false)
             }
 
             _isPatientsSelected() {
@@ -3397,8 +3442,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
                 })
                     .then((response) => {
-                        console.log(response.json())
+                       return response.json()
                     })
+                    .then(response => {if(response.code!==0){
+                        this.dispatchEvent(new CustomEvent("error-electron", {detail: {message : this.localize("pat-already-open","patient déjà ouvert",this.language)}, bubbles:true, composed:true }))
+                    }})
             }
 
             cleanNiss(niss){
