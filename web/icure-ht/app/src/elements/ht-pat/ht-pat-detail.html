@@ -5440,54 +5440,56 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _importHubSumehrItem(e){
                 const item = e.detail && e.detail.item ? JSON.parse(e.detail.item) : null;
+                const sumehrXml = e.detail && e.detail.sumehrXml ? e.detail.sumehrXml : null;
                 console.log("import hub sumehr item event arrived", item);
-                //check Type of item
-                if(item.cds.find(cd => cd.value === "healthcareelement")){
-                    console.log("item is healthcareelement");
-                    let healthElement = {};
+                console.log("sumehrXml", sumehrXml);
+                console.log("itemId", item.itemId);
+                //TODO: import sumehr with ID
+                this._importSumehrByItemId(item.itemId, sumehrXml).then(() => {});
+            }
 
-                    //this.api.helement().newInstance(this.user, this.patient, this._normalizedHealthElement(healthElement)).then(he => this.api.helement().createHealthElement(he)).then(() => this.refreshPatient());
-                }
-                else if(item.cds.find(cd => cd.value === "medication")) {
-                    console.log("item is medication");
-                    let medication = {};
-                    medication.label = "Médications";
-                    medication.content = {fr: {medicationValue:{}}};
-                    //  medicinalproduct
-                    const hubMP = item.contents.find(cnt => cnt.medicinalproduct) ? item.contents.find(cnt => cnt.medicinalproduct).medicinalproduct : null;
-                    const hubSP = item.contents.find(cnt => cnt.substanceproduct) ? item.contents.find(cnt => cnt.substanceproduct).substanceproduct : null;
-                    const hubCP = item.contents.find(cnt => cnt.compoundprescription) ? item.contents.find(cnt => cnt.compoundprescription).compoundprescription : null;
-                    if(hubMP){
-                        medication.content.fr.medicationValue.medicinalProduct = {intendedname: hubMP.intendedname, intendedcds: hubMP.intendedcds.map(icd => { return{type: this._LodashDash(icd.s), code: icd.value}})};
-                        //codes
-                        medication.codes = [];
-                        //ATC
-                        if(item.contents.find(cnt => cnt.cds && cnt.cds.length > 0 && cnt.cds.find(cd => cd.s === "CD_ATC"))){
-                            const cd = item.contents.find(cnt => cnt.cds && cnt.cds.length > 0 && cnt.cds.find(cd => cd.s === "CD_ATC")).cds.find(cd => cd.s === "CD_ATC");
-                            medication.codes.push({type: "CD-ATC", version: "1", code: cd.value});
-                        }
-                        //CNK
-                        if(hubMP.intendedcds.find(icd => icd.s === "CD_DRUG_CNK")) {
-                            medication.codes.push({type: "CD-DRUG-CNK", version: "1", code: hubMP.intendedcds.find(icd => icd.s === "CD_DRUG_CNK").value});
-                        }
-                    }
-                    if(hubSP){}
-                    if(hubCP){}
-                    //  begin/endmoment yyyyMMdd
-                    medication.content.fr.medicationValue.beginMoment = item.beginmoment.date ? item.beginmoment.date / 1000000 : "";
-                    medication.content.fr.medicationValue.endMoment = item.endmoment.date ? item.endmoment.date / 1000000 : "";
-                    //tags
-                    medication.tags = [{id: "CD-ITEM|medication|1.0", type: "CD-ITEM", code: "medication", version: "1.0"}];
-                    //TODO:  regimen
-                    medication.content.fr.medicationValue.regimen = [{administratedQuantity: {quantity: "99"}, dayPeriod: {type: "CD-DAYPERIOD", code: "beforebreakfast"}, frequency: "daily"}];
-                    console.log("new created medication", medication);
-                    this.saveNewService(this.api.contact().service().newInstance(this.user, medication)).then(()=>this.refreshPatient());
-                } else {
-                    console.log("can't process item (yet)");
-                    //contactperson
-                    //patienthcp
-                    //
-                    //don't put import button on the unmatched list in this case
+            _importSumehrByItemId(itemId, sumehrXml){
+                if(itemId && sumehrXml){
+                    return this.api.message().newInstance(this.user)
+                        .then(nmi => this.api.message().createMessage(_.merge(nmi, { //creation of container message
+                                transportGuid: "HUB:IN:IMPORT-SUMEHR",
+                                recipients: [this.user && this.user.healthcarePartyId],
+                                metas: {filename: "sumehrImport" + itemId,
+                                    mediaType: "hub",
+                                    transactionId: "sumehrImport" + itemId,
+                                    itemId: itemId}, //-->"hub",
+                                toAddresses: [_.get(this.user, 'email', this.user && this.user.healthcarePartyId)], //email needed ?
+                                subject: "Hub Sumehr Import",
+                                status : 0 | 1<<25 | (this.patient.id ? 1<<26 : 0)
+                            }))
+                                .then(createdMessage => Promise.all([createdMessage,
+                                    this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt",
+                                        this.user, createdMessage,
+                                        this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify({patientId : this.patient.id, isAssigned: true}))))]))
+                                .then(([createdMessage, cryptedMeta]) => {
+                                    createdMessage.metas.cryptedInfo = Base64.encode(String.fromCharCode.apply(null, new Uint8Array(cryptedMeta)))
+                                    return this.api.message().modifyMessage(createdMessage)
+                                })
+                                .then(createdMessage => this.api.document().newInstance(this.user, createdMessage, { //creation of first document (before)
+                                    documentType: 'sumehr',
+                                    mainUti: this.api.document().uti("text/xml"),
+                                    name: "sumehrImport" + itemId + "_" +moment().format("YYYYMMDDhhmmss")
+                                }))
+                                .then(newDocInstance => this.api.document().createDocument(newDocInstance))
+                                .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject('encrypt', this.user, createdDocument, this.api.crypto().utils.base64toArrayBuffer(btoa(sumehrXml)))
+                                    .then(encryptedFileContent => ({createdDocument, encryptedFileContent })))
+                                .then(({createdDocument, encryptedFileContent}) => this.api.document().setAttachment(createdDocument.id, null, sumehrXml)) //.then(({createdDocument, encryptedFileContent}) => this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent))
+                                .then(resourcesObject => {
+                                    console.log("resourcesObject", resourcesObject);
+                                    this.api.bekmehr().importSumehrItem(resourcesObject.id, "dockey", this.patient.id, this.language, {}, itemId).then(res => console.log("import res", res));
+                                }).finally(() => {
+                                    console.log("finally of _logUpdateMessage")
+                                }).catch(e => {
+                                    console.log("---error upload attachment---", e)
+                                })
+                        )
+                }else{
+                    return Promise.resolve(null);
                 }
             }
 
