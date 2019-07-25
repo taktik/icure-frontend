@@ -1559,7 +1559,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 font-size: var(--font-size-small);
                 line-height: normal;
             }
-
         </style>
 
         <template is="dom-if" if="[[_bodyOverlay]]">
@@ -1957,7 +1956,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <span class="contact-year" on-click="openToast">
                                             [[contactYear.year]]
                                         </span>
-                                        <template is="dom-repeat" items="[[contactYear.contacts]]" as="contact" filter="[[contactFilter(selectedHealthcareElements, selectedHealthcareElements.*, timeSpanStart, timeSpanEnd, contactSearchString, contactFilters, contactFilters.*, currentContact,contactStatutChecked.*, contactStatusFilter, sortDirection, sortCriterion)]]" sort="compareContacts">
+                                        <template is="dom-repeat" items="[[contactYear.contacts]]" as="contact" filter="[[contactFilter(selectedHealthcareElements, selectedHealthcareElements.*, timeSpanStart, timeSpanEnd, contactSearchString, contactFilters, contactFilters.*, currentContact,contactStatutChecked.*, contactStatusFilter, sortDirection, sortCriterion, documentType)]]" sort="compareContacts">
                                             <paper-material id="ctc_[[contact.id]]"
                                                             elevation="0"
                                                             class$="layout vertical contact [[_isLatestYearContact(contactYear, contactYears)]] [[_contactClasses(contact, contact.closingDate, contact.author, contact.responsible)]]"
@@ -2384,22 +2383,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </paper-radio-group>
             </div>
             <div class="horizontal">
-                <label style="display:flex;"><b>[[localize('sort','Sort',language)]]</b></label>
-                <vaadin-combo-box id="sort-criterion" filtered-items="[[sortCriteria]]"
-                                  item-label-path="label" item-value-path="id" on-filter-changed=""
-                                  label="[[localize('sortCriteria','Sort criteria',language)]]"
-                                  value="{{sortCriterion}}" disabled="[[criterionDisabled]]"></vaadin-combo-box>
-                <vaadin-combo-box id="sort-direction" filtered-items="[[sortDirections]]"
-                                  item-label-path="label" item-value-path="id" on-filter-changed=""
-                                  label="[[localize('sortDirection','Sort direction',language)]]"
-                                  value="{{sortDirection}}"></vaadin-combo-box>
-            </div>
-            <div class="horizontal">
                 <label style="display:flex;"><b>[[localize('various','Various',language)]]</b></label>
-                <paper-radio-group selected="{{contactStatusFilter}}">
+                <paper-radio-group style="vertical-align: top;" selected="{{contactStatusFilter}}">
                     <paper-radio-button name="all">[[localize('all','All',language)]]</paper-radio-button>
                     <paper-radio-button name="import">[[localize('importedDocuments','Imported documents',language)]]</paper-radio-button>
                 </paper-radio-group>
+                <vaadin-combo-box style="vertical-align: top; min-width: 260px" id="document-type" filtered-items="[[documentTypes]]"
+                                  item-label-path="name" item-value-path="code"
+                                  label="[[localize('doc-typ','Document type',language)]]"
+                                  value="{{documentType}}" disabled="[[contactStatusAll]]"></vaadin-combo-box>
+            </div>
+            <div class="horizontal">
+                <label style="display:flex;"><b>[[localize('sort','Sort',language)]]</b></label>
+                <vaadin-combo-box id="sort-criterion" filtered-items="[[sortCriteria]]"
+                                  item-label-path="label" item-value-path="id"
+                                  label="[[localize('sortCriteria','Sort criteria',language)]]"
+                                  value="{{sortCriterion}}" disabled="[[contactStatusAll]]"></vaadin-combo-box>
+                <vaadin-combo-box id="sort-direction" filtered-items="[[sortDirections]]"
+                                  item-label-path="label" item-value-path="id"
+                                  label="[[localize('sortDirection','Sort direction',language)]]"
+                                  value="{{sortDirection}}"></vaadin-combo-box>
             </div>
             <div class="buttons">
                 <paper-button class="modal-button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
@@ -2839,9 +2842,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: String,
                         value: ""
                     },
-                    criterionDisabled: {
+                    contactStatusAll: {
                         type: Boolean,
                         value: true
+                    },
+                    documentTypes: {
+                        type: Array,
+                        value: () => []
+                    },
+                    documentType: {
+                        type: String,
+                        value: ""
                     }
                 };
             }
@@ -2923,6 +2934,39 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     ]
                 );
                 this.shadowRoot.querySelector("#sort-direction").selectedItem = this.sortDirections[0];
+
+                let exclusions = [
+                    "medicaladvisoragreement",
+                    "bvt-sample",
+                    "clinicalpath",
+                    "ecare-safe-consultation",
+                    "ecare-tardis-consultation",
+                    "perinatal",
+                    "population-based-screening",
+                    "medicationschemeelement",
+                    "vaccinationschemeelement",
+                    "genericregistryentry",
+                    "ebirth-baby-medicalform",
+                    "ebirth-mother-medicalform",
+                    "intervention",
+                    "applicationlink",
+                    "ebirth-baby-notification",
+                    "ebirth-mother-notification",
+                    "child-prevention",
+                    "radiationexposuremonitoring",
+                    "treatmentsuspension",
+                    "telemonitoring"
+                ];
+                this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
+                    .then(results => this.set("documentTypes",  _.orderBy(results.rows.filter(r => !exclusions.includes(r.code)).map(result => {
+                        return {code: result.code,name: this.localize('cd-transaction-' + result.code, result.code, this.language)};
+                    }), ['name'], ['asc']).reduce((list, item) => {
+                            list.push(item);
+                            return list;
+                            }, [{code: 'all', name: this.localize('all', 'All', this.language)}])
+                    ))
+                    .then(() => this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0])
+                    .catch(error => console.log(error));
             }
 
             wideClass(rev) {
@@ -4454,7 +4498,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.statutFilter==="all" || this.contactStatutChecked.some(id => id===ctc.id)
                         )
                         && (
-                            this.contactStatusFilter === "all" || ctc.subContacts.some(s => s.status === 64)
+                            this.contactStatusFilter === "all" || (
+                                ctc.subContacts.some(s => s.status === 64) &&  (
+                                    this.documentType === "all" || (
+                                        ctc.services && ctc.services.some(service => service.tags && service.tags.some(tag => tag.code && tag.code === this.documentType))
+                                    )
+                                )
+                            )
                         )
                         || !ctc.closingDate;
 
@@ -4469,8 +4519,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             updateCriterionSorter() {
-                this.set("criterionDisabled", this.contactStatusFilter === "all");
+                this.set("contactStatusAll", this.contactStatusFilter === "all");
                 this.shadowRoot.querySelector("#sort-criterion").selectedItem = this.sortCriteria[0];
+                this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0];
             }
 
             close() {
@@ -5274,7 +5325,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         let svc = ctc.services.find(service => service.id === docSubContactService.serviceId);
                         let fileName = svc && svc.content && svc.content[this.language] && svc.content[this.language].stringValue;
                         if (fileName) {
-                            let docType = svc.tags.length ? svc.tags[0] && svc.tags[0].code : 'report';
+                            let docType = svc.tags.length ? svc.tags[0] && svc.tags[0].code : 'unknown';
                             details.push({
                                 name: fileName,
                                 type: this.localize('cd-transaction-' + docType, docType, this.language),
