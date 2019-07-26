@@ -8,7 +8,6 @@
                 display: flex;
                 justify-content: flex-start;
                 box-sizing: border-box;
-                padding: 0;
             }
 
             #form-buttons {
@@ -16,10 +15,21 @@
             }
             #scan-button {
                 justify-content: flex-start;
-                margin-bottom: 20px;
                 text-transform: capitalize;
             }
+            #scan-button .modal-button {
+                min-width: 0px;
+            }
 
+            #scan-button .modal-button[disabled] {
+                --paper-button-ink-color: var(--app-background-color-dark);
+                background-color: var(--app-background-color-dark);
+            }
+
+            #upload-button {
+                justify-content: flex-start;
+                text-transform: capitalize;
+            }
             paper-dialog {
                 min-width: 1024px;
                 margin: 0;
@@ -49,19 +59,19 @@
             .input-form {
                 width: 100%;
                 height: 40px;
+                display: flex;
+                flex-direction: row;
             }
 
             vaadin-upload {
-                margin: 0 .29em 20px 0.29em;
                 border: none;
                 padding: 0;
-                --vaadin-upload-buttons-primary: {
-                    height: 40px;
-                };
                 --vaadin-upload-button-add: {
                     background: var(--app-secondary-color);
                     color: var(--app-text-color);
+                    height: 40px;
                 };
+
                 --vaadin-upload-file-progress: {
                     display: none;
                     --paper-progress-active-color: var(--app-secondary-color);
@@ -81,23 +91,29 @@
 
             vaadin-text-field {
                 height: 40px;
-                margin-top: -20px;
+                margin-top: -16px;
             }
 
             #importTextField, #hcpCombo, #typeCombo {
                 width: 100%;
             }
 
-            #importPicker, #docPicker {
+            #importPicker {
                 width: calc(50% - 2px);
+                margin-right: 2px;
+            }
+
+            #docPicker {
+                width: 50%;
             }
 
             #patCombo {
                 width: calc(60% - 2px);
+                margin-right: 2px;
             }
 
             #NissTextField {
-                width: calc(40% - 2px);
+                width: 40%;
             }
 
             .panel {
@@ -126,7 +142,10 @@
             }
 
             #import-buttons {
-                /*height: calc(20% - 2px);*/
+                display: flex;
+                flex-flow: row;
+                padding-bottom: 24px;
+                min-width: 250px;
             }
 
             #doc-list {
@@ -283,26 +302,20 @@
         <template is="dom-if" if="[[_bodyOverlay]]">
             <div class="dialogContainer"></div>
         </template>
-        <paper-dialog id="upload-dialog" no-cancel-on-outside-click>
+        <paper-dialog id="upload-dialog" always-on-top="true" no-cancel-on-outside-click no-cancel-on-esc-key>
             <div id="list-panel" class="panel">
                 <div id="import-buttons">
+                    <div id="upload-button">
+                        <vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="image/jpeg,application/pdf"
+                                       form-data-name="attachment"></vaadin-upload>
+                    </div>
                     <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
                         <div class="buttons" id="scan-button">
-                            <paper-button class="modal-button" on-tap="_launchScan">
+                            <paper-button class="modal-button" on-tap="_launchScan" disabled="[[isScanning]]">
                                 [[localize('scan','Scan',language)]]
                             </paper-button>
-                            <vaadin-combo-box
-                                    id="scannerList"
-                                    filtered-items="[[scannerList]]"
-                                    item-label-path="label"
-                                    item-value-path="id"
-                                    label="[[localize('scanners','Scanners',language)]]"
-                                    value="{{selectedScanner}}">
-                            </vaadin-combo-box>
                         </div>
                     </template>
-                    <vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="image/jpeg,application/pdf"
-                                   form-data-name="attachment"></vaadin-upload>
                 </div>
                 <vaadin-grid id="doc-list" class="material" items="[[docList]]" active-item="{{selectedDoc}}">
                     <vaadin-grid-column flex-grow="0">
@@ -401,7 +414,7 @@
             </div>
             <div id="drag-drop-layer" class="dragDropLayer"></div>
         </paper-dialog>
-        <paper-dialog class="modalDialog" id="error-message-box" no-cancel-on-outside-click no-cancel-on-esc-key>
+        <paper-dialog class="modalDialog" id="error-message-box" no-cancel-on-outside-click no-cancel-on-esc-key always-on-top>
             <h2 class="modal-title">
                 <iron-icon icon="icons:warning"></iron-icon>
                 [[localize('warning','Warning',language)]]
@@ -471,6 +484,10 @@
                         type: Boolean,
                         value: false
                     },
+                    isScanning: {
+                        type: Boolean,
+                        value: false
+                    },
                     documentMetas: {
                         type: Object,
                         value: null
@@ -478,6 +495,14 @@
                     selectedScanner: {
                         type: String,
                         value: ""
+                    },
+                    scannerColor: {
+                        type: Boolean,
+                        value: false
+                    },
+                    scannerDuplex: {
+                        type: Boolean,
+                        value: true
                     },
                     scannerList: {
                         type: Array,
@@ -539,6 +564,7 @@
                 super.ready();
                 let uploadDialog = this.shadowRoot.querySelector('#upload-dialog');
                 let dragDropLayer = this.shadowRoot.querySelector('#drag-drop-layer');
+                let errorDialog = this.shadowRoot.querySelector('#error-message-box');
 
                 uploadDialog.addEventListener('dragenter', () => {
                     dragDropLayer.style.visibility = 'visible';
@@ -620,6 +646,8 @@
                     const scanner = settings && settings.data && settings.data !== 'error' && JSON.parse(settings.data).find(set => set.type === "scanner")
                     this.set("selectedScanner", scanner && data.data.all.find(scan => scan.id === scanner.printer || scan.label === scanner.printer) ? scanner.printer : data.data.default.id)
                     this.set("scannerList", data.data.all)
+                    this.set("scannerColor", scanner.color)
+                    this.set("scannerDuplex", scanner.duplex)
                 })
             }
 
@@ -775,31 +803,48 @@
             }
 
             _launchScan() {
+                this.set("isScanning", true);
+                let args = "-p " + this.selectedScanner + (this.scannerColor ? " -c color" : " -c bw") + (this.scannerDuplex ? " -d" : "");
                 fetch("http://localhost:16042/scanning", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({
                         request: "scan",
+                        arguments: args,
                         scanner: this.selectedScanner
                     })
-                }).then(response => response.json()).then(response => {
-                    if (!response.ok) return;
-
-                    let document = {
-                        isScanned: true,
-                        title: "scanned doc n°" + this.docList.filter(doc => doc.isScanned).length,
-                        fileBlob: this.api.crypto().utils.base64toArrayBuffer(response.data.base64),
-                        importDate: moment().format("YYYY-MM-DD"),
-                        docDate: moment().format("YYYY-MM-DD"),
-                        hcp: this.user.healthcarePartyId,
-                        type: "",
-                        extension: "pdf",
-                        patientId: this.patient ? this.patient.id : "",
-                        patientSsin: this.patient ? this.patient.ssin : ""
-                    }
-                    this.push("docList", document)
-                    this.set("selectedDoc", document)
                 })
+                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            this.dispatchEvent(new CustomEvent("error-message", {
+                                detail: {
+                                    title: this.selectedScanner,
+                                    message: 'err.scan.capture',
+                                    detail: response.data
+                                }, bubbles: true
+                            }));
+                            return;
+                        }
+
+                        let document = {
+                            isScanned: true,
+                            title: "scanned doc n°" + this.docList.filter(doc => doc.isScanned).length + 1,
+                            fileBlob: this.api.crypto().utils.base64toArrayBuffer(response.data.base64),
+                            importDate: moment().format("YYYY-MM-DD"),
+                            docDate: moment().format("YYYY-MM-DD"),
+                            hcp: this.user.healthcarePartyId,
+                            type: "",
+                            extension: "pdf",
+                            patientId: this.patient ? this.patient.id : "",
+                            patientSsin: this.patient ? this.patient.ssin : ""
+                        };
+                        this.push("docList", document);
+                        this.set("selectedDoc", document);
+                    })
+                    .finally(() => {
+                        this.set("isScanning", false);
+                    })
             }
 
             _encryptInfo(message, info) {
@@ -910,11 +955,12 @@
 
             open() {
                 const vaadinUpload = this.$['vaadin-upload'];
-                vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil', 'Upload file', this.language))
+                vaadinUpload.set('i18n.addFiles.many', this.localize('imp', 'Import', this.language))
                 vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel', 'Drop files here...', this.language))
                 this.set('files', []);
                 this.set('_bodyOverlay', true)
                 this.$['upload-dialog'].open();
+                this._hasElectronChanged();
             }
 
             close() {
@@ -986,12 +1032,13 @@
                                             content: _.fromPairs([[this.language, {
                                                 documentId: doc.docId,
                                                 stringValue: doc.title
-                                            }]]), label: 'imported document'
+                                            }]]),
+                                            tags: [{type: 'CD-TRANSACTION', code: doc.type ? doc.type : 'report'}],
+                                            label: 'imported document'
                                         });
                                         contact.services = [svc];
                                         const sc = {status: 64, services: [{serviceId: svc.id}]};
                                         contact.subContacts.push(sc);
-
                                         return this.api.contact().createContactWithUser(this.user, contact)
                                     })
                                     .then(contact => this.api.register(contact, "contact"))
