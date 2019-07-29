@@ -30,6 +30,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-column.html">
 <link rel="import" href="../../../../bower_components/paper-card/paper-card.html">
 <link rel="import" href="../../../../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../../../../bower_components/paper-checkbox/paper-checkbox.html">
 <link rel="import" href="../../../../bower_components/paper-item/paper-item.html">
 <link rel="import" href="../../../../bower_components/paper-fab/paper-fab.html">
 <link rel="import" href="../../../../bower_components/paper-icon-button/paper-icon-button.html">
@@ -201,6 +202,29 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
+            paper-checkbox {
+                --paper-checkbox-unchecked-color: var(--app-text-color);
+                --paper-checkbox-label-color: var(--app-text-color);
+                --paper-checkbox-checked-color: var(--app-secondary-color);
+                --paper-checkbox-checked-ink-color: var(--app-secondary-color-dark);
+            }
+            .scan-container {
+                display: flex;
+                flex-direction: row;
+                justify-content: flex-start;
+                align-items: center;
+            }
+            .scan-name {
+                flex: 6;
+                padding-right: 12px;
+            }
+            .scan-name paper-dropdown-menu-light {
+                width: 100%;
+            }
+            .scan-option {
+                flex: 1;
+            }
+
         </style>
 
         <div class="printer-panel">
@@ -245,14 +269,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 </paper-dropdown-menu-light>
                             </template>
                             <template is="dom-if" if="[[!preference.isPrinter]]">
-                                <paper-dropdown-menu-light>
-                                    <label></label>
-                                    <paper-listbox slot="dropdown-content" selected="{{preference.printerSelected}}" attr-for-selected="name">
-                                        <template is="dom-repeat" items="[[scanners]]">
-                                            <paper-item name="[[item.id]]">[[item.label]]</paper-item>
-                                        </template>
-                                    </paper-listbox>
-                                </paper-dropdown-menu-light>
+                                <div class="scan-container">
+                                    <div class="scan-name">
+                                        <paper-dropdown-menu-light>
+                                            <label></label>
+                                            <paper-listbox slot="dropdown-content" selected="{{preference.printerSelected}}" attr-for-selected="name">
+                                                <template is="dom-repeat" items="[[scanners]]">
+                                                    <paper-item name="[[item.id]]">[[item.label]]</paper-item>
+                                                </template>
+                                            </paper-listbox>
+                                        </paper-dropdown-menu-light>
+                                    </div>
+                                    <div class="scan-option">
+                                        <paper-checkbox checked={{preference.color}}>Couleur</paper-checkbox>
+                                    </div>
+                                    <div class="scan-option">
+                                        <paper-checkbox checked={{preference.duplex}}>Duplex</paper-checkbox>
+                                    </div>
+                                </div>
                             </template>
                         </div>
                     </div>
@@ -361,7 +395,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             {type : "sticker-mut-a4",typeLocalized :"Feuille d'étiquettes mutuelle",formats:["A4"],isPrinter:true},
                             {type : "doc-little-format",typeLocalized :"Autre document - petit format",formats:["A4","DL/A5"],isPrinter:true},
                             {type : "doc-big-format",typeLocalized :"Autre document - grand format",formats:["A4","DL/A5"],isPrinter:true},
-                            {type : "scanner",typeLocalized :"Scanner",formats:[],isPrinter:false,formatSelected:"-"}
+                            {type : "scanner",typeLocalized :"Scanner",formats:[],isPrinter:false,formatSelected:"-", color:false, duplex:true}
                         ]
                     },
                     electronAvailable: {
@@ -404,7 +438,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
                     .then(response => response.json())
                     .then((responseParsed) =>{
-                        let scanSetting= {}
+                        let scanSetting= {type:"scanner", isPrinter:false, format:"-"};
                         if(responseParsed.ok){
                             const property = JSON.parse(responseParsed.data)
                             property.map(setting => {
@@ -431,9 +465,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             .then(scns =>{
                                 this.set("scanners",scns.data.all)
                                 const itemTypeDoc =this.listTypeDocument.findIndex(itemDoc => itemDoc.type===scanSetting.type)
-                                if(itemTypeDoc===-1)return;
+                                if(itemTypeDoc===-1) return;
                                 this.set("listTypeDocument."+itemTypeDoc+".formatSelected", scanSetting.format)
-                                this.set("listTypeDocument."+itemTypeDoc+".printerSelected", !this.listTypeDocument[itemTypeDoc].isPrinter ? (this.scanners.find(scan => scan.id===scanSetting.printer) ? scanSetting.printer : "") : "")
+                                if (this.listTypeDocument[itemTypeDoc].isPrinter) return;
+                                if (this.scanners.some(scan => scan.id===scanSetting.printer)) {
+                                    this.set("listTypeDocument."+itemTypeDoc+".printerSelected", scanSetting.printer);
+                                    if (scanSetting.color !== undefined)
+                                        this.set("listTypeDocument."+itemTypeDoc+".color", scanSetting.color);
+                                    if (scanSetting.duplex !== undefined)
+                                        this.set("listTypeDocument."+itemTypeDoc+".duplex", scanSetting.duplex);
+                                } else {
+                                    this.set("listTypeDocument."+itemTypeDoc+".printerSelected", "")
+                                }
                             })
                     })
                 })
@@ -441,7 +484,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _savePrinters(){
                 const printerSettingComplete = this.listTypeDocument.filter(type => (type.formatSelected || type.formatSelected===0) && (type.printerSelected || type.printerSelected===0))
-                .map(x => {return{type:x.type,format : x.formatSelected,printer : x.printerSelected}})
+                .map(x => {return{type:x.type,format : x.formatSelected,printer : x.printerSelected, color: x.color, duplex: x.duplex}})
                 fetch('http://localhost:16042/setPrinterSetting', {
                     method: "POST",
                     headers: {
