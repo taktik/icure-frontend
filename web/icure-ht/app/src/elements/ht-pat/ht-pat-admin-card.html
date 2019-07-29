@@ -504,16 +504,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     opacity: 0;
                 }
                 20%{
-                    width: 114px;
+                    width: 254px;
                     opacity: 1;
                 }
                 25%{
-                    width: 96px;
-                    opacity: 1;
+                    width: 254px;
+                    opacity: 0.75;
                 }
                 75%{
-                    width: 96px;
-                    opacity: 1;
+                    width: 254px;
+                    opacity: 0.25;
                 }
                 100%{
                     width: 0;
@@ -1232,6 +1232,11 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                         if(!this.patient.partnerships[idx].partnerInfo)
                             this.set(`patient.partnerships.${idx}.partnerInfo`, pps)
                     }))
+                    .finally(()=>{
+                        this.patient.partnerships.filter(partner=> partner.partnerId && !Object.keys(partner).find(key=>key==="partnerInfo")).forEach(partner=>{
+                            if(!partner.partnerInfo)partner.partnerInfo={}
+                        })
+                    })
             }
         }
     }
@@ -1250,59 +1255,76 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             this.api.queue(patient, 'patient').then(([pat, defer]) => {
                 if (pat.rev !== rev) { defer.resolve(patient); return }
 
-                ((patient.partnerships && patient.partnerships.length) ?
+                (!!_.size(_.get(patient,"partnerships", [])) ?
                     Promise.all(patient.partnerships.map((partner, index) => {
                         if(!partner.partnerInfo || (!partner.partnerInfo.lastName && !partner.partnerInfo.name))
                             return Promise.resolve({})
-                        partner.partnerInfo.ssin= (partner.partnerId && this.listValidSsin[partner.partnerId]) || ""
-                        if (!partner.partnerId || !partner.partnerInfo.rev) {
-                            //patient not present
-                            partner.partnerInfo.active = false
-                            partner.partnerInfo.id = partner.partnerId
+                        return this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, this.listValidSsin[_.get(partner,'partnerId',"")], null, null, 100, "asc").then(patients =>{
+                            if(!(this.listValidSsin[_.get(partner,'partnerId',"")] && patients.rows.length && patients.rows.find(pat => pat.ssin===this.listValidSsin[_.get(partner,'partnerId',"")] && pat.id!==_.get(partner,'partnerId',"")))) {
+                                partner.partnerInfo.ssin= (partner.partnerId && this.listValidSsin[partner.partnerId]) || ""
+                            }
+                            else{
+                                partner.partnerInfo.ssin=""
+                            }
+                        }).finally(()=>{
+                            if (!partner.partnerId || !partner.partnerInfo.rev) {
+                                //patient not present
+                                partner.partnerInfo.active = false
+                                partner.partnerInfo.id = partner.partnerId
 
-                            return this.api.patient().newInstance(this.user, partner.partnerInfo)
-                                .then(np => {
-                                    return this.api.patient().createPatientWithUser(this.user, np).then(np => this.api.register(np, 'patient')).then(np => {
-                                        this.set('patient.partnerships.' + index,{partnerId: np.id, partnerInfo: np})
+                                return this.api.patient().newInstance(this.user, partner.partnerInfo)
+                                    .then(np => {
+                                        return this.api.patient().createPatientWithUser(this.user, np).then(np => this.api.register(np, 'patient')).then(np => {
+                                            this.set('patient.partnerships.' + index,{partnerId: np.id, partnerInfo: np})
+                                        })
                                     })
-                                })
-                                .catch(e => {console.log("Cannot save "+e.message); return null})
-                        } else {
-                            //patient present
-                            return this.api.patient().modifyPatientWithUser(this.user, partner.partnerInfo)
-                                .then(p => {
-                                    this.api.register(p, 'patient')
-                                })
-                                //  .then(partner => {
-                                //      this.set('patient.partnerships.' + index + '.partnerInfo', partner)
-                                //      return partner
-                                //  })
-                                .catch(e => {console.log("Cannot save "+e.message,partner.partnerInfo); return null})
-                        }
+                                    .catch(e => {console.log("Cannot save "+e.message); return null})
+
+                            } else {
+                                //patient present
+                                return this.api.patient().modifyPatientWithUser(this.user, partner.partnerInfo)
+                                    .then(p => {
+                                        this.api.register(p, 'patient')
+                                    })
+                                    //  .then(partner => {
+                                    //      this.set('patient.partnerships.' + index + '.partnerInfo', partner)
+                                    //      return partner
+                                    //  })
+                                    .catch(e => {console.log("Cannot save "+e.message,partner.partnerInfo); return null})
+                            }
+                        })
+
                     }))
                 : Promise.resolve([]))
                     .finally(() => {
-                        patient.ssin = this.listValidSsin[patient.id];
-                        this.api.patient().modifyPatientWithUser(this.user, patient)
-                            .catch(() => defer.resolve(patient))
-                            .then(p => this.api.register(p, 'patient', defer))
-                            .then(p => this.dispatchEvent(new CustomEvent("patient-saved", {
-                                detail: p,
-                                bubbles: true,
-                                composed: true
-                            })))
-                            .catch(e => {
-                                if (this.patient) {
-                                    return this.api.patient().getPatientWithUser(this.user, this.patient.id).then(p => this.api.register(p, 'patient')).then(p => {
-                                        this.patient = p
-                                        this.saveTimeout = undefined
-                                        this.saveAction = undefined
+                        this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, this.listValidSsin[patient.id], null, null, 100, "asc").then(patients => {
+                            if (!(this.listValidSsin[patient.id] && patients.rows.length && patients.rows.find(pat => pat.ssin === this.listValidSsin[patient.id] && pat.id !== patient.id))) {
+                                patient.ssin = this.listValidSsin[patient.id];
+                            } else {
+                                patient.ssin = "";
+                            }
+
+                            this.api.patient().modifyPatientWithUser(this.user, patient)
+                                .catch(() => defer.resolve(patient))
+                                .then(p => this.api.register(p, 'patient', defer))
+                                .then(p => this.dispatchEvent(new CustomEvent("patient-saved", {
+                                    detail: p,
+                                    bubbles: true,
+                                    composed: true
+                                })))
+                                .catch(e => {
+                                    if (this.patient) {
+                                        return this.api.patient().getPatientWithUser(this.user, this.patient.id).then(p => this.api.register(p, 'patient')).then(p => {
+                                            this.patient = p
+                                            this.saveTimeout = undefined
+                                            this.saveAction = undefined
+                                            throw e
+                                        })
+                                    } else {
                                         throw e
-                                    })
-                                } else {
-                                    throw e
-                                }
-                            })
+                                    }
+                                })
+                        })
                     })
             })
         }
@@ -1331,14 +1353,16 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             let resolvedRoot = root();
 
             if (resolvedRoot && !_.isEqual( _.get(resolvedRoot, key) , value)) {
-                resolvedRoot === this.patient ? this.set('patient.' + key, value) : _.set(resolvedRoot, key, value);
+                this.set("patient."+(rootPath.length ? (rootPath+".") : "")+key,value)
+
 
                 if(key.includes("ssin")){
                     this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, value, null, null, 100, "asc").then(patients =>{
-                        if(patients.rows.length && patients.rows.find(pat => pat.ssin===value && pat.id!==_.get(resolvedRoot,'id',""))){
+                        if(value && patients.rows.length && patients.rows.find(pat => pat.ssin===value && pat.id!==_.get(resolvedRoot,'id',""))){
                             //ajout du message
+                            this.$['noSave'].classList.remove('notification');
                             this.$['noSave'].classList.add("notification")
-                            setTimeout(() => { this.$['noSave'].classList.remove('notification'); }, 15000);
+                            setTimeout(() => { this.$['noSave'].classList.remove('notification'); }, 5000);
 
                         }else{
                             if(this.api.patient().isValidSsin(value) || value===""){
@@ -1380,10 +1404,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 return (_.get(root(),key) || []).map((a, idx) => {
                     return {
                         dataMap: a,
-                        dataProvider: key === 'partnerships' ?
-                            this.patientDataProvider(a, '', (rootPath.length ? rootPath + '.' : '') + key + '.' + idx, a.partnerId) :
-                            this.patientDataProvider(oroot, (subPath && subPath.length ? subPath + '.' : '') + key + '[' + idx + ']', (rootPath.length ? rootPath + '.' : '') + key + '.' + idx, a.id || (a.id = this.api.crypto().randomUuid()))
-                        ,
+                        dataProvider: this.patientDataProvider(oroot, (subPath && subPath.length ? subPath + '.' : '') + key + '[' + idx + ']', (rootPath.length ? rootPath + '.' : '') + key + '.' + idx, key === 'partnerships' ? a.partnerId || (a.partnerId = this.api.crypto().randomUuid()) : a.id || (a.id = this.api.crypto().randomUuid())),
                         template:
                             key === 'telecoms' ?
                                 this.telecomForm :
@@ -1407,8 +1428,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             },
             addSubForm: (key, guid) => {
                 this.flushSave(); //Important
-                if(key==="partnerInfo.addresses" && (!root().partnerInfo.lastName && !root().partnerInfo.name))return;
-                (_.get(root(), key) || _.get(_.set(root(), key, []), key)).push(key==='partnerships'?{partnerId: guid || this.api.crypto().randomUuid(), partnerInfo:{}}:{});
+                if(key.includes("partnerInfo.addresses") && (!root().partnerInfo || (!root().partnerInfo.lastName && !root().partnerInfo.name)))return;
+                (_.get(root(), key) || _.get(_.set(root(), key, []), key)).push(key==='partnerships'?{partnerId: this.api.crypto().randomUuid(), partnerInfo:{}, type:""}:{});
 
                 this.$[this.root.activeElement.id==="researchFuturPartnerShip"? "dynamic-form-partnerships" : this.root.activeElement.id].notify((rootPath.length ? rootPath + '.' : '') + key + '.*');
                 this.scheduleSave(this.patient);
@@ -1964,8 +1985,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.api.patient().getPatientWithUser(this.user,e.detail.value).then( pat =>{
             let partner = this.patient.partnerships.findIndex(partner => !partner.partnerId || !partner.partnerInfo || (partner.partnerId && !partner.partnerInfo.id))
             if(partner===-1) {
-                this.dataProvider.addSubForm("partnerships", pat.id)
-                partner = this.patient.partnerships.findIndex(partner => partner.partnerId===pat.id)
+                partner = this.patient.partnerships.length
+                this.dataProvider.addSubForm("partnerships", null)
             }
             this.set("patient.partnerships."+partner,{partnerId:pat.id,partnerInfo:pat})
 
