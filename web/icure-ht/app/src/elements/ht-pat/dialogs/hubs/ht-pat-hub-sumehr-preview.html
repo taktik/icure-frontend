@@ -40,6 +40,15 @@
                 top: 64px;
             }
 
+            #historyViewer{
+                height: calc(98% - 12vh);
+                width: 98%;
+                max-height: calc(100% - 64px - 48px - 20px); /* 100% - header - margin - footer*/
+                min-height: 400px;
+                min-width: 800px;
+                top: 64px;
+            }
+
             .title{
                 height: 30px;
                 width: auto;
@@ -176,6 +185,14 @@
             }
 
             .sumehrPreviewDialog{
+                display: flex;
+                height: calc(100% - 45px);;
+                width: auto;
+                margin: 0;
+                padding: 0;
+            }
+
+            .historyViewer{
                 display: flex;
                 height: calc(100% - 45px);;
                 width: auto;
@@ -402,11 +419,21 @@
                                 [[_dateFormat(item.created)]]
                             </template>
                         </vaadin-grid-column>
+                        <vaadin-grid-column>
+                            <template class="header">
+                                [[localize('view','View',language)]]
+                            </template>
+                            <template>
+                                <paper-button on-tap="_showHistoryItem" data-item$="[[item]]" class="actionIcons fowardIcon" id="showHistoryItem"><iron-icon icon="icons:cloud-download" data-item$="[[item]]"></iron-icon></paper-button>
+                            </template>
+                        </vaadin-grid-column>
                     </vaadin-grid>
                 </div>
+
                 <div class="hub-menu-view">
                     <ht-pat-hub-transaction-preview id="htPatHubTransactionPreViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-preview>
                 </div>
+
                 <div class="buttons">
                     <paper-button class="modal-button" on-tap="getSumehrUpdateServices"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('getSumehrUpdateServices','getSumehrUpdateServices',language)]]</paper-button>
                     <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>
@@ -416,7 +443,30 @@
                 </div>
             </div>
         </paper-dialog>
+        <paper-dialog id="historyViewer">
+            <paper-tabs class="tab-selector" selected="{{tabs}}" >
+                <paper-tab>
+                    <iron-icon class="tabIcon" icon="vaadin:male"></iron-icon> [[localize('before','Before',language)]]
+                </paper-tab>
+                <paper-tab>
+                    <iron-icon class="tabIcon" icon="maps:local-library"></iron-icon> [[localize('after','After',language)]]
+                </paper-tab>
+            </paper-tabs>
+            <iron-pages selected="[[tabs]]">
+                <page>
+                    <div class="hub-menu-view">
+                        <ht-pat-hub-transaction-view id="htPatHubTransactionViewerBefore" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
+                    </div>
+                </page>
+                <page>
+                    <div class="hub-menu-view">
+                        <ht-pat-hub-transaction-view id="htPatHubTransactionViewerAfter" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
+                    </div>
+                </page>
+            </iron-pages>
+            <paper-button class="modal-button" on-tap="_closeHistoryViewer"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
 
+        </paper-dialog>
     </template>
     <script>
         import * as models from 'icc-api/dist/icc-api/model/models';
@@ -566,6 +616,18 @@
                         }
                     },
                     parentDialog:{
+                        type: Object,
+                        value: null
+                    },
+                    viewHistory:{
+                        type: Boolean,
+                        value: false
+                    },
+                    messageBefore:{
+                        type: Object,
+                        value: null
+                    },
+                    messageAfter:{
                         type: Object,
                         value: null
                     }
@@ -731,7 +793,7 @@
                 e.stopPropagation();
                 if(e && e.target && e.target.item) {
                     this.set("selectedTransaction", e.target.item)
-                    this.$['htPatHubTransactionPreViewer'].open( e.target.item, this._getHubTransactionMessage( e.target.item));
+                    if(this.$['htPatHubTransactionPreViewer']) this.$['htPatHubTransactionPreViewer'].open( e.target.item, this._getHubTransactionMessage( e.target.item));
                 }
             }
 
@@ -814,7 +876,7 @@
             }
 
             sumehrChanged(sumehr){
-                this.$['htPatHubTransactionPreViewer'].open(this,  sumehr, this.hubSumehr, this.hubSumehrXml);
+                if(this.$['htPatHubTransactionPreViewer']) this.$['htPatHubTransactionPreViewer'].open(this,  sumehr, this.hubSumehr, this.hubSumehrXml);
             }
 
             _logUpdateMessage(message, messageName, updateReference, mime){
@@ -1257,6 +1319,22 @@
 
             _localizeHcpType(type){
                 return this.localize("cd-hcp-"+type, type, this.language)
+            }
+
+            _showHistoryItem(e){
+                if(e.target && e.target.dataset && e.target.dataset.item) {
+                    const item = JSON.parse(e.target.dataset.item);
+                    console.log(item);
+                    this.set("messageBefore", JSON.parse(item.oldatt));
+                    this.set("messageAfter", JSON.parse(item.newatt));
+                    this.$['htPatHubTransactionViewerBefore'].openHist(this.messageBefore);
+                    this.$['htPatHubTransactionViewerAfter'].openHist(this.messageAfter);
+                    this.$["historyViewer"].open();
+                }
+            }
+
+            _closeHistoryViewer(){
+                this.$["historyViewer"].close();
             }
 
         }
