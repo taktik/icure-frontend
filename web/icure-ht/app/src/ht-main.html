@@ -17,6 +17,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../bower_components/paper-tooltip/paper-tooltip.html">
 <link rel="import" href="../bower_components/paper-input/paper-input.html">
 <link rel="import" href="./elements/ht-spinner/ht-spinner.html">
+<link rel="import" href="./elements/ht-tools/ht-auto-read-eid-opening.html">
 
 <link rel="import" href="./styles/shared-styles.html">
 <link rel="import" href="./styles/scrollbar-style.html">
@@ -563,15 +564,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 			}
 		</style>
 
-		<paper-item id="eidFound" class="notification-container">
-			<iron-icon class="notification-icn" icon="vaadin:health-card"></iron-icon>
-			<div class="notification-msg">
-				<h4>[[localize('eid_found','eid found',language)]]</h4>
-				<p>[[localize('open_pat','open patient',language)]] ?</p>
-			</div>
-			<paper-button on-tap="closeEidPanel" class="notification-btn"><iron-icon icon="cancel"></iron-icon>[[localize('no','No',language)]]</paper-button>
-			<paper-button on-tap="openPatientWithEid" class="notification-btn"><iron-icon icon="check-circle"></iron-icon>[[localize('yes','Yes',language)]]</paper-button>
-		</paper-item>
+		<ht-auto-read-eid-opening id="autoRead" language="[[language]]" resources="[[resources]]" card="[[cardData]]" api="[[api]]" user="[[user]]"></ht-auto-read-eid-opening>
 
 		<div class="layout-buttons">
 			<paper-icon-button id="changeLayoutButton" icon="dashboard" on-tap="_layoutDialog"></paper-icon-button>
@@ -927,17 +920,6 @@ class HtMain extends Polymer.TkLocalizerMixin(Polymer.Element) {
 		const res = JSON.parse(cards)
 		if (res.cards[0]) {
 			this.set('cardData',res.cards[0])
-			this.api.hcparty().getCurrentHealthcareParty()
-					.then(hcp => this.api.patient().findByNameBirthSsinAutoWithUser(this.user,hcp.id, this.cardData.nationalNumber, null, null, 100, "asc"))
-					.then(pats => {
-						if(pats.rows.length && pats.rows.find(pat => pat.ssin===this.cardData.nationalNumber)){
-							this.set("autoReadSelected",pats.rows.find(pat => pat.ssin===this.cardData.nationalNumber))
-							this.$['eidFound'].classList.add('notification');
-						}
-						else{
-							this.dispatchEvent(new CustomEvent('error-electron', { detail: {message:this.localize("error-elect-eid-pat-no-found","EID : patient not found",this.language)}, bubbles: true, composed: true }))
-						}
-					})
 		}
 	}
 
@@ -1341,67 +1323,6 @@ class HtMain extends Polymer.TkLocalizerMixin(Polymer.Element) {
 		}
 
 	}
-
-
-	openPatientWithEid(){
-		this.api.patient().getPatientWithUser(this.user, this.autoReadSelected.id).then(p => {
-			p.ssin = p.ssin || this.cardData.nationalNumber
-			if(!p.addresses.find(ad => ad.addressType==="home")){
-				let streetData = _.trim(this.cardData.street).split(" ")
-				const number = streetData.find(str => str.match(/\d/g))
-				const boxNumber = streetData[streetData.length-1]!==number ? streetData[streetData.length-1] :""
-				const street = streetData.reduce((tot,str)=>{
-					if(!tot)tot="";
-					if(!(str===number || str===boxNumber ))
-						tot = tot.concat(" ",str)
-					return tot;
-				})
-
-				p.addresses.push({
-					addressType: "home",
-					street: street,
-					houseNumber: number,
-					postboxNumber: boxNumber,
-					postalCode: this.cardData.zipCode,
-					city: this.cardData.municipality,
-					country: this.cardData.country
-				})
-			}
-
-			p.gender = p.gender || this.cardData.gender === 'M' ? 'male' : 'female'
-			p.placeOfBirth = p.placeOfBirth || this.cardData.locationOfBirth
-			p.dateOfBirth = p.dateOfBirth || parseInt(this.api.moment(this.cardData.dateOfBirth * 1000).format('YYYYMMDD'))
-			p.nationality = p.nationality || this.cardData.nationality
-			p.picture = p.picture || this.cardData.picture
-			p.firstName = p.firstName || this.cardData.firstName
-			p.lastName = p.lastName || this.cardData.surname
-
-			return p
-		})
-				.then( p => this.api.patient().modifyPatientWithUser(this.user,p))
-				.then( p => this.api.register(p, 'patient'))
-				.then(p => {
-					location.replace(location.href.replace(/(.+?)#.*/, `$1#/pat/${p.id}`));
-					return p
-				})
-				.then(p => {
-					this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
-						this.api.fhc().Therlinkcontroller().registerTherapeuticLinkUsingPOST1(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-								hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-								p.ssin, p.firstName, p.lastName, this.cardData.logicalNumber, "", null, null, null, null, null)
-
-					})
-				})
-	}
-
-	closeEidPanel(e) {
-		const target = e && e.target && e.target.getAttribute('panel') || ''
-		if (this.$[target] && this.$[target].classList.contains('notification') ){
-			this.$[target].classList.remove('notification');
-		}
-	}
-
-
 }
 
 
