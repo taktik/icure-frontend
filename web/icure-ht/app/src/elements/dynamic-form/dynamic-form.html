@@ -7,6 +7,7 @@
 <link rel="import" href="../../../bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../../../bower_components/paper-styles/shadow.html">
 <link rel="import" href="../../../bower_components/vaadin-combo-box/vaadin-combo-box.html">
+<link rel="import" href="../../../bower_components/paper-dialog/paper-dialog.html">
 
 <link rel="import" href="dynamic-number-field.html">
 <link rel="import" href="dynamic-token-field.html">
@@ -19,13 +20,15 @@
 <link rel="import" href="dynamic-checkbox.html">
 <link rel="import" href="dynamic-medication-field.html">
 <link rel="import" href="dynamic-subcontact-type-selector.html">
-<link rel="import" href="../../icpc-styles.html">
+<link rel="import" href="../../styles/icpc-styles.html">
+<link rel="import" href="../../styles/dialog-style.html">
+<link rel="import" href="../../styles/buttons-style.html">
 
 <link rel="import" href="ckmeans-grouping.html">
 
 <dom-module id="dynamic-form">
 	<template>
-		<style include="icpc-styles">
+		<style include="icpc-styles dialog-style buttons-style">
 			ht-spinner.center {
 				position: absolute;
 				left: calc(50% - 14px);
@@ -40,6 +43,10 @@
 				margin: 0;
 				width: 100%;
 				background: transparent;
+			}
+
+			paper-card {
+				position: relative;
 			}
 
 			.pat-details-card>.card-content {
@@ -59,15 +66,12 @@
 				flex-wrap: wrap;
 				flex-basis: 100%;
 			}
-			
+
 			.edit-print-pat-details-btn {
 				position: absolute;
 				left: 50%;
 				transform: translate(-50%, 0);
 				bottom: -20px;
-				background: var(--app-secondary-color);
-				border-radius: 50%;
-				@apply --shadow-elevation-4dp;
 			}
 
 			.reports-list-container {
@@ -128,6 +132,22 @@
 				padding: 2px;
 			}
 
+			.form-title-bar-btn paper-listbox{
+				padding: 0;
+			}
+
+			.form-title-bar-btn paper-listbox paper-item{
+				padding: 0 8px;
+				font-size: var(--font-size-normal);
+			}
+
+			.form-title-bar-btn paper-listbox paper-item iron-icon{
+				height: 12px;
+				width: 12px;
+				padding: 0;
+				margin-right: 4px;
+			}
+
 			.colour-code {
 				font-size: 12px;
 				white-space: nowrap;
@@ -150,10 +170,6 @@
 				--ht-spinner-layer-4-color: var(--app-primary-color-dark);
 			}
 
-            #general-info {
-                margin-bottom: 25px;
-            }
-
             #printSubForm {
                 --paper-fab: {background: var(--app-secondary-color);};
             }
@@ -162,10 +178,23 @@
 				width: 100%;
 				font-size: 12px;
 				margin-top: 1%;
-				margin-left: 1%;
-				background-color: rgb(236, 238, 240);
 				padding: 4px;
 			}
+
+			#delete-confirmation-dialog{
+				height: 160px;
+				width: 300px;
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				margin: 0;
+				transform: translate(-50%, -50%);
+			}
+
+			#delete-confirmation-dialog .content{
+				padding: 0 12px;
+			}
+
 
 
 		</style>
@@ -180,12 +209,30 @@
 					<slot name="titlebar"></slot>
 					<div>
                         <template is="dom-if" if="[[!readOnly]]">
+                            <!--
                             <dynamic-subcontact-type-selector id="linktosub" subcontact-type="[[subcontactType]]" language="[[language]]" resources="[[resources]]" on-link-to-subcontact-type="_linkToSubcontactType"></dynamic-subcontact-type-selector>
                             <paper-tooltip position="bottom" for="linktosub">[[localize('link_sub','Link to sub',language)]]</paper-tooltip>
-                            <paper-icon-button id="delform" class="form-title-bar-btn" icon="icons:delete" on-tap="_deleteForm"></paper-icon-button>
-                            <paper-tooltip position="bottom" for="delform">[[localize('del_form','Delete form',language)]]</paper-tooltip>
+							-->
+							<template is="dom-if" if="[[_none(showEdit,noPrint)]]">
+
+								<template is="dom-if" if="[[!isSubForm]]">
+									<paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
+										<paper-icon-button class="form-title-bar-btn" slot="dropdown-trigger" alt="menu" icon="icons:file-upload"></paper-icon-button>
+										<paper-listbox slot="dropdown-content" >
+											<template is="dom-repeat" items="[[reports]]" as="report">
+												<paper-item class="link" on-tap="newReport" id="report"><iron-icon icon="vaadin:file-o"></iron-icon>[[_getReportTrad(report.name)]]</paper-item>
+											</template>
+										</paper-listbox>
+									</paper-menu-button>
+								</template>
+
+								<template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
+									<paper-icon-button icon="print" on-tap="printSubForm" id="printSubForm" class="form-title-bar-btn"></paper-icon-button>
+									<paper-tooltip position="bottom" for="printSubForm">[[localize('print','Print',language)]]</paper-tooltip>
+								</template>
+							</template>
                             <paper-tooltip position="bottom" for="linkhe">[[localize('link_he','Link Health Element',language)]]</paper-tooltip>
-                            <paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true">
+                            <paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
                                 <paper-icon-button id="linkhe" class="form-title-bar-btn" icon="icons:link" slot="dropdown-trigger" alt="menu"></paper-icon-button>
                                 <paper-listbox slot="dropdown-content">
                                     <template is="dom-repeat" items="[[linkableHealthElements]]" as="he">
@@ -203,7 +250,9 @@
                                         </template>
                                     </template>
                                 </paper-listbox>
-                            </paper-menu-button>
+							</paper-menu-button>
+							<paper-icon-button id="delform" class="form-title-bar-btn" icon="icons:delete" on-tap="_deleteConfirmation"></paper-icon-button>
+                            <paper-tooltip position="bottom" for="delform">[[localize('del_form','Delete form',language)]]</paper-tooltip>
                         </template>
 					</div>
 				</div>
@@ -249,7 +298,7 @@
 										 i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" data-source="[[_popupDataSource(layoutItem, layoutItem.editor.menuOptions)]]"
 										 linkables="[[linkableHealthElements]]" last-modified="[[_lastModified(layoutItem)]]" value="[[_value(layoutItem,dataMap.*)]]"
 										 width="[[layoutItem.editor.flow]]" options="[[layoutItem.editor.menuOptions]]" on-field-changed="_valueChanged"
-										 read-only="[[readOnly]]" display-all-always="[[layoutItem.editor.displayAllAlways]]"></dynamic-popup-menu>
+										 read-only="[[readOnly]]" display-all-always="[[layoutItem.editor.displayAllAlways]]" is-free-text="[[layoutItem.editor.isFreeText]]"></dynamic-popup-menu>
 									</template>
 									<template is="dom-if" if="[[_isDateField(layoutItem)]]">
 										<dynamic-date-field id="[[_sanitizeId(layoutItem.name)]]" api="[[api]]" label="[[layoutItem.label]]" key="[[layoutItem.name]]" was-modified="[[_wasModified(layoutItem)]]" is-modified-after="[[_isModifiedAfter(layoutItem)]]"
@@ -290,21 +339,25 @@
 				</div>
 			</form>
 			<template is="dom-if" if="[[showEdit]]">
-                <paper-icon-button class="edit-print-pat-details-btn" icon="create" on-tap="editForm"></paper-icon-button>
+                <paper-icon-button class="button--icon-btn edit-print-pat-details-btn" icon="create" on-tap="editForm"></paper-icon-button>
 			</template>
 			<template is="dom-if" if="[[_none(showEdit,noPrint)]]">
-                <template is="dom-if" if="[[!isSubForm]]">
-                    <paper-icon-button class="edit-print-pat-details-btn" icon="print" on-tap="toggleReportsList"></paper-icon-button>
-                    <div class="reports-list-container" hidden$="[[!reportsListDisplayed]]">
-                        <template is="dom-repeat" items="[[reports]]" as="report">
-                            <paper-fab-speed-dial-action icon="vaadin:file-o" on-tap="newReport" id="report">[[report.name]]</paper-fab-speed-dial-action>
-                        </template>
-                    </div>
-                </template>
-                <template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
-                    <paper-fab-speed-dial-action icon="vaadin:print" on-tap="printSubForm" id="printSubForm">[[localize('print','Print',language)]]</paper-fab-speed-dial-action>
-                </template>
-            </template>
+				<template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
+					<paper-fab-speed-dial-action icon="print" on-tap="printSubForm" id="printSubForm">[[localize('print','Print',language)]]</paper-fab-speed-dial-action>
+				</template>
+			</template>
+
+			<paper-dialog id="delete-confirmation-dialog">
+				<h2 class="modal-title">Delete form</h2>
+				<div class="content">
+					<p>Are you sure you want to delete this form ?</p>
+				</div>
+				<div class="buttons">
+					<paper-button dialog-confirm autofocus on-tap="cancel" class="button">Cancel</paper-button>
+					<paper-button dialog-confirm class="button button--save" on-tap="_deleteForm">Delete</paper-button>
+				</div>
+			</paper-dialog>
+
 		</paper-card>
 	</template>
 	<script>
@@ -408,38 +461,42 @@
 			}
 
 			notify(path) {
-				if (!this.template) {
-					return;
-				}
-				let pathParts = path.split('.');
+				try{
+					if (!this.template) {
+						return;
+					}
+					let pathParts = path.split('.');
 
-				let composedNameLength = 1
-				const layoutItem = _.flatten(_.flatten(this.template.sections.map(s => s.formColumns.map(c => c.formDataList)))).find(fdl => {
+					let composedNameLength = 1
+					const layoutItem = _.flatten(_.flatten(this.template.sections.map(s => s.formColumns.map(c => c.formDataList)))).find(fdl => {
 
-					const nameParts = fdl.name.split('.')
-					const pathPartsForName = pathParts.slice(0,nameParts.length)
+						const nameParts = fdl.name.split('.')
+						const pathPartsForName = pathParts.slice(0,nameParts.length)
 
-					return nameParts.filter( (n, idx) => n === pathPartsForName[idx] ).length === nameParts.length && (composedNameLength = nameParts.length)
+						return nameParts.filter( (n, idx) => n === pathPartsForName[idx] ).length === nameParts.length && (composedNameLength = nameParts.length)
 
-				});
+					});
 
-				const joinedId = pathParts.slice(0,composedNameLength).join('-')
-                const item = Polymer.dom(this.root).querySelector('#sf_' + joinedId);
+					const joinedId = pathParts.slice(0,composedNameLength).join('-')
+					const item = Polymer.dom(this.root).querySelector('#sf_' + joinedId);
 
-				if (item) {
-                    if (pathParts.length > 1) {
-                        item.subContexts = this._subForms(layoutItem);
-                        item.notify && item.notify(pathParts.slice(composedNameLength).join('.'));
-                    } else {
-                        item.notify && item.notify();
-                    }
-                } else {
-				    this.notifyPath('dataMap.'+joinedId)
+					if (item) {
+						if (pathParts.length > 1) {
+							item.subContexts = this._subForms(layoutItem);
+							item.notify && item.notify(pathParts.slice(composedNameLength).join('.'));
+						} else {
+							item.notify && item.notify();
+						}
+					} else {
+						this.notifyPath('dataMap.'+joinedId)
+					}
+				} catch (e) {
+					return 0;
 				}
 			}
 
             _hasTreatmentCdItem(tags) {
-			    return tags && tags.some(t => t.type === 'CD-ITEM' && t.code ==='treatment')
+			    return tags && tags.some(t => (t.type === 'CD-ITEM' && t.code ==='treatment') || (t.type === 'ICURE' && t.code ==='PRESC'))
 			}
 
 			_displayedTitle() {
@@ -456,6 +513,10 @@
                 // const card = this.root.querySelector('.pat-details-card')
                 // if (card) {card.style.display = 'none'} // prevent user to click delete twice
             }
+
+			_deleteConfirmation() {
+				this.$['delete-confirmation-dialog'].open();
+			}
 
 
             _patCardClass(isSubForm) {
@@ -592,37 +653,30 @@
 
 			_sortedGroupedFormDataList(formDataList) {
 				const widthsStruct = formDataList.reduce((acc, i) => {
-					acc.widths[i.name] = i.editor.left + i.editor.width; acc.maxWidth = Math.max(acc.widths[i.name], acc.maxWidth); return acc;
-				}, { widths: {}, maxWidth: 32 });
-				const sortedList = _.sortBy(formDataList, fd => fd.editor.top);
-				const clusters = this.$['ckmeans-grouping'].cluster(sortedList.map(fd => fd.editor.top)).clusters;
+					acc.widths[i.name] = i.editor.left + i.editor.width; acc.maxWidth = Math.max(acc.widths[i.name], acc.maxWidth); return acc
+				}, { widths: {}, maxWidth: 32 })
 
-				const formDataClusters = sortedList.reduce((cs, fd) => cs[_.findIndex(clusters, c => c.includes(fd.editor.top))].push(fd) && cs, new Array(clusters.length).fill(null).map(u => [])).map(c => _.sortBy(c, "editor.left"));
-				formDataClusters.forEach(c => {
-					let prevWidth = 0;
-					for (let i = 0; i < c.length; i++) {
-						let width = widthsStruct.widths[c[i].name];
-						c[i].editor.flow = Math.floor(10000 * (width - prevWidth) / widthsStruct.maxWidth) / 100;
-						prevWidth = width;
-					}
-				});
+				//Cluster lines
+				const sortedList = _.sortBy(formDataList, fd => fd.editor.top)
+				const clusters = this.$['ckmeans-grouping'].cluster(sortedList.map(fd => fd.editor.top)).clusters
 
-				//Now that the flow have been determined restart a kmeans
-				const flowSortedList = _.sortBy(formDataList, fd => fd.editor.flow);
-				const flowClustering = this.$['ckmeans-flow-grouping'].cluster(flowSortedList.map(fd => fd.editor.flow));
+				const formDataClusters = sortedList.reduce((cs, fd) => cs[_.findIndex(clusters, c => c.includes(fd.editor.top))].push(fd) && cs, new Array(clusters.length).fill(null).map(() => [])).map(c => _.sortBy(c, [x => x.editor.left + x.editor.width]))
 
+				//Cluster columns
+				const rightClustering = this.$['ckmeans-flow-grouping'].cluster(_.sortBy(formDataList.map(fd => fd.editor.left + fd.editor.width)))
 				//Round centroids
-				flowClustering.centroids = flowClustering.centroids.map(c => Math.round(c * 12 / 100.0) * 100 / 12 - 0.00001);
-				const treatedFormDataList = _.flatten(formDataClusters);
-				treatedFormDataList.forEach(c => {
-					c.editor.flow = Math.floor(flowClustering.centroids[_.findIndex(flowClustering.clusters, cc => cc.includes(c.editor.flow))] * 100) / 100;
+				rightClustering.centroids = rightClustering.centroids.map(c => Math.round(c / 24) * 24)
+
+				_.flatten(formDataClusters).forEach(c => {
+					c.editor.right = rightClustering.centroids[_.findIndex(rightClustering.clusters, cc => cc.includes(c.editor.left + c.editor.width))]
 				});
-				formDataClusters.forEach(cs => {
-					while (cs.reduce((acc, i) => acc + i.editor.flow, 0) > 100) {
-						cs.reduce((max, i) => i.editor.flow > max.editor.flow ? i : max, { editor: { flow: 0 } }).editor.flow -= 8.33334;
-					}
-				});
-				return treatedFormDataList;
+
+				formDataClusters.forEach(line => {
+					const width = line.reduce((acc,c) => { c.editor.flow = c.editor.right - acc; return c.editor.right }, 0)
+					line.forEach(c => c.editor.flow = c.editor.flow * 100 / width)
+				})
+
+				return _.flatten(formDataClusters);
 			}
 
 			_isTextArea(layoutItem) {
@@ -738,11 +792,14 @@
             }
 
             _shouldDisplayPrintSubFormIcon(isSubForm, template) {
-			    return isSubForm &&
-                    template &&
+			    return template && ["FFFFFFFF-FFFF-FFFF-FFFF-INCAPACITY00","AEFED10A-9A72-4B40-981B-1D79ADB05516","64DAB551-B007-4B5C-BD64-F886301F5326","B4F2B274-10FF-4018-BC48-3ED3CADCED57"].includes(template.guid) &&
                     _.get(template, "sections", false) && Array.isArray(template.sections) && template.sections.length &&
                     _.size(_.head(_.filter( _.get(template, "sections[0].formColumns[0].formDataList", {}), {type:"TKAction"})))
             }
+
+            _getReportTrad(reportName){
+			    return reportName && reportName === "Report" ? this.localize('out-doc', 'Outgoing document', this.language) : reportName
+			}
 		}
 
 		customElements.define(DynamicForm.is, DynamicForm);

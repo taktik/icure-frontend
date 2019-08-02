@@ -19,13 +19,22 @@ import './prose-editor.html'
 import {customElement, property} from 'taktik-polymer-typescript';
 import {keymap} from 'prosemirror-keymap'
 import {EditorState, TextSelection, Transaction} from 'prosemirror-state'
-import {EditorView} from 'prosemirror-view'
-import {Schema, DOMParser, NodeSpec, Node, MarkType, MarkSpec, ParseRule, Mark} from 'prosemirror-model'
+import {EditorView, NodeView} from 'prosemirror-view'
+import {Schema, DOMParser, NodeSpec, Node, MarkType, MarkSpec, ParseRule, Mark, ResolvedPos, Slice, Fragment} from 'prosemirror-model'
 import {schema} from 'prosemirror-schema-basic'
-import {baseKeymap, toggleMark, setBlockType} from "prosemirror-commands";
+import {
+  baseKeymap,
+  toggleMark,
+  setBlockType,
+  chainCommands,
+  newlineInCode,
+  createParagraphNear, liftEmptyBlock, splitBlockKeepMarks
+} from "prosemirror-commands";
 import {Plugin} from "prosemirror-state"
-import {ReplaceStep} from "prosemirror-transform";
-import {history, undo, redo} from "prosemirror-history";
+import {dropCursor} from 'prosemirror-dropcursor';
+import {gapCursor} from 'prosemirror-gapcursor';
+import {ReplaceStep, StepMap} from "prosemirror-transform";
+import {history, undo, redo, undoDepth, redoDepth} from "prosemirror-history";
 import Element = Polymer.Element;
 import {addColumnAfter, addColumnBefore, addRowAfter, addRowBefore, columnResizing, deleteColumn, deleteRow, deleteTable, goToNextCell, mergeCells, splitCell, tableEditing, tableNodes, toggleHeaderCell, toggleHeaderColumn, toggleHeaderRow} from "prosemirror-tables";
 import {fixTables} from "./fixtables";
@@ -48,6 +57,31 @@ export class ProseEditor extends Polymer.Element {
 
   @property({type: Array})
   sizes = ['4px','5px','6px','7px','8px','9px','10px','11px','12px','13px','14px','16px','18px','20px','24px','28px','36px','48px','72px']
+
+  @property({type: Boolean})
+  isStrong : boolean = false
+  @property({type: Boolean})
+  isEm : boolean = false
+  @property({type: Boolean})
+  isUnderlined : boolean = false
+  @property({type: Boolean})
+  isVar : boolean = false
+  @property({type: Boolean})
+  isLeft : boolean = false
+  @property({type: Boolean})
+  isCenter : boolean = false
+  @property({type: Boolean})
+  isJustify : boolean = false
+  @property({type: String})
+  currentFont : string = ''
+  @property({type: String})
+  currentSize : string = ''
+  @property({type: String})
+  currentColor : string = ''
+  @property({type: String})
+  currentBgColor : string = ''
+  @property({type: String})
+  codeExpression : string = ''
 
   _zoomChanged() {
     if (this.$.container) {
@@ -78,26 +112,42 @@ export class ProseEditor extends Polymer.Element {
     }]
   }
 
-  templateNodeSpec: NodeSpec = {
+  templateInstanceNodeSpec: NodeSpec = {
     inline: false,
     draggable: false,
+    isolating: true,
+    attrs: {},
+    content: "block+",
+
+    toDOM: () => {
+      return ["div", {class: "template-instance"}, 0]
+    },
+    parseDOM: [{
+      tag: "div.template-instance", getAttrs() { return {} }
+    }]
+  }
+
+  templateNodeSpec: NodeSpec = {
+    group: "block",
+    inline: false,
+    draggable: true,
     isolating: true,
     attrs: {
       expr: {default: ''},
       template: {default: ''},
       renderTimestamp: {default: 0}
     },
-    content: "block+",
+    content: "ti*",
 
     toDOM: (node: any) => {
       const {expr, template, renderTimestamp} = node.attrs
-      return ["div", {class: "template", 'data-expr': expr, 'data-template': template, 'data-ts': renderTimestamp.toString()}, 0]
+      return ["div", {class: "template", 'data-expr': expr, 'data-template': JSON.stringify(template), 'data-ts': renderTimestamp.toString()}, 0]
     },
     parseDOM: [{
       tag: "div.template", getAttrs(dom) {
         return (dom instanceof HTMLDivElement) && {
           expr: dom.dataset.expr,
-          template: dom.dataset.template,
+          template: dom.dataset.template && JSON.parse(dom.dataset.template) || null,
           renderTimestamp: Number(dom.dataset.ts || 0)
         } || {}
       }
@@ -108,20 +158,24 @@ export class ProseEditor extends Polymer.Element {
     inline: true,
     group: "inline",
     draggable: true,
+    atom: false,
+    isolating: true,
     content: "text*",
     attrs: {
       expr: {default: ''},
+      rendered: {default: ''},
       renderTimestamp: {default: 0}
     },
 
     toDOM: (node: any) => {
-      const {expr, renderTimestamp} = node.attrs
-      return ["span", {class: "variable", 'data-expr': expr, 'data-ts': renderTimestamp.toString()}, 0]
+      const {expr, rendered, renderTimestamp} = node.attrs
+      return ["span", {class: "variable", 'data-expr': expr, 'data-rendered': rendered, 'data-ts': renderTimestamp.toString()}, 0]
     },
     parseDOM: [{
       tag: "span.variable", getAttrs(dom) {
         return (dom instanceof HTMLSpanElement) && {
           expr: dom.dataset.expr,
+          rendered: dom.dataset.rendered,
           renderTimestamp: Number(dom.dataset.ts || 0)
         } || {}
       }
@@ -140,7 +194,7 @@ export class ProseEditor extends Polymer.Element {
   @property({type: Object})
   editorSchema = new Schema({
     nodes: (schema.spec.nodes as any)
-      .remove("doc").addToStart("template", this.templateNodeSpec).addToStart("page", this.pageNodeSpec).addToStart("doc", this.docNodeSpec)
+      .remove("doc").addToStart("page", this.pageNodeSpec).addToStart("doc", this.docNodeSpec)
       .update("paragraph", Object.assign((schema.spec.nodes as any).get("paragraph"), {
         attrs: { align: {default: 'inherit'} },
         parseDOM: [{tag: "p", getAttrs(value : HTMLElement) { return {align: value.style && value.style.textAlign || 'inherit'}}}],
@@ -155,6 +209,8 @@ export class ProseEditor extends Polymer.Element {
           return ["h" + node.attrs.level, {style: "text-align: "+(node.attrs.align || 'inherit')}, 0]
         }
       }))
+      .append({"template":this.templateNodeSpec})
+      .append({"ti":this.templateInstanceNodeSpec})
       .append({"variable":this.variableNodeSpec})
       .append(tableNodes({
         tableGroup: "block",
@@ -172,7 +228,8 @@ export class ProseEditor extends Polymer.Element {
           }
         }
       }))
-      .addBefore("image", "tab", this.tabNodeSpec),
+      //.addBefore("image", "tab", this.tabNodeSpec)
+    ,
     marks: (schema.spec.marks as any)
       .addToEnd("underlined", {
         attrs: {
@@ -203,22 +260,6 @@ export class ProseEditor extends Polymer.Element {
         toDOM(mark:Mark) {
           let {color} = mark.attrs
           return ['span', {style: `color: ${color}`}, 0]
-        }
-      }).addToEnd("bgcolor", {
-        attrs: {
-          color: {default: ''}
-        },
-        parseDOM: [
-          {
-            style: 'background',
-            getAttrs(value: any) {
-              return {color: value}
-            }
-          }
-        ],
-        toDOM(mark:Mark) {
-          let {color} = mark.attrs
-          return ['span', {style: `background: ${color}`}, 0]
         }
       }).addToEnd("font", {
         attrs: {
@@ -251,6 +292,22 @@ export class ProseEditor extends Polymer.Element {
         toDOM(mark:Mark) {
           let {size} = mark.attrs
           return ['span', {style: `font-size: ${size}`}, 0]
+        }
+      }).addToEnd("bgcolor", {
+        attrs: {
+          color: {default: ''}
+        },
+        parseDOM: [
+          {
+            style: 'background',
+            getAttrs(value: any) {
+              return {color: value}
+            }
+          }
+        ],
+        toDOM(mark:Mark) {
+          let {color} = mark.attrs
+          return ['span', {style: `background: ${color}`}, 0]
         }
       })
   })
@@ -312,29 +369,26 @@ export class ProseEditor extends Polymer.Element {
             var state = view.state;
 
             if (!(prevState && prevState.doc.eq(state.doc) && prevState.selection.eq(state.selection))) {
-              let {$anchor, $cursor} = state.selection as TextSelection, index = $anchor.pos
-              let node = state.doc.nodeAt(index)
-
-              if (!node && !$cursor) {
-                proseEditor.set('currentHeading', null)
-                proseEditor.set('currentFont', null)
-                proseEditor.set('currentSize', null)
-                return
-              }
+              const {$anchor, $head, $cursor} = state.selection as TextSelection
+              const node = state.doc.nodeAt($anchor.pos) || ($head && state.doc.nodeAt($head.pos))
 
               if (node && node.type.name === 'heading') {
                 proseEditor.set('currentHeading', 'Heading ' + node.attrs.level)
               } else {
                 proseEditor.set('currentHeading', 'Normal')
               }
-              const marks = (node && node.marks || $cursor && $cursor.marks() || [])
+              //Might want to restrict node marks analysis to paragraphs and headings
+              let marks = ($cursor && $cursor.marks() && $cursor.marks().length ? $cursor.marks() : state.storedMarks) || []
 
+              const {from, to} = state.selection
 
-              let {from, to} = state.selection
               let align : string | null = null
               state.doc.nodesBetween(from, to, (node, pos) => {
                 if ((node.type === proseEditor.editorSchema.nodes.paragraph || node.type === proseEditor.editorSchema.nodes.heading) && node.attrs.align != align) {
                   align = node.attrs.align
+                }
+                if (!marks.length && node.marks.length) {
+                  marks = node.marks
                 }
               })
 
@@ -361,6 +415,9 @@ export class ProseEditor extends Polymer.Element {
               proseEditor.set('isCenter',  align && align === 'center' )
               proseEditor.set('isRight',  align && align === 'right' )
               proseEditor.set('isJustify',  align && align === 'justify' )
+
+              proseEditor.set('canUndo', undoDepth(state) !== 0)
+              proseEditor.set('canRedo', redoDepth(state) !== 0)
             }
           }
         }
@@ -413,25 +470,34 @@ export class ProseEditor extends Polymer.Element {
       })
     });
 
+    let templateTrackerPlugin = new Plugin({
+      appendTransaction(tr, oldState, newState) {
+        if (tr[0] && tr[0].steps && tr[0].steps.length) {
+          const a = tr[0].selection.$anchor
+          for (let l = a.depth - 1; l > 0; l--) {
+            let ti = a.node(l)
+            if (ti.type.name === 'ti') {
+              let tplt = a.node(l - 1)
+              const newTemplate = Object.assign({}, tplt.attrs.template)
+              newTemplate[ti.attrs.tid] = ti.toJSON()['content']
+              return newState.tr.replaceWith(a.start(l - 1) - 1, a.end(l - 1) + 1, newState.schema.nodes.template.create({expr: tplt.attrs.expr, template: newTemplate, renderTimestamp: tplt.attrs.renderTimestamp}, tplt.content))
+            }
+          }
+        }
+      },
+      props: {}
+    });
+
     let state = EditorState.create({
       doc: DOMParser.fromSchema(this.editorSchema).parse(this.$.content),
       plugins: [
-        keymap({
-          "Tab": (state: EditorState, dispatch: any, editorView: EditorView) => {
-            let tabType = this.editorSchema.nodes.tab
-            let {$from} = state.selection, index = $from.index()
-            if (!$from.parent.canReplaceWith(index, index, this.editorSchema.nodes.tab))
-              return false
-            if (dispatch)
-              dispatch(state.tr.replaceSelectionWith(tabType.create()))
-            return true
-          }
-        }),
-        keymap(baseKeymap),
         history(),
+        dropCursor(),
+        gapCursor(),
         columnResizing({}),
         tableEditing(),
-        keymap({
+        keymap(Object.assign(baseKeymap,{
+          "Enter": chainCommands(newlineInCode, createParagraphNear, liftEmptyBlock, splitBlockKeepMarks),
           "Tab": goToNextCell(1),
           "Shift-Tab": goToNextCell(-1),
           "Mod-b": toggleMark(this.editorSchema.marks.strong, {}),
@@ -442,10 +508,11 @@ export class ProseEditor extends Polymer.Element {
           'Mod-+': (e: EditorState, d?: (tr: Transaction) => void) => this.addMark(this.editorSchema.marks.size, {size: proseEditor.sizes[Math.min(proseEditor.currentSizeIdx(), proseEditor.sizes.length-2) + 1]})(e,d),
           'Mod--': (e: EditorState, d?: (tr: Transaction) => void) => this.addMark(this.editorSchema.marks.size, {size: proseEditor.sizes[Math.max(proseEditor.currentSizeIdx(), 1) - 1]})(e,d),
           'Mod-Shift-k' : this.clearMarks()
-        }),
+        })),
         selectionTrackingPlugin,
         paginationPlugin,
-        paragraphPlugin
+        paragraphPlugin,
+        templateTrackerPlugin
       ]
     })
 
@@ -453,7 +520,33 @@ export class ProseEditor extends Polymer.Element {
     if (fix) state = state.apply(fix.setMeta("addToHistory", false))
 
     this.editorView = new EditorView(this.$.editor, {
-      state: state
+      state: state,
+      nodeViews: {
+        variable(node, view, getPos) { return new VariableView(node, view, getPos) }
+      },
+      // TODO: this was to prevent pasting impossible elements like li, a, etc. from external source, which are not supported
+      transformPastedHTML: function transformEditorPastedHTML(html: string): string {
+        var ALLOWED_TAGS = ['STRONG', 'EM', 'SPAN', 'P', 'LI', 'UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'TR', 'TD', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'DIV']
+        function sanitize(el: HTMLElement) {
+          debugger
+          const tags = Array.prototype.slice.apply(el.getElementsByTagName('*'), [0])
+          for (let i = 0; i < tags.length; i++) {
+            if (ALLOWED_TAGS.indexOf(tags[i].nodeName) === -1) {
+              let last = tags[i]
+              for (let j = tags[i].childNodes.length - 1; j >= 0; j--) {
+                const e = tags[i].removeChild(tags[i].childNodes[j])
+                tags[i].parentNode.insertBefore(e, last)
+                last = e
+              }
+              tags[i].parentNode.removeChild(tags[i])
+            }
+          }
+        }
+        const tmp =  document.createElement('DIV')
+        tmp.innerHTML = html
+        sanitize(tmp)
+        return tmp.innerHTML
+      }
     })
 
     //document.execCommand("enableObjectResizing", false, false)
@@ -476,7 +569,7 @@ export class ProseEditor extends Polymer.Element {
     }
   }
 
-  applyContext(ctxFn:(expr:string, template?:string, ctx?:any, cache?:any) => Promise<{rendered:string, ctx:any}>, ctx: { [key: string] : any }) {
+  applyContext(ctxFn:(expr:string, ctx?:any, cache?:any) => Promise<any>, ctx: { [key: string] : any }) {
     if (this.editorView) {
       const ts = +new Date()
       const state = this.editorView.state
@@ -487,19 +580,29 @@ export class ProseEditor extends Polymer.Element {
           const detect = (node: Node, absPos: number, lazyCtx: () => Promise<{ [key: string] : any }>) : Promise<{node: Node, pos: number, ctx:{ [key: string] : any }} | undefined> => {
             if (node.type === this.editorSchema.nodes.template) {
               if (node.attrs.renderTimestamp < ts) {
-                return Promise.resolve({node: node, pos: absPos, ctx: lazyCtx()})
+                return lazyCtx().then(ctx => ({node: node, pos: absPos, ctx: ctx}))
               } else {
                 let prom : Promise<{node: Node, pos: number, ctx:{ [key: string] : any }} | undefined> = Promise.resolve(undefined)
                 node.forEach((child, pos, idx) => {
                   prom = prom.then(selected => {
-                    return selected || detect(child, absPos+1+pos, () => lazyCtx().then(ctx => ctxFn(node.attrs.expr, undefined, ctx)) //Execute template function on current ctx
-                      .then((subCtx:any) => subCtx[0] ? subCtx[idx] : subCtx)) //and select idxth element from the result
+                    return selected || detect(child, absPos+1+pos, () => lazyCtx()
+                      .then(ctx => {
+                        //If possible drill down in contexts
+                        return ctxFn(node.attrs.expr, ctx)
+                          .catch(e => {
+                            console.log(`Error during expression ${node.attrs.expr} evaluation`, e)
+                            return ctx
+                          }) //Execute template function on current ctx
+                      }).then((subCtx:any) => {
+                        console.log(`Select ${idx}th element in `, subCtx)
+                        return subCtx && (subCtx[0] ? subCtx[idx] : subCtx)
+                      })) //and select idxth element from the result
                   })
                 })
                 return prom
               }
             } else if (node.type === this.editorSchema.nodes.variable && (node.attrs.renderTimestamp || 0)  < ts) {
-              return Promise.resolve({node: node, pos: absPos, ctx: ctx})
+              return lazyCtx().then(ctx => ({node: node, pos: absPos, ctx: ctx}))
             } else if (node.childCount) {
               let prom : Promise<{node: Node, pos: number, ctx:{ [key: string] : any }} | undefined> = Promise.resolve(undefined)
               node.forEach((child, pos) => {
@@ -517,19 +620,23 @@ export class ProseEditor extends Polymer.Element {
             .then(selected => {
               if (selected) {
                 if (selected.node.type === this.editorSchema.nodes.template) {
-                  return visit(ctxFn(selected.node.attrs.expr, selected.node.attrs.template, ctx)
-                    .then(({rendered}) => {
-                      return tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize,
-                          this.editorSchema.nodes.template.create({expr: selected.node.attrs.expr, template: selected.node.attrs.template, renderTimestamp: ts},
-                            Node.fromJSON(this.editorSchema, JSON.parse(rendered))))
-                    })
+                  return visit(
+                    ctxFn(selected.node.attrs.expr, selected.ctx)
+                      .catch(e => {console.log(`Error during expression ${selected.node.attrs.expr} evaluation`, e); return null})
+                      .then((ctx) => {
+                        return tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize,
+                            this.editorSchema.nodes.template.create({expr: selected.node.attrs.expr, template: selected.node.attrs.template, renderTimestamp: ts},
+                              ctx && ctx[0] && ctx.map((ctxi:any, i:number) => this.editorSchema.nodes.ti.create({idx:i,d:ctxi.dataProvider.form().template.id},
+                              (selected.node.attrs.template[ctxi.dataProvider.form().template.id] || selected.node.attrs.template['default'])
+                                .map((aNode:{ [key: string]: any }) => Node.fromJSON(this.editorSchema, aNode)))) || []))
+                      })
                   )
                 } else {
-                  return visit(ctxFn(selected.node.attrs.expr, undefined, ctx)
-                    .then(({ctx}) => {
-                      return tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize, this.editorSchema.nodes.variable.create({expr: selected.node.attrs.expr, renderTimestamp: ts},
-                        this.editorSchema.text(ctx.toString()||" ")))
-
+                  return visit(
+                    ctxFn(selected.node.attrs.expr, selected.ctx)
+                      .catch(e => {console.log(`Error during expression ${selected.node.attrs.expr} evaluation`, e); return null})
+                      .then((ctx) => {
+                      return tr.replaceWith(selected.pos, selected.pos + selected.node.nodeSize, this.editorSchema.nodes.variable.create({expr: selected.node.attrs.expr, renderTimestamp: ts, rendered: ctx && ctx.toString() || " "}))
                     })
                   )
                 }
@@ -555,6 +662,8 @@ export class ProseEditor extends Polymer.Element {
     if (this.editorView) {
       undo(this.editorView.state, this.editorView.dispatch)
       this.editorView.focus()
+      this.set('canUndo', undoDepth(this.editorView.state) !== 0)
+      this.set('canRedo', redoDepth(this.editorView.state) !== 0)
     }
   }
 
@@ -564,6 +673,8 @@ export class ProseEditor extends Polymer.Element {
     if (this.editorView) {
       redo(this.editorView.state, this.editorView.dispatch)
       this.editorView.focus()
+      this.set('canUndo', undoDepth(this.editorView.state) !== 0)
+      this.set('canRedo', redoDepth(this.editorView.state) !== 0)
     }
   }
 
@@ -573,6 +684,7 @@ export class ProseEditor extends Polymer.Element {
     if (this.editorView) {
       toggleMark(this.editorSchema.marks.strong, {})(this.editorView.state, this.editorView.dispatch)
       this.editorView.focus()
+      this.set('isStrong', !this.isStrong)
     }
   }
 
@@ -582,6 +694,7 @@ export class ProseEditor extends Polymer.Element {
     if (this.editorView) {
       toggleMark(this.editorSchema.marks.em, {})(this.editorView.state, this.editorView.dispatch)
       this.editorView.focus()
+      this.set('isEm', !this.isEm)
     }
   }
 
@@ -591,6 +704,7 @@ export class ProseEditor extends Polymer.Element {
     if (this.editorView) {
       toggleMark(this.editorSchema.marks.underlined, {})(this.editorView.state, this.editorView.dispatch)
       this.editorView.focus()
+      this.set('isUnderlined', !this.isUnderlined)
     }
   }
 
@@ -693,7 +807,7 @@ export class ProseEditor extends Polymer.Element {
       let tr = state.tr
       state.doc.nodesBetween(from, to, (node, pos) => {
         if ((node.type === proseEditor.editorSchema.nodes.paragraph || node.type === proseEditor.editorSchema.nodes.heading) && node.attrs.align != align) {
-          tr = state.tr.setNodeMarkup(pos, node.type, Object.assign({}, node.attrs, {align : align}))
+					tr = tr.setNodeMarkup(pos, undefined, Object.assign({}, node.attrs, { align: align }))
           hasChange = true
         }
       })
@@ -707,10 +821,10 @@ export class ProseEditor extends Polymer.Element {
       let {empty, $cursor, ranges} = state.selection as TextSelection
       if ((empty && !$cursor)) return false
       if (dispatch) {
+        const tr = state.tr
         if ($cursor) {
-          dispatch(state.tr.addStoredMark(markType.create(attrs)))
+          dispatch(tr.addStoredMark(markType.create(attrs)))
         } else {
-          const tr = state.tr
           for (let i = 0; i < ranges.length; i++) {
             let {$from, $to} = ranges[i]
             tr.addMark($from.pos, $to.pos, markType.create(attrs))
@@ -727,15 +841,18 @@ export class ProseEditor extends Polymer.Element {
       let {empty, $cursor, ranges} = state.selection as TextSelection
       if ((empty && !$cursor)) return false
       if (dispatch) {
+        let tr = state.tr
         if ($cursor) {
-          $cursor.marks().forEach(m => dispatch(state.tr.removeStoredMark(m)))
+          $cursor.marks().forEach(m => {tr = tr.removeStoredMark(m)})
+          dispatch(tr.scrollIntoView())
         } else {
-          const tr = state.tr
           for (let i = 0; i < ranges.length; i++) {
             let {$from, $to} = ranges[i]
-            if ($to.pos > $from.pos) state.doc.nodesBetween($from.pos, $to.pos, node => {
-              node.marks.forEach(m => tr.removeMark($from.pos, $to.pos, m))
-            })
+            if ($to.pos > $from.pos) {
+              state.doc.nodesBetween($from.pos, $to.pos, () => {
+                tr = tr.removeMark($from.pos, $to.pos)
+              })
+            }
           }
           dispatch(tr.scrollIntoView())
         }
@@ -868,16 +985,157 @@ export class ProseEditor extends Polymer.Element {
           let {$from, $to} = state.selection, index = $from.index()
           if ($from !== $to) { return false }
           if (this.editorView.dispatch) {
-              const scNodes = state.schema.nodes;
-              const newState = state.tr.replaceSelectionWith(scNodes.variable.create({expr: _.get( e, "target.dataExpr", "" )}));
+            const nodes = (e.target as any).dataProse
+            if (nodes && nodes.length) {
+              const newState = state.tr.replaceSelection(new Slice(Fragment.fromJSON(state.schema, nodes), 0, 0));
               this.editorView.dispatch(newState)
               this.dispatchEvent(new CustomEvent("refresh-context",{bubbles: true, detail: {name:_.get( e, "target.dataVar", "" )}}));
+
+            }
           }
           if(!this.editorView.hasFocus()) this.editorView.focus()
           return true
       }
   }
 
+  _hasSeparator(vars: Array<any>, aVar:any, index:number) {
+    return index>0 && aVar.type !== vars[index-1].type
+  }
+
+}
+
+class VariableView implements NodeView<Schema> {
+  dom?: HTMLElement | null;
+  contentDOM?: HTMLElement | null;
+  private node: Node;
+  private outerView: EditorView;
+  private getPos: () => number;
+  private innerView: EditorView | null;
+
+  constructor(node: Node, view: EditorView, getPos: () => number) {
+    // We'll need these later
+    this.node = node
+    this.outerView = view
+    this.getPos = getPos
+
+    // The node's representation in the editor (empty, for now)
+    const {expr, rendered, renderTimestamp} = node.attrs
+
+    const newDom = document.createElement("span")
+    newDom.classList.add('variable')
+    newDom.dataset.expr = expr
+    newDom.dataset.rendered = rendered
+    newDom.dataset.ts = renderTimestamp.toString()
+    newDom.innerText = rendered
+
+    this.dom = newDom
+
+    // These are used when the footnote is selected
+    this.innerView = null
+  }
+  selectNode() {
+    if (this.dom) {
+      this.dom.classList.add("ProseMirror-selectednode")
+      //if (!this.innerView) this.open()
+    }
+  }
+
+  deselectNode() {
+    if (this.dom) {
+      this.dom.classList.remove("ProseMirror-selectednode")
+      //if (this.innerView) this.close()
+    }
+  }
+
+  open() {
+    if (this.dom) {
+
+      // Append a tooltip to the outer node
+      let tooltip = this.dom.appendChild(document.createElement("div"))
+      tooltip.className = "footnote-tooltip"
+      // And put a sub-ProseMirror into that
+      this.innerView = new EditorView(tooltip, {
+        // You can use any node as an editor document
+        state: EditorState.create({
+          doc: this.node,
+          plugins: [keymap({
+            "Mod-z": () => undo(this.outerView.state, this.outerView.dispatch),
+            "Mod-y": () => redo(this.outerView.state, this.outerView.dispatch)
+          })]
+        }),
+        // This is the magic part
+        dispatchTransaction: this.dispatchInner.bind(this),
+        handleDOMEvents: {
+          mousedown: () => {
+            // Kludge to prevent issues due to the fact that the whole
+            // footnote is node-selected (and thus DOM-selected) when
+            // the parent editor is focused.
+            if (this.outerView.hasFocus() && this.innerView) this.innerView.focus()
+            return false
+          }
+        }
+      })
+    }
+  }
+
+  close() {
+    if (this.innerView) {
+      this.innerView.destroy()
+      this.innerView = null
+    }
+  }
+
+  dispatchInner(tr: Transaction) {
+    if (this.innerView) {
+      let {state, transactions} = this.innerView.state.applyTransaction(tr)
+      this.innerView.updateState(state)
+
+      if (!tr.getMeta("fromOutside")) {
+        let outerTr = this.outerView.state.tr, offsetMap = StepMap.offset(this.getPos() + 1)
+        for (let i = 0; i < transactions.length; i++) {
+          let steps = transactions[i].steps
+          for (let j = 0; j < steps.length; j++) {
+             const aStep = steps[j].map(offsetMap);
+             aStep && outerTr.step(aStep)
+          }
+        }
+        if (outerTr.docChanged) this.outerView.dispatch(outerTr)
+      }
+    }
+  }
+
+  update(node: Node) {
+    if (!node.sameMarkup(this.node)) return false
+    this.node = node
+    if (this.innerView) {
+      let state = this.innerView.state
+      let start = node.content.findDiffStart(state.doc.content)
+      if (start != null) {
+        let {a: endA, b: endB} = node.content.findDiffEnd(state.doc.content as any) || {a:-1, b:-1}
+        if (endA>0) {
+          let overlap = start - Math.min(endA, endB)
+          if (overlap > 0) {
+            endA += overlap;
+            endB += overlap
+          }
+          this.innerView.dispatch(
+            state.tr
+              .replace(start, endB, node.slice(start, endA))
+              .setMeta("fromOutside", true))
+        }
+      }
+    }
+    return true
+  }
+  destroy() {
+    if (this.innerView) this.close()
+  }
+
+  stopEvent(event:any) {
+    return this.innerView && this.innerView.dom.contains(event.target) || false
+  }
+
+  ignoreMutation() { return true }
 }
 
 
