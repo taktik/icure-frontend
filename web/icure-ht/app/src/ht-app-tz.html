@@ -2267,6 +2267,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this._timeCheckMH(0)//Should launch directly, no wait in this case!!!
                         this._inboxMessageCheck()
                         this._checkForUpdateMessage()
+
+                        //TODO Virer ca dans 3 versions vers mi-septembre 2019 si pas fait blamer maxime mennechet/julien Wathelet ^^
+                        this._correctionDateOfBirth();
+
                     })
                 }).catch(function (e) {
                     this.authenticated = false
@@ -2781,6 +2785,49 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             closeNotifElectron(e){
                 this.set("electronErrorMessage","")
+            }
+
+            _correctionDateOfBirth(){
+                if(moment().format("YYYYMMDD")>"20190901")return;
+                setTimeout(() => {
+                    this._correctionDateOfBirth()
+                }, 3600000)
+                if(!this.hcp || !this.user || !this.api || this.isDoing)return;
+                this.isDoing=true;
+                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""))
+                    .then(myPatients=>_.chain(myPatients).filter(p=>!!_.trim(_.get(p,"ssin","")) && [6,8,11,13].find(l => l===_.trim(p.ssin).length) && !(parseInt(p.dateOfBirth) || null)).value())
+                    .then(patients =>
+                        patients.map(pat => {
+                            pat.dateOfBirth = parseInt((pat.ssin.length===6 && /^\d{2}(1[0-2])|(0[1-9])([0-2]\d)|(3[0,1])$/.test(pat.ssin))? (/^[0-1]/.test(pat.ssin) ? '20' : '19')+pat.ssin
+                                : (pat.ssin.length===8 && /^\d{4}(1[0-2])|(0[1-9])([0-2]\d|3[0,1])$/.test(pat.ssin)) ? pat.ssin
+                                : pat.ssin.length===11 && this.api.patient().isValidSsin(pat.ssin) ? (/^[0-1]/.test(pat.ssin) ? '20' : '19')+pat.ssin.substring(0, 6)
+                                    : pat.ssin.length===13 && this.api.patient().isValidSsin(pat.ssin.substring(2)) ? pat.ssin.substring(0, 8)
+                                            : 0)
+                            return this.api.patient().modifyPatientWithUser(this.user,pat).then(p => this.api.register(p,"patient"));
+                        })
+                    )
+                    .finally(()=>this.isDoing=false)
+            }
+
+            _getPatientsByHcp(hcpId) {
+                return this.api.getRowsUsingPagination(
+                    (key,docId) =>
+                        this.api.patient().listPatientsByHcPartyWithUser(this.user, hcpId, null, key && JSON.stringify(key), docId, 1000)
+                            .then(pl => {
+                                pl.rows = _
+                                    .chain(pl.rows)
+                                    .filter((i)=>{
+                                        return(!!i && !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")))
+                                    })
+                                return {
+                                    rows:pl.rows,
+                                    nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                    nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                    done: !pl.nextKeyPair
+                                }
+                            })
+                            .catch(()=>{ return Promise.resolve(); })
+                )||[];
             }
 
         }
