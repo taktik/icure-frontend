@@ -2269,7 +2269,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this._checkForUpdateMessage()
 
                         //TODO Virer ca dans 3 versions vers mi-septembre 2019 si pas fait blamer maxime mennechet/julien Wathelet ^^
-                        //this._correctionDateOfBirth();
+                        this.isDoing=false
+                        this._correctionDateOfBirth();
 
                     })
                 }).catch(function (e) {
@@ -2792,11 +2793,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 setTimeout(() => {
                     this._correctionDateOfBirth()
                 }, 3600000)
-                if(!this.hcp || !this.user || !this.api || this.isDoing)return;
+                if(!this.user || !this.api || this.isDoing)return;
                 this.isDoing=true;
                 this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""))
                     .then(myPatients=>_.chain(myPatients).filter(p=>!!_.trim(_.get(p,"ssin","")) && [6,8,11,13].find(l => l===_.trim(p.ssin).length) && !(parseInt(p.dateOfBirth) || null)).value())
                     .then(patients =>{
+                        let prom = Promise.resolve([])
                         patients.map(pat => {
                             pat.dateOfBirth = parseInt((pat.ssin.length===6 && /^\d{2}(1[0-2])|(0[1-9])([0-2]\d)|(3[0,1])$/.test(pat.ssin))? (/^[0-1]/.test(pat.ssin) ? '20' : '19')+pat.ssin
                                 : (pat.ssin.length===8 && /^\d{4}(1[0-2])|(0[1-9])([0-2]\d|3[0,1])$/.test(pat.ssin)) ? pat.ssin
@@ -2804,14 +2806,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     : pat.ssin.length===13 && this.api.patient().isValidSsin(pat.ssin.substring(2)) ? pat.ssin.substring(0, 8)
                                             : 0)
                         })
-                        patients.forEach((pat,loopIndex) => {
+                        return patients.map((pat,loopIndex) => {
                             prom = prom.then(pats =>{
                                 return this.api.patient().modifyPatientWithUser(this.user,pat).then(p => this.api.register(p,"patient")).then(pat => _.concat(pats, [pat]));
                             })
                             return prom
                         })
+                        prom.finally(()=>this.isDoing=false)
                     })
-                    .finally(()=>this.isDoing=false)
             }
 
             _getPatientsByHcp(hcpId) {
