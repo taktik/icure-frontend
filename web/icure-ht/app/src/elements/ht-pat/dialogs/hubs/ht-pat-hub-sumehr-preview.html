@@ -454,30 +454,33 @@
                         </div>
 
                     </div>
-                    <div class="hub-submenu-container"></div>
-                    <ht-spinner active="[[isLoading]]"></ht-spinner>
-                    <div class="hub-submenu-title">
-                        [[localize('hist_sum_change','History of sumehr changes by Topaz',language)]]
+                    <div class="hub-submenu-container">
+                        <div class="hub-submenu-title">
+                            <ht-spinner active="[[isLoading]]"></ht-spinner>
+                            [[localize('hist_sum_change','History of sumehr changes by Topaz',language)]]
+                        </div>
+                        <template is="dom-if" if="[[!isLoading]]">
+                        <vaadin-grid id="updatelist" class="vaadinStyle"
+                                     items="[[updateList]]">
+                            <vaadin-grid-column>
+                                <template class="header">
+                                    [[localize('date','Date',language)]]
+                                </template>
+                                <template>
+                                    [[_dateFormat(item.created)]]
+                                </template>
+                            </vaadin-grid-column>
+                            <vaadin-grid-column>
+                                <template class="header">
+                                    [[localize('view','View',language)]]
+                                </template>
+                                <template>
+                                    <paper-button on-tap="_showHistoryItem" data-item$="[[item]]" class="actionIcons fowardIcon" id="showHistoryItem"><iron-icon icon="icons:compare-arrows" data-item$="[[item]]"></iron-icon></paper-button>
+                                </template>
+                            </vaadin-grid-column>
+                        </vaadin-grid>
+                        </template>
                     </div>
-                    <vaadin-grid id="updatelist" class="vaadinStyle"
-                                 items="[[updateList]]">
-                        <vaadin-grid-column>
-                            <template class="header">
-                                [[localize('date','Date',language)]]
-                            </template>
-                            <template>
-                                [[_dateFormat(item.created)]]
-                            </template>
-                        </vaadin-grid-column>
-                        <vaadin-grid-column>
-                            <template class="header">
-                                [[localize('view','View',language)]]
-                            </template>
-                            <template>
-                                <paper-button on-tap="_showHistoryItem" data-item$="[[item]]" class="actionIcons fowardIcon" id="showHistoryItem"><iron-icon icon="icons:compare-arrows" data-item$="[[item]]"></iron-icon></paper-button>
-                            </template>
-                        </vaadin-grid-column>
-                    </vaadin-grid>
                 </div>
                 <div class="hub-menu-view">
                     <ht-pat-hub-transaction-preview id="htPatHubTransactionPreViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-preview>
@@ -487,8 +490,8 @@
                 <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 <!--                    <paper-button class="modal-button" on-tap="getSumehrUpdateServices"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('getSumehrUpdateServices','getSumehrUpdateServices',language)]]</paper-button>-->
                 <!--                    <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>-->
-                <paper-button class="button button--other" on-tap="_generateSumehrV2"><iron-icon icon="icons:build"></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
-                <paper-button class="button button--save" on-tap="_openCommentDialog"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_openCommentDialogTest" disabled="[[isLoading]]"><iron-icon icon="icons:build"></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
+                <paper-button class="button button--save" on-tap="_openCommentDialog" disabled="[[isLoading]]"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
             </div>
         </paper-dialog>
         <paper-dialog id="historyViewer">
@@ -552,7 +555,11 @@
             </div>
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeCommentDialog"><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
-                <paper-button class="button button--save" on-tap="_runPutSumehrV2WithGetTransaction"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
+                <template is="dom-if" if="[[isTest]]"></template>
+                    <paper-button class="button button--save" on-tap="_generateSumehrV2"><iron-icon icon="icons:build"></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
+                <template is="dom-if" if="[[!isTest]]">
+                    <paper-button class="button button--save" on-tap="_runPutSumehrV2WithGetTransaction"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
+                </template>
             </div>
         </paper-dialog>
     </template>
@@ -722,6 +729,10 @@
                     myComment:{
                         type: String,
                         value: ""
+                    },
+                    isTest:{
+                        type: Boolean,
+                        value: false
                     }
                 };
             }
@@ -754,23 +765,28 @@
             }
 
             open(hubSumehrPromise, parentDialog, hubSumehrXmlPromise) {
-                this.set('updateList', []);
+                this.set('isLoading',true);
                 this.set('parentDialog', parentDialog);
                 this.$['sumehrPreviewDialog'].open();
                 this.$['htPatHubTransactionPreViewer'].open(this,  null);
+
+                this.set('updateList', []);
                 this.set('selectedTransaction', null);
+                this.set('hubSumehr', null);
                 this.set('newSumehr', null);
+                this.set('hubSumehrXml', null)
+
                 if(hubSumehrPromise){
                     hubSumehrPromise.then(tranResp => {
                         this.set('hubSumehr', tranResp);
-                        this.set('isLoading',false);
+                        //this.set('isLoading',false);
                         this._refresh();
                         this._runPreviewSumehr();
                         //this.getSumehrUpdateServices();
                     }).catch( error=> {
                         this.set('message', null);
                         console.log('getTransaction failed : ' + error);
-                        this.set('isLoading',false);
+                        //this.set('isLoading',false);
                     })
                 }
                 else{
@@ -826,7 +842,7 @@
             }
 
             _setHub(){
-                this.set('isLoading',true);
+                //this.set('isLoading',true);
                 this.set('hcpHubConsent', null);
                 this.set('patientHubConsent', null);
                 this.set('patientHubTherLinks', null);
@@ -866,7 +882,7 @@
                         this.set("supportBreakTheGlass", true);
                         break
                 }
-                this.set('isLoading', false);
+                //this.set('isLoading', false);
             }
 
             close() {
@@ -891,10 +907,18 @@
 
             _openCommentDialog(e){
                 e.stopPropagation();
+                this.set("isTest", false);
+                if(this.$['commentDialog']) this.$['commentDialog'].open();
+            }
+
+            _openCommentDialogTest(e){
+                e.stopPropagation();
+                this.set("isTest", true);
                 if(this.$['commentDialog']) this.$['commentDialog'].open();
             }
 
             _getGeneratedComment(){
+                //TODO: if there are items to exclude: show : "Items where excluded from this sumehr"
                 return "#this is auto generated comment based on the selections that are made in the form.";
             }
 
@@ -1102,6 +1126,7 @@
                                                     // console.log("pairs with att", pairs)
                                                     // console.log("pairList", pairList);
                                                     this.set("updateList", _.orderBy(pairs, "created", "desc"));
+                                                    this.set("isLoading", false);
                                                     return this.updateList;
                                     });
                                 })
@@ -1188,7 +1213,7 @@
                                         return this.api.bekmehr().generateSumehrV2ExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
                                             secretForeignKeys: secretForeignKeys.extractedKeys,
                                             recipient: hcp,
-                                            comment: "mycomment",
+                                            comment: this.myComment,
                                             excludedIds : excludedIds
                                         }).then(output => {
                                             let reader = new FileReader();
@@ -1216,6 +1241,8 @@
 
                                             document.body.removeChild(a);
 
+                                            if(this.$['commentDialog']) this.$['commentDialog'].close();
+                                            this.$["sumehrPreviewDialog"].close();
                                         }).catch( error=> console.log(error))
                                     })
                             ))
