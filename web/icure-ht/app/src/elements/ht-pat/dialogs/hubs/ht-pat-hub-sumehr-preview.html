@@ -549,14 +549,17 @@
                 [[localize('comment','Comment',language)]]
             </h2>
             <div class="content">
-                <p><dynamic-text-area value="{{myComment}}" label="[[localize('des','Description',language)]]" ></dynamic-text-area></p>
+                <ht-spinner active="[[uploading]]"></ht-spinner>
+                <template is="dom-if" if="[[!uploading]]">
+                    <p><dynamic-text-area value="{{myComment}}" label="[[localize('des','Description',language)]]" ></dynamic-text-area></p>
+                </template>
             </div>
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeCommentDialog"><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 <template is="dom-if" if="[[isTest]]"></template>
                     <paper-button class="button button--save" on-tap="_generateSumehrV2"><iron-icon icon="icons:build"></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
                 <template is="dom-if" if="[[!isTest]]">
-                    <paper-button class="button button--save" on-tap="_runPutSumehrV2WithGetTransaction"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
+                    <paper-button class="button button--save" on-tap="_runPutSumehrV2WithGetTransaction" disabled="[[uploading]]"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
                 </template>
             </div>
         </paper-dialog>
@@ -731,6 +734,10 @@
                     isTest:{
                         type: Boolean,
                         value: false
+                    },
+                    uploading:{
+                        type: Boolean,
+                        value: false
                     }
                 };
             }
@@ -768,6 +775,7 @@
                 this.$['sumehrPreviewDialog'].open();
                 this.$['htPatHubTransactionPreViewer'].open(this,  null);
 
+                this.set("uploading", false);
                 this.set('updateList', []);
                 this.set('selectedTransaction', null);
                 this.set('hubSumehr', null);
@@ -914,37 +922,49 @@
                 this.set("isTest", true);
                 if(this.$['commentDialog']) this.$['commentDialog'].open();
             }
-            
+
             _closeCommentDialog(e){
                 e.stopPropagation();
                 if(this.$['commentDialog']) this.$['commentDialog'].close();
             }
 
             _runPutSumehrV2WithGetTransaction(){
+                this.set("uploading", true);
                 this.generateAndPutSumehrV2().then(putResp => {
                     this.set('putTransactionResponse', putResp);
                     console.log("putTransactionResponse = ", putResp);
                     if(putResp && putResp.id && putResp.id.length && putResp.id[0].value){
-                        console.log("new transaction id", putResp.id[0].value);
+                        console.log("putNRevoke: new transaction id", putResp.id[0].value);
                         let transaction = {ids: putResp.id, cds: [{value:"sumehr"}]};
                         this.parentDialog._getHubTransactionMessage(transaction).then(getResp => {
                             console.log("new transaction on hub", getResp);
                             const updateReference = this.api.crypto().randomUuid();
                             this._logUpdateMessage(JSON.stringify(getResp), "new", updateReference, "text/xml").then(() => this._logUpdateMessage(JSON.stringify(this.hubSumehr), "old", updateReference, "text/xml")).then(() =>{
-                                //revoke the original sumehr
-                                if(this.hubSumehr && this.hubSumehr.folders)this.parentDialog._revokeHubTransaction(this.hubSumehr.folders[0].transactions[0]).then(r => {
-                                    console.log(r)
+                                if(this.hubSumehr.folders[0].transactions[0].ids && this.hubSumehr.folders[0].transactions[0].ids.find(id => id.value === putResp.id[0].value)) {
+                                    console.log("putNRevoke: id to revoke is same as new id, don't revoke", this.hubSumehr.folders[0].transactions[0].ids);
                                     this.parentDialog._runGetTransactionList();
+                                    this.set("uploading", false);
                                     if(this.$['commentDialog']) this.$['commentDialog'].close();
                                     this.$["sumehrPreviewDialog"].close();
-                                });
+                                } else{
+                                    console.log("putNRevoke: id to revoke", this.hubSumehr.folders[0].transactions[0].ids);
+                                    if(this.hubSumehr && this.hubSumehr.folders)this.parentDialog._revokeHubTransaction(this.hubSumehr.folders[0].transactions[0]).then(r => {
+                                        console.log(r)
+                                        this.parentDialog._runGetTransactionList();
+                                        this.set("uploading", false);
+                                        if(this.$['commentDialog']) this.$['commentDialog'].close();
+                                        this.$["sumehrPreviewDialog"].close();
+                                    });
+                                }
                             });
                         });
                     }else{
                         console.log("a put transaction error occured", putResp);
+                        this.set("uploading", false);
                     };
                 }).catch(error => {
                     console.log(error);
+                    this.set("uploading", false);
                 });
             }
 
