@@ -276,7 +276,7 @@ onmessage = e => {
                         return (_.trim(_.get(docInfo,"ssin","something")) === _.trim(_.get(p,"ssin","else")))
                     })
 
-                    const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(_.get(message,"created",undefined))
+                    const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
@@ -289,7 +289,7 @@ onmessage = e => {
                             openingDate: parseInt(moment(documentToAssignDemandDate).format('YYYYMMDDHHmmss')),
                             closingDate: parseInt(moment(documentToAssignDemandDate).format('YYYYMMDDHHmmss')),
                             encounterType: { type: _.trim(_.get(docInfo,"codes[0].type","")), version: _.trim(_.get(docInfo,"codes[0].version","")), code: _.trim(_.get(docInfo,"codes[0].code","")) },
-                            descr: "Analyse: " + _.trim(_.get(docInfo,"labo","")),
+                            descr: "Analyse: " + ( !!_.trim(_.get(docInfo,"labo", "" )) ? _.trim(_.get(docInfo,"labo", "" )) : _.trim(_.get(message,"document.title")) ) + ( !!_.trim(_.get(docInfo,"protocol","")) ? " (Protocole #" + _.trim(_.get(docInfo,"protocol","")) + ")" : " " ),
                             tags: [{type: 'CD-TRANSACTION', code: 'labresult'}],
                             subContacts: []
                         })
