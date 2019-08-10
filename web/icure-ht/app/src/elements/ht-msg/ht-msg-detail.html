@@ -1327,6 +1327,10 @@
                 margin-top:50px
             }
 
+            .bottom30 {
+                    bottom:30px!important;
+                }
+
             .documentTypeComboBoxContainer {
                 position: absolute;
                 right: 15px;
@@ -1640,8 +1644,6 @@
 
                         </template>
 
-
-
                         <template is="dom-if" if="[[_isEqual(_assignmentActiveTab,'newPatient')]]">
 
                             <template is="dom-if" if="[[_totalRemainingAnnexesToAssignForCurrentDoc]]">
@@ -1672,8 +1674,6 @@
                             </template>
 
                         </template>
-
-
 
                         <template is="dom-if" if="[[_isEqual(_assignmentActiveTab,'existing')]]">
 
@@ -1733,11 +1733,12 @@
                 <paper-dialog class="insideAssignmentDialog modalDialog" id="confirmActionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
                     <div class="insideAssignmentDialogContainer">
                         <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
-                        <div class="modalDialogContent m-t-50">
+                        <div class="modalDialogContent m-t-30">
                             <h3 class="textAlignCenter">[[localize('confirmModifyAssignment','Are you sure you update current assignment ?',language)]]</h3>
                             <p class="textAlignCenter m-t-20">[[localize('updateCanBeUpdatedAfterwards',"Operation can be updated afterwards",language)]]</p>
+                            <p class="textAlignCenter m-t-20"><vaadin-checkbox checked="{{_confirmationDialogAcknowledgementsProperties.confirmActionDialog}}"> [[localize('acknowledgementDontShowAnymore','I understand\, don\'t ask for confirmation in the future',language)]]</vaadin-checkbox></p>
                         </div>
-                        <div class="insideAssignmentDialogButtons">
+                        <div class="insideAssignmentDialogButtons bottom30">
                             <paper-button class="modal-button modal-button--cancel m-r-10" on-tap="_closeConfirmActionDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('can','Cancel',language)]]</paper-button>
                             <paper-button class="modal-button modal-button--save" on-tap="_doConfirmAction"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
                         </div>
@@ -2019,6 +2020,11 @@
                                 "documentType": "labresult"
                             }
                         }
+                    },
+                    _confirmationDialogAcknowledgementsProperties: {
+                        type: Array,
+                        value: () => [],
+                        noReset: true
                     }
                 };
             }
@@ -2028,6 +2034,7 @@
                     '_setIsConnectedToEhbox(api.tokenId)',
                     '_loadMessageDetails(selectedMessage)',
                     '_manualSearchForPatients(searchedValue)',
+                    '_userDialogAcknowledgementsPropertiesChanged(_confirmationDialogAcknowledgementsProperties.*)'
                 ];
             }
 
@@ -2250,28 +2257,6 @@
 
             _closeConfirmActionDialog() {
                 this.$['confirmActionDialog'].close()
-            }
-
-            _openConfirmActionDialog(e) {
-                this.set("_confirmationDataset", _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.size(_.get(nodePath,"dataset",""))), "[0].dataset",{}))
-                this.$['confirmActionDialog'].open()
-            }
-
-            _doConfirmAction(e) {
-
-                const confirmationAction = _.get(this,"_confirmationDataset.confirmationAction","")
-                const confirmationParams = _.omit( _.get(this,"_confirmationDataset",{}), "confirmationAction" )||{}
-
-                this._closeConfirmActionDialog()
-                this.set("_confirmationDataset", {})
-
-                return (
-                    _.trim(confirmationAction) === "_deleteAssignment" ? this._deleteAssignment(confirmationParams) :
-                    _.trim(confirmationAction) === "_saveAssignment" ? this._saveAssignment(confirmationParams) :
-                    _.trim(confirmationAction) === "_createNewPatAndSaveAssignment" ? this._createNewPatAndSaveAssignment(confirmationParams) :
-                    false
-                )
-
             }
 
             _deleteAssignment(e) {
@@ -2702,6 +2687,138 @@
                             })
                             this.set("_assignmentDialogIsLoading", true)
                             return this._takeAction(this._assignmentCallBack.action,{documentId:documentId, patientId:patientId, documentType:documentType, documentTypeLabel:documentTypeLabel, dontCloseReadMessageComponent:true})
+                        })
+                    )
+
+            }
+
+            _userDialogAcknowledgementsPropertiesChanged(confirmationDialogAcknowledgementsProperties) {
+
+                const propertyName = _.trim(_.get(_.trim(_.get(confirmationDialogAcknowledgementsProperties,"path",[])).split("."), "[1]",""))
+
+                console.log("[DETAIL] _userDialogAcknowledgementsPropertiesChanged", propertyName, confirmationDialogAcknowledgementsProperties);
+
+                return !_.trim(propertyName) ? null : Promise.resolve()
+                    .then(() => this.api._setUserConfirmationDialogAcknowledgements(_.get(this,"user",{}), this._confirmationDialogAcknowledgementsProperties))
+                    .then(updatedUser => {
+                        this.dispatchEvent(new CustomEvent('user-got-updated', {composed: true, bubbles: true, detail: {updatedUser:updatedUser}}))
+                        this.set("user",updatedUser)
+                    })
+
+            }
+
+            _doConfirmAction(e) {
+
+                const confirmationAction = _.get(this,"_confirmationDataset.confirmationAction","")
+                const confirmationParams = _.omit( _.get(this,"_confirmationDataset",{}), "confirmationAction" )||{}
+
+                this._closeConfirmActionDialog()
+                this.set("_confirmationDataset", {})
+
+                return (
+                    _.trim(confirmationAction) === "_deleteAssignment" ? this._deleteAssignment(confirmationParams) :
+                    _.trim(confirmationAction) === "_saveAssignment" ? this._saveAssignment(confirmationParams) :
+                    _.trim(confirmationAction) === "_createNewPatAndSaveAssignment" ? this._createNewPatAndSaveAssignment(confirmationParams) :
+                    false
+                )
+
+            }
+
+            _openConfirmActionDialog(e) {
+
+                const promResolve = Promise.resolve()
+                const confirmationDatasetAction = _.trim(_.get(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.size(_.get(nodePath,"dataset",""))), "[0].dataset",{}), "confirmationAction",""))
+
+                console.log("confirmationDatasetAction", confirmationDatasetAction);
+
+
+                FABIEN:
+                    dynamiser confirmationDatasetAction % différent scénarios / clefs
+                    Sinon toujours passer par confirmPermanentDeletionDialog pour
+                        on-tap="_openConfirmActionDialog" data-confirmation-action="_saveAssignment"
+                        on-tap="_openConfirmActionDialog" data-confirmation-action="_createNewPatAndSaveAssignment"
+                        on-tap="_openConfirmActionDialog" data-confirmation-action="_deleteAssignment"
+
+                Dialogues: (à adapter)
+
+                #confirmActionDialog (3 actions ci-dessus donc)
+                #gotMovedToAssignedMessagesDialog
+                #gotRestoredToInboxDialog
+                #gotMovedToAssignedMessagesFromEhboxDialog
+
+
+
+
+
+                NOTES
+                -----
+
+
+                            Dialog:
+                            m-t-30 au lien de m-t-50 sur 1ère ligne
+                            .bottom30 sur .dialogButtons
+
+                            sur base de l'id du dialog: #confirmPermanentDeletionDialog
+                            <p class="textAlignCenter m-t-20"><vaadin-checkbox checked="{{_confirmationDialogAcknowledgementsProperties.confirmPermanentDeletionDialog}}"> [[localize('acknowledgementDontShowAnymore','I understand\, don\'t ask for confirmation in the future',language)]]</vaadin-checkbox></p>
+
+
+
+
+                            Déclarer
+                            _confirmationDialogAcknowledgementsProperties: {
+                                type: Array,
+                                value: () => [],
+                                noReset: true
+                            }
+
+
+
+
+                            observer:
+                            '_userDialogAcknowledgementsPropertiesChanged(_confirmationDialogAcknowledgementsProperties.*)',
+
+
+
+                            pour save les changements de préférence
+
+                                _userDialogAcknowledgementsPropertiesChanged(confirmationDialogAcknowledgementsProperties) {
+
+                                    const propertyName = _.trim(_.get(_.trim(_.get(confirmationDialogAcknowledgementsProperties,"path",[])).split("."), "[1]",""))
+
+                                    return !_.trim(propertyName) ? null : Promise.resolve()
+                                        .then(() => this.api._setUserConfirmationDialogAcknowledgements(_.get(this,"user",{}), this._confirmationDialogAcknowledgementsProperties))
+                                        .then(updatedUser => this.set("user",updatedUser))
+
+                                }
+
+
+
+
+                            Dans la méthode qui invoke le popup de confirmation
+
+                                _confirmDeleteMessagesForEver() {
+
+                                    const promResolve = Promise.resolve()
+
+                                    return this.api._getUserConfirmationDialogAcknowledgements(_.get(this,"user",{}))
+                                        .then(userConfirmationDialogAcknowledgements => this.set("_confirmationDialogAcknowledgementsProperties", userConfirmationDialogAcknowledgements))
+                                        .then(() => !!_.get(this,"_confirmationDialogAcknowledgementsProperties.confirmPermanentDeletionDialog", false) ?
+                                            this._deleteMessagesForEver() :
+                                            promResolve.then(() => !_.size(this._getGridSelectedItems()) ? promResolve : promResolve.then(()=>{ this.set("_bodyOverlay", true); return this.$["confirmPermanentDeletionDialog"].open() }))
+                                        )
+
+                                }
+
+
+
+
+                return this.api._getUserConfirmationDialogAcknowledgements(_.get(this,"user",{}))
+                    .then(userConfirmationDialogAcknowledgements => this.set("_confirmationDialogAcknowledgementsProperties", userConfirmationDialogAcknowledgements))
+                    .then(() => !!_.get(this,"_confirmationDialogAcknowledgementsProperties.confirmPermanentDeletionDialog", false) ?
+                        console.log("GO DIRECT SUR LA BONNE ACTION ==> " + confirmationDatasetAction) :
+                        promResolve.then(() => {
+                            this.set("_confirmationDataset", _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.size(_.get(nodePath,"dataset",""))), "[0].dataset",{}))
+                            this.$['confirmActionDialog'].open()
                         })
                     )
 
