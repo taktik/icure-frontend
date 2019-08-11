@@ -88,7 +88,7 @@ onmessage = e => {
             const destinationBox = sourceBox === 'INBOX' ? 'BININBOX' : sourceBox === 'SENTBOX' ? 'BINSENTBOX' : null
             const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(icureMessageToDeleted,"transportGuid","")).split(':'),"[1]",""))
 
-            return !_.size(icureMessageToDeleted) || !sourceBox || !destinationBox || !eHealthBoxMessageId ?
+            return !_.size(icureMessageToDeleted) || !sourceBox || !eHealthBoxMessageId ?
                 promResolve :
                 !!sourceBox.startsWith("BIN") ?
                     ehboxApi.deleteMessagesUsingPOST(keystoreId, tokenId, ehpassword, [eHealthBoxMessageId], sourceBox).catch(() => promResolve ) :
@@ -345,6 +345,7 @@ onmessage = e => {
         const convertFromOldToNewSystemAndCarryOn = (boxId, fullMessageFromEHealthBox, foundExistingMessage) => {
 
             const promResolve = Promise.resolve()
+            const oneMonthAgo = parseInt(+new Date) - (86400000 * 30)
 
             return !_.trim(_.get(foundExistingMessage,"id","")) ?
 
@@ -353,8 +354,8 @@ onmessage = e => {
                     .then( ([createdMessage, createdDocuments]) => tryToAssignAppendices(createdMessage||{}, fullMessageFromEHealthBox, createdDocuments||[], boxId) )
                     .then(() => totalNewMessages[boxId]++ ) :
 
-                // Auto-clean of EH BOX after X month
-                !!(parseInt(_.get(foundExistingMessage, "created", Date.now())) < (Date.now() - (90 * 24 * 3600000))) ? removeMsgFromEhboxServer(foundExistingMessage) :
+                // Auto-clean of EH BOX
+                !!(parseInt(_.get(foundExistingMessage, "created", Date.now())) < oneMonthAgo) ? removeMsgFromEhboxServer(foundExistingMessage) :
 
                 promResolve.then(()=>{
 
@@ -451,9 +452,57 @@ onmessage = e => {
 
                         return prom
                             .then(createdDocuments => ([createdMessage, _.compact(createdDocuments)]))
-                            .catch(() => iccMessageXApi.message().deleteMessages(createdMessage.id).catch(() => promResolve))
+                            .catch(() => msgApi.deleteMessages(createdMessage.id).catch(() => promResolve))
                     })
                 )
+
+        }
+
+        const autoDeleteMessages = () => {
+
+            const promResolve = Promise.resolve()
+            const oneWeekAgo = parseInt(+new Date) - (86400000 * 7)
+
+            return Promise.all(_.map(["INBOX:*","SENTBOX:*","BININBOX:*","BINSENTBOX:*"], singleTransportGuid => msgApi.findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 2000).then(messages=>messages.rows).catch(()=>Promise.resolve())))
+                .then(promisesResults => _
+                    .chain(promisesResults)
+                    .flatMap()
+                    .uniqBy('id')
+                    .filter(singleMessage => (
+                        (parseInt(_.get(singleMessage,"received",0))||0) < oneWeekAgo &&                                        // Received more than a week ago (milliseconds)
+                        !(_.get(singleMessage,"status",0)&(1<<19)) &&                                                           // Not already deleted on server
+                        !!(_.get(singleMessage,"status",0)&(1<<20)) &&                                                          // Should be deleted on server
+                        (
+                            ( !!(_.get(singleMessage,"status",0)&(1<<26)) && !(_.get(singleMessage,"status",0)&(1<<1)) ) ||     // Treated AND read
+                        !(_.get(singleMessage,"status",0)&(1<<26))                                                              // Not treated
+                        )
+                    ))
+                    .orderBy(["created"],["asc"])
+                    .slice(0,50)
+                    .value()
+                )
+                .then(foundMessages => Promise.all(_.map(foundMessages, singleMessage => {
+
+                    const sourceBox = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(":"),"[0]","")).toUpperCase()
+                    const destinationBox = sourceBox === 'INBOX' ? 'BININBOX' : sourceBox === 'SENTBOX' ? 'BINSENTBOX' : null
+                    const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleMessage,"transportGuid","")).split(':'),"[1]",""))
+
+                    return !_.size(singleMessage) || !sourceBox || !eHealthBoxMessageId ?
+                        promResolve :
+                        (!!sourceBox.startsWith("BIN") ?
+                            ehboxApi.deleteMessagesUsingPOST(keystoreId, tokenId, ehpassword, [eHealthBoxMessageId], sourceBox).catch(() => promResolve ) :
+                            ehboxApi.moveMessagesUsingPOST(keystoreId, tokenId, ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox)
+                                .then(() => ehboxApi.deleteMessagesUsingPOST(keystoreId, tokenId, ehpassword, [eHealthBoxMessageId], destinationBox).catch(() => promResolve ))
+                                .catch(() => promResolve )
+                        )
+                        .then(() => !!(_.get(singleMessage,"status",0)&(1<<26)) ?
+                            msgApi.modifyMessage(_.merge({}, singleMessage, {status: (_.get(singleMessage,"status",0)|(1<<19)) })) :        // Message is treated, keep locally and flag as being deleted on server
+                            msgApi.deleteMessages(singleMessage.id)                                                                         // Message is not treated -> delete locally
+                        )
+                        .catch(() => promResolve )
+
+                })))
+                .then(deletedMessages => !!_.size(deletedMessages) ? postMessage({forceRefresh: true}) : null)
 
         }
 
@@ -465,6 +514,7 @@ onmessage = e => {
         .then(isElectron => appVersions.isElectron = !!isElectron)
         .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then((response) => response.json()).catch(() => false))
         .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
+        .then(() => autoDeleteMessages())
         .finally(()=>{
 
             let promisesCarrier = []

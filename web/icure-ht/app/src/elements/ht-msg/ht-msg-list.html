@@ -1511,10 +1511,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
                         const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
                         const action = sourceBox === "INBOX" || sourceBox === "SENTBOX" ? "delete" : "undelete"
+                        const newStatus = action === "delete" ? (_.get(singleSelectedMessage,"status",0)|(1<<20)) : (_.get(singleSelectedMessage,"status",0)^(1<<20))
                         return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
                             false :
                             this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox).catch(e=>{})
-                                .then(()=> this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(modifiedMessage=>_.concat(promisesCarrier, {action:action, message:modifiedMessage, success:true})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();}))
+                                .then(()=> this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId, status:newStatus})).then(modifiedMessage=>_.concat(promisesCarrier, {action:action, message:modifiedMessage, success:true})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();}))
                                 .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
                     })
                 })
@@ -2114,7 +2115,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 return !_.trim(propertyName) ? null : Promise.resolve()
                     .then(() => this.api._setUserConfirmationDialogAcknowledgements(_.get(this,"user",{}), this._confirmationDialogAcknowledgementsProperties))
-                    .then(updatedUser => { this.set("_locked", true); this.set("user",updatedUser); setTimeout(()=>{this.set("_locked", false)},100) })
+                    .then(updatedUser => { this.set("_locked", true); this.set("user",updatedUser); setTimeout(()=>{this.set("_locked", false)},100); this.dispatchEvent(new CustomEvent('user-got-updated', {composed: true, bubbles: true, detail: {updatedUser:updatedUser}})) })
 
             }
 
@@ -2133,12 +2134,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _doUpdateUser(updatedUser) {
 
-                console.log("[MSG-LIST] _doUpdateUser");
-                console.log("updatedUser", typeof updatedUser, updatedUser);
-
                 this.set("_locked", true);
                 this.set("user",updatedUser);
                 setTimeout(()=>{this.set("_locked", false)},100)
+
             }
 
 		}
