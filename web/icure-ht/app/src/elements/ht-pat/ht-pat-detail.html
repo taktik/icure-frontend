@@ -2930,38 +2930,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 );
                 this.shadowRoot.querySelector("#sort-direction").selectedItem = this.sortDirections[0];
 
-                let exclusions = [
-                    "medicaladvisoragreement",
-                    "bvt-sample",
-                    "clinicalpath",
-                    "ecare-safe-consultation",
-                    "ecare-tardis-consultation",
-                    "perinatal",
-                    "population-based-screening",
-                    "medicationschemeelement",
-                    "vaccinationschemeelement",
-                    "genericregistryentry",
-                    "ebirth-baby-medicalform",
-                    "ebirth-mother-medicalform",
-                    "intervention",
-                    "applicationlink",
-                    "ebirth-baby-notification",
-                    "ebirth-mother-notification",
-                    "child-prevention",
-                    "radiationexposuremonitoring",
-                    "treatmentsuspension",
-                    "telemonitoring"
-                ];
-                this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
-                    .then(results => this.set("documentTypes",  _.orderBy(results.rows.filter(r => !exclusions.includes(r.code)).map(result => {
-                        return {code: result.code,name: this.localize('cd-transaction-' + result.code, result.code, this.language)};
-                    }), ['name'], ['asc']).reduce((list, item) => {
-                            list.push(item);
-                            return list;
-                            }, [{code: 'all', name: this.localize('all', 'All', this.language)}])
-                    ))
+                return this.api.getDocumentTypes(this.resources, this.language)
+                    .then(documentTypes => this.set("documentTypes", _.concat([{code: 'all', name: this.localize('all', 'All', this.language)}], documentTypes)))
                     .then(() => this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0])
-                    .catch(error => console.log(error));
+
             }
 
             wideClass(rev) {
@@ -4494,9 +4466,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         )
                         && (
                             this.contactStatusFilter === "all" || (
-                                ctc.subContacts.some(s => s.status === 64) &&  (
+                                (ctc.subContacts.some(s => s.status === 64) || !!_.some(ctc.tags, {type:"originalEhBoxDocumentId"}) ) &&  (
                                     this.documentType === "all" || (
-                                        ctc.services && ctc.services.some(service => service.tags && service.tags.some(tag => tag.code && tag.code === this.documentType))
+                                        ctc.services && ctc.services.some(service => service.tags && service.tags.some(tag => tag.code && tag.code === this.documentType)) ||
+                                        (!!_.some(ctc.tags, {code:this.documentType}) && !!_.some(ctc.tags, {type:"originalEhBoxDocumentId"}))
                                     )
                                 )
                             )
@@ -5314,14 +5287,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             getDocumentDetails(ctc) {
-                return ctc && ctc.subContacts && ctc.subContacts.filter(subContact => subContact.status === 64)
+
+                return ctc && ctc.subContacts && ctc.subContacts.filter(subContact => subContact.status === 64 && !_.some(ctc.tags, {type:"originalEhBoxDocumentId"}))
                     .map(docSubContact => docSubContact.services)
                     .reduce((flatServices, services) => flatServices.concat(services), [])
                     .reduce((details, docSubContactService) => {
                         let svc = ctc.services.find(service => service.id === docSubContactService.serviceId);
                         let fileName = svc && svc.content && svc.content[this.language] && svc.content[this.language].stringValue;
                         if (fileName) {
-                            let docType = svc.tags.length ? svc.tags[0] && svc.tags[0].code : 'unknown';
+                            const docType = _.trim(_.get(svc,"tags[0].code","unknown"))
                             details.push({
                                 name: fileName,
                                 type: this.localize('cd-transaction-' + docType, docType, this.language),
