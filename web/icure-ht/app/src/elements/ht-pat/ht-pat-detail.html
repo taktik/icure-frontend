@@ -2039,7 +2039,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                                         services-refresher="[[servicesRefresher]]"
                                                         on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medication-selection="_selectMedication"
                                                         on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe"
-                                                        credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" global-hcp="[[globalHcp]]"></ht-pat-detail-ctc-detail-panel>
+                                                        credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]"></ht-pat-detail-ctc-detail-panel>
                 </template>
                 <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]">
                     <ht-pat-admin-card id="pat-admin-card" api="[[api]]" user="[[user]]" patient="{{patient}}" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" tab-index="[[adminTabIndex]]" cardData="[[cardData]]" on-card-changed="_cardChanged" on-patient-saved="_patientSaved"></ht-pat-admin-card>
@@ -5507,29 +5507,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
             }
 
-            _forwardDocument(e) {
-
-                const documentId = _.get(e,"detail.documentId", false);
-                if (!documentId) return;
-
-                // eHealthBox connection has to be
-                if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
-
-                let hcpAndPatData = {}
-                this.shadowRoot.querySelector('#ctcDetailPanel')._getPatAndHcpCommonData()
-                    .then(x=>hcpAndPatData=x)
-                    .catch(e=>{})
-                    .finally(()=> this.shadowRoot.querySelector('#new-msg').open({
-                        dataFromPatDetail: {
-                            patient: _.get(this, "patient", false),
-                            currentContact: _.get(this, "currentContact", false),
-                            hcpAndPatData: hcpAndPatData || false,
-                            documentId: documentId
-                        }
-                    }))
-
-            }
-
             _uploadDocumentOnHubs(e){
                 this.set('documentIdToUpload', null)
                 const documentId = _.get(e,"detail.documentId", false);
@@ -5568,6 +5545,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _handleError(e) {
                 this.shadowRoot.querySelector("#upload-dialog").showErrorMessage(e);
             }
+
+            _forwardDocument(e) {
+
+                // eHealthBox connection has to be
+                if (!this.ehealthSession) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return; }
+                const documentId = _.trim(_.get(e,"detail.documentId", false));
+
+                return !documentId ? false : this.shadowRoot.querySelector('#ctcDetailPanel')._getPatAndHcpCommonData()
+                    .then(hcpAndPatData => this.shadowRoot.querySelector('#new-msg').open({
+                        dataFromPatDetail: {
+                            patient: _.get(this, "patient", false),
+                            currentContact: _.get(this, "currentContact", false),
+                            hcpAndPatData: hcpAndPatData || false,
+                            documentId: documentId
+                        }
+                    }))
+
+            }
+
+            _printDocument(e) {
+                return this.api.printDocument(_.merge(_.get(e,"detail",{}),{
+                    language: this.language,
+                    resources: this.resources,
+                    moment: moment,
+                    user: _.get(this, "user", ""),
+                    patientId: _.get(this, "patient.id", ""),
+                }))
+            }
+
         }
 
         customElements.define(HtPatDetail.is, HtPatDetail);
