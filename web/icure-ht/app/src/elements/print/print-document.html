@@ -1,8 +1,5 @@
 <link rel="import" href="../../../bower_components/polymer/polymer.html">
 
-<!--<link rel="import" href="../dynamic-form/ht-services-list.html">-->
-<!--<link rel="import" href="../dynamic-form/dynamic-doc.html">-->
-
 
 
 <dom-module id="print-document">
@@ -139,8 +136,8 @@
                 return _.trim(this._getServiceShortDescription(input)).replace(/\r\n|\n|\r/gm, "\n")
             }
 
-            _getServicesOfContact(contact) {
-                return _.sortBy(_.flatMap(contact, c => _.get(c,"services",{})), ['modified']);
+            _getServicesOfContacts(contacts) {
+                return _.sortBy(_.flatMap(contacts, c => _.get(c,"services",{})), ["modified","index"],["asc","asc"]);
             }
 
             _getServiceNormalValues(svc) {
@@ -261,36 +258,17 @@
 
             }
 
-            _getContact(user, contactId, patient) {
+            _getContact(user, contactId) {
 
                 const promResolve = Promise.resolve()
-
-
-                Si contact => prendre tous les contacts ayant le même group ip + pas services vides + order by modified asc, index
-                du coup: pas faire via getContactWithUser mais bien via "findBy" comme ci-dessous
-
-
-                this.api.contact().findBy(_.trim(_.get(user,"healthcarePartyId","")), patient)
-                    .then(contacts => {
-                        console.log("----------contacts-----------", contacts);
-                    })
-
-                _.get(_.find(allContacts, {id:contactId}),"groupId")
-                _.filter(allContacts, {groupId:_.get(_.find(allContacts, {id:contactId}),"groupId")})
-
-
 
                 return !_.trim(_.get(user, "id")) || !_.trim(contactId) ? promResolve : this.api.contact().getContactWithUser(user, contactId)
                     .then(contact => _.merge(contact, {
                         createdHr: this._msTstampToDDMMYYYY(_.get(contact,"created","")),
-
                         openingDateHr: this._YYYYMMDDToDDMMYYYY(_.trim(_.get(contact,"openingDate","")).substring(0,8)),
                         openingTimeHr: _.trim(_.get(contact,"openingDate","")).substring(8,10) + ":" + _.trim(_.get(contact,"openingDate","")).substring(10,12) + ":" + _.trim(_.get(contact,"openingDate","")).substring(12,14),
-                        openingDateTimeHr: this._YYYYMMDDHHmmssToDDMMYYYYHHmmss(_.get(contact,"openingDate","")),
-
                         closingDateHr: this._YYYYMMDDToDDMMYYYY(_.trim(_.get(contact,"closingDate","")).substring(0,8)),
                         closingTimeHr: _.trim(_.get(contact,"closingDate","")).substring(8,10) + ":" + _.trim(_.get(contact,"closingDate","")).substring(10,12) + ":" + _.trim(_.get(contact,"closingDate","")).substring(12,14),
-                        closingDateTimeHr: this._YYYYMMDDHHmmssToDDMMYYYYHHmmss(_.get(contact,"closingDate","")),
                     }))
                     .catch(()=>promResolve)
 
@@ -353,27 +331,43 @@
                 return (svc && svc.modified) ? this.api.moment(svc.modified).format(svc.modified > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
             }
 
-            _getContentFromContact(contact) {
+            _getContentFromContact(contact, user, patient) {
 
-                const data = {
-                    dateHr: _.get(contact,"openingDateHr",""),
-                    timeHr: _.get(contact,"openingTimeHr",""),
-                    title: _.get(contact,"descr",""),
-                    type: _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.get(contact,"tags",[]),{type:"CD-TRANSACTION"}), "code","")}),"labelHr",""),
-                    content: _.size(_.get(contact,"services",[])) === 1 ? this._prettifyText(_.get(contact,"services[0]",{})) : _.map(_.orderBy(_.get(contact,"services",[]),["index"],["asc"]), svc => { return {
-                        isOutOfRange: !!this._isServiceOutOfRange(svc),
-                        label: _.trim(_.get(svc,"label","")),
-                        date: this._getServiceDate(svc),
-                        value: this._getServiceShortDescription(svc),
-                        normalValue: this._getServiceNormalValues(svc),
-                        author: this._getServiceAuthor(svc),
-                    }})
-                }
+                const promResolve = Promise.resolve()
+                const sourceContactId = _.trim(_.get(contact,"id",""))
+                const sourceContactGroupId = _.trim(_.get(contact,"groupId",""))
 
-                // Could be "descr" also holds CD-TRANSACTION
-                data.title = _.trim(data.type) ? _.trim(data.title.replace(data.type+":","")) : data.type
+                return !sourceContactId ? promResolve : promResolve
+                    .then(() => (!_.trim(_.get(user, "id")) || !_.size(patient)) ? Promise.resolve([contact]) : this.api.contact().findBy(_.trim(_.get(user,"healthcarePartyId","")), patient)
+                        .then(contacts => (!sourceContactGroupId || _.size(contacts) === 1) ? contacts : _
+                            .chain(contacts)
+                            .filter(ctc => !!_.size(_.get(ctc, "services", [])) && _.trim(_.get(ctc,"groupId","")) === sourceContactGroupId)
+                            .orderBy(["modified"], ["asc"])
+                            .value()
+                        )
+                    )
+                    .then(contacts => {
 
-                return data
+                        const servicesOfContacts = this._getServicesOfContacts(contacts)
+                        const data = {
+                            dateHr: _.get(contact,"openingDateHr",""),
+                            timeHr: _.get(contact,"openingTimeHr",""),
+                            title: _.get(contact,"descr",""),
+                            type: _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.get(contact,"tags",[]),{type:"CD-TRANSACTION"}), "code","")}),"labelHr",""),
+                            content: _.size(servicesOfContacts) === 1 ? this._prettifyText(_.head(servicesOfContacts)) : _.map(servicesOfContacts, svc => { return {
+                                isOutOfRange: !!this._isServiceOutOfRange(svc),
+                                label: _.trim(_.get(svc,"label","")),
+                                date: this._getServiceDate(svc),
+                                value: this._getServiceShortDescription(svc),
+                                normalValue: this._getServiceNormalValues(svc),
+                                author: this._getServiceAuthor(svc),
+                            }})
+                        }
+
+                        // Could be "descr" also holds CD-TRANSACTION
+                        return _.merge({}, data, {title: _.trim(data.type) ? _.trim(data.title.replace(data.type+":","")) : data.title})
+
+                    })
 
             }
 
@@ -395,9 +389,9 @@
                     .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
                     .then(() => this._getContact(_.get(this,"user",{}), contactId, _.get(this,"_data.currentPatient")).then(contact => _.assign(this._data,{contact:contact})))
                     .then(() => this._getDocument(_.get(this,"user",{}), documentId).then(document => _.assign(this._data,{document:document})))
-                    .then(() => (!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? null :
-                        sourceComponent === "ht-services-list" ? this._getContentFromContact(_.get(this,"_data.contact")) :
-                        null
+                    .then(() => (!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? promResolve :
+                        sourceComponent === "ht-services-list" ? this._getContentFromContact(_.get(this,"_data.contact"),_.get(this,"user",{}),_.get(this,"_data.currentPatient")) :
+                        promResolve
                     )
                     .then(contentData => console.log("----- contentData -----", contentData))
                     .then(() => {
@@ -408,6 +402,7 @@
                     .finally(() => this.dispatchEvent(new CustomEvent('done-printing-document', {composed:true,bubbles:true,detail:{}})) && promResolve)
 
                     // https://raw.githubusercontent.com/AssossCare/icure-frontend/feature/TOP-Kine-Fab/web/icure-ht/app/src/elements/ht-pat/dialogs/ht-pat-triptyque.html
+                    // Eval download file name si !printed
 
                     // Get ehboxMessageId (si besoin)
 
