@@ -133,7 +133,7 @@
             }
 
             _prettifyText(input) {
-                return _.trim(this._getServiceShortDescription(input)).replace(/\r\n|\n|\r/gm, "\n")
+                return _.trim(input).replace(/\r\n|\n|\r/gm, "\n")
             }
 
             _getServicesOfContacts(contacts) {
@@ -359,7 +359,7 @@
                             dateYYYYMMDD: _.get(contact,"openingDateYYYYMMDD",""),
                             title: _.get(contact,"descr",""),
                             type: _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.get(contact,"tags",[]),{type:"CD-TRANSACTION"}), "code","")}),"labelHr",""),
-                            body: _.size(servicesOfContacts) === 1 ? this._prettifyText(_.head(servicesOfContacts)) : _.compact(_.map(servicesOfContacts, svc => { return !_.trim(this._getServiceShortDescription(svc)) ? false : {
+                            body: _.size(servicesOfContacts) === 1 ? this._prettifyText(this._getServiceShortDescription(_.head(servicesOfContacts))) : _.compact(_.map(servicesOfContacts, svc => { return !_.trim(this._getServiceShortDescription(svc)) ? false : {
                                 isOutOfRange: !!this._isServiceOutOfRange(svc),
                                 label: _.trim(_.get(svc,"label","")),
                                 date: this._getServiceDate(svc),
@@ -371,6 +371,30 @@
 
                         // Could be "descr" also holds CD-TRANSACTION
                         return _.merge({}, data, {title: _.trim(data.type) ? _.trim(data.title.replace(data.type+":","")) : data.title})
+
+                    })
+
+            }
+
+            _getContentFromDocument() {
+
+                const promResolve = Promise.resolve()
+                const contact = _.get(this,"_data.contact")
+                const document = _.get(this,"_data.document",{})
+
+                return !_.size(document) ? promResolve : promResolve
+                    .then(() => {
+
+                        const data = {
+                            dateHr: _.get(contact, "openingDateHr", ""),
+                            dateYYYYMMDD: _.get(contact, "openingDateYYYYMMDD", ""),
+                            title: _.get(contact, "descr", ""),
+                            type: _.get(_.find(_.get(this, "_data.codes.CD-TRANSACTION", []), {code: _.get(_.find(_.get(contact, "tags", []), {type: "CD-TRANSACTION"}), "code", "")}), "labelHr", ""),
+                            body: typeof _.get(document, "attachment.content") === "string" ? this._prettifyText(_.trim(_.get(document, "attachment.content"))) : "RENDER DOCUMENT: " + typeof _.get(document, "attachment.content")
+                        }
+
+                        // Could be "descr" also holds CD-TRANSACTION
+                        return _.merge({}, data, {title: _.trim(data.type) ? _.trim(data.title.replace(data.type + ":", "")) : data.title})
 
                     })
 
@@ -463,6 +487,8 @@
                                 .documentType { width:calc(100% - 50mm) }
                                 .documentDate { width:50mm; }
 
+                                pre { white-space: pre-wrap; word-wrap: break-word; }
+
                                 .resultLines {}
                                 .resultHeader {}
                                 .resultHeader div, .singleLineResult div {display:inline-block;}
@@ -534,7 +560,8 @@
                                 ).join("") +
                             "</div>"
                         :
-                        "render ["+sourceComponent+"]"
+                        sourceComponent === "dynamic-doc" && typeof _.get(this,"_data.content.body") === "string" ? "<pre>" + _.get(this,"_data.content.body") + "</pre>" :
+                        "UNKNOWN RENDER ? Source = " + sourceComponent + " Data = " + _.get(this,"_data.content.body")
                     ) +
                     this._getPdfFooter()
 
@@ -562,15 +589,14 @@
                     .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
                     .then(() => this.api.pdfReport(this._data.pdfHtmlContent), {type:"unknown",completionEvent:"pdfDoneRenderingEvent", printBackground:true})
                     .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" + _.trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
+
                     .then(() => {
                         console.log("--- this._data ---",this._data);
                         console.log("inputData",inputData);
                     })
-                    .catch(() => promResolve)
-                    .finally(() => this.dispatchEvent(new CustomEvent('done-printing-document', {composed:true,bubbles:true,detail:{}})) && promResolve)
 
-                    // https://raw.githubusercontent.com/AssossCare/icure-frontend/feature/TOP-Kine-Fab/web/icure-ht/app/src/elements/ht-pat/dialogs/ht-pat-triptyque.html
-                    // Eval download file name si !printed
+                    .catch(e => { console.log("[ERROR] printDocument", e, inputData); return promResolve;})
+                    .finally(() => this.dispatchEvent(new CustomEvent('done-printing-document', {composed:true,bubbles:true,detail:{}})) && promResolve)
 
                     // Get ehboxMessageId (si besoin)
 
@@ -629,19 +655,6 @@
             }
 
 
-
-
-
-            // ==> Juste après "_getContentFromContact"
-
-            _getContentFromDocument() {
-
-                const promResolve = Promise.resolve()
-                const document = _.get(this,"_data.document",{})
-
-                return !_.size(document) ? promResolve : promResolve
-
-            }
 
 
 

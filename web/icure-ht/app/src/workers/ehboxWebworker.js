@@ -290,7 +290,7 @@ onmessage = e => {
                             openingDate: parseInt(moment(documentToAssignDemandDate).format('YYYYMMDDHHmmss')),
                             closingDate: parseInt(moment(documentToAssignDemandDate).format('YYYYMMDDHHmmss')),
                             encounterType: docInfoCodeTransaction,
-                            descr: ( _.trim(_.get(docInfoCodeTransaction, "code","")).toLowerCase() === "labresult" ? "Résultat laboratoire: " : "Protocole: " ) + ( !!_.trim(_.get(docInfo,"labo", "" )) ? _.trim(_.get(docInfo,"labo", "" )) : _.trim(_.get(message,"document.title")) ) + ( !!_.trim(_.get(docInfo,"protocol","")) ? " (Protocole #" + _.trim(_.get(docInfo,"protocol","")) + ")" : " " ),
+                            descr: /*( _.trim(_.get(docInfoCodeTransaction, "code","")).toLowerCase() === "labresult" ? "Résultat laboratoire: " : "Protocole: " ) + */ ( !!_.trim(_.get(docInfo,"labo", "" )) ? _.trim(_.get(docInfo,"labo", "" )) : _.trim(_.get(message,"document.title")) ) + ( !!_.trim(_.get(docInfo,"protocol","")) ? " (Protocole #" + _.trim(_.get(docInfo,"protocol","")) + ")" : " " ),
                             tags: [
                                 docInfoCodeTransaction,
                                 { type: "originalEhBoxDocumentId", id: _.trim(_.get(document,"id","")) },
@@ -311,12 +311,20 @@ onmessage = e => {
                         .then(createdContact => iccFormXApi.newInstance(user, candidates[0],{ contactId: _.trim(_.get(createdContact,"id","")), descr: "Lab result " + +new Date })
                             .then(formInstance => iccFormXApi.createForm(formInstance)
                                 .then(createdForm => iccCryptoXApi.extractKeysFromDelegationsForHcpHierarchy( _.trim(_.get(user,"healthcarePartyId","")), _.trim(_.get(document,"id","")), _.size(_.get(document,"encryptionKeys",{})) ? _.get(document,"encryptionKeys",{}): _.get(document,"delegations",{}))
-                                    .then(({extractedKeys: enckeys}) => beResultApi.doImport(_.trim(_.get(document,"id","")), _.trim(_.get(user,"healthcarePartyId","")), language, _.trim(_.get(docInfo,"protocol","")), _.trim(_.get(createdForm,"id","")), null, enckeys.join(','), createdContact).catch(e=>{console.log("ERROR with doImport: ", e); return promResolve;}))
-                                    .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return promResolve;})
+                                    .then(({extractedKeys: enckeys}) => beResultApi.doImport(_.trim(_.get(document,"id","")), _.trim(_.get(user,"healthcarePartyId","")), language, _.trim(_.get(docInfo,"protocol","")), _.trim(_.get(createdForm,"id","")), null, enckeys.join(','), createdContact).catch(e=>{console.log("ERROR with doImport: ", e); return Promise.resolve(createdContact);}))
+                                    .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return Promise.resolve(createdContact);})
                                 )
-                                .catch(e=>{console.log("ERROR with createForm: ", e); return promResolve;})
+                                .then(updatedContactAfterImport => !_.trim(_.get(updatedContactAfterImport, "id","")) ? createdContact : iccContactXApi.modifyContactWithUser(user, _.merge({},updatedContactAfterImport,{ subContacts: [{
+                                    tags:[
+                                        docInfoCodeTransaction,
+                                        { type: "originalEhBoxDocumentId", id: _.trim(_.get(document,"id","")) },
+                                        { type: "originalEhBoxMessageId", id: _.trim(_.get(topazCreatedMessage,"id","")) }
+                                    ],
+                                    descr: (!!_.trim(_.get(updatedContactAfterImport, "subContacts[0].descr")) ? _.trim(_.get(updatedContactAfterImport, "subContacts[0].descr")) : _.trim(_.get(topazCreatedMessage,"subject")))
+                                }]})))
+                                .catch(e=>{console.log("ERROR with createForm: ", e); return Promise.resolve(createdContact);})
                             )
-                            .catch(e=>{console.log("ERROR with form newInstance: ", e); return promResolve;})
+                            .catch(e=>{console.log("ERROR with form newInstance: ", e); return Promise.resolve(createdContact);})
                         )
                         .then(createdContact => { return {id: _.trim(_.get(createdContact,"id","")), protocolId: _.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id","")), patientId:_.trim(_.get(candidates,"[0].id",""))}; })
                         .catch(e => { console.log("ERROR with new contact: ",e); return {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))}; })

@@ -557,6 +557,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 white-space: nowrap;
             }
 
+            .contact-text-row .document {
+                margin-top:10px;
+            }
+
             .contact-text-date{
                 justify-content: space-between!important;
                 position: relative;
@@ -1967,17 +1971,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                                         <template is="dom-repeat" items="[[getDocumentDetails(contact)]]" as="document">
                                                             <p>
                                                             <div class="document">
-                                                                <div class="document-title">
-                                                                    [[document.type]] : [[document.name]]
-                                                                </div>
-                                                                <div class="document-data">
-                                                                    [[localize('doc_date','Document date',language)]] : [[document.created]]
-                                                                </div>
+                                                                <div class="document-title"><b>[[document.type]]</b>: [[document.name]]</div>
+                                                                <template is="dom-if" if="[[document.created]]"><div class="document-data">[[localize('doc_date','Document date',language)]] : [[document.created]]</div></template>
                                                             </div>
                                                             </p>
                                                         </template>
-                                                        <template is="dom-repeat" items="[[highlightedServiceLabels(user)]]"
-                                                                as="label">
+                                                        <template is="dom-repeat" items="[[highlightedServiceLabels(user)]]" as="label">
                                                             <p>
                                                                 <template is="dom-repeat" items="[[serviceDescriptions(contact,label)]]" as="svcDesc">
                                                                     <template is="dom-if" if="[[!index]]">[[label]]:</template>
@@ -1985,7 +1984,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                                                     [[svcDesc]]
                                                                 </template>
                                                             </p>
-
                                                         </template>
                                                     </div>
                                                     <div class="contact-text-row label-container">
@@ -5299,16 +5297,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return ctc.userDescr
             }
 
-            getDocumentDetails(ctc) {
 
-                return ctc && ctc.subContacts && ctc.subContacts.filter(subContact => subContact.status === 64 && !_.some(ctc.tags, {type:"originalEhBoxDocumentId"}))
+
+
+
+
+
+
+
+
+            getDocumentDetails(ctc) {
+                return ctc && ctc.subContacts && ctc.subContacts.filter(subContact => subContact.status === 64)
                     .map(docSubContact => docSubContact.services)
                     .reduce((flatServices, services) => flatServices.concat(services), [])
                     .reduce((details, docSubContactService) => {
                         let svc = ctc.services.find(service => service.id === docSubContactService.serviceId);
                         let fileName = svc && svc.content && svc.content[this.language] && svc.content[this.language].stringValue;
                         if (fileName) {
-                            const docType = _.trim(_.get(svc,"tags[0].code","unknown"))
+                            let docType = svc.tags.length ? svc.tags[0] && svc.tags[0].code : 'unknown';
                             details.push({
                                 name: fileName,
                                 type: this.localize('cd-transaction-' + docType, docType, this.language),
@@ -5319,6 +5325,81 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return details;
                     }, []);
             }
+
+            getDocumentDetails_v2(ctc) {
+
+                /*
+                    Status 1<<0 = LABO_RESULT
+                    Status 1<<1 = UNREAD
+                    Status 1<<2 = ALWAYS_DISPLAY
+                    Status 1<<3 = RESET_TO_DEFAULT_VALUES
+                    Status 1<<4 = COMPLETE
+                    Status 1<<5 = PROTOCOL_RESULT
+                    Status 1<<6 = UPLOADED_FILES
+
+                 */
+
+                return  _
+                    .chain(_.get(ctc,"subContacts",[]))
+                    .map(subContact => _.merge({},subContact, {
+                        isFile: !!(parseInt(_.get(subContact, "status", 0)) & (1 << 6)),
+                        isLabResultOrProtocol: !!((parseInt(_.get(subContact, "status", 0)) & (1 << 0)) || (parseInt(_.get(subContact, "status", 0)) & (1 << 5))) && !(parseInt(_.get(subContact,"status",0))&(1<<6))
+                    }))
+                    .filter(subContact => !!subContact.isFile || !!subContact.isLabResultOrProtocol)
+                    .value()
+                    .map(subContact => {
+
+                        return !!subContact.isLabResultOrProtocol ?
+                            {
+                                type: this.localize('cd-transaction-' + _.get(_.find(_.get(subContact,"tags",[]), {type:"CD-TRANSACTION"}), "code",""), "", this.language),
+                                name: this.localize((!!(parseInt(_.get(subContact,"status",0))&(1<<4))?"com_res":"inc_res"), "Complete result", this.language),
+                            } :
+                            _.get(subContact,"services",[])
+                                .reduce((flatServices, services) => flatServices.concat(services), [])
+                                .reduce((details, docSubContactService) => {
+
+                                    const svc = ctc.services.find(service => service.id === docSubContactService.serviceId);
+                                    const subContact = _.find(_.get(ctc,"subContacts",[]), sc => !!_.some(_.get(sc,"services",[]), {serviceId:_.trim(_.get(svc,"id",""))}))
+                                    const subContactTransactionCode = _.get(_.find(_.get(subContact,"tags",[]), {type:"CD-TRANSACTION"}), "code","")
+                                    const isLabOrProtocol = !!((parseInt(_.get(subContact,"status",0))&(1<<0)) || (parseInt(_.get(subContact,"status",0))&(1<<5)))
+                                    const fileName = !!_.trim(_.get(svc,"content."+this.language+".stringValue",""))
+                                    const docType = !!_.trim(_.get(svc,"tags[0].code","")) ? _.trim(_.get(svc,"tags[0].code","")) : !!_.trim(subContactTransactionCode) ? _.trim(subContactTransactionCode) : "unknown"
+
+                                    details.push(
+                                        !!_.trim(fileName) && !isLabOrProtocol ?
+                                            {
+                                                name: fileName,
+                                                type: this.localize('cd-transaction-' + docType, docType, this.language),
+                                                created: this._dateFormat(ctc.created),
+                                                modified: this._dateFormat(ctc.modified)
+                                            } :
+                                            {
+                                                type: this.localize('cd-transaction-' + _.get(_.find(_.get(subContact,"tags",[]), {type:"CD-TRANSACTION"}), "code",""), "", this.language),
+                                                name: this.localize((!!(parseInt(_.get(subContact,"status",0))&(1<<4))?"com_res":"inc_res"), "Complete result", this.language),
+                                            }
+                                    )
+
+                                    return details;
+
+                                }, [])
+                        })
+
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             getAtc(med){
                 return med && med.colour && med.colour.substr(med.colour.length - 1)
