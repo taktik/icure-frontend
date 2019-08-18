@@ -4477,10 +4477,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         )
                         && (
                             this.contactStatusFilter === "all" || (
-                                (ctc.subContacts.some(s => s.status === 64) || !!_.some(ctc.tags, {type:"originalEhBoxDocumentId"}) ) &&  (
+                                // 1<<0 = Labresult ; 1<<5 = Protocol ; 1<<6 = imported document
+                                (ctc.subContacts.some(s => !!(parseInt(_.get(s, "status", 0)) & (1 << 0)) || !!(parseInt(_.get(s, "status", 0)) & (1 << 5)) || !!(parseInt(_.get(s, "status", 0)) & (1 << 6)) ) ) && (
                                     this.documentType === "all" || (
+                                        ctc.tags && ctc.tags.some(tag => tag.code && tag.code === this.documentType) ||
                                         ctc.services && ctc.services.some(service => service.tags && service.tags.some(tag => tag.code && tag.code === this.documentType)) ||
-                                        (!!_.some(ctc.tags, {code:this.documentType}) && !!_.some(ctc.tags, {type:"originalEhBoxDocumentId"}))
+                                        ctc.subContacts && ctc.subContacts.some(sctc => sctc.tags && sctc.tags.some(tag => tag.code && tag.code === this.documentType))
                                     )
                                 )
                             )
@@ -5297,109 +5299,45 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return ctc.userDescr
             }
 
-
-
-
-
-
-
-
-
-
             getDocumentDetails(ctc) {
-                return ctc && ctc.subContacts && ctc.subContacts.filter(subContact => subContact.status === 64)
-                    .map(docSubContact => docSubContact.services)
-                    .reduce((flatServices, services) => flatServices.concat(services), [])
-                    .reduce((details, docSubContactService) => {
-                        let svc = ctc.services.find(service => service.id === docSubContactService.serviceId);
-                        let fileName = svc && svc.content && svc.content[this.language] && svc.content[this.language].stringValue;
-                        if (fileName) {
-                            let docType = svc.tags.length ? svc.tags[0] && svc.tags[0].code : 'unknown';
-                            details.push({
-                                name: fileName,
-                                type: this.localize('cd-transaction-' + docType, docType, this.language),
-                                created: this._dateFormat(ctc.created),
-                                modified: this._dateFormat(ctc.modified)
-                            });
-                        }
-                        return details;
-                    }, []);
-            }
 
-            getDocumentDetails_v2(ctc) {
-
-                /*
-                    Status 1<<0 = LABO_RESULT
-                    Status 1<<1 = UNREAD
-                    Status 1<<2 = ALWAYS_DISPLAY
-                    Status 1<<3 = RESET_TO_DEFAULT_VALUES
-                    Status 1<<4 = COMPLETE
-                    Status 1<<5 = PROTOCOL_RESULT
-                    Status 1<<6 = UPLOADED_FILES
-
-                 */
-
-                return  _
+                return _
                     .chain(_.get(ctc,"subContacts",[]))
-                    .map(subContact => _.merge({},subContact, {
-                        isFile: !!(parseInt(_.get(subContact, "status", 0)) & (1 << 6)),
-                        isLabResultOrProtocol: !!((parseInt(_.get(subContact, "status", 0)) & (1 << 0)) || (parseInt(_.get(subContact, "status", 0)) & (1 << 5))) && !(parseInt(_.get(subContact,"status",0))&(1<<6))
-                    }))
-                    .filter(subContact => !!subContact.isFile || !!subContact.isLabResultOrProtocol)
-                    .value()
                     .map(subContact => {
 
-                        return !!subContact.isLabResultOrProtocol ?
-                            {
-                                type: this.localize('cd-transaction-' + _.get(_.find(_.get(subContact,"tags",[]), {type:"CD-TRANSACTION"}), "code",""), "", this.language),
-                                name: this.localize((!!(parseInt(_.get(subContact,"status",0))&(1<<4))?"com_res":"inc_res"), "Complete result", this.language),
-                            } :
-                            _.get(subContact,"services",[])
-                                .reduce((flatServices, services) => flatServices.concat(services), [])
-                                .reduce((details, docSubContactService) => {
+                        const contactTransactionCode = _.trim(_.get(_.find(_.get(ctc, "tags",[]), {type:"CD-TRANSACTION"}), "code",""))
+                        const subContactTransactionCode = _.trim(_.get(_.find(_.get(subContact, "tags",[]), {type:"CD-TRANSACTION"}), "code",""))
+                        const labOrProtocolTransactionCode = !!_.trim(subContactTransactionCode) ? _.trim(subContactTransactionCode) : !!_.trim(contactTransactionCode) ? _.trim(contactTransactionCode) : "unknown"
 
-                                    const svc = ctc.services.find(service => service.id === docSubContactService.serviceId);
-                                    const subContact = _.find(_.get(ctc,"subContacts",[]), sc => !!_.some(_.get(sc,"services",[]), {serviceId:_.trim(_.get(svc,"id",""))}))
-                                    const subContactTransactionCode = _.get(_.find(_.get(subContact,"tags",[]), {type:"CD-TRANSACTION"}), "code","")
-                                    const isLabOrProtocol = !!((parseInt(_.get(subContact,"status",0))&(1<<0)) || (parseInt(_.get(subContact,"status",0))&(1<<5)))
-                                    const fileName = !!_.trim(_.get(svc,"content."+this.language+".stringValue",""))
-                                    const docType = !!_.trim(_.get(svc,"tags[0].code","")) ? _.trim(_.get(svc,"tags[0].code","")) : !!_.trim(subContactTransactionCode) ? _.trim(subContactTransactionCode) : "unknown"
+                        // Imported file file
+                        return !!(parseInt(_.get(subContact, "status", 0)) & (1 << 6)) ?
+                            _.map(subContact.services, subContactService => {
+                                const svc = _.find(_.get(ctc,"services",[]), service => _.trim(_.get(service,"id","something")) === _.trim(_.get(subContactService,"serviceId","else")))
+                                const fileName = _.trim(_.get(svc,"content." + this.language + ".stringValue",""))
+                                const cdTransactionCode = _.trim(_.get(_.find(_.get(svc,"tags",[]), {type:"CD-TRANSACTION"}), "code",""))
+                                const docType = !!_.trim(cdTransactionCode) ? _.trim(cdTransactionCode) : "unknown"
+                                return !fileName || !!parseInt(_.get(svc,"endOfLife",0)) ? false : {
+                                    name: fileName,
+                                    type: this.localize('cd-transaction-' + docType, docType, this.language),
+                                    created: this._dateFormat(_.get(ctc,"created",undefined)),
+                                    modified: this._dateFormat(_.get(ctc,"modified",undefined))
+                                }
+                            }) :
 
-                                    details.push(
-                                        !!_.trim(fileName) && !isLabOrProtocol ?
-                                            {
-                                                name: fileName,
-                                                type: this.localize('cd-transaction-' + docType, docType, this.language),
-                                                created: this._dateFormat(ctc.created),
-                                                modified: this._dateFormat(ctc.modified)
-                                            } :
-                                            {
-                                                type: this.localize('cd-transaction-' + _.get(_.find(_.get(subContact,"tags",[]), {type:"CD-TRANSACTION"}), "code",""), "", this.language),
-                                                name: this.localize((!!(parseInt(_.get(subContact,"status",0))&(1<<4))?"com_res":"inc_res"), "Complete result", this.language),
-                                            }
-                                    )
-
-                                    return details;
-
-                                }, [])
-                        })
+                            // Labresult or protocol
+                            !!((parseInt(_.get(subContact, "status", 0)) & (1 << 0)) || (parseInt(_.get(subContact, "status", 0)) & (1 << 5))) ? {
+                                created: this._dateFormat(_.get(ctc,"created",undefined)),
+                                type: this.localize('cd-transaction-' + labOrProtocolTransactionCode, labOrProtocolTransactionCode, this.language),
+                                name: this.localize((!!(parseInt(_.get(subContact,"status",0))&(1<<4))?"com_res":"inc_res"), "Complete result", this.language)
+                            } : false
+                    })
+                    .flatten()
+                    .compact()
+                    .map(i => _.merge({},i,{createdTstamp: _.get(ctc,"created",0)}))
+                    .orderBy(["createdTstamp"],["desc"])
+                    .value()
 
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
             getAtc(med){
                 return med && med.colour && med.colour.substr(med.colour.length - 1)

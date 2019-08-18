@@ -54,6 +54,11 @@
                         noReset: true,
                         value: () => {}
                     },
+                    _isBusy: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
+                    },
                     _data: {
                         type: Object,
                         value: () => {return{
@@ -137,7 +142,20 @@
             }
 
             _getServicesOfContacts(contacts) {
-                return _.sortBy(_.flatMap(contacts, c => _.get(c,"services",{})), ["modified","index"],["asc","asc"]);
+
+                return _.filter(
+                    _.sortBy(
+                        _.compact(_.flatMap(contacts, c => {
+                            const labOrProtocolSubContacts = _.filter(_.get(c,"subContacts",[]),sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || (parseInt(_.get(sctc, "status", 0)) & (1 << 5))))
+                            const labOrProtocolSubContactsServices = _.compact(_.flatMap(labOrProtocolSubContacts, it => _.map(_.get(it,"services",[]), svc => _.trim(_.get(svc,"serviceId","")) )))
+                            return (!!parseInt(_.get(c,"endOfLife",0)) || !!parseInt(_.get(c,"deletionDate",0))) ? false :  _.compact(_.map(_.get(c,"services",{}), svc => !!parseInt(_.get(svc,"endOfLife",0)) || labOrProtocolSubContactsServices.indexOf(_.trim(_.get(svc,"id",""))) === -1 ? false : svc))
+                        })),
+
+                        ["modified","index"],["asc","asc"]
+                    ),
+                    svc => true /* !!_.trim(this._getServiceShortDescription(svc)) */
+                )
+
             }
 
             _getServiceNormalValues(svc) {
@@ -247,7 +265,7 @@
                         .filter(i=> !_.get(i,"disabled",false))
                         .map(i => _.merge({},i,{
                             labelHr: codeType === "CD-TRANSACTION" ?
-                                _.upperFirst(_.trim(this.localize(_.trim(_.get(i,"code")), _.trim(_.get(i,"code")), this.language)).toLowerCase()) :
+                                _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(i,"code")), _.trim(_.get(i,"code")), this.language)).toLowerCase()) :
                                 _.trim(_.get(i,"label." + this.language,"")) ?
                                     _.upperFirst(_.trim(_.get(i,"label." + this.language,"")).toLowerCase()) :
                                     _.upperFirst(_.trim(_.head(_.flatMap(_.get(i,"label","")))).toLowerCase())
@@ -301,7 +319,7 @@
                     )
                     .then(([document,enckeys]) => this.api.beresultimport().canHandle(_.trim(_.get(document,"id","")), (enckeys||[]).join(',')).then(canHandle => ([document,enckeys,!!canHandle])).catch(() => Promise.resolve([document,enckeys,false])))
                     .then(([document,enckeys,canHandle]) => !canHandle ? Promise.resolve([document,enckeys]) : this.api.beresultimport().getInfos(_.trim(_.get(document,"id","")), true, null, (enckeys||[]).join(',')).then(docInfo=>([_.merge({},document,{docInfo:this._prettifyDocInfo(_.head(docInfo))}),enckeys])).catch(() => Promise.resolve([document,enckeys])))
-                    .then(([document,enckeys]) => this.api.document().getAttachment(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), (enckeys||[]).join(',')).then(attachmentContent => _.merge({}, document, {attachment: {content:attachmentContent}})).catch(()=>Promise.resolve(document)))
+                    .then(([document,enckeys]) => this.api.document().getAttachment(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), (enckeys||[]).join(',')).then(attachmentContent => _.merge({}, document, {attachment: {content:attachmentContent, downloadUrl:this.api.document().getAttachmentUrl(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), enckeys, _.get(this,"api.sessionId"))}})).catch(()=>Promise.resolve(document)))
                     .then(document => {
                         const fileExtension = (_.trim(_.get(document,"name","")).split(".").pop()).toLowerCase()
                         const attachmentSize = _.get((typeof _.get(document,"attachment.content","") === "string" ? this.api.crypto().utils.text2ua(_.get(document,"attachment.content","")) : _.get(document,"attachment.content","")),"byteLength",0)
@@ -336,8 +354,9 @@
 
                 const promResolve = Promise.resolve()
 
-                const contact = _.get(this,"_data.contact")
                 const user = _.get(this,"user",{})
+                const contact = _.get(this,"_data.contact")
+                const document = _.get(this,"_data.document",{})
                 const patient = _.get(this,"_data.currentPatient")
                 const sourceContactId = _.trim(_.get(contact,"id",""))
                 const sourceContactGroupId = _.trim(_.get(contact,"groupId",""))
@@ -354,23 +373,32 @@
                     .then(contacts => {
 
                         const servicesOfContacts = this._getServicesOfContacts(contacts)
-                        const data = {
+                        const contactType = _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.get(contact,"tags",[]),{type:"CD-TRANSACTION"}), "code","")}),"labelHr","")
+                        const subContactType = _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.flatMap(_.get(contact,"subContacts",[]),sctc => _.get(sctc,"tags",[])),{type:"CD-TRANSACTION"}), "code","")}),"labelHr","")
+                        const targetSubContact = _.find(_.get(contact,"subContacts",[]), sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || (parseInt(_.get(sctc, "status", 0)) & (1 << 5))))
+                        const documentType = !!_.trim(subContactType) ? _.trim(subContactType) : contactType
+                        const documentTitle = !!_.trim(_.get(contact,"descr","")) && !!_.trim(_.trim(_.get(contact,"descr","")).replace(documentType+":","")) ? _.trim(_.get(contact,"descr","")).replace(documentType+":","") : _.trim(_.get(targetSubContact,"descr","")) + (!!_.trim(_.get(targetSubContact,"protocol","")) ? " (" + this.localize("prot", "Protocol", this.language) + " #" + _.trim(_.get(targetSubContact,"protocol","")) + ")" : "" )
+
+                        return {
                             dateHr: _.get(contact,"openingDateHr",""),
                             dateYYYYMMDD: _.get(contact,"openingDateYYYYMMDD",""),
-                            title: _.get(contact,"descr",""),
-                            type: _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.get(contact,"tags",[]),{type:"CD-TRANSACTION"}), "code","")}),"labelHr",""),
-                            body: _.size(servicesOfContacts) === 1 ? this._prettifyText(this._getServiceShortDescription(_.head(servicesOfContacts))) : _.compact(_.map(servicesOfContacts, svc => { return !_.trim(this._getServiceShortDescription(svc)) ? false : {
-                                isOutOfRange: !!this._isServiceOutOfRange(svc),
-                                label: _.trim(_.get(svc,"label","")),
-                                date: this._getServiceDate(svc),
-                                value: this._getServiceShortDescription(svc),
-                                normalValue: this._getServiceNormalValues(svc),
-                                author: this._getServiceAuthor(svc),
-                            }}))
+                            title: documentTitle,
+                            type: documentType,
+                            fileExtension: _.trim(_.get(document, "attachment.fileExtension")).toLowerCase(),
+                            mimeType: _.trim(_.get(document, "attachment.mimeType")).toLowerCase(),
+                            downloadUrl: _.trim(_.get(document, "attachment.downloadUrl")),
+                            body: !_.size(servicesOfContacts) && typeof _.get(document, "attachment.content") === "string" && !!_.trim(_.get(document, "attachment.content")) ? this._prettifyText(_.trim(_.get(document, "attachment.content"))) :
+                                !_.size(servicesOfContacts) && _.get(document, "attachment.content") instanceof ArrayBuffer ? _.get(document, "attachment.content") :
+                                _.size(servicesOfContacts) === 1 ? this._prettifyText(this._getServiceShortDescription(_.head(servicesOfContacts))) :
+                                _.map(servicesOfContacts, svc => { return {
+                                    isOutOfRange: !!this._isServiceOutOfRange(svc),
+                                    label: _.trim(_.get(svc,"label","")),
+                                    date: this._getServiceDate(svc),
+                                    value: this._getServiceShortDescription(svc),
+                                    normalValue: this._getServiceNormalValues(svc),
+                                    author: this._getServiceAuthor(svc),
+                                }})
                         }
-
-                        // Could be "descr" also holds CD-TRANSACTION
-                        return _.merge({}, data, {title: _.trim(data.type) ? _.trim(data.title.replace(data.type+":","")) : data.title})
 
                     })
 
@@ -381,22 +409,37 @@
                 const promResolve = Promise.resolve()
                 const contact = _.get(this,"_data.contact")
                 const document = _.get(this,"_data.document",{})
+                const targetServiceId = _.get(_.find(_.get(contact,"subContacts",[]), sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 6)))), "services[0].serviceId","")
+                const targetService = _.find(_.get(contact,"services",[]), {id:targetServiceId})
+                const documentType = _.trim(_.get(_.find(_.get(targetService,"tags",[]), {type:"CD-TRANSACTION"}), "code", "unknown"))
 
                 return !_.size(document) ? promResolve : promResolve
                     .then(() => {
-
-                        const data = {
+                        return {
                             dateHr: _.get(contact, "openingDateHr", ""),
                             dateYYYYMMDD: _.get(contact, "openingDateYYYYMMDD", ""),
-                            title: _.get(contact, "descr", ""),
-                            type: _.get(_.find(_.get(this, "_data.codes.CD-TRANSACTION", []), {code: _.get(_.find(_.get(contact, "tags", []), {type: "CD-TRANSACTION"}), "code", "")}), "labelHr", ""),
-                            body: typeof _.get(document, "attachment.content") === "string" ? this._prettifyText(_.trim(_.get(document, "attachment.content"))) : "RENDER DOCUMENT: " + typeof _.get(document, "attachment.content")
+                            title: _.trim(_.get(targetService,"content." + this.language + ".stringValue",this.api.crypto().randomUuid() + ".topaz")),
+                            type: _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:documentType}),"labelHr",""),
+                            body: typeof _.get(document, "attachment.content") === "string" ? this._prettifyText(_.trim(_.get(document, "attachment.content"))) : _.get(document, "attachment.content"),
+                            fileExtension: _.trim(_.get(document, "attachment.fileExtension")).toLowerCase(),
+                            mimeType: _.trim(_.get(document, "attachment.mimeType")).toLowerCase(),
+                            downloadUrl: _.trim(_.get(document, "attachment.downloadUrl")),
                         }
-
-                        // Could be "descr" also holds CD-TRANSACTION
-                        return _.merge({}, data, {title: _.trim(data.type) ? _.trim(data.title.replace(data.type + ":", "")) : data.title})
-
                     })
+
+            }
+
+            _isImage(input) {
+
+                const imageExtensions = ["jpg","jpeg","gif","png"]
+
+                return imageExtensions.indexOf(_.trim(_.get(input,"fileExtension",""))) > -1 || _.trim(_.get(input,"mimeType","")).substring(0,6) === "image/"
+
+            }
+
+            _isPdf(input) {
+
+                return _.trim(_.get(input,"fileExtension","")) === "pdf" || _.trim(_.get(input,"mimeType","")) === "application/pdf"
 
             }
 
@@ -494,11 +537,13 @@
                                 .resultHeader div, .singleLineResult div {display:inline-block;}
                                 .singleLineResult {}
                                 .singleLineResult.outOfRange { color:#a00000; font-weight:700; }
-                                .resultsLabel { width:70mm; vertical-align: top; }
-                                .resultsValue { width:60mm; vertical-align: top; }
-                                .resultsNormalValue { width:55mm; text-align:center; vertical-align: top; }
+                                .resultsLabel { width:60mm; vertical-align: top; }
+                                .resultsValue { width:75mm; vertical-align: top; }
+                                .resultsNormalValue { width:50mm; text-align:center; vertical-align: top; }
                                 .resultsAuthor { width:30mm; vertical-align: top; }
                                 .resultsDate { width:15mm; text-align:center; vertical-align: top; }
+
+                                .imageContainer img {max-width:100%; height:auto;}
 
                             </style>
                         </head>
@@ -534,13 +579,18 @@
 
             _getPdfContent() {
 
-                const sourceComponent = _.trim(_.get(this,"_data.sourceComponent"))
-
                 return "" +
                     this._getPdfHeader() +
                     (
-                        sourceComponent === "ht-services-list" && typeof _.get(this,"_data.content.body") === "string" ? "<pre>" + _.get(this,"_data.content.body") + "</pre>" :
-                        sourceComponent === "ht-services-list" && Array.isArray(_.get(this,"_data.content.body")) && !!_.size(_.get(this,"_data.content.body")) ? '' +
+
+                        // Simple text
+                        typeof _.get(this,"_data.content.body") === "string" ? "<pre>" + _.get(this,"_data.content.body") + "</pre>" :
+
+                        // Images
+                        _.get(this,"_data.content.body") instanceof ArrayBuffer && this._isImage(_.get(this,"_data.content")) ? '<div class="imageContainer p10 textaligncenter borderSolid borderW1px borderColorBlack"><img src="data:' + _.trim(_.get(this,"_data.content.mimeType")) + ';base64,' + btoa(this.api.crypto().utils.ua2text(_.get(this,"_data.content.body"))) + '" /></div>' :
+
+                        // Array of services
+                        Array.isArray(_.get(this,"_data.content.body")) && !!_.size(_.get(this,"_data.content.body")) ? '' +
                             '<div class="resultHeader fw700 ttuppercase p3 borderSolid borderW1px borderColorBlack br0 bl0 bgColor_eeeeee">' +
                                 '<div class="resultsLabel">' + this.localize("lab","Label",this.language) + '</div>' +
                                 '<div class="resultsValue">' + this.localize("val","Value",this.language) + '</div>' +
@@ -558,10 +608,11 @@
                                         '<div class="resultsDate">' + (!!_.trim(_.get(it,"date","")) ? _.trim(_.get(it,"date","")) : _.trim(_.get(this,"_data.content.dateHr",""))) + '</div>' +
                                     "</div>"
                                 ).join("") +
-                            "</div>"
-                        :
-                        sourceComponent === "dynamic-doc" && typeof _.get(this,"_data.content.body") === "string" ? "<pre>" + _.get(this,"_data.content.body") + "</pre>" :
-                        "UNKNOWN RENDER ? Source = " + sourceComponent + " Data = " + _.get(this,"_data.content.body")
+                            "</div>" :
+
+                        // Dunno how to render
+                        ""
+
                     ) +
                     this._getPdfFooter()
 
@@ -569,11 +620,13 @@
 
             printDocument(inputData) {
 
+                if(!!_.get(this,"_isBusy",false)) return;
+                this.set("_isBusy", true)
+
                 const promResolve = Promise.resolve()
-                const patientId = _.trim(_.get(inputData,"patientId",_.trim(_.get(this,"patient.id",""))))
+                const patientId = !!_.trim(_.get(inputData,"patientId","")) ? _.trim(_.get(inputData,"patientId","")) : _.trim(_.get(this,"patient.id",""))
                 const contactId = _.trim(_.get(inputData,"contactId",""))
                 const documentId = _.trim(_.get(inputData,"documentId",""))
-                const sourceComponent = _.trim(_.get(inputData,"source",""))
                 const ehboxMessageId = _.trim(_.get(inputData,"ehboxMessageId",""))
 
                 // Make sure properties of component (that aren't set yet) actually are a variable rather than an object with a value key representing their value.
@@ -585,72 +638,21 @@
                     .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
                     .then(() => this._getContact(_.get(this,"user",{}), contactId, _.get(this,"_data.currentPatient")).then(contact => _.assign(this._data,{contact:contact})))
                     .then(() => this._getDocument(_.get(this,"user",{}), documentId).then(document => _.assign(this._data,{document:document})))
-                    .then(() => ((!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? promResolve : sourceComponent === "ht-services-list" ? this._getContentFromContact() : this._getContentFromDocument()).then(content => _.assign(this._data,{sourceComponent:sourceComponent,content:content})))
+                    .then(() => ((!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? promResolve : !!_.size(_.get(this,"_data.contact")) ? this._getContentFromContact() : this._getContentFromDocument()).then(content => _.assign(this._data,{content:content})))
                     .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
                     .then(() => this.api.pdfReport(this._data.pdfHtmlContent), {type:"unknown",completionEvent:"pdfDoneRenderingEvent", printBackground:true})
                     .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" + _.trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
+                    .catch(e => { console.log("[ERROR] printDocument", e, inputData); return promResolve;})
+                    .finally(() => {
 
-                    .then(() => {
                         console.log("--- this._data ---",this._data);
                         console.log("inputData",inputData);
+
+                        this.set("_isBusy", false)
+                        this.dispatchEvent(new CustomEvent('done-printing-document', {composed:true,bubbles:true,detail:{}}))
+                        return promResolve
+
                     })
-
-                    .catch(e => { console.log("[ERROR] printDocument", e, inputData); return promResolve;})
-                    .finally(() => this.dispatchEvent(new CustomEvent('done-printing-document', {composed:true,bubbles:true,detail:{}})) && promResolve)
-
-                    // Get ehboxMessageId (si besoin)
-
-                    // Eval le type d'info à afficher:  ==> ET ne prendre les data / resolve que fonction de ce dont j'ai besoin (pas tout le tralala avec document / contact / ehbox si pas besoin
-                    //      Plain
-                    //      Labresult => en tant que document
-                    //      Protocol => en tant document
-
-                    // Si depuis dynamic doc / ehbox : bien se passer languages, ressources, pat, ... tout ce qu iest nécessaire
-                    // Si depuis dynamic doc -> on fait de toute façon un DocInfo (full) => on a donc liste des services ici !
-
-
-
-
-
-
-
-
-
-
-
-
-
-                    // Pouvoir changer date & type doc sur contact
-                    // Fuck doimport pour jamoule ? Une ligne only ?
-
-
-
-
-
-
-                    // Ensuite edit type document & date d'un contact
-
-                    // [NOUVEAUX DOCUMENTS]
-                    //
-                    // CTC => tags[] => some type:originalEhBoxMessageId && has id
-                    //
-                    // [ANCIENS DOCUMENTS] Pour retrouver documents de ehbox:
-                    //
-                    // CTC => subContacts
-                    //     ==> si a protocol
-                    //     ==> ou si stats = ....
-                    //     ==> Comparer les deux approches
-                    //
-                    // Status subcontact:
-                    //
-                    //     public final static int STATUS_LABO_RESULT = 1;
-                    // public final static int STATUS_UNREAD = 2;
-                    // public final static int STATUS_ALWAYS_DISPLAY = 4;
-                    // public final static int RESET_TO_DEFAULT_VALUES = 8;
-                    // public final static int STATUS_COMPLETE = 16;
-                    // public final static int STATUS_PROTOCOL_RESULT = 32;
-                    // public final static int STATUS_UPLOADED_FILES = 64;
-
 
             }
 
