@@ -516,8 +516,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     opacity: 0.25;
                 }
                 100%{
-                    width: 0;
-                    opacity: 0;
+                    width: 254px;
+                    opacity: 0.25;
                 }
             }
 
@@ -1396,11 +1396,27 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             if (resolvedRoot && !_.isEqual( _.get(resolvedRoot, key) , value)) {
                 this.set("patient."+(rootPath.length ? (rootPath+".") : "")+key,value)
 
-
-                if(key.includes("ssin")){
-                    this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, value, null, null, 100, "asc").then(patients =>{
+                if(key.includes("ssin") && (!value || this.api.patient().isValidSsin(value))){
+                    (value ? this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, value, null, null, 100, "asc") :Promise.resolve({rows : []})).then(patients =>{
                         if(value && patients.rows.length){
-                            this.set("ssinPatientsList",patients.rows.filter(p => p.ssin===value && p.id!==))
+                            this.listValidSsin && Object.keys(this.listValidSsin).map(id=>{
+                                const patientIdx = patients.rows.findIndex(pat=> pat.id===id)
+                                if(patientIdx>=0){
+                                    patients.rows[patientIdx].ssin=this.listValidSsin[id];
+                                }
+                            })
+                            this.set("ssinPatientsList",patients.rows.filter(p=>!!p.ssin && p.ssin === value && (key === "ssin" ? this.patient.id : resolvedRoot.partnerId)!==p.id))
+                            if(this.ssinPatientsList.length){
+                                this.$["noSave"].classList.add("notification")
+                            }
+                            else{
+                                this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
+                                this.scheduleSave(this.patient);
+                            }
+                        }
+                        else{
+                            this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
+                            this.scheduleSave(this.patient);
                         }
                     })
                 }
