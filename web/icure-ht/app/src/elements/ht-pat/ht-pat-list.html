@@ -1137,7 +1137,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </template>
                             <div class="add-elem-mobile" on-tap="_sharePatientAll">[[localize('share_all_pat','Share all patients',language)]]</iron-icon>
                             </div>
-                            <div class="add-elem-mobile" on-tap="_exportListToXls">[[localize('export_xls','Export to XLS',language)]]
+                            <div class="add-elem-mobile" on-tap="_exportFilteredPatientListToXls">[[localize('export_xls','Export to XLS',language)]]
                             </div>
                             <div class="add-elem-mobile" on-tap="_openImportPatientFromMfDialog">[[localize('import_mf','Import patient from PMF/SMF',language)]]
                             </div>
@@ -1171,7 +1171,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </template>
 
                             <paper-button class="add-btn" on-tap="_sharePatientAll">[[localize('share_all_pat','Share all patients',language)]]</paper-button>
-                            <paper-button class="exportcsv-btn" on-tap="_exportListToXls">[[localize('export_xls','Export to XLS',language)]]
+                            <paper-button class="exportcsv-btn" on-tap="_exportFilteredPatientListToXls">[[localize('export_xls','Export to XLS',language)]]
                             </paper-button>
                             <paper-button class="exportcsv-btn" on-tap="_openImportPatientFromMfDialog">[[localize('import_mf','Import patient from PMF/SMF',language)]]
                             </paper-button>
@@ -2139,6 +2139,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 p.email = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'email').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
                 p.phone = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'phone').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
                 p.mobile = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'mobile').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
+
+                const addressData = _.find(_.get(p,"addresses",[]), {addressType:"home"}) || _.find(_.get(p,"addresses",[]), {addressType:"work"}) || _.get(p,"addresses[0]",[])
+                p.postalAddress = _.compact([
+                     _.trim(_.get(addressData,"street","")),
+                    _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : ""),
+                    ( !!_.trim(_.get(addressData,"postalCode","")) || !!_.trim(_.get(addressData,"city",""))) ? "-" : "",
+                    _.trim(_.get(addressData,"postalCode","")),
+                    _.trim(_.get(addressData,"city",""))
+                ]).join(" ")
+
                 return p
             }
 
@@ -2194,30 +2204,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     })
             }
 
-            _exportListToCsv() {
-                var columns = ["lastName", "firstName", "gender", "dateOfBirth", "ssin", "email", "phone", "mobile"]
-                var csv = columns.join(";") + "\n"
-                var grid = this.$['patients-list']
-                grid.dataProvider({pageSize: 10000}, (items) => {
-                    items.forEach(item =>
-                        csv += columns.map(col => item[col]).join(";") + '\n'
-                    )
-
-                    var file = new Blob([csv], {type: "text/csv"})
-                    var a = document.createElement("a")
-                    document.body.appendChild(a)
-                    a.style = "display: none"
-
-                    var url = window.URL.createObjectURL(file)
-                    a.href = url
-                    a.download = "patients-list.csv"
-                    a.click()
-                    window.URL.revokeObjectURL(url)
-                })
-
-            }
-
-            _exportListToCsv() {
+            _exportFilteredPatientListToCsv() { // not used currently, export is done in Xls
                 // Data mapping
                 var dataColumns = [
                     "lastName",
@@ -2272,6 +2259,58 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
+            _exportFilteredPatientListToXls() {
+                // Data mapping
+                var dataColumns = [
+                    "lastName",
+                    "firstName",
+                    "gender",
+                    "dateOfBirth",
+                    "ssin",
+                    "email",
+                    "phone",
+                    "mobile"
+                ]
+
+                // Human readable columns
+                var hrColumns = [
+                    this.localize('las_nam', 'Last name', this.language),
+                    this.localize('fir_nam', 'First name', this.language),
+                    this.localize('gender', 'Gender', this.language),
+                    this.localize('birthDate', 'Birthdate', this.language),
+                    this.localize('ssin', 'SSIN', this.language),
+                    this.localize('email', 'Email address', this.language),
+                    this.localize('phone', 'Phone number', this.language),
+                    this.localize('mobile', 'Mobile number', this.language)
+                ]
+
+                // Define csv content, header = column names
+                var csvFileContent = hrColumns.join(";") + "\n\n"
+
+                // Get grid / we're going to read data from it
+                var grid = this.$['patients-list']
+
+                // Loop grid with a max of X results (csv)
+                grid.dataProvider({pageSize: 10000}, items => {
+
+                    // Rewrite date for HR, input = yyyymmdd, output = dd/mm/yyyy
+                    items.forEach(item => item.dateOfBirth = item.dateOfBirth ? ("" + item.dateOfBirth).replace(/([0-9]{4})([0-9]{2})([0-9]{2})/, '$3/$2/$1') : this.localize('na_short', 'N/A'))
+
+                    // Populate / collect
+                    //items = items.map(item => _.pick(item, dataColumns))
+                    items = items.map(item => {
+                        let newitem = {}
+                        dataColumns.forEach((key, idx) => {
+                            newitem[hrColumns[idx]] = item[key]
+                        })
+                        return newitem
+                    })
+
+                    this.generateXlsFile(items)
+
+                })
+
+            }
 
             getAllPatients() {
 
@@ -2312,7 +2351,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 )
             }
 
-            _exportListToXls() {
+            _exportAllPatientListToXls() { // not used currently because labelisation ask for filtered list, not all patients
                 this.set("isLoadingPatient",true)
                 this.getAllPatients().then(
                     pl => {
@@ -2358,7 +2397,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 // Link to url
                 downloadLink.href = urlObject
-                downloadLink.download = "patients-list.xls"
+                downloadLink.download = "patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
 
                 // Trigger download and drop object
                 downloadLink.click()
@@ -3452,6 +3491,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             cleanNiss(niss){
                 return niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
             }
+
         }
 
         customElements.define(HtPatList.is, HtPatList)
