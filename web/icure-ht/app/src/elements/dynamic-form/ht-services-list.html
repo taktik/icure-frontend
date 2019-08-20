@@ -138,7 +138,7 @@
                         <div class="documentHeader">
                             <span></span>
                             <div>
-                                <template is="dom-if" if="[[_isLabResultOrProtocol(contacts)]]">
+                                <template is="dom-if" if="[[_isContactLabResultOrProtocol(contacts)]]">
                                     <template is="dom-if" if="[[_documentId(contacts)]]">
                                         <paper-button on-tap="_triggerDownload" data-document-id$="[[_documentId(contacts)]]" class="actionIcons" id="downloadFile"><iron-icon icon="file-download"></iron-icon></paper-button>
                                         <paper-tooltip for="downloadFile" position="left">[[localize('dl','Download',language)]]</paper-tooltip>
@@ -174,7 +174,7 @@
                     <div class$="documentHeader margin032 [[additionalCssClasses]]">
                         <span></span>
                         <div>
-                            <template is="dom-if" if="[[_isLabResultOrProtocol(contacts)]]">
+                            <template is="dom-if" if="[[_isContactLabResultOrProtocol(contacts)]]">
                                 <template is="dom-if" if="[[_documentId(contacts)]]">
                                     <paper-button on-tap="_triggerDownload" data-document-id$="[[_documentId(contacts)]]" class="actionIcons" id="downloadFile"><iron-icon icon="file-download"></iron-icon></paper-button>
                                     <paper-tooltip for="downloadFile" position="left">[[localize('dl','Download',language)]]</paper-tooltip>
@@ -302,10 +302,6 @@
                 this._notifyResize()
             }
 
-            _services(contacts) {
-                return _.sortBy(_.flatMap(contacts, c => c.services), ['modified']);
-            }
-
             _date(item) {
                 return (item && item.modified) ? this.api.moment(item.modified).format(item.modified > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
             }
@@ -333,10 +329,6 @@
                 if (grid) {
                     grid.notifyResize()
                 }
-            }
-
-            _moreThan1Service(contacts) {
-                return _.size(_.flatMap(contacts, c => c.services)) > 1
             }
 
             _moreThan1Contact(contacts) {
@@ -400,13 +392,6 @@
                 return !!a||!!b||!!c||!!d||!!e
             }
 
-            _isLabResultOrProtocol(contacts) {
-
-                // 1<<0 = Lab Result ; 1<<5 = Protocol
-                return !!_.some(contacts, ctc => !!_.some(_.get(ctc,"subContacts",[])), sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || (parseInt(_.get(sctc, "status", 0)) & (1 << 5))))
-
-            }
-
             _triggerDownload(e) {
 
                 const targetButton = _.find(_.get(e,"path",[]), nodePath=> _.trim(_.get(nodePath,"nodeName","")).toUpperCase() === "PAPER-BUTTON" )
@@ -423,6 +408,42 @@
                     .catch(()=>false)
 
             }
+
+            _isSubContactLabResultOrProtocol(sctc) {
+
+                // 1<<0 = Lab Result ; 1<<5 = Protocol
+                return !!((parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || (parseInt(_.get(sctc, "status", 0)) & (1 << 5)))
+
+            }
+
+            _isContactLabResultOrProtocol(contacts) {
+
+                // 1<<0 = Lab Result ; 1<<5 = Protocol
+                return !!_.some(contacts, ctc => !!_.some(_.get(ctc,"subContacts",[]), sctc => this._isSubContactLabResultOrProtocol(sctc)))
+
+            }
+
+            _getServicesOutOfContact(ctc) {
+
+                const isLabResultOrProtocol = !!_.some(_.get(ctc,"subContacts",[]), sctc => this._isSubContactLabResultOrProtocol(sctc))
+                return !isLabResultOrProtocol ? ctc.services : _.size(ctc.services) !== 2 ? ctc.services : _.filter(ctc.services, svc => _.trim(_.get(svc, "label","")).toLowerCase() !== "labresult" && _.trim(_.get(svc, "label","")).toLowerCase() !== "report" )
+
+            }
+
+            _moreThan1Service(contacts) {
+
+                // return _.size(_.flatMap(contacts, c => c.services)) > 1
+                return _.size(_.flatMap(contacts, ctc => this._getServicesOutOfContact(ctc))) > 1
+
+            }
+
+            _services(contacts) {
+
+                // return _.sortBy(_.flatMap(contacts, c => c.services), ['modified']);
+                return _.sortBy(_.flatMap(contacts, ctc => this._getServicesOutOfContact(ctc)),['modified'])
+
+            }
+
 
         }
 

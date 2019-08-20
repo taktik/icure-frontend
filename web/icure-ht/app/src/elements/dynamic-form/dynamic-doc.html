@@ -1211,6 +1211,7 @@
             }
 
             _dataUrlChanged(dataUrl) {
+                const promResolve = Promise.resolve()
                 if (dataUrl && dataUrl.length && this.document && this.document.mainUti !== "com.adobe.pdf" && this.document.mainUti !== "public.jpeg" && this.document.mainUti !== "public.png") {
                     this.set('isLoading',true)
                     this.api.crypto()
@@ -1220,25 +1221,27 @@
                             _.size(this.document.encryptionKeys) ? this.document.encryptionKeys : this.document.delegations
                         )
                         .then(({extractedKeys: enckeys}) => {
-                            return this.api.beresultimport().canHandle(this.document.id, enckeys.join(',')).then(isResult => {
-                                if (isResult) {
-                                    this.set('isLabOrProtocol', true)
-                                    return this.api.beresultimport().getInfos(this.document.id, true, this.language || 'fr', enckeys.join(','))
-                                        .then(res => {
-                                            this.set('labOrProtocolContent', res)
-                                            this.set('labOrProtocolContentFirstItem', _.head(res))
-                                            this.set('labOrProtocolTotalPatients', _.size(res))
-                                            return !!_.size(_.get(res,"[0].services",[])) ? null : this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'}).then(response => response.text())).then(attachmentContent => this.set('attachmentContent', attachmentContent))
-                                        })
-                                } else {
-                                    this.set('isLabOrProtocol', false)
-                                    return this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'})
-                                        .then(response => response.text()))
-                                        .then(text => {
-                                            this.set('attachmentContent', text)
-                                        })
+                            return promResolve
+                                .then(() => this.api.beresultimport().canHandle(this.document.id, enckeys.join(',')).then(isResult =>!!isResult).catch(()=>false))
+                                .then(isResult => {
+                                    if (isResult) {
+                                        this.set('isLabOrProtocol', true)
+                                        return this.api.beresultimport().getInfos(this.document.id, true, this.language || 'fr', enckeys.join(','))
+                                            .then(res => {
+                                                this.set('labOrProtocolContent', res)
+                                                this.set('labOrProtocolContentFirstItem', _.head(res))
+                                                this.set('labOrProtocolTotalPatients', _.size(res))
+                                                return !!_.size(_.get(res,"[0].services",[])) ? null : this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'}).then(response => response.text())).then(attachmentContent => this.set('attachmentContent', attachmentContent))
+                                            })
+                                    } else {
+                                        this.set('isLabOrProtocol', false)
+                                        return this.api.shortLivedCache(dataUrl, () => fetch(dataUrl, {credentials: 'include'})
+                                            .then(response => response.text()))
+                                            .then(text => {
+                                                this.set('attachmentContent', text)
+                                            })
 
-                                }
+                                    }
                             }).catch((e) => console.log('Handle error: ', e))
                         })
                         .finally(()=>this.set('isLoading',false))
@@ -1400,6 +1403,7 @@
                 if(!!_.trim(contactId)) _.merge(targetButton, {dataset:{contactId:contactId}})
 
                 return !!targetButton ? this.dispatchEvent(new CustomEvent('print-document', { composed: true, bubbles: true, detail: _.get(targetButton,"dataset",{}) })) : false;
+
             }
 
         }
