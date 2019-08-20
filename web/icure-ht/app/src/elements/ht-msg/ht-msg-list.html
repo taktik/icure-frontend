@@ -596,20 +596,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     text-align:left;
                 }
 
+                .bottom30 {
+                    bottom:30px!important;
+                }
+
+                .m-t-20 {
+                                    margin-top:20px!important;
+                                }
+
+                .m-t-25 {
+                    margin-top:25px!important;
+                }
+
+                .m-t-30 {
+                    margin-top:30px!important;
+                }
+
                 .m-t-40 {
                     margin-top:40px;
                 }
 
                 .m-t-50 {
                     margin-top:50px!important;
-                }
-
-                .m-t-20 {
-                    margin-top:20px!important;
-                }
-
-                .m-t-25 {
-                    margin-top:25px!important;
                 }
 
                 .textAlignCenter {
@@ -957,7 +965,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <template>
                         <div class$="cell [[_boldIfIsUnread(item)]]">
                             <template is="dom-if" if="[[_isImportant(item)]]"><iron-icon icon="warning" class="darkRed"></iron-icon></template>
-                            <template is="dom-if" if="[[!_isImportant(item)]]"><iron-icon icon="warning" class="darkGreen"></iron-icon></template>
+                            <template is="dom-if" if="[[!_isImportant(item)]]"><iron-icon icon="warning" class="darkGreen visibilityHidden"></iron-icon></template>
                             <template is="dom-if" if="[[_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5 darkBlue"></iron-icon></template>
                             <template is="dom-if" if="[[!_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5 visibilityHidden"></iron-icon></template>
                             <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'sent')]]">[[item.fromAddress]]</template>
@@ -1006,11 +1014,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         <paper-dialog class="modalDialog" id="confirmPermanentDeletionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
-            <div class="modalDialogContent m-t-50">
+            <div class="modalDialogContent m-t-30">
                 <h3 class="textAlignCenter">[[localize('confirmDeletePermanently','Are you sure you wish to delete PERMANENTLY ?',language)]]</h3>
                 <p class="textAlignCenter m-t-20">[[localize('cantBeUndone',"This can't be undone",language)]].</p>
+                <p class="textAlignCenter m-t-20"><vaadin-checkbox checked="{{_confirmationDialogAcknowledgementsProperties.confirmPermanentDeletionDialog}}"> [[localize('acknowledgementDontShowAnymore','I understand\, don\'t ask for confirmation in the future',language)]]</vaadin-checkbox></p>
             </div>
-            <div class="dialogButtons">
+            <div class="dialogButtons bottom30">
                 <paper-button class="modal-button grey" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('can','Cancel',language)]]</paper-button>
                 <paper-button class="modal-button" on-tap="_deleteMessagesForEver"><iron-icon icon="check-circle" class="mr5 smallIcon" ></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
             </div>
@@ -1259,6 +1268,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     _searchedValue: {
                         type: String,
                         value: ""
+                    },
+                    _confirmationDialogAcknowledgementsProperties: {
+                        type: Array,
+                        value: () => [],
+                        noReset: true
+                    },
+                    _locked: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
                     }
                 };
             }
@@ -1272,7 +1291,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     '_setIsConnectedToEhbox(api.tokenId)',
                     '_getEHealthBoxData(menuSelectionObject,_messageFilterSelectedItem,_currentPageNumber)',
                     '_triggerGetEHealthBoxDataForceRefresh(user,currentHcp)',
-                    '_vaadinGridActiveItemChanged(_vaadinGridMessagesActiveItem)'
+                    '_vaadinGridActiveItemChanged(_vaadinGridMessagesActiveItem)',
+                    '_userDialogAcknowledgementsPropertiesChanged(_confirmationDialogAcknowledgementsProperties.*)',
                 ];
             }
             
@@ -1385,16 +1405,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            _confirmDeleteMessagesForEver() {
-
-                const selectedMessages = this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return
-
-                this.set("_bodyOverlay", true);
-                this.$["confirmPermanentDeletionDialog"].open()
-
-            }
-            
             _closeDialogs() {
                 this.set("_bodyOverlay", false);
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
@@ -1501,10 +1511,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         const destinationBox = sourceBox === "INBOX" ? "BININBOX" : sourceBox === "SENTBOX" ? "BINSENTBOX" : sourceBox === "BININBOX" ? "INBOX" : sourceBox === "BINSENTBOX" ? "SENTBOX" : false
                         const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
                         const action = sourceBox === "INBOX" || sourceBox === "SENTBOX" ? "delete" : "undelete"
+                        const newStatus = action === "delete" ? (_.get(singleSelectedMessage,"status",0)|(1<<20)) : (_.get(singleSelectedMessage,"status",0)^(1<<20))
                         return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
                             false :
                             this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox).catch(e=>{})
-                                .then(()=> this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId})).then(modifiedMessage=>_.concat(promisesCarrier, {action:action, message:modifiedMessage, success:true})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();}))
+                                .then(()=> this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId, status:newStatus})).then(modifiedMessage=>_.concat(promisesCarrier, {action:action, message:modifiedMessage, success:true})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();}))
                                 .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
                     })
                 })
@@ -1532,56 +1543,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
-            _deleteMessagesForEver(givenMessages=null) {
-
-                // No eHealthBox ?
-                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return Promise.resolve(); }
-
-                let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
-                if(!_.size(selectedMessages)) return Promise.resolve()
-
-                this._closeDialogs();
-                this._toggleProcessingPopup()
-
-                let prom = Promise.resolve([]);
-                selectedMessages.map(singleSelectedMessage => {
-                    prom = prom.then(promisesCarrier => {
-                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
-                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
-                        const action = "deleteForEver"
-                        return !eHealthBoxMessageId || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
-                            false :
-                            this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox).catch(e=>{})
-                                .then(()=> this.api.message().deleteMessages(_.trim(_.get(singleSelectedMessage,"id",""))).then(deletetionResult=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:!!deletetionResult})).catch(e=>{console.log("ERROR with deleteMessages: ", e); return Promise.resolve();}))
-                                .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
-                    })
-                })
-
-                return prom
-                    .then(promisesCarrier => {
-                        const failedExecutions = _.map(_.compact(_.filter(promisesCarrier, i=>!_.get(i,"success",false))),i=>_.get(i,"message",{}))
-                        const successfulExecutions = _.compact(_.filter(promisesCarrier, i=>!!_.get(i,"success",false)))
-                        if(_.size(failedExecutions)) {
-                            setTimeout(()=>{
-                                this.set("_bodyOverlay", true);
-                                this.$["errorWithEHealthBoxProcessing"].open();
-                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
-                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
-                            },200)
-                        }
-                        return this._updateCachedMessagesDataStructure(successfulExecutions).then(()=>this._getBoxCapacity())
-                    })
-                    .catch(e=>console.log("ERROR with _deleteMessagesForEver: ",e))
-                    .finally(()=>{
-                        this._toggleProcessingPopup();
-                        this._getEHealthBoxData();
-                        return Promise.resolve()
-                    })
-
-            }
-
             _triggerGetEHealthBoxDataForceRefresh() {
-                return this._getEHealthBoxData(null,null,null,{forceRefresh:true})
+
+                return !!_.get(this,"_locked",false) ? null : this._getEHealthBoxData(null,null,null,{forceRefresh:true})
+
             }
 
             _triggerGetEHealthBoxDataForceRefreshFromWebWorker() {
@@ -1980,8 +1945,88 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         )
                         .catch(e=>{ console.log(e); return promResolve; })
                     )
+                    .then(() => this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true})))
                     .catch(e=>{ console.log(e); return promResolve; })
                     .finally(()=>promResolve)
+
+            }
+
+            _deleteMessagesForEver(givenMessages=null) {
+
+                // No eHealthBox ?
+                if (!_.get(this,"ehealthSession",false)) { this.set("_bodyOverlay", true); this.$["notConnctedToeHealthBox"].open(); return Promise.resolve(); }
+
+                let selectedMessages = _.size(givenMessages) && !( givenMessages instanceof Event) ? givenMessages : this._getGridSelectedItems()
+                if(!_.size(selectedMessages)) return Promise.resolve()
+
+                this._closeDialogs();
+                this._toggleProcessingPopup()
+
+                let prom = Promise.resolve([]);
+                selectedMessages.map(singleSelectedMessage => {
+                    prom = prom.then(promisesCarrier => {
+                        const sourceBox = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[0]", ""))
+                        const eHealthBoxMessageId = _.trim(_.get(_.trim(_.get(singleSelectedMessage,"transportGuid","")).split(':'), "[1]", ""))
+                        const action = "deleteForEver"
+                        return !eHealthBoxMessageId || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
+                            false :
+                            this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox).catch(e=>{})
+                                .then(()=> this.api.message().deleteMessages(_.trim(_.get(singleSelectedMessage,"id",""))).then(deletetionResult=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:!!deletetionResult})).catch(e=>{console.log("ERROR with deleteMessages: ", e); return Promise.resolve();}))
+                                .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
+                    })
+                })
+
+                return prom
+                    .then(promisesCarrier => {
+                        const failedExecutions = _.map(_.compact(_.filter(promisesCarrier, i=>!_.get(i,"success",false))),i=>_.get(i,"message",{}))
+                        const successfulExecutions = _.compact(_.filter(promisesCarrier, i=>!!_.get(i,"success",false)))
+                        if(_.size(failedExecutions)) {
+                            setTimeout(()=>{
+                                this.set("_bodyOverlay", true);
+                                this.$["errorWithEHealthBoxProcessing"].open();
+                                this.set("_eHealthBoxProcessErrorMessages", failedExecutions);
+                                this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat') && this.shadowRoot.querySelector('#eHealthBoxProcessErrorMessageDomRepeat').render()
+                            },200)
+                        }
+                        return this._updateCachedMessagesDataStructure(successfulExecutions).then(()=>this._getBoxCapacity())
+                    })
+                    .catch(e=>console.log("ERROR with _deleteMessagesForEver: ",e))
+                    .finally(()=>{
+                        this._toggleProcessingPopup();
+                        this._getEHealthBoxData();
+                        return Promise.resolve()
+                    })
+
+            }
+
+            _userDialogAcknowledgementsPropertiesChanged(confirmationDialogAcknowledgementsProperties) {
+
+                const propertyName = _.trim(_.get(_.trim(_.get(confirmationDialogAcknowledgementsProperties,"path",[])).split("."), "[1]",""))
+
+                return !_.trim(propertyName) ? null : Promise.resolve()
+                    .then(() => this.api._setUserConfirmationDialogAcknowledgements(_.get(this,"user",{}), this._confirmationDialogAcknowledgementsProperties))
+                    .then(updatedUser => { this.set("_locked", true); this.set("user",updatedUser); setTimeout(()=>{this.set("_locked", false)},100); this.dispatchEvent(new CustomEvent('user-got-updated', {composed: true, bubbles: true, detail: {updatedUser:updatedUser}})) })
+
+            }
+
+            _confirmDeleteMessagesForEver() {
+
+                const promResolve = Promise.resolve()
+
+                return this.api._getUserConfirmationDialogAcknowledgements(_.get(this,"user",{}))
+                    .then(userConfirmationDialogAcknowledgements => this.set("_confirmationDialogAcknowledgementsProperties", userConfirmationDialogAcknowledgements))
+                    .then(() => !!_.get(this,"_confirmationDialogAcknowledgementsProperties.confirmPermanentDeletionDialog", false) ?
+                        this._deleteMessagesForEver() :
+                        promResolve.then(() => !_.size(this._getGridSelectedItems()) ? promResolve : promResolve.then(()=>{ this.set("_bodyOverlay", true); return this.$["confirmPermanentDeletionDialog"].open() }))
+                    )
+
+            }
+
+            _doUpdateUser(updatedUser) {
+
+                this.set("_locked", true);
+                this.set("user",updatedUser);
+                setTimeout(()=>{this.set("_locked", false)},100)
 
             }
 
@@ -1997,6 +2042,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const annexesInfosAlreadyExist = !!_.size(_.get(givenMessage,"annexesInfos",[]))
                 const totalAnnexes = parseInt(_.size(_.filter(additionalParameters.documentsOfMessage,dom=>_.trim(_.get(dom,"documentLocation","body")) !== "body" )))
                 const totalAssignedAnnexes = (parseInt(_.size(_.filter(_.get(givenMessage,"annexesInfos",[]),ai=>!!_.get(ai,"isAssigned",false))))) + 1 // "+1" as we are assigning now
+                const documentToAssignDemandDate = !!((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0))||0) > 1546300800000) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",undefined)) : parseInt(_.get(givenMessage,"created",undefined))
+                const importDescription = /* _.trim(documentTypeLabel) + ": " + */ (!!_.trim(_.get(documentToAssign,"docInfo[0].labo","")) ? _.trim(_.get(documentToAssign,"docInfo[0].labo","")) : _.trim(_.get(givenMessage,"subject")) ) + ( !!_.trim(_.get(documentToAssign,"docInfo[0].protocol","")) ? " (Protocole #" + _.trim(_.get(documentToAssign,"docInfo[0].protocol","")) + ")" : " " )
                 let annexInfosToUpdate = !annexesInfosAlreadyExist ? false : _.find(_.get(givenMessage,"annexesInfos",[]), {documentId:documentId})
 
                 return (!documentId || !patientId || !_.size(documentToAssign)) ?
@@ -2009,33 +2056,50 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 modified: +new Date,
                                 author: _.trim(_.get(this,"user.id","")),
                                 responsible: _.trim(_.get(this,"user.healthcarePartyId","")),
-                                openingDate: moment((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) : parseInt(_.get(givenMessage,"created",0)))).format('YYYYMMDDHHmmss')||'',
-                                closingDate: moment().format('YYYYMMDDHHmmss')||'',
+                                openingDate: parseInt(moment(documentToAssignDemandDate).format('YYYYMMDDHHmmss')),
+                                closingDate: parseInt(moment(documentToAssignDemandDate).format('YYYYMMDDHHmmss')),
                                 encounterType: { type: "CD-TRANSACTION", version: "1", code: documentType },
-                                descr: _.trim(documentTypeLabel) + ": " + _.trim(_.get(documentToAssign,"docInfo[0].labo","")),
-                                tags: [{type: 'CD-TRANSACTION', code: documentType}],
+                                descr: importDescription,
+                                tags: [
+                                    { type: 'CD-TRANSACTION', code: documentType },
+                                    { type: "originalEhBoxDocumentId", id: documentId },
+                                    { type: "originalEhBoxMessageId", id: _.trim(_.get(givenMessage,"id","")) }
+                                ],
                                 subContacts: []
                             }
-                            if(!isLabResult) {
-                                contactObjectForInstance.openingDate = moment((parseInt(_.get(givenMessage,"created",0)) ? parseInt(_.get(givenMessage,"created",0)) : null)).format('YYYYMMDDHHmmss')||''
-                                contactObjectForInstance.descr = (_.trim(documentTypeLabel) ? _.trim(documentTypeLabel) : "Annexe") + ": " + _.trim(_.get(documentToAssign,"name",""))
-                            }
+                            if(!isLabResult) contactObjectForInstance.descr = /* (_.trim(documentTypeLabel) ? _.trim(documentTypeLabel) : "Annexe") + ": " + */ _.trim(_.get(documentToAssign,"name",""))
                             return this.api.contact().newInstance(this.user, patientObject, contactObjectForInstance).then(contactInstance => [contactInstance,patientObject])
                         })
                         .then(([contactInstance,patientObject]) => {
 
                             if(isLabResult) {
-                                contactInstance.services.push({
-                                    id: this.api.crypto().randomUuid(),
-                                    label: documentType,
-                                    valueDate: parseInt(moment().format('YYYYMMDDHHmmss')),
-                                    content: _.fromPairs([[this.language, {stringValue: _.trim(_.get(documentToAssign,"docInfo[0].labo",""))}]]),
-                                    tags: [{type: 'CD-TRANSACTION', code: documentType}]
-                                })
+                                // contactInstance.services.push({
+                                //     id: this.api.crypto().randomUuid(),
+                                //     label: documentTypeLabel,
+                                //     valueDate: parseInt(moment().format('YYYYMMDDHHmmss')),
+                                //     content: _.fromPairs([[this.language, {stringValue: _.trim(_.get(documentToAssign,"docInfo[0].labo",""))}]])
+                                // })
                             } else {
-                                const svc = this.api.contact().service().newInstance( this.user, { tags: [{type: 'CD-TRANSACTION', code: documentType}], content: _.fromPairs([[this.language, {documentId: documentId, stringValue: _.trim(_.get(documentToAssign,"name",""))}]]), label: (_.trim(documentTypeLabel) ? _.trim(documentTypeLabel) : "Annexe") + ": " + _.trim(_.get(documentToAssign,"name","")) })
+                                const svc = this.api.contact().service().newInstance( this.user, {
+                                    content: _.fromPairs([[this.language, {documentId: documentId,
+                                    stringValue: _.trim(_.get(documentToAssign,"name",""))}]]),
+                                    label: /* (_.trim(documentTypeLabel) ? _.trim(documentTypeLabel) : "Annexe") + ": " + */ _.trim(_.get(documentToAssign,"name","")),
+                                    tags: [
+                                        { type: 'CD-TRANSACTION', code: documentType },
+                                        { type: "originalEhBoxDocumentId", id: documentId },
+                                        { type: "originalEhBoxMessageId", id: _.trim(_.get(givenMessage,"id","")) }
+                                    ],
+                                })
                                 contactInstance.services = [svc]
-                                contactInstance.subContacts.push({status: 64, services: [{serviceId: svc.id}]})
+                                contactInstance.subContacts.push({
+                                    status: 64,
+                                    services: [{serviceId: svc.id}],
+                                    tags: [
+                                        { type: 'CD-TRANSACTION', code: documentType },
+                                        { type: "originalEhBoxDocumentId", id: documentId },
+                                        { type: "originalEhBoxMessageId", id: _.trim(_.get(givenMessage,"id","")) }
+                                    ],
+                                })
                             }
 
                             return this.api.contact().createContactWithUser(this.user, contactInstance)
@@ -2043,13 +2107,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                         })
                         .then(([createdContact,patientObject]) => !isLabResult ? createdContact :
-                            this.api.form().newInstance(this.user, patientObject, {contactId: _.trim(_.get(createdContact,"id","")), descr: "Lab result " + +new Date})
+                            this.api.form().newInstance(this.user, patientObject, {contactId: _.trim(_.get(createdContact,"id","")), descr: importDescription})
                                 .then(formInstance => this.api.form().createForm(formInstance))
                                 .then(createdForm => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy( _.trim(_.get(this,"user.healthcarePartyId","")), _.trim(_.get(documentToAssign,"id","")), _.size(_.get(documentToAssign,"encryptionKeys",{})) ? _.get(documentToAssign,"encryptionKeys",{}) : _.get(documentToAssign,"delegations",{}))
                                     .then(({extractedKeys: enckeys}) => this.api.beresultimport().doImport( _.trim(_.get(documentToAssign,"id","")), _.trim(_.get(this,"user.healthcarePartyId","")), this.language, _.trim(_.get(documentToAssign,"docInfo[0].protocol","")), _.trim(_.get(createdForm,"id","")), null, enckeys.join(','), createdContact).catch(e=>{console.log("ERROR with doImport: ", e); return Promise.resolve(createdContact);}))
                                     .catch(e=>{console.log("ERROR with extractKeysFromDelegationsForHcpHierarchy: ", e); return Promise.resolve(createdContact);})
                                 )
-                                .then(()=>createdContact)
+                                .then(updatedContactAfterImport => !_.trim(_.get(updatedContactAfterImport, "id","")) ? createdContact : this.api.contact().modifyContactWithUser(this.user, _.merge({},updatedContactAfterImport,{ subContacts: [{
+                                    tags:[
+                                        { type: 'CD-TRANSACTION', code: documentType },
+                                        { type: "originalEhBoxDocumentId", id: documentId },
+                                        { type: "originalEhBoxMessageId", id: _.trim(_.get(givenMessage,"id","")) }
+                                    ],
+                                    descr: (!!_.trim(_.get(updatedContactAfterImport, "subContacts[0].descr")) ? _.trim(_.get(updatedContactAfterImport, "subContacts[0].descr")) : _.trim(_.get(givenMessage,"subject")))
+                                }]})))
                                 .catch(e =>{ console.log("ERROR with createForm: ", e); return Promise.resolve(createdContact); })
                         )
                         .then(createdContact => {
@@ -2091,6 +2162,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             date: +new Date(),
                             accessType: 'USER_ACCESS'
                         }))
+                        .then(() => this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true})))
                         .catch(e=>{ console.log(e); return promResolve; })
                         .finally(()=>promResolve)
 
