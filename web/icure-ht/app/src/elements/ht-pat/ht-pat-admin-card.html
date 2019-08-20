@@ -449,20 +449,60 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 width:calc(100% - 50px);
                 padding-left: 25px;
             }
+
+            #noSave.notification-container{
+                height: 358px;
+                grid-template-columns: 48px 1fr 132px;
+            }
+
+            #noSave.notification-container.notification {
+                animation: notificationAnim .5s ease-in;
+            }
+            .notification-grid{
+                grid-column-start: 1;
+                grid-column-end: span 3;
+                grid-row-start: 3;
+                grid-row-end: span 2;
+                margin: 0;
+                height: 300px;
+            }
+
+            .patient-photo {
+                background: rgba(0, 0, 0, 0.1);
+                height: 26px;
+                width: 26px;
+                min-width: 26px;
+                border-radius: 50%;
+                margin-right: 8px;
+                overflow: hidden !important;
+                padding-right: 0 !important;
+            }
+
+            .patient-photo img {
+                width: 100%;
+                margin: 50%;
+                transform: translate(-50%, -50%);
+            }
+
+            #ssin-patients-list.material .cell {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding-right: 0;
+            }
+
         </style>
         <div class="administrative-panel">
 
             <paper-item id="noSave" class="notification-container">
-                <iron-icon icon="icons:warning"></iron-icon>
+                <iron-icon class="notification-icn" icon="icons:warning"></iron-icon>
                 <div class="notification-msg">
                     <h4>[[localize('niss-already-used','No Saved',language)]]</h4>
-                    <p>[[localize('choose_who_keep_ssin','choisissez qui va garder le niss',language)]]</p>
+                    <p>[[localize('choose_who_keep_ssin','Sélectionner le patient qui gardera le NISS',language)]]</p>
                 </div>
-                <paper-button on-tap="upgradePatientWithSsin" class="notification-btn"><iron-icon icon="add-circle"></iron-icon>[[localize("this_pat_upg","Mettre à jour ce patient",language)]]</paper-button>
-                <paper-button on-tap="DeleteSsin" class="notification-btn"><iron-icon icon="cancel"></iron-icon>[[localize('remove_ssin_this_patient','Remove patient SSIN',language)]]</paper-button>
+                <paper-button on-tap="upgradePatientWithSsin" class="notification-btn"><iron-icon icon="check"></iron-icon>[[localize("this_pat_upg","Ce patient",language)]]</paper-button>
+                <paper-button on-tap="DeleteSsin" class="notification-btn"><iron-icon icon="cancel"></iron-icon>[[localize('remove_ssin_this_patient','Annuler',language)]]</paper-button>
 
-
-                <!--<vaadin-grid id="ssin-patients-list" class="notification-grid" items="[[ssinPatientsList]]"
+                <vaadin-grid id="ssin-patients-list" class="notification-grid" items="[[ssinPatientsList]]"
                              on-tap="upgradePatientWithSsin" active-item="{{activeItem}}">
                     <vaadin-grid-column flex-grow="0" width="25%">
                         <template class="header">
@@ -490,7 +530,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class="cell frozen">[[item.firstName]]</div>
                         </template>
                     </vaadin-grid-column>
-                </vaadin-grid>-->
+                </vaadin-grid>
             </paper-item>
 
             <paper-tabs selected="{{tabs}}">
@@ -977,6 +1017,10 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             activeItem:{
                 type:Object,
                 value:{}
+            },
+            ssinSavePrimaryPatient:{
+                type:Object,
+                value:{}
             }
         };
     }
@@ -1245,6 +1289,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
                         } else {
                             //patient present
+                            partner.partnerInfo.ssin = this.listValidSsin[partner.partnerId] || partner.partnerInfo.ssin || ""
+
                             return this.api.patient().modifyPatientWithUser(this.user, partner.partnerInfo)
                                 .then(p => {
                                     this.api.register(p, 'patient')
@@ -1317,6 +1363,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                             })
                             this.set("ssinPatientsList",patients.rows.filter(p=>!!p.ssin && p.ssin === value && (key === "ssin" ? this.patient.id : resolvedRoot.partnerId)!==p.id))
                             if(this.ssinPatientsList.length){
+                                this.set("activeItem",{})
+                                this.set("ssinSavePrimaryPatient",(key === "ssin" ? this.patient : resolvedRoot.partnerInfo))
                                 this.$["noSave"].classList.add("notification")
                             }
                             else{
@@ -2052,18 +2100,72 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     upgradePatientWithSsin(){
-        const patient = this.ssinPatientsList.find(pat => pat.ssin===this.patient.ssin) ? this.patient : this.patient.partnerships.find(partner => this.ssinPatientsList.find(pat => pat.ssin===partner.partnerInfo.ssin)).partnerInfo;
-        if(!this.activeItem){
-            this.set("listValidSsin."+(patient.id),patient.ssin)
-            this.scheduleSave(this.patient)
-        }
-        else{
-            this.set("listValidSsin."+(patient.id),"")
-            this.ssinPatientsList.filter(pat=> pat.id!==this.activeItem.id).map(pat=>{
+        if(_.isEmpty(this.activeItem)){
+            this.set("listValidSsin."+(this.ssinSavePrimaryPatient.id),this.ssinSavePrimaryPatient.ssin)
+            Object.keys(this.listValidSsin).filter(key=>key!==this.ssinSavePrimaryPatient.id && this.listValidSsin[key]===this.ssinSavePrimaryPatient.ssin).map(key=>{
+                this.listValidSsin[key]="";
+                if(key===this.patient.id){
+                    this.set("patient.ssin","")
+                }else{
+                    this.set("patient.partnerships."+this.patient.partnerships.findIndex(partner => partner.partnerId===key)+".partnerInfo.ssin","")
+                }
+            })
+
+            Promise.all(this.ssinPatientsList.filter(pat => pat.ssin===this.ssinSavePrimaryPatient.ssin && pat.id!==this.ssinSavePrimaryPatient.id && !Object.keys(this.listValidSsin).find(key=>key===pat.id)).map(pat=>{
                 pat.ssin=""
-                this.api.patient().modifyPatientWithUser(this.user,pat).then(pat => console.log("ssin du patient supprimé",pat))
+                return this.api.patient().modifyPatientWithUser(this.user,pat).then( p => this.api.register(p, 'patient')).then(pat => console.log("ssin du patient supprimé",pat))
+            })).then(()=>{
+                this.scheduleSave(this.patient)
+            }).catch(err=>{
+                console.log("error with upgradePatientWithSSIN",err)
+            }).finally(()=>{
+                this.$["noSave"].classList.remove("notification")
+                this.set('patientMap', _.cloneDeep(this.patient));
+                this.$['dynamic-form-administrative'].loadDataMap();
+                this.$['dynamic-form-partnerships'].loadDataMap();
+                this.set("activeItem",{})
             })
         }
+        else{
+            this.listValidSsin[this.ssinSavePrimaryPatient.id]=this.activeItem.ssin
+            Object.keys(this.listValidSsin).filter(key=>key!==this.activeItem.id && this.listValidSsin[key]===this.activeItem.ssin).map(key=>{
+                this.listValidSsin[key]="";
+                if(key===this.patient.id){
+                    this.set("patient.ssin","")
+                }else{
+                    this.set("patient.partnerships."+this.patient.partnerships.findIndex(partner => partner.partnerId===key)+".partnerInfo.ssin","")
+                }
+            })
+
+            Promise.all(this.ssinPatientsList.filter(pat=> pat.id!==this.activeItem.id && pat.ssin===this.activeItem.ssin && !Object.keys(this.listValidSsin).find(key=>key===pat.id)).map(pat=>{
+                pat.ssin=""
+                return this.api.patient().modifyPatientWithUser(this.user,pat).then( p => this.api.register(p, 'patient')).then(pat => console.log("ssin du patient supprimé",pat))
+            })).then(()=>{
+                this.scheduleSave(this.patient)
+            }).catch(err=>{
+                console.log("error with upgradePatientWithSSIN",err)
+            }).finally(()=>{
+                this.$["noSave"].classList.remove("notification")
+                this.set('patientMap', _.cloneDeep(this.patient));
+                this.$['dynamic-form-administrative'].loadDataMap();
+                this.$['dynamic-form-partnerships'].loadDataMap();
+                this.set("activeItem",{})
+            })
+        }
+    }
+
+    DeleteSsin(){
+        if(this.patient.id===this.ssinSavePrimaryPatient.id){
+            this.set("patient.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+        }else{
+            this.set("patient.partnerships."+this.patient.partnerships.findIndex(partner => partner.partnerId===this.ssinSavePrimaryPatient.id)+".partnerInfo.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+        }
+        this.scheduleSave(this.patient)
+        this.$["noSave"].classList.remove("notification")
+        this.set('patientMap', _.cloneDeep(this.patient));
+        this.$['dynamic-form-administrative'].loadDataMap();
+        this.$['dynamic-form-partnerships'].loadDataMap();
+        this.set("activeItem",{})
     }
 }
 
