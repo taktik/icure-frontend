@@ -32,13 +32,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="./dialogs/medicalhouse/ht-pat-medicalhouse-timeline.html">
 <link rel="import" href="../../styles/scrollbar-style.html">
 <link rel="import" href="../../styles/notification-style.html">
+<link rel="import" href="../../styles/buttons-style.html">
 
 
 
 <dom-module id="ht-pat-admin-card">
 	<template>
 		<style include="iron-flex iron-flex-alignment"></style>
-		<style include="scrollbar-style notification-style">
+		<style include="scrollbar-style notification-style buttons-style">
 			:host {
 				height: 100%;
 			}
@@ -503,31 +504,40 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button on-tap="deleteSsin" class="notification-btn"><iron-icon icon="cancel"></iron-icon>[[localize('remove_ssin_this_patient','Annuler',language)]]</paper-button>
 
                 <vaadin-grid id="ssin-patients-list" class="notification-grid" items="[[ssinPatientsList]]"
-                             on-tap="upgradePatientWithSsin" active-item="{{activeItem}}">
+                             on-tap="upgradePatientWithSsin" active-item="{{
+                             }}">
                     <vaadin-grid-column flex-grow="0" width="25%">
                         <template class="header">
                             <div class="cell frozen">[[localize('pic','Picture',language)]]</div>
                         </template>
                         <template>
-                            <div class="cell frozen patient-photo"><img src$="[[picture(item)]]"></div>
+                            <div class="cell frozen patient-photo"><img src$="[[picture(item.patient)]]"></div>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="1">
                         <template class="header">
-                            <vaadin-grid-sorter path="lastName">[[localize('las_nam','Last name',language)]]
+                            <vaadin-grid-sorter path="patient.lastName">[[localize('nam','name',language)]]
                             </vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class="cell frozen">[[item.lastName]]</div>
+                            <div class="cell frozen">[[item.patient.lastName]] [[item.patient.firstName]]</div>
                         </template>
                     </vaadin-grid-column>
-                    <vaadin-grid-column flex-grow="0" width="25%">
+                    <vaadin-grid-column flex-grow="0" width="20%">
                         <template class="header">
-                            <vaadin-grid-sorter path="firstName">[[localize('fir_nam','First name',language)]]
+                            <vaadin-grid-sorter path="contatcsLength">[[localize('con','Contacts',language)]]
                             </vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class="cell frozen">[[item.firstName]]</div>
+                            <div class="cell frozen">[[item.contactsLength]]</div>
+                        </template>
+                    </vaadin-grid-column>
+                    <vaadin-grid-column flex-grow="0" width="55px">
+                        <template class="header">
+                            [[localize('fuz','Fusion',language)]]
+                        </template>
+                        <template>
+                            <div class="cell frozen"><paper-icon-button on-tap="openFusionDialog" icon="vaadin:users" class="button--icon-btn"></paper-icon-button></div>
                         </template>
                     </vaadin-grid-column>
                 </vaadin-grid>
@@ -1364,16 +1374,20 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                                     patients.rows[patientIdx].ssin=this.listValidSsin[id];
                                 }
                             })
-                            this.set("ssinPatientsList",patients.rows.filter(p=>!!p.ssin && p.ssin === value && (key === "ssin" ? this.patient.id : resolvedRoot.partnerId)!==p.id))
-                            if(this.ssinPatientsList.length){
-                                this.set("activeItem",{})
-                                this.set("ssinSavePrimaryPatient",(key === "ssin" ? this.patient : resolvedRoot.partnerInfo))
-                                this.$["noSave"].classList.add("notification")
-                            }
-                            else{
-                                this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
-                                this.scheduleSave(this.patient);
-                            }
+                            Promise.all(patients.rows.filter(p=>!!p.ssin && p.ssin === value && (key === "ssin" ? this.patient.id : resolvedRoot.partnerId)!==p.id).map(pat =>{
+                                return this.api.contact().findBy(this.user.healthcarePartyId,pat).then(ctcs =>{ return {patient : pat,contactsLength: ctcs.length || 0}})
+                            })).then(patsAndCtcs=>{
+                                    this.set("ssinPatientsList", patsAndCtcs)
+                                    if(this.ssinPatientsList.length){
+                                        this.set("activeItem",{})
+                                        this.set("ssinSavePrimaryPatient",(key === "ssin" ? this.patient : resolvedRoot.partnerInfo))
+                                        this.$["noSave"].classList.add("notification")
+                                    }
+                                    else{
+                                        this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
+                                        this.scheduleSave(this.patient);
+                                    }
+                                })
                         }
                         else{
                             this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
@@ -1493,7 +1507,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     return (id||'').length >= 1 ?
                         this.api.patient().getPatientWithUser( this.user, id ).then(p => this.api.register(p, 'patient')).then(results => { return { 'id': results.id, 'name':_.upperFirst(_.lowerCase(_.get(results, "firstName", "" ))) + ' ' + _.upperFirst(_.lowerCase(_.get(results, "lastName", "" ))) + ' ' + this.api.formatSsinNumber(_.get(results, "ssin", "")) }}) :
 
-                        (text || '').length >= 2 ? Promise.all([this.api.patient().filterByWithUser(this.user, null, null, null, null, null, null, {filter: { $type: "PatientByHcPartyNameContainsFuzzyFilter", healthcarePartyId: this.user.healthCarePartyId, searchString: text }})]).then(results => {
+                        (text || '').length >= 2 ? Promise.all([this.api.patient().filterByWithUser(this.user, null, null, null, null, null, null, {filter: { $type: "PatientByHcPartyNameContainsFuzzyFilter", healthcarePartyId: this.user.healthcarePartyId, searchString: text }})]).then(results => {
                         return _.flatten(_.chain( results[0].rows ).uniqBy( 'ssin' ).filter((i)=>{
                             return i &&
                                 !!_.trim(_.get(i, "ssin", "")) &&
@@ -2130,8 +2144,8 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             })
         }
         else{
-            this.listValidSsin[this.ssinSavePrimaryPatient.id]=this.activeItem.ssin
-            Object.keys(this.listValidSsin).filter(key=>key!==this.activeItem.id && this.listValidSsin[key]===this.activeItem.ssin).map(key=>{
+            this.listValidSsin[this.ssinSavePrimaryPatient.id]=this.activeItem.patient.ssin
+            Object.keys(this.listValidSsin).filter(key=>key!==this.activeItem.patient.id && this.listValidSsin[key]===this.activeItem.patient.ssin).map(key=>{
                 this.listValidSsin[key]="";
                 if(key===this.patient.id){
                     this.set("patient.ssin","")
@@ -2140,7 +2154,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 }
             })
 
-            Promise.all(this.ssinPatientsList.filter(pat=> pat.id!==this.activeItem.id && pat.ssin===this.activeItem.ssin && !Object.keys(this.listValidSsin).find(key=>key===pat.id)).map(pat=>{
+            Promise.all(this.ssinPatientsList.filter(pat=> pat.id!==this.activeItem.patient.id && pat.ssin===this.activeItem.patient.ssin && !Object.keys(this.listValidSsin).find(key=>key===pat.id)).map(pat=>{
                 pat.ssin=""
                 return this.api.patient().modifyPatientWithUser(this.user,pat).then( p => this.api.register(p, 'patient')).then(pat => console.log("ssin du patient supprimé",pat))
             })).then(()=>{
@@ -2169,6 +2183,11 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.$['dynamic-form-administrative'].loadDataMap();
         this.$['dynamic-form-partnerships'].loadDataMap();
         this.set("activeItem",{})
+    }
+
+    openFusionDialog(e){
+        e.stopPropagation()
+        e.preventDefault();
     }
 }
 
