@@ -48,6 +48,7 @@
 <link rel="import" href="../../elements/ht-msg/ht-msg-new.html">
 
 <dom-module id="ht-pat-detail-ctc-detail-panel">
+
 	<template>
 		<style include="scrollbar-style buttons-style dialog-style">
 			.notification-panel {
@@ -662,8 +663,7 @@
 						<span class="contact-title"> [[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
                         </span>
                     </div>
-					<ht-services-list id="dynamicallyListForm" api="[[api]]" user="[[user]]" patient="[[patient]]" contact="[[dof.ctc]]" health-elements="[[healthElements]]"
-										contacts="[[contacts]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"></ht-services-list>
+					<ht-services-list id="dynamicallyListForm" api="[[api]]" user="[[user]]" patient="[[patient]]" contact="[[dof.ctc]]" health-elements="[[healthElements]]" contacts="[[contacts]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" forwardable="true" printable="true"></ht-services-list>
 				</template>
 				<template is="dom-if" if="[[table]]">
                     <div class="ctc-header">
@@ -735,10 +735,12 @@
 									    title="[[item.label]]"
 									    downloadable="true"
 									    forwardable="true"
+										printable="true"
 									    preview="true"
 									    is-pat-detail="true"
 										show-extended-title="true"
-                                    ></dynamic-doc>
+										contacts="[[allContacts]]"
+									></dynamic-doc>
 								</template>
 							</template>
 							<template is="dom-if" if="[[dof.unmappedServices.length]]">
@@ -809,6 +811,7 @@
         <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
 
 	</template>
+
 	<script>
 
         import _ from 'lodash/lodash';
@@ -818,6 +821,7 @@
         import * as models from 'icc-api/dist/icc-api/model/models';
 
 		class HtPatDetailCtcDetailPanel extends Polymer.TkLocalizerMixin(Polymer.Element) {
+
 			static get is() {
 				return 'ht-pat-detail-ctc-detail-panel';
 			}
@@ -1315,12 +1319,14 @@
 				}
 			}
 
-            _selectedContactsHeaderLabel() {
+            _selectedContactsHeaderLabel(contacts, currentContactTags) {
+
 			    if(this.contacts.length > 1) {
 			        return this.contacts.length.toString() + " " + this.localize("selected_contacts", "contacts sélectionnés", this.language)
 				} else {
 			        if(this.contacts.length === 1) {
-                        return this._contactHeaderLabel(this.currentContact)
+                        // return this._contactHeaderLabel(this.currentContact)
+                        return this._contactHeaderLabel(_.head(this.contacts))
 					} else {
 			            return "no contact selected" // should not happen
 					}
@@ -1329,7 +1335,7 @@
 
             _contactHeaderLabel(ctc) {
 			    if(ctc) {
-			        const cod = this._isCurrentContact(ctc) && (this.localize('contact_of_the_day', "contact du jour", this.language) + " : ") || ""
+			        const cod = this._isCurrentContact(ctc) && (this.localize('contact_of_the_day', "contact du jour", this.language) + ": ") || ""
                     return cod + this.contactTypeLabel(ctc) + " " + (ctc.descr || "") + " (" + this._dateFormat(ctc.openingDate) + ")"
 				} else {
 			        return ""
@@ -1337,18 +1343,25 @@
             }
 
             contactTypeLabel(ctc) {
-                if(ctc) {
-					const tag = ctc.tags && ctc.tags.find(tag=> tag.type == "BE-CONTACT-TYPE")
-                    const code = tag && this.contactTypeList.find(sct => sct.code == tag.code)
-                    if(code && code.label) {
-                        return code.label[this.language || "fr"]
-                    } else {
-                        console.log("invalid contact type", ctc, code)
-                        return ""
-                    }
-				} else {
-                    return ""
-				}
+
+                if(!ctc) return
+
+				const tag = ctc.tags && ctc.tags.find(tag=> tag.type == "BE-CONTACT-TYPE")
+				const code = tag && this.contactTypeList.find(sct => sct.code == tag.code)
+
+				const isFile = ctc.subContacts && ctc.subContacts.some(sctc => !!(parseInt(_.get(sctc, "status", 0)) & (1 << 6)))
+				const fileTransactionCode = !isFile ? "" : _.trim(_.get(_.find(_.flatMap(_.get(ctc,"services",[]),svc => _.get(svc,"tags",[])), {type:"CD-TRANSACTION"}),"code",""))
+				const fileType = !_.trim(fileTransactionCode) ? "" : this.localize('cd-transaction-' + fileTransactionCode, fileTransactionCode, this.language) + ": "
+				const fileDescription = !isFile || !!_.trim(_.get(ctc,"descr","")) ? "" : _.get(_.find(_.get(ctc, "services",[]), {id:_.get(ctc.subContacts.find(sctc => !!(parseInt(_.get(sctc, "status", 0)) & (1 << 6))), "services[0].serviceId")}),"content." + this.language + ".stringValue","")
+
+				const isLabOrProtocol = !isFile && ctc.subContacts && ctc.subContacts.some(sctc => !!(parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || !!(parseInt(_.get(sctc, "status", 0)) & (1 << 5)))
+				const contactTransactionCode = _.trim(_.get(_.find(_.get(ctc, "tags",[]), {type:"CD-TRANSACTION"}), "code",""))
+				const subContactTransactionCode = _.trim(_.get(_.find(_.flatMap(_.get(ctc,"subContacts",[]),sctc => _.get(sctc,"tags",[])), {type:"CD-TRANSACTION"}), "code",""))
+				const labOrProtocolTransactionCode = !!_.trim(subContactTransactionCode) ? _.trim(subContactTransactionCode) : !!_.trim(contactTransactionCode) ? _.trim(contactTransactionCode) : ""
+				const labOrProtocolType = (!isLabOrProtocol || !_.trim(labOrProtocolTransactionCode)) ? "" : this.localize('cd-transaction-' + labOrProtocolTransactionCode, labOrProtocolTransactionCode, this.language) + ": "
+
+				return !!(code && code.label) ? code.label[this.language || "fr"] : "" + fileType + fileDescription + labOrProtocolType
+
 			}
 
             _contactTypeChange(e){
@@ -3441,4 +3454,5 @@
 
 		customElements.define(HtPatDetailCtcDetailPanel.is, HtPatDetailCtcDetailPanel);
 	</script>
+
 </dom-module>
