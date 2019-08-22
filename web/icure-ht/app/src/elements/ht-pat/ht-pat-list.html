@@ -33,6 +33,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../styles/dialog-style.html">
 <link rel="import" href="../../styles/notification-style.html">
 <link rel="import" href="./dialogs/ht-import-mf-dialog.html">
+<link rel="import" href="./dialogs/ht-pat-fusion-dialog.html">
 <link rel="import" href="../../styles/buttons-style.html">
 <link rel="import" href="../../styles/paper-input-style.html">
 <link rel="import" href="../dynamic-form/dynamic-date-field.html">
@@ -476,27 +477,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     font-size: var(--form-font-size);
                 }
 
-                #fusionDialog {
-                    width: 50%;
-                }
-
-                #fusionDialog .content {
-                    padding-top: 24px;
-                    padding-bottom: calc(24px + 52px);
-                    display: flex;
-                    flex-flow: row wrap;
-                    justify-content: center;
-                }
-
-                #fusionDialog .content > div {
-                    width: 100%;
-                    text-align: center;
-                }
-
-                #fusionDialog .content paper-input-container{
-                    --paper-input-container-focus-color: var(--app-primary-color);
-                }
-
                 #duplicate-list {
                     max-height: 200px;
                 }
@@ -934,6 +914,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </custom-style>
 
         <div class="container">
+
+            <ht-pat-fusion-dialog id="fusion-dialog" api="[[api]]" language="[[language]]" user="[[user]]" i18n="[[i18n]]" resources="[[resources]]" on-patient-merged="_patientMerged"></ht-pat-fusion-dialog>
 
             <paper-item id="eidOpenPatientMessage" class="eid-notification-panel">
                 <div class="panel-header">
@@ -1541,27 +1523,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="button button--save" dialog-dismiss>[[localize('done','Done',language)]]</paper-button>
             </div>
         </paper-dialog>
-
-        <paper-dialog id="fusionDialog">
-            <h2 class="modal-title">[[localize('fus_pat','Fusion patients',language)]]</h2>
-            <div class="content">
-                <div>[[localize('fir_pat_fus','Selectionner le patient qui restera',language)]]</div>
-                <paper-dropdown-menu-light>
-                    <label></label>
-                    <paper-listbox slot="dropdown-content" selected="{{fusionSelected}}" attr-for-selected="name">
-                        <template is="dom-repeat" items="[[patientSelected]]">
-                            <paper-item name="[[item.id]]">[[item.names]]</paper-item>
-                        </template>
-                    </paper-listbox>
-                </paper-dropdown-menu-light>
-            </div>
-            <div class="buttons">
-                <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                <paper-button class="button button--save" dialog-confirm autofocus disabled="[[!fusionSelected.length]]" on-tap="confirmFusion">[[localize('fus_pat','Fusion patients',language)]]
-                </paper-button>
-            </div>
-        </paper-dialog>
-
     </template>
 
     <script>
@@ -1575,6 +1536,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         import '../../../bower_components/js-xlsx/shim.js'
 
         const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+        import * as models from 'icc-api/dist/icc-api/model/models'
 
         class HtPatList extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1753,10 +1715,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     idFusionPat: {
                         type: String,
                         notify: true
-                    },
-                    fusionSelected: {
-                        type: String,
-                        value : ""
                     },
                     hcpFilterValue: {
                         type: String
@@ -2782,8 +2740,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (this.fusionOption) {
                     this.set("patientSelected", this.patientSelected.filter(element => element.check === true))
                     if (this.patientSelected.length > 1)
-                        this.set("fusionSelected","")
-                        this.$['fusionDialog'].open()
+                        this.api.patient().getPatientsWithUser(this.user,new models.ListOfIdsDto({ids:_.uniq(this.patientSelected.map(pat => pat.id))}))
+                            .then(pats => this.$['fusion-dialog'].open(pats))
                 }
             }
 
@@ -3146,24 +3104,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _optionsChecked() {
                 return this.shareOption || this.exportOption || this.fusionOption
-            }
-
-            confirmFusion() {
-                this.set("isLoadingPatient",true)
-                let listIds = ""
-                this.patientSelected.forEach(patient => {
-                    if (patient.id !== this.fusionSelected)
-                        listIds += patient.id + ","
-                })
-                listIds = listIds.substring(0, listIds.length - 1)
-                //console.log(listIds)
-                if (this.fusionSelected)
-                    this.api.patient().mergeIntoWithUser(this.user, this.fusionSelected, listIds).then(response => {
-                        console.log(response)
-                        this.set('selectedPatient', response)
-                        this.set('isLoadingPatient',false)
-                    })
-                else this.set('isLoadingPatient',false)
             }
 
             _isPatientsSelected() {
