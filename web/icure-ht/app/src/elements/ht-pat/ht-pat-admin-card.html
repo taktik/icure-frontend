@@ -1356,6 +1356,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
         const getValue = function (key) {
             return root() ? _.get(root(), key) : null;
         };
+        let subForms = {};
         const setValue = (key, value) => {
             let resolvedRoot = root();
 
@@ -1424,7 +1425,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             },
             setValueContainers: (key, value) => setValue(key, value.map(s=> (s.codes && s.codes[0] || {}).code || (this.api.contact().preferredContent(s,this.language) || {}).stringValue)),
             getSubForms: key => {
-                return (_.get(root(),key) || []).map((a, idx) => {
+                return _.get(subForms,key , subForms[key]=(_.get(root(),key) || []).map((a, idx) => {
                     return {
                         dataMap: a,
                         dataProvider: this.patientDataProvider(oroot, (subPath && subPath.length ? subPath + '.' : '') + key + '[' + idx + ']', (rootPath.length ? rootPath + '.' : '') + key + '.' + idx, key === 'partnerships' ? a.partnerId || (a.partnerId = this.api.crypto().randomUuid()) : a.id || (a.id = this.api.crypto().randomUuid())),
@@ -1435,12 +1436,11 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                                     this.addressForm :
                                     key === 'partnerships' ?
                                         this.partnershipsForm :
-
                                         key === 'medicalHouseContracts' ?
                                             this.medicalHouseContractsForm :
                                             this.insuranceForm
                     };
-                });
+                }))
             },
             getId: () => id,
             deleteSubForm: (key, id, index) => {
@@ -2122,9 +2122,9 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             Object.keys(this.listValidSsin).filter(key=>key!==this.ssinSavePrimaryPatient.id && this.listValidSsin[key]===this.ssinSavePrimaryPatient.ssin).map(key=>{
                 this.listValidSsin[key]="";
                 if(key===this.patient.id){
-                    this.set("patient.ssin","")
+                    this.dataProvider.setStringValue("ssin","")
                 }else{
-                    this.set("patient.partnerships."+this.patient.partnerships.findIndex(partner => partner.partnerId===key)+".partnerInfo.ssin","")
+                    this.dataProvider.getSubForms("partnerships").find(subForm => subForm.dataMap.partnerId===key).dataProvider.setStringValue("partnerInfo.ssin","")
                 }
             })
 
@@ -2173,13 +2173,15 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
     deleteSsin(){
         if(this.patient.id===this.ssinSavePrimaryPatient.id){
-            this.set("patient.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+            this.dataProvider.setStringValue("ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
         }else{
-            this.set("patient.partnerships."+this.patient.partnerships.findIndex(partner => partner.partnerId===this.ssinSavePrimaryPatient.id)+".partnerInfo.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+            const form = this.dataProvider.getSubForms("partnerships").find(subForm => subForm.dataMap.partnerId===this.ssinSavePrimaryPatient.id)
+            form.dataProvider.setStringValue("partnerInfo.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+            form.dataMap = this.patient.partnerships.find(partner => partner.partnerId===this.ssinSavePrimaryPatient.id)
         }
         this.scheduleSave(this.patient)
         this.$["noSave"].classList.remove("notification")
-        this.set('patientMap', _.cloneDeep(this.patient));
+        this.set('patientMap', _.cloneDeep(this.patient))
         this.$['dynamic-form-administrative'].loadDataMap();
         this.$['dynamic-form-partnerships'].loadDataMap();
         this.set("activeItem",{})
