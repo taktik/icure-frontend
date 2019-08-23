@@ -1367,12 +1367,13 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     if(value && this.$["noSave"].classList.contains("notification")){
                         this.deleteSsin();
                     }
-                    (value ? this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, value, null, null, 100, "asc") :Promise.resolve({rows : []})).then(patients =>{
-                        if(value && patients.rows.length){
-                            const news = Object.keys(this.listValidSsin).filter(id=>this.listValidSsin[id]===value).map(id=>this.patient.id===id ? this.patient : this.patient.partnerships.find(partner=>partner.partnerId===id).partnerInfo)
-                            Promise.all(_.uniqBy(_.concat(patients.rows,news),"id").filter(p=>!!p.ssin && p.ssin === value && (key === "ssin" ? this.patient.id : resolvedRoot.partnerId)!==p.id).map(pat =>{
-                                return this.api.contact().findBy(this.user.healthcarePartyId,pat).then(ctcs =>{ return {patient : pat,contactsLength: ctcs.length || 0}})
-                            })).then(patsAndCtcs=>{
+                    if(value){
+                        return this.api.patient().findByNameBirthSsinAutoWithUser(this.user, this.user.healthcarePartyId, value, null, null, 100, "asc").then(patients =>{
+                            if(value && patients.rows.length){
+                                const news = Object.keys(this.listValidSsin).filter(id=>this.listValidSsin[id]===value).map(id=>this.patient.id===id ? this.patient : this.patient.partnerships.find(partner=>partner.partnerId===id).partnerInfo)
+                                return Promise.all(_.uniqBy(_.concat(patients.rows,news),"id").filter(p=>!!p.ssin && p.ssin === value && (key === "ssin" ? this.patient.id : resolvedRoot.partnerId)!==p.id).map(pat =>{
+                                    return this.api.contact().findBy(this.user.healthcarePartyId,pat).then(ctcs =>{ return {patient : pat,contactsLength: ctcs.length || 0}})
+                                })).then(patsAndCtcs=>{
                                     this.set("ssinPatientsList", patsAndCtcs)
                                     if(this.ssinPatientsList.length){
                                         this.set("activeItem",{})
@@ -1384,16 +1385,22 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                                         this.scheduleSave(this.patient);
                                     }
                                 })
-                        }
-                        else{
-                            this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
-                            this.scheduleSave(this.patient);
-                        }
-                    })
+                            }
+                            else{
+                                this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
+                                this.scheduleSave(this.patient);
+                            }
+                        })
+                    }else{
+                        this.listValidSsin[key==="ssin" ? this.patient.id : resolvedRoot.partnerId]=value;
+                        this.scheduleSave(this.patient);
+                    }
                 }
                 else{
                     this.scheduleSave(this.patient);
                 }
+
+                return Promise.resolve({});
             }
         };
         return {
@@ -2127,7 +2134,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 pat.ssin=""
                 return this.api.patient().modifyPatientWithUser(this.user,pat).then( p => this.api.register(p, 'patient')).then(pat => console.log("ssin du patient supprimé",pat))
             })).then(()=>{
-                this.scheduleSave(this.patient)
+                this.flushSave()
             }).catch(err=>{
                 console.log("error with upgradePatientWithSSIN",err)
             }).finally(()=>{
@@ -2143,9 +2150,9 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             Object.keys(this.listValidSsin).filter(key=>key!==this.activeItem.patient.id && this.listValidSsin[key]===this.activeItem.patient.ssin).map(key=>{
                 this.listValidSsin[key]="";
                 if(key===this.patient.id){
-                    this.set("patient.ssin","")
+                    this.dataProvider.setStringValue("ssin","")
                 }else{
-                    this.set("patient.partnerships."+this.patient.partnerships.findIndex(partner => partner.partnerId===key)+".partnerInfo.ssin","")
+                    this.dataProvider.getSubForms("partnerships").find(subForm => subForm.dataMap.partnerId===key).dataProvider.setStringValue("partnerInfo.ssin","")
                 }
             })
 
@@ -2153,7 +2160,7 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                 pat.ssin=""
                 return this.api.patient().modifyPatientWithUser(this.user,pat).then( p => this.api.register(p, 'patient')).then(pat => console.log("ssin du patient supprimé",pat))
             })).then(()=>{
-                this.scheduleSave(this.patient)
+                this.flushSave()
             }).catch(err=>{
                 console.log("error with upgradePatientWithSSIN",err)
             }).finally(()=>{
@@ -2167,19 +2174,18 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     deleteSsin(){
+        this.$["noSave"].classList.remove("notification")
+        let promise;
         if(this.patient.id===this.ssinSavePrimaryPatient.id){
-            this.dataProvider.setStringValue("ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+            promise=this.dataProvider.setStringValue("ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
         }else{
             const form = this.dataProvider.getSubForms("partnerships").find(subForm => subForm.dataMap.partnerId===this.ssinSavePrimaryPatient.id)
-            form.dataProvider.setStringValue("partnerInfo.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
+            promise= form.dataProvider.setStringValue("partnerInfo.ssin",this.listValidSsin[this.ssinSavePrimaryPatient.id])
             form.dataMap = this.patient.partnerships.find(partner => partner.partnerId===this.ssinSavePrimaryPatient.id)
         }
-        this.scheduleSave(this.patient)
-        this.$["noSave"].classList.remove("notification")
         this.set('patientMap', _.cloneDeep(this.patient))
-        this.$['dynamic-form-administrative'].loadDataMap();
-        this.$['dynamic-form-partnerships'].loadDataMap();
         this.set("activeItem",{})
+        promise.then(()=> this.flushSave())
     }
 
 
