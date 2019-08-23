@@ -414,20 +414,12 @@
             /*}*/
 
             .button-group {
-                padding: 0px;
                 margin-left: 12px;
-                flex-grow: 0;
-                height: 22px;
             }
 
             .search-field {
                 flex-grow: 2;
             }
-
-            /*table {*/
-            /*    table-layout: fixed;*/
-            /*    width: 100%;*/
-            /*}*/
 
             .search-results {
                 position: relative;
@@ -439,7 +431,7 @@
                 justify-content: flex-start;
                 align-items: stretch;
                 width: 100%;
-                height: 650px;
+                height: 690px;
             }
 
             vaadin-grid {
@@ -481,10 +473,6 @@
             }
 
             .filter-bar {
-                display: inline-flex;
-                flex-flow: row nowrap;
-                align-items: center;
-                justify-content: space-around;
             }
 
             .filter-selected {
@@ -498,11 +486,6 @@
                 border-radius: 2px;
                 background: var(--app-secondary-color);
                 color: var(--app-text-color-light);
-            }
-
-            .separator {
-                height: 40px;
-                background: var(--app-primary-color-light);
             }
 
             .sub-header {
@@ -581,6 +564,11 @@
 
             .CHAP4--HIDDEN span {
                 background: transparent !important;
+            }
+
+
+            div[part="resize-handle"] {
+                position: initial !important;
             }
         </style>
 
@@ -1313,14 +1301,19 @@
                 })
 
                 this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
+
+                this._initList('dci-list', this._dciSearch.bind(this), this._mppDciAdapter.bind(this));
+                this._initList('medicinalProduct-list', this._medecinePackagesSearch.bind(this), this._mppAdapter.bind(this));
+                this._initList('chronical-list', this._chronicalsSearch.bind(this), this._chronicalAdapter.bind(this));
             }
 
             _init() {
-                this.latestSearchValue = this.filterValue;
-                const bedrugsIcc = this.api.bedrugs();
+                // this.latestSearchValue = this.filterValue;
+                // const bedrugsIcc = this.api.bedrugs();
 
                 // OK
-                this._initList('dci-list', bedrugsIcc.getInnClusters.bind(bedrugsIcc), this._mppDciAdapter.bind(this));
+                // this._initList('dci-list', bedrugsIcc.getInnClusters.bind(bedrugsIcc), this._mppDciAdapter.bind(this));
+                // this._initList('dci-list', this._dciSearch.bind(this), this._mppDciAdapter.bind(this));
 
                 // OK
                 //this._initList('medicinalProduct-list', bedrugsIcc.getMedecinePackages.bind(bedrugsIcc), this._mppAdapter.bind(this));
@@ -1329,10 +1322,10 @@
                 // this._initList('medicinalProduct-list', bedrugsIcc.getMedecinePackagesFromIngredients.bind(bedrugsIcc), this._mppAdapter.bind(this));
 
                 // OK
-                this._initList('medicinalProduct-list', this._combinedSearch.bind(this), this._mppAdapter.bind(this));
+                // this._initList('medicinalProduct-list', this._medecinePackagesSearch.bind(this), this._mppAdapter.bind(this));
 
                 // OK
-                this._initList('chronical-list', this._chronicalSearch.bind(this), this._chronicalAdapter.bind(this));
+                // this._initList('chronical-list', this._chronicalsSearch.bind(this), this._chronicalAdapter.bind(this));
 
                 // this.filterNone = this.shadowRoot.querySelector("#filter-none");
                 // this.filterNone.active = true;
@@ -1488,7 +1481,14 @@
                 return Promise.resolve(data);
             }
 
-            _combinedSearch(searchValue, language, type, first, count) {
+            _dciSearch(searchValue, language, type, first, count) {
+                if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
+                return this.api.bedrugs().getInnClusters(searchValue, language, type, first, count);
+            }
+
+
+            _medecinePackagesSearch(searchValue, language, type, first, count) {
+                if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return Promise.all([
                     this.api.bedrugs().getMedecinePackages(searchValue, language, type, first, count),
                     this.api.bedrugs().getMedecinePackagesFromIngredients(searchValue, language, type, first, count)
@@ -1496,17 +1496,17 @@
                     .then(([packs, packsIng]) => _.unionBy(packs, packsIng, 'id.id'));
             }
 
-            _chronicalSearch(searchValue, language, type, first, count) {
+            _chronicalsSearch(searchValue, language, type, first, count) {
                 // todo: this must be done only once per search!
                 const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 return new Promise(resolve => {
-                    let results = [];
+                    // let results = [];
                     resolve(this.medications.reduce((results, m) => {
                         const contentValue = m.content.fr.medicationValue || '';
                         const intendedName = contentValue.medicinalProduct ? contentValue.medicinalProduct.intendedname :
                             contentValue.substanceProduct ? contentValue.substanceProduct.intendedname : '';
                         const normIntendedName = intendedName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                        if (searchValue === '' || normIntendedName.includes(normSearchValue)) {
+                        if (!searchValue || searchValue.length < 2 || normIntendedName.includes(normSearchValue)) {
                             m.label = intendedName;
                             results.push(m);
                         }
@@ -1531,14 +1531,14 @@
                     const startIndex = (params.page || 0) * pageSize;
                     const endIndex = ((params.page || 0) + 1) * pageSize;
 
-                    let latestSearchValue = this.filterValue
-                    this.latestSearchValue = latestSearchValue
-                    if (!latestSearchValue || latestSearchValue.length < 2) {
-                        console.log("Cancelling empty search");
-                        this.setGridSize(grid, 0);
-                        callback([]);
-                        return
-                    }
+                    let latestSearchValue = this.filterValue && this.filterValue.trim();
+                    this.latestSearchValue = latestSearchValue;
+                    // if (!latestSearchValue || latestSearchValue.length < 2) {
+                    //     console.log("Cancelling empty search");
+                    //     this.setGridSize(grid, 0);
+                    //     callback([]);
+                    //     return
+                    // }
 
                     console.log("Starting search for " + this.filterValue + "|" + sort + "|" + search.toString() + "|" + (desc ? "<|" : ">|") + startIndex + ":" + pageSize + ":")
 
@@ -1554,8 +1554,15 @@
                         .then(function (res) {
                             if (this.filterValue !== latestSearchValue) {
                                 console.log("Cancelling obsolete search");
-                                return
+                                return;
                             }
+                            if (res.totalSize == 0) {
+                                console.log("Empty search");
+                                this.setGridSize(grid, 0);
+                                callback([]);
+                                return;
+                            }
+
                             if (grid.size !== res.totalSize) {
                                 this.setGridSize(grid, res.totalSize);
                             }
@@ -1569,7 +1576,7 @@
                                 callback(grid.latestResults)
                             })
                         }.bind(this));
-                }
+                };
             }
 
             _initIngredientList() {
@@ -2015,7 +2022,7 @@
             refresh() {
                 //Give the gui the time to update the field
                 setTimeout(function () {
-                    let currentValue = this.filterValue;
+                    let currentValue = this.filterValue && this.filterValue.trim();
 
                     if (this.latestSearchValue === currentValue) {
                         return;
