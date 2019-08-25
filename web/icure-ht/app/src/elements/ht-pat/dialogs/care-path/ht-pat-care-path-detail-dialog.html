@@ -373,6 +373,10 @@
                         type: Number,
                         value: 0
                     },
+                    hcp:{
+                      type: Object,
+                      value: () => {}
+                    },
                     showMoreOptionContainer: {
                         type: Boolean,
                         value: false
@@ -453,15 +457,34 @@
 
                     this.set("carePathList", pathList)
                 })
+                .then(() => this.api.hcparty().getCurrentHealthcareParty())
+                .then(hcp => {
+                    const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
+                        this.set('hcp',  _.merge({}, hcp, {
+                            address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
+                            postalCode: _.trim(_.get(addressData,"postalCode","")),
+                            city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
+                            country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
+                            phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
+                            mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
+                            email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
+                            firstName: this._upperFirstAll(_.get(hcp,"firstName","")),
+                            lastName: this._upperFirstAll(_.get(hcp,"lastName","")),
+                            nihiiHr: this.api.formatInamiNumber(_.trim(_.get(hcp,"nihii",""))),
+                            ssinHr: this.api.formatSsinNumber(_.trim(_.get(hcp,"ssin",""))),
+                            bankAccount: _.trim(_.get(hcp, "bankAccount", ""))
+                   })
+                )})
             }
 
             _isPregnant(){
-                const pregantElements = this.activeHealthElements.filter(he => he.codes.find(c => c.type === "ICPC" && (c.code === "W78" || c.code === "W79" || c.code === "W80"|| c.code === "W84"))) || []
-                return pregantElements.length > 0 ? true : false
+                const pregnantElements = this.activeHealthElements.filter(he => he.codes.find(c => c.type === "ICPC" && (c.code === "W78" || c.code === "W79" || c.code === "W80"|| c.code === "W84"))) || []
+                return pregnantElements.length > 0 ? true : false
             }
 
             _isDiabetesTypeOne(){
-                return _.get(this.selectedHealthElement, 'codes', []).find(c => c.type === "BE-THESAURUS" && c.code === "10025767") ? true : false
+                const typeOneDiabetesElements =  this.activeHealthElements.filter(he => he.codes.find(c => c.type === "BE-THESAURUS" && c.code === "10025767")) || []
+                return typeOneDiabetesElements.length > 0 ? true : false
             }
 
             _formatDate(date){
@@ -576,7 +599,10 @@
                 pdfTemplate+="          <div class=''>- d’encadrer, d’un commun accord avec lui, le médecin généraliste lors de l’élaboration, de l’évaluation et de l’adaptation d’un plan de suivi individuel pour le patient présentant une insuffisance rénale chronique; ce plan comprend des objectifs, un suivi planifié, des consultations médicales, des interventions paramédicales et des examens techniques ; </div>"
                 pdfTemplate+="          <div class=''>- de transmettre les rapports de mes consultations et examens techniques au médecin généraliste ; </div>"
                 pdfTemplate+="          <div class=''>- d’entretenir, avec le médecin généraliste, une communication efficace, soit à la demande du médecin généraliste, soit à l ‘occasion d’une transmission des paramètres cliniques ou biologiques. </div>"
-                pdfTemplate+="          <div class='alignright date-signature'>Date et signature</div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <span class='textalignleft stamp'>Nom + cachet</span>"
+                pdfTemplate+="              <span class='textalignright date-signature'>Date et signature</span>"
+                pdfTemplate+="          </div>"
                 pdfTemplate+="          <div class=''>Numéro de compte en banque pour le paiement des honoraires du trajet de soins</div>"
                 pdfTemplate+="          <div class='separator'></div>"
                 pdfTemplate+="          <div class='sub-title b'>ENGAGEMENTS DU MÉDECIN GÉNÉRALISTE</div>"
@@ -585,12 +611,18 @@
                 pdfTemplate+="          <div class=''>- de transmettre au médecin spécialiste mes observations et les résultats d’examens utiles au suivi du patient </div>"
                 pdfTemplate+="          <div class=''>- d’utiliser le dossier médical du patient ;</div>"
                 pdfTemplate+="          <div class=''>- de transmettre copie du présent contrat dûment complété au médecin-conseil. </div>"
-                pdfTemplate+="          <div class='alignright date-signature'>Date et signature</div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <span class='textalignleft stamp'>Nom + cachet</span>"
+                pdfTemplate+="              <span class='textalignright date-signature'>Date et signature</span>"
+                pdfTemplate+="          </div>"
                 pdfTemplate+="          <div class=''>Numéro de compte en banque pour le paiement des honoraires du trajet de soins</div>"
                 pdfTemplate+="          <div class='separator'></div>"
                 pdfTemplate+="          <div class='sub-title b'>MÉDECIN-CONSEIL DE LA MUTUALITE</div>"
                 pdfTemplate+="          <div class=''>Je confirme réception du présent contrat conformément à la réglementation portant sur le trajet de soins applicable à partir du (date de réception conformément à la demande)…………………………………………jusqu’au………………………………………………………… </div>"
-                pdfTemplate+="          <div class='alignright date-signature'>Date et signature</div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <span class='textalignleft stamp'>Nom + cachet</span>"
+                pdfTemplate+="              <span class='textalignright date-signature'>Date et signature</span>"
+                pdfTemplate+="          </div>"
                 pdfTemplate+="          <div class='separator'></div>"
                 pdfTemplate+="          <div class='s10 condition-block'>"
                 pdfTemplate+="              <div class=''>(1) Critères d’inclusion pour un trajet de soins insuffisance rénale chronique:</div>"
@@ -681,6 +713,7 @@
                 pdfTemplate+="       .border{border: 1px solid black;}"
                 pdfTemplate+="       .s10{font-size: 10px;}"
                 pdfTemplate+="       .condition-block{height: 150px;}"
+                pdfTemplate+="       .stamp-date-signature{width: 100%}"
                 pdfTemplate+="     </style>"
                 pdfTemplate+="  </head>"
                 pdfTemplate+="  <body>"
@@ -706,7 +739,15 @@
                 pdfTemplate+="          <div class=''>- d’encadrer, d’un commun accord avec lui, le médecin généraliste lors de l’élaboration, de l’évaluation et de l’adaptation d’un plan de suivi individuel pour le patient présentant un diabète de type 2 ; ce plan de suivi comprend des objectifs, un suivi planifié, des consultations médicales, des interventions paramédicales et des examens techniques </div>"
                 pdfTemplate+="          <div class=''>- de transmettre les rapports de mes consultations et examens techniques au médecin généraliste </div>"
                 pdfTemplate+="          <div class=''>- d’entretenir, avec le médecin généraliste, une communication efficace, soit à la demande du médecin généraliste, soit à l ‘occasion d’une transmission des paramètres cliniques ou biologiques. </div>"
-                pdfTemplate+="          <div class='alignright date-signature'>Date et signature</div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <span class='textalignleft stamp'>Nom + cachet</span>"
+                pdfTemplate+="              <span class='textalignright date-signature'>Date et signature</span>"
+                pdfTemplate+="          </div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <div>"+_.get(this.hcp, 'firstName', '')+' '+_.get(this.hcp, 'lastName', '')+' '+_.get(this.hcp, 'nihiiHr', '')+"</div>"
+                pdfTemplate+="              <div>"+_.get(this.hcp, 'addresse', '')+' '+_.get(this.hcp, 'postalcode', '')+' '+_.get(this.hcp, 'city', '')+"</div>"
+                pdfTemplate+="              <div>"+_.get(this.hcp, 'phone', '')+' '+_.get(this.hcp, 'email', '')+"</div>"
+                pdfTemplate+="          </div>"
                 pdfTemplate+="          <div class=''>Numéro de compte en banque pour le paiement des honoraires du trajet de soins</div>"
                 pdfTemplate+="          <div class='separator'></div>"
                 pdfTemplate+="          <div class='sub-title b'>ENGAGEMENTS DU MÉDECIN GÉNÉRALISTE</div>"
@@ -716,12 +757,18 @@
                 pdfTemplate+="          <div class=''>- dans le cas où le patient ne la reçoit pas via un centre de diabète conventionné, lui prodiguer et entretenir l’éducation nécessaire concernant la maladie, le traitement et le suivi, moi-même ou via l’éducateur au diabète </div>"
                 pdfTemplate+="          <div class=''>- d’utiliser le dossier médical du patient ;</div>"
                 pdfTemplate+="          <div class=''>- de transmettre copie du présent contrat dûment complété au médecin-conseil. </div>"
-                pdfTemplate+="          <div class='alignright date-signature'>Date et signature</div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <span class='textalignleft stamp'>Nom + cachet</span>"
+                pdfTemplate+="              <span class='textalignright date-signature'>Date et signature</span>"
+                pdfTemplate+="          </div>"
                 pdfTemplate+="          <div class=''>Numéro de compte en banque pour le paiement des honoraires du trajet de soins</div>"
                 pdfTemplate+="          <div class='separator'></div>"
                 pdfTemplate+="          <div class='sub-title b'>MÉDECIN-CONSEIL DE LA MUTUALITE</div>"
                 pdfTemplate+="          <div class=''>Je confirme réception du présent contrat conformément à la réglementation portant sur le trajet de soins diabète de type 2, applicable à partir du (date de réception conformément à la demande)…………………………………………jusqu’au………………………………………………………… </div>"
-                pdfTemplate+="          <div class='alignright date-signature'>Date et signature</div>"
+                pdfTemplate+="          <div class='stamp-date-signature'>"
+                pdfTemplate+="              <span class='textalignleft stamp'>Nom + cachet</span>"
+                pdfTemplate+="              <span class='textalignright date-signature'>Date et signature</span>"
+                pdfTemplate+="          </div>"
                 pdfTemplate+="          <div class='separator'></div>"
                 pdfTemplate+="          <div class='s10 condition-block'>"
                 pdfTemplate+="              <div class=''>(1) Critères d’inclusion pour un trajet de soins diabète de type 2 </div>"
@@ -780,6 +827,10 @@
                 pdfTemplate+="  </body>"
                 pdfTemplate+="</html>"
                 return pdfTemplate
+            }
+
+            _upperFirstAll(inputValue){
+                return _.trim(_.map(_.trim(inputValue).toLowerCase().split(" "),i=>_.upperFirst(_.trim(i))).join(" "))
             }
 
         }
