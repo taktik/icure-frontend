@@ -267,6 +267,46 @@
             .w-100{
                 width: 100%;
             }
+
+            .contact-year-container{
+                width: 98%;
+                margin: 1%;
+                height: auto;
+                border: 1px solid var(--app-background-color-dark);
+            }
+
+            .contact-year-title{
+                height: 20px;
+                padding: 5px;
+                width: 100%;
+                background: var(--app-background-color-dark);
+            }
+
+            .ctc-nbr{
+                height: 20px;
+                width: 20px;
+                border-radius: 50%;
+                background: var(--app-secondary-color);
+                color: white;
+                text-align: center;
+                float: left;
+                margin-left: 15px;
+            }
+
+            .year{
+                float: left;
+            }
+
+            .contact-year-ctc-container{
+                height: auto;
+            }
+
+            .contact-year-ctc-container-ctc{
+                height: 20px;
+                width: 98%;
+                padding: 4px;
+            }
+
         </style>
 
         <paper-dialog id="care-path-detail">
@@ -283,6 +323,9 @@
                     </paper-tab>
                     <paper-tab>
                         <iron-icon class="tabIcon" icon="vaadin:tools"></iron-icon>[[localize('care-path-procedure','Procedures',language)]]
+                    </paper-tab>
+                    <paper-tab>
+                        <iron-icon class="tabIcon" icon="vaadin:crosshairs"></iron-icon>[[localize('care-path-resume','Resume',language)]]
                     </paper-tab>
                     <paper-tab>
                         <iron-icon class="tabIcon" icon="vaadin:newspaper"></iron-icon>[[localize('care-path-document','Documents',language)]]
@@ -391,6 +434,15 @@
                                     <vaadin-date-picker class="agreement-picker" label="[[localize('care-path-acc-mut', 'Mutuality agreement', language)]]" i18n="[[i18n]]" value="{{agreementsDateAsString.mutuality}}"></vaadin-date-picker>
                                 </div>
                             </div>
+
+                            <div class="information-block">
+                                <div class="information-block-title">
+                                    [[localize('care-path-deadline', 'Care path deadline', language)]]
+                                </div>
+                                <div class="information-block-content">
+                                    <vaadin-date-picker class="agreement-picker" label="[[localize('care-path-deadline-date', 'Deadline date', language)]]" i18n="[[i18n]]" value="{{deadlineDateAsString}}"></vaadin-date-picker>
+                                </div>
+                            </div>
                         </template>
                     </page>
                     <page>
@@ -492,6 +544,33 @@
 
                     </page>
                     <page>
+                        <div class="information-block">
+                            <div class="information-block-title">
+                                [[localize('care-path-ctc', 'Contacts made as part of the care path', language)]]
+                            </div>
+                            <div class="information-block-content">
+                                <template is="dom-repeat" items="[[_getYearOfContact(contactsOfCarePath, contactsOfCarePath.*)]]" as="year">
+                                    <div class="contact-year-container">
+                                        <div class="contact-year-title">
+                                            <div class="year">[[year]]</div>
+                                            <div class="ctc-nbr">[[_getNumberOfContacts(contactsOfCarePath, year, contactsOfCarePath.*)]]</div>
+                                        </div>
+                                        <div class="contact-year-ctc-container">
+                                            <template is="dom-repeat" items="[[_getContactFromYear(contactsOfCarePath, year, contactsOfCarePath.*)]]" as="ctc">
+                                                <div class="contact-year-ctc-container-ctc">
+                                                    [[ctc.id]] [[ctc.openingDate]] [[ctc.descr]]
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </page>
+                    <page>
+
+                    </page>
+                    <page>
 
                     </page>
                 </iron-pages>
@@ -562,6 +641,10 @@
                             end: null
                         })
                     },
+                    deadlineDateAsString:{
+                        type: String,
+                        value: null
+                    },
                     carePathList:{
                         type: Array,
                         value: () => []
@@ -595,6 +678,7 @@
                             startDate: null,
                             endDate: null,
                             valueDate: null,
+                            deadlineDate: null,
                             agreementsDate: {
                                 patient: null,
                                 physician: null,
@@ -624,13 +708,21 @@
                     selectedTeamOther:{
                         type: Object,
                         value: () => {}
+                    },
+                    contacts:{
+                        type: Array,
+                        value: () => []
+                    },
+                    contactsOfCarePath:{
+                        type: Array,
+                        value: () => []
                     }
 
                 };
             }
 
             static get observers() {
-                return ['_initDataProvider(user, api)', '_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)'];
+                return ['_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)', '_activationDateChanged(activationDateAsString.start)'];
             }
 
             ready() {
@@ -638,49 +730,47 @@
             }
 
             open(){
-                this.$['care-path-detail'].open()
+                const carePathCode = ["BE-THESAURUS|10025768|3.1.0", "BE-THESAURUS|10119104|3.1.0"]
+                this.api.code().getCodes(carePathCode.join(',')).then(hes => {
+                    const pathList = [{
+                            label: {fr: 'Trajet de soins insuffisance rénale chronique', nl: 'Chronisch nierfalen zorgpad' , en: 'Chronic renal failure care pathway'},
+                            linkedHe: hes.find(he => he.id === "BE-THESAURUS|10119104|3.1.0") || {}
+                        },{
+                            label: {fr: 'Trajet de soins diabète type 2', nl: 'Diabetes zorgpad type 2' , en: 'Diabetes Care Path Type 2'},
+                            linkedHe: hes.find(he => he.id === "BE-THESAURUS|10025768|3.1.0") || {}
+                        }]
+                    this.set("carePathList", pathList)
+                })
+                    .then(() => this.api.hcparty().getCurrentHealthcareParty())
+                    .then(hcp => {
+                        const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
+                        this.set('hcp',  _.merge({}, hcp, {
+                                address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
+                                postalCode: _.trim(_.get(addressData,"postalCode","")),
+                                city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
+                                country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
+                                phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
+                                mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
+                                email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
+                                firstName: this._upperFirstAll(_.get(hcp,"firstName","")),
+                                lastName: this._upperFirstAll(_.get(hcp,"lastName","")),
+                                nihiiHr: this.api.formatInamiNumber(_.trim(_.get(hcp,"nihii",""))),
+                                ssinHr: this.api.formatSsinNumber(_.trim(_.get(hcp,"ssin",""))),
+                                bankAccount: _.trim(_.get(hcp, "bankAccount", "")),
+                                cbe: _.trim(_.get(hcp, 'cbe', ''))
+                            })
+                        )})
+                    .then(() => this._getCurrentCareTeam())
+                    .then(careTeam => this.set('availableCareTeam', careTeam))
+                    .finally(() => {
+                        this.set('contactsOfCarePath', _.groupBy(this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})), 'contactYear'))
+                        this.$['care-path-detail'].open()
+                    }).catch(e => console.log("Error when open care path: "+e))
+
             }
 
             _closeDialogs(){
                 this.$["care-path-detail"].close()
-            }
-
-            _initDataProvider(){
-                const carePathCode = ["BE-THESAURUS|10025768|3.1.0", "BE-THESAURUS|10119104|3.1.0"]
-                this.api.code().getCodes(carePathCode.join(',')).then(hes => {
-
-                    const pathList = [{
-                            label: {fr: 'Trajet de soins insuffisance rénale chronique', nl: 'Chronisch nierfalen zorgpad' , en: 'Chronic renal failure care pathway'},
-                            linkedHe: hes.find(he => he.id === "BE-THESAURUS|10119104|3.1.0") || {}
-                        },
-                        {
-                            label: {fr: 'Trajet de soins diabète type 2', nl: 'Diabetes zorgpad type 2' , en: 'Diabetes Care Path Type 2'},
-                             linkedHe: hes.find(he => he.id === "BE-THESAURUS|10025768|3.1.0") || {}
-                        }
-                    ]
-
-                    this.set("carePathList", pathList)
-                })
-                .then(() => this.api.hcparty().getCurrentHealthcareParty())
-                .then(hcp => {
-                    const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
-                        this.set('hcp',  _.merge({}, hcp, {
-                            address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
-                            postalCode: _.trim(_.get(addressData,"postalCode","")),
-                            city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
-                            country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
-                            phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
-                            mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
-                            email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
-                            firstName: this._upperFirstAll(_.get(hcp,"firstName","")),
-                            lastName: this._upperFirstAll(_.get(hcp,"lastName","")),
-                            nihiiHr: this.api.formatInamiNumber(_.trim(_.get(hcp,"nihii",""))),
-                            ssinHr: this.api.formatSsinNumber(_.trim(_.get(hcp,"ssin",""))),
-                            bankAccount: _.trim(_.get(hcp, "bankAccount", "")),
-                            cbe: _.trim(_.get(hcp, 'cbe', ''))
-                   })
-                )}).then(() => this._getCurrentCareTeam())
-                .then(careTeam => this.set('availableCareTeam', careTeam))
             }
 
             _getCurrentCareTeam(){
@@ -730,6 +820,7 @@
                 if(this.selectedCarePathType){
                     this.set("selectableEhealthElements", this.activeHealthElements.filter(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
                     this.set('selectedHealthElement', this.activeHealthElements.find(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
+                    this.set('contactsOfCarePath', _.groupBy(this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})), 'contactYear'))
                 }
             }
 
@@ -789,6 +880,24 @@
 
             _removeOtherFromTeam(e){
                 this.splice('selectedCarePath.careTeam.other', _.indexOf(_.get(this.selectedCarePath, 'careTeam.other', []), _.get(this.selectedCarePath, 'careTeam.other', []).find(h => h.id === e.target.id)), 1)
+            }
+
+            _activationDateChanged(){
+                if(_.get(this.activationDateAsString,'start', null)){
+                    this.set("deadlineDateAsString", this.api.moment(_.get(this.activationDateAsString,'start', null)).add(3, 'Y').format('YYYY-MM-DD'))
+                }
+            }
+
+            _getYearOfContact(){
+                return _.keys(this.contactsOfCarePath)
+            }
+
+            _getContactFromYear(contacts, year){
+                return _.get(contacts, year, [])
+            }
+
+            _getNumberOfContacts(contacts, year){
+                return _.size(_.get(contacts, year, []))
             }
 
 
