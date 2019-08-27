@@ -25,7 +25,7 @@
 <link rel="import" href="../../../../styles/dialog-style.html">
 <link rel="import" href="../../../../styles/scrollbar-style.html">
 <link rel="import" href="../../../../styles/buttons-style.html">
-
+<link rel="stylesheet" type="text/css" href="../../../../../../node_modules/chart.js/Chart.min.css">
 <dom-module id="ht-pat-care-path-detail-dialog">
     <template>
         <style include="dialog-style scrollbar-style buttons-style">
@@ -313,17 +313,16 @@
             }
 
             .charts-container-row{
-                display: flex;
                 margin: 1%;
-                width: 23%;
-                height: 250px;
+                width: 31%;
+                height: 300px;
                 border: 1px solid var(--app-background-color-dark);
             }
 
             .charts-container-row-title{
                 height: 15px;
                 padding: 5px;
-                width: 100%;
+                width: auto;
                 background: var(--app-background-color-dark);
             }
 
@@ -355,7 +354,7 @@
                     </paper-tab>
                 </paper-tabs>
                 <iron-pages selected="[[tabs]]">
-                    <page>
+                    <page id="carePathInformation">
                         <div class="information-block">
                             <div class="information-block-title">
                                 [[localize('care-path', 'Care path', language)]]
@@ -465,7 +464,7 @@
                             </div>
                         </template>
                     </page>
-                    <page>
+                    <page id="carePathTeam">
                         <div class="information-block">
                             <div class="information-block-title">
                                 [[localize('care-path-team-physician','Physician',language)]]
@@ -524,7 +523,7 @@
                             </div>
                         </div>
                     </page>
-                    <page>
+                    <page id="carePathProcedure">
                         <template is="dom-if" if="[[activeProcedureListView]]">
                             <div class="page-title">
                                 [[localize('care-path-linked-proc', 'Linked procedures', language)]] <paper-icon-button class="button--icon-btn small-btn" icon="vaadin:plus" on-tap="_showAddProcedure"></paper-icon-button>
@@ -563,7 +562,7 @@
                         </template>
 
                     </page>
-                    <page>
+                    <page id="carePathResume">
                         <div class="information-block">
                             <div class="information-block-title">
                                 [[localize('care-path-ctc', 'Contacts made as part of the care path', language)]]
@@ -594,7 +593,7 @@
                                             [[localize("", "Dosage du cholestérol", language)]]
                                         </div>
                                         <div class="charts-container-row-content">
-                                           
+
                                         </div>
                                     </div>
                                     <div class="charts-container-row">
@@ -613,6 +612,8 @@
 
                                         </div>
                                     </div>
+                                </div>
+                                <div class="charts-container-line">
                                     <div class="charts-container-row">
                                         <div class="charts-container-row-title">
                                             [[localize("", "Dosage de l'eGFR", language)]]
@@ -621,8 +622,6 @@
 
                                         </div>
                                     </div>
-                                </div>
-                                <div class="charts-container-line">
                                     <div class="charts-container-row">
                                         <div class="charts-container-row-title">
                                             [[localize("", "Dosage de la 25-OH-Vitamine D3", language)]]
@@ -639,12 +638,14 @@
 
                                         </div>
                                     </div>
+                                </div>
+                                <div class="charts-container-line">
                                     <div class="charts-container-row">
                                         <div class="charts-container-row-title">
                                             [[localize("", "Mesure du BMI", language)]]
                                         </div>
                                         <div class="charts-container-row-content">
-
+                                            <canvas id="bmiChart" width="100%" height="200"></canvas>
                                         </div>
                                     </div>
                                     <div class="charts-container-row">
@@ -683,16 +684,16 @@
 
                                         </div>
                                     </div>
+                                </div>
+                                <div class="charts-container-line">
                                     <div class="charts-container-row">
                                         <div class="charts-container-row-title">
                                             [[localize("", "Mesure du BMI", language)]]
                                         </div>
                                         <div class="charts-container-row-content">
-
+                                            <canvas id="bmiChart" width="400" height="400"></canvas>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="charts-container-line">
                                     <div class="charts-container-row">
                                         <div class="charts-container-row-title">
                                             [[localize("", "Dosage de l'HBA1c", language)]]
@@ -705,10 +706,10 @@
                             </template>
                         </div>
                     </page>
-                    <page>
+                    <page id="carePathDocument">
 
                     </page>
-                    <page>
+                    <page id="carePathPrescription">
 
                     </page>
                 </iron-pages>
@@ -861,7 +862,7 @@
             }
 
             static get observers() {
-                return ['_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)', '_activationDateChanged(activationDateAsString.start)'];
+                return ['_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)', '_activationDateChanged(activationDateAsString.start)', '_initializeCharts(tabs)'];
             }
 
             ready() {
@@ -902,8 +903,9 @@
                     .then(() => this._getCurrentCareTeam())
                     .then(careTeam => this.set('availableCareTeam', careTeam))
                     .finally(() => {
-                        this.set('contactsOfCarePath', _.groupBy(this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})), 'contactYear'))
+                        this.set('contactsOfCarePath',this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
                         this.$['care-path-detail'].open()
+
                     }).catch(e => console.log("Error when open care path: "+e))
 
             }
@@ -959,7 +961,7 @@
                 if(this.selectedCarePathType){
                     this.set("selectableEhealthElements", this.activeHealthElements.filter(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
                     this.set('selectedHealthElement', this.activeHealthElements.find(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
-                    this.set('contactsOfCarePath', _.groupBy(this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})), 'contactYear'))
+                    this.set('contactsOfCarePath', this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
                 }
             }
 
@@ -1028,15 +1030,37 @@
             }
 
             _getYearOfContact(){
-                return _.keys(this.contactsOfCarePath)
+                return _.keys( _.groupBy(this.contactsOfCarePath, 'contactYear'))
             }
 
             _getContactFromYear(contacts, year){
-                return _.get(contacts, year, [])
+                return _.get(_.groupBy(contacts, 'contactYear'), year, [])
             }
 
             _getNumberOfContacts(contacts, year){
-                return _.size(_.get(contacts, year, []))
+                return _.size(_.get(_.groupBy(contacts, 'contactYear'), year, []))
+            }
+
+            _initializeCharts(tabs){
+                if(tabs === 3){
+                    const ctx = this.shadowRoot.querySelector("#bmiChart")
+                    var myLineChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            datasets: [{
+                                label: "BMI evolution",
+                                data: [12, 19, 3, 5, 2, 3],
+                                labels: ["10/01/2019", "dD 2", "dD 3", "dD 4", "dD 5", "dD 6", "dD 7", "dD 8", "dD 9", "dD 10"]
+                            }]
+                        },
+                        options: {
+                            configuration: [{
+                                responsive: true
+                            }]
+                        }
+                    });
+
+                }
             }
 
 
