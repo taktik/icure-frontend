@@ -326,6 +326,11 @@
                 background: var(--app-background-color-dark);
             }
 
+            .charts{
+                height: 255px;
+                width: 100%!important;
+            }
+
         </style>
 
         <paper-dialog id="care-path-detail">
@@ -691,7 +696,7 @@
                                             [[localize("", "Mesure du BMI", language)]]
                                         </div>
                                         <div class="charts-container-row-content">
-                                            <canvas id="bmiChart" width="400" height="400"></canvas>
+                                            <canvas id="bmiChart" class="charts"></canvas>
                                         </div>
                                     </div>
                                     <div class="charts-container-row">
@@ -716,7 +721,7 @@
             </div>
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
-                <paper-button class="button button--save" on-tap="_openCarePathDetailDialog"><iron-icon icon="save" class="mr5 smallIcon" ></iron-icon> [[localize('care-path-save','Save',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_saveCarePath"><iron-icon icon="save" class="mr5 smallIcon" ></iron-icon> [[localize('care-path-save','Save',language)]]</paper-button>
                 <template is="dom-if" if="[[_isSelectedHealthElement(selectedHealthElement)]]">
                     <paper-icon-button class="button--icon-btn" icon="more-vert" on-tap="_toggleAddActions"></paper-icon-button>
                     <template is="dom-if" if="[[showMoreOptionContainer]]">
@@ -813,11 +818,14 @@
                                 specialist: [],
                                 other: []
                             },
-                            linkedHelathElementId: null,
+                            linkedHealthElementId: null,
                             type: null,
                             startDate: null,
                             endDate: null,
                             valueDate: null,
+                            created: null,
+                            id: null,
+                            status : null,
                             deadlineDate: null,
                             agreementsDate: {
                                 patient: null,
@@ -856,13 +864,17 @@
                     contactsOfCarePath:{
                         type: Array,
                         value: () => []
+                    },
+                    saveFormReqIdx:{
+                        type: Number,
+                        value: 0
                     }
 
                 };
             }
 
             static get observers() {
-                return ['_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)', '_activationDateChanged(activationDateAsString.start)', '_initializeCharts(tabs)'];
+                return ['_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)', '_activationDateChanged(activationDateAsString.start)', '_initializeCharts(tabs)', '_dateAsStringChanged(agreementsDateAsString, agreementsDateAsString.*, activationDateAsString, activationDateAsString.*, deadlineDateAsString)', '_selectedCarePathChanged(selectedCarePath, selectedCarePath.*)'];
             }
 
             ready() {
@@ -962,6 +974,8 @@
                     this.set("selectableEhealthElements", this.activeHealthElements.filter(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
                     this.set('selectedHealthElement', this.activeHealthElements.find(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
                     this.set('contactsOfCarePath', this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
+                    this.set('selectedCarePath.type', _.get(this.selectedCarePathType, 'label.'+this.language, null))
+                    this.set('selectedCarePath.linkedHealthElementId', _.get(this.selectedHealthElement, 'id', null))
                 }
             }
 
@@ -1047,22 +1061,83 @@
                     var myLineChart = new Chart(ctx, {
                         type: 'line',
                         data: {
+                            labels: ["Jun 2013","Jul 2013"],
                             datasets: [{
-                                label: "BMI evolution",
-                                data: [12, 19, 3, 5, 2, 3],
-                                labels: ["10/01/2019", "dD 2", "dD 3", "dD 4", "dD 5", "dD 6", "dD 7", "dD 8", "dD 9", "dD 10"]
+                                label: "BMI",
+                                fillColor: "transparent",
+                                data: [21.7,20.3],
+                                lineTension: 0.1,
+                                backgroundColor: "rgba(255,99,132,0.2)",
+                                borderColor: "rgba(254,99,132,2)"
                             }]
                         },
                         options: {
-                            configuration: [{
-                                responsive: true
-                            }]
+                            responsive: true,
+                            aspectRatio: 3,
+                            maintainAspectRatio: false
                         }
                     });
 
                 }
             }
 
+            _dateAsStringChanged(){
+                this.set('selectedCarePath.agreementsDate', {
+                    patient: _.get(this.agreementsDateAsString, 'patient', null) ? parseInt(this.api.moment(_.get(this.agreementsDateAsString, 'patient', null)).format('YYYYMMDD')) : null,
+                    mutuality: _.get(this.agreementsDateAsString, 'mutuality', null) ? parseInt(this.api.moment(_.get(this.agreementsDateAsString, 'mutuality', null)).format('YYYYMMDD')) : null,
+                    physician: _.get(this.agreementsDateAsString, 'physician', null) ? parseInt(this.api.moment(_.get(this.agreementsDateAsString, 'physician', null)).format('YYYYMMDD')): null,
+                    specialist: _.get(this.agreementsDateAsString, 'specialist', null) ? parseInt(this.api.moment(_.get(this.agreementsDateAsString, 'specialist', null)).format('YYYYMMDD')) : null,
+                })
+                this.set('selectedCarePath.startDate', _.get(this.activationDateAsString, 'start', null) ? parseInt(this.api.moment(_.get(this.activationDateAsString, 'start', null)).format('YYYYMMDD')) : null)
+                this.set('selectedCarePath.endDate',  _.get(this.activationDateAsString, 'end', null) ? parseInt(this.api.moment(_.get(this.activationDateAsString, 'end', null)).format('YYYYMMDD')): null)
+                this.set('selectedCarePath.deadlineDate', _.get(this, 'deadlineDateAsString', null) ? parseInt(this.api.moment(_.get(this, 'deadlineDateAsString', null)).format('YYYYMMDD')) : null)
+            }
+
+            _selectedCarePathChanged(){
+                const promResolve = Promise.resolve();
+                const reqIdx = (this.saveFormReqIdx = (this.saveFormReqIdx || 0) + 1)
+                setTimeout(() => {
+                    return (reqIdx !== this.saveFormReqIdx || !_.trim(_.get(this,"selectedCarePath.linkedHealthElementId",""))) ? false : promResolve
+                        .then(()=> this.api.helement().getHealthElement( !!_.trim(_.get(this,"_vaadinGridPlanOfActionSelectedItem.heId","")) ? _.trim(_.get(this,"_vaadinGridPlanOfActionSelectedItem.heId","")) : _.trim(_.get(this,"selectedCarePath.relatedHealthElementId","")) ))
+                        .then(he => {
+                            const vaadingGridPoaId = !!_.trim(_.get(this,"selectedCarePath.id","")) ? _.trim(_.get(this,"selectedCarePath.id","")) : _.trim(_.get(this,"_dialogData.lastNewPoaId",""))//todo
+                            const removedPlanOfAction = !!_.trim(vaadingGridPoaId) ? _.head(_.remove(_.get(he,"plansOfAction",[]), {id: vaadingGridPoaId})) : null//todo
+                            return !!_.size(removedPlanOfAction) ? this.api.helement().modifyHealthElement(he).then(he=>this.api.register(he, 'helement')).then(he => ([he, removedPlanOfAction])) : ([he, null])//todo
+                        })
+                        .then(([he, removedPlanOfAction]) => {
+                            const vaadingGridHeId = _.trim(_.get(he,"id",""))
+                            const formHeId = _.trim(_.get(this,"selectedCarePath.relatedHealthElementId",""))
+                            return formHeId === vaadingGridHeId ? ([he, removedPlanOfAction]) : this.api.helement().getHealthElement(_.trim(_.get(this,"selectedCarePath.relatedHealthElementId",""))).then(he => ([he, removedPlanOfAction]))
+                        })
+                        .then(([he, removedPlanOfAction]) => {
+                            const poaToAdd = {
+                                id: !!_.trim(_.get(removedPlanOfAction,"id","")) ? _.trim(_.get(removedPlanOfAction,"id","")) : this.api.crypto().randomUuid(),
+                                author: _.trim(_.get(this,"user.id")),
+                                responsible: _.trim(_.get(this,"user.healthcarePartyId")),
+                                openingDate: _.trim(_.get(this,"selectedCarePath.startDate","")) ? parseInt(_.trim(_.get(this,"selectedCarePath.startDate",""))) : parseInt(moment().format('YYYYMMDDHHmmss')),
+                                closingDate: parseInt(_.trim(_.get(this,"selectedCarePath.endDate","")))||null,
+                                endOfLife: parseInt(_.trim(_.get(this,"selectedCarePath.careRehearseDate","")))||null,
+                                name: _.trim(_.get(this,"selectedCarePath.type","")),
+                                idOpeningContact: _.trim(_.get(this,"_selectedPrescriptionObject.contact.id","")),
+                                created: !!_.trim(_.get(removedPlanOfAction,"created","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"created",""))) : +new Date,
+                                modified: +new Date,
+                                codes: [],
+                                tags: [],
+                                documentIds: _.get(this, 'selectedCarePath.linkedDocuments', []),
+                                prescriberId: _.trim(_.get(this,"user.healthcarePartyId")),
+                                status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 0
+                            }
+                            this.set("_dialogData.lastNewPoaId", _.trim(_.get(poaToAdd,"id","")))
+                            return !_.size(_.get(poaToAdd,"documentIds",[])) ? ([he, poaToAdd]) : Promise.all(_.map(poaToAdd.documentIds, docId => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), _.get(this,"patient",{}), this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(docId))).then(encryptedContent => Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))).catch(()=>docId))).then(encryptedDocumentIds => ([he, _.merge({}, poaToAdd, {documentIds: _.uniq(_.compact(encryptedDocumentIds||[]))})]) )
+                        })
+                        .then(([he, poaToAdd]) => {
+                            const alreadyHasPlanOfActionsKey = _.keys(he).indexOf("plansOfAction") > -1 && Array.isArray(_.get(he,"plansOfAction","notOfTypeArray"))
+                            if(!!alreadyHasPlanOfActionsKey) { he.plansOfAction.push(poaToAdd) } else { he = _.merge({},he, {plansOfAction: [poaToAdd]}) }
+                            return he
+                        })
+                        .then(he => !_.trim(_.get(he,"id","")) ? promResolve : this.api.helement().modifyHealthElement(he).then(he=>this.api.register(he, 'helement')))
+                }, 2000)
+            }
 
             _getRenalPdfContent(){
                 const patientInssurance = _
