@@ -741,6 +741,7 @@
         import Chart from 'chart.js';
 
         class HtPatCarePathDetailDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+
             static get is() {
                 return 'ht-pat-care-path-detail-dialog';
             }
@@ -761,6 +762,10 @@
                     tabs:{
                         type: Number,
                         value: 0
+                    },
+                    currentcontact:{
+                        type: Object,
+                        value: () => {}
                     },
                     hcp:{
                       type: Object,
@@ -818,7 +823,7 @@
                                 specialist: [],
                                 other: []
                             },
-                            linkedHealthElementId: null,
+                            linkedHealthElement: null,
                             type: null,
                             startDate: null,
                             endDate: null,
@@ -868,13 +873,26 @@
                     saveFormReqIdx:{
                         type: Number,
                         value: 0
+                    },
+                    selectedCarePathInfo:{
+                        type: Object,
+                        value: () => {}
                     }
 
                 };
             }
 
             static get observers() {
-                return ['_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)', '_selectedTeamPhysicianChanged(selectedTeamPhysician)', '_selectedTeamSpecialistChanged(selectedTeamSpecialist)', '_selectedTeamOtherChanged(selectedTeamOther)', '_activationDateChanged(activationDateAsString.start)', '_initializeCharts(tabs)', '_dateAsStringChanged(agreementsDateAsString, agreementsDateAsString.*, activationDateAsString, activationDateAsString.*, deadlineDateAsString)', '_selectedCarePathChanged(selectedCarePath, selectedCarePath.*)'];
+                return [
+                    '_selectedCarePathTypeChanged(selectedCarePathType, selectedCarePathType.*)',
+                    '_selectedTeamPhysicianChanged(selectedTeamPhysician)',
+                    '_selectedTeamSpecialistChanged(selectedTeamSpecialist)',
+                    '_selectedTeamOtherChanged(selectedTeamOther)',
+                    '_activationDateChanged(activationDateAsString.start)',
+                    '_initializeCharts(tabs)',
+                    '_dateAsStringChanged(agreementsDateAsString, agreementsDateAsString.*, activationDateAsString, activationDateAsString.*, deadlineDateAsString)',
+                    '_selectedCarePathChanged(selectedCarePath, selectedCarePath.*)'
+                ];
             }
 
             ready() {
@@ -883,46 +901,86 @@
 
             open(){
                 const carePathCode = ["BE-THESAURUS|10025768|3.1.0", "BE-THESAURUS|10119104|3.1.0"]
-                this.api.code().getCodes(carePathCode.join(',')).then(hes => {
-                    const pathList = [{
-                            label: {fr: 'Trajet de soins insuffisance rénale chronique', nl: 'Chronisch nierfalen zorgpad' , en: 'Chronic renal failure care pathway'},
-                            linkedHe: hes.find(he => he.id === "BE-THESAURUS|10119104|3.1.0") || {}
-                        },{
-                            label: {fr: 'Trajet de soins diabète type 2', nl: 'Diabetes zorgpad type 2' , en: 'Diabetes Care Path Type 2'},
-                            linkedHe: hes.find(he => he.id === "BE-THESAURUS|10025768|3.1.0") || {}
-                        }]
-                    this.set("carePathList", pathList)
-                })
-                    .then(() => this.api.hcparty().getCurrentHealthcareParty())
-                    .then(hcp => {
-                        const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
-                        this.set('hcp',  _.merge({}, hcp, {
-                                address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
-                                postalCode: _.trim(_.get(addressData,"postalCode","")),
-                                city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
-                                country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
-                                phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
-                                mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
-                                email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
-                                firstName: this._upperFirstAll(_.get(hcp,"firstName","")),
-                                lastName: this._upperFirstAll(_.get(hcp,"lastName","")),
-                                nihiiHr: this.api.formatInamiNumber(_.trim(_.get(hcp,"nihii",""))),
-                                ssinHr: this.api.formatSsinNumber(_.trim(_.get(hcp,"ssin",""))),
-                                bankAccount: _.trim(_.get(hcp, "bankAccount", "")),
-                                cbe: _.trim(_.get(hcp, 'cbe', ''))
-                            })
-                        )})
-                    .then(() => this._getCurrentCareTeam())
-                    .then(careTeam => this.set('availableCareTeam', careTeam))
-                    .finally(() => {
-                        this.set('contactsOfCarePath',this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
-                        this.$['care-path-detail'].open()
 
-                    }).catch(e => console.log("Error when open care path: "+e))
+                ;(_.get(this.selectedCarePathInfo, 'linkedHeId', null) && _.get(this.selectedCarePathInfo, 'carePathId', null) ? this.api.helement().getHealthElement(_.get(this.selectedCarePathInfo, 'linkedHeId', null)) : Promise.resolve({}))
+                 .then(he => Promise.all([he, this._getCurrentCareTeam()]))
+                 .then(([he, careTeam]) => Promise.all([he, careTeam, this.api.code().getCodes(carePathCode.join(','))]))
+                 .then(([he, careTeam, hes]) => {
 
+                     const carePath = _.get(he, 'plansOfAction', []).find(p => p.id === _.get(this.selectedCarePathInfo, 'carePathId', null))
+
+                     this.set('availableCareTeam', careTeam)
+
+                     this.set("carePathList", [{
+                         label: {fr: 'Trajet de soins insuffisance rénale chronique', nl: 'Chronisch nierfalen zorgpad' , en: 'Chronic renal failure care pathway'},
+                         linkedHe: hes.find(he => he.id === "BE-THESAURUS|10119104|3.1.0") || {}
+                     },{
+                         label: {fr: 'Trajet de soins diabète type 2', nl: 'Diabetes zorgpad type 2' , en: 'Diabetes Care Path Type 2'},
+                         linkedHe: hes.find(he => he.id === "BE-THESAURUS|10025768|3.1.0") || {}
+                     }])
+
+                     this.set('selectedCarePath', {
+                         careTeam: {
+                             physician: _.get(carePath, "team.physician", []).map(hcp => hcp.id === careTeam.find(ct => ct.id)),
+                             specialist: _.get(carePath, "team.specialist", []),
+                             other: _.get(carePath, "team.other", []),
+                         },
+                         linkedHealthElement: he,
+                         type: _.get(carePath, 'name', null),
+                         startDate: _.get(carePath, 'openingDate', null),
+                         endDate: _.get(carePath, 'closingDate', null),
+                         valueDate: null,
+                         created: _.get(carePath, 'created', null),
+                         id: _.get(carePath, 'id', null),
+                         status : _.get(carePath, 'status', null),
+                         deadlineDate: _.get(carePath, 'deadlineDate', null),
+                         agreementsDate: {
+                             patient: _.get(carePath, 'agreementDate.patient', null),
+                             physician: _.get(carePath, 'agreementDate.physician', null),
+                             specialist: _.get(carePath, 'agreementDate.specialist', null),
+                             mutuality: _.get(carePath, 'agreementDate.mutuality', null)
+                         },
+                         linkedDocuments: [],
+                         linkedProcedures: []
+                     })
+
+                     !_.isEmpty(he) ? this.set('selectedCarePathType', this.carePathList.find(cp => he.codes.find(c => c.code === cp.linkedHe.code))) : null
+
+                 })
+                 .then(() => this.api.hcparty().getCurrentHealthcareParty())
+                 .then(hcp => {
+                     const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
+                     this.set('hcp',  _.merge({}, hcp, {
+                             address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
+                             postalCode: _.trim(_.get(addressData,"postalCode","")),
+                             city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
+                             country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
+                             phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
+                             mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
+                             email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
+                             firstName: this._upperFirstAll(_.get(hcp,"firstName","")),
+                             lastName: this._upperFirstAll(_.get(hcp,"lastName","")),
+                             nihiiHr: this.api.formatInamiNumber(_.trim(_.get(hcp,"nihii",""))),
+                             ssinHr: this.api.formatSsinNumber(_.trim(_.get(hcp,"ssin",""))),
+                             bankAccount: _.trim(_.get(hcp, "bankAccount", "")),
+                             cbe: _.trim(_.get(hcp, 'cbe', ''))
+                         })
+                     )
+                 })
+                 .finally(() => {
+                     this.set('contactsOfCarePath',this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
+                     this.$['care-path-detail'].open()
+                 })
+                 .catch(e => console.log("Error when open care path: "+e))
             }
 
             _closeDialogs(){
+                this.set('selectedCarePath', {})
+                this.set('selectedCarePathType', {})
+                this.set('carePathList', [])
+                this.set('availableCareTeam', [])
+                this.set('contactsOfCarePath', [])
+                this.set('selectableEhealthElements', [])
                 this.$["care-path-detail"].close()
             }
 
@@ -971,11 +1029,11 @@
 
             _selectedCarePathTypeChanged(){
                 if(this.selectedCarePathType){
-                    this.set("selectableEhealthElements", this.activeHealthElements.filter(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
-                    this.set('selectedHealthElement', this.activeHealthElements.find(he => he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
+                    this.set("selectableEhealthElements", this.activeHealthElements.filter(he => he.id && he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
+                    this.set('selectedHealthElement', this.activeHealthElements.find(he => he.id && he.codes.find(c => c.type === "BE-THESAURUS") && he.codes.find(c => c.code === _.get(this.selectedCarePathType, 'linkedHe.code', null))))
                     this.set('contactsOfCarePath', this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
                     this.set('selectedCarePath.type', _.get(this.selectedCarePathType, 'label.'+this.language, null))
-                    this.set('selectedCarePath.linkedHealthElementId', _.get(this.selectedHealthElement, 'id', null))
+                    this.set('selectedCarePath.linkedHealthElement', _.get(this, 'selectedHealthElement', {}))
                 }
             }
 
@@ -1094,49 +1152,50 @@
             }
 
             _selectedCarePathChanged(){
+                /*
                 const promResolve = Promise.resolve();
-                const reqIdx = (this.saveFormReqIdx = (this.saveFormReqIdx || 0) + 1)
-                setTimeout(() => {
-                    return (reqIdx !== this.saveFormReqIdx || !_.trim(_.get(this,"selectedCarePath.linkedHealthElementId",""))) ? false : promResolve
-                        .then(()=> this.api.helement().getHealthElement( !!_.trim(_.get(this,"_vaadinGridPlanOfActionSelectedItem.heId","")) ? _.trim(_.get(this,"_vaadinGridPlanOfActionSelectedItem.heId","")) : _.trim(_.get(this,"selectedCarePath.relatedHealthElementId","")) ))
+                if(!_.isEmpty(_.get(this.selectedCarePath, 'linkedHealthElement', {})) && _.get(this.selectedCarePath, 'startDate', null) !== null && _.get(this,"selectedCarePath.type", null) !== null){
+                    setTimeout(() => {
+                        this.api.helement().getHealthElement(_.get(this.selectedCarePath, 'linkedHealthElement.id', null))
                         .then(he => {
-                            const vaadingGridPoaId = !!_.trim(_.get(this,"selectedCarePath.id","")) ? _.trim(_.get(this,"selectedCarePath.id","")) : _.trim(_.get(this,"_dialogData.lastNewPoaId",""))//todo
-                            const removedPlanOfAction = !!_.trim(vaadingGridPoaId) ? _.head(_.remove(_.get(he,"plansOfAction",[]), {id: vaadingGridPoaId})) : null//todo
-                            return !!_.size(removedPlanOfAction) ? this.api.helement().modifyHealthElement(he).then(he=>this.api.register(he, 'helement')).then(he => ([he, removedPlanOfAction])) : ([he, null])//todo
-                        })
-                        .then(([he, removedPlanOfAction]) => {
-                            const vaadingGridHeId = _.trim(_.get(he,"id",""))
-                            const formHeId = _.trim(_.get(this,"selectedCarePath.relatedHealthElementId",""))
-                            return formHeId === vaadingGridHeId ? ([he, removedPlanOfAction]) : this.api.helement().getHealthElement(_.trim(_.get(this,"selectedCarePath.relatedHealthElementId",""))).then(he => ([he, removedPlanOfAction]))
-                        })
-                        .then(([he, removedPlanOfAction]) => {
+                            const removedPlanOfAction = !!_.trim(_.get(this.selectedCarePath,"id","")) ? _.head(_.remove(_.get(he,"plansOfAction",[]), {id: _.get(this.selectedCarePath,"id","")})) : null
                             const poaToAdd = {
                                 id: !!_.trim(_.get(removedPlanOfAction,"id","")) ? _.trim(_.get(removedPlanOfAction,"id","")) : this.api.crypto().randomUuid(),
                                 author: _.trim(_.get(this,"user.id")),
                                 responsible: _.trim(_.get(this,"user.healthcarePartyId")),
                                 openingDate: _.trim(_.get(this,"selectedCarePath.startDate","")) ? parseInt(_.trim(_.get(this,"selectedCarePath.startDate",""))) : parseInt(moment().format('YYYYMMDDHHmmss')),
                                 closingDate: parseInt(_.trim(_.get(this,"selectedCarePath.endDate","")))||null,
-                                endOfLife: parseInt(_.trim(_.get(this,"selectedCarePath.careRehearseDate","")))||null,
+                                endOfLife: parseInt(_.trim(_.get(this,"selectedCarePath.endDate","")))||null,
                                 name: _.trim(_.get(this,"selectedCarePath.type","")),
-                                idOpeningContact: _.trim(_.get(this,"_selectedPrescriptionObject.contact.id","")),
+                                idOpeningContact: _.trim(_.get(this.currentcontact,"id","")),
                                 created: !!_.trim(_.get(removedPlanOfAction,"created","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"created",""))) : +new Date,
                                 modified: +new Date,
                                 codes: [],
                                 tags: [],
+                                team: {
+                                    physician: _.get(this, 'selectedCarePath.careTeam.physician', []).map(hcp => hcp.id) || [],
+                                    specialist: _.get(this, 'selectedCarePath.careTeam.specialist', []).map(hcp => hcp.id) || [],
+                                    other: _.get(this, 'selectedCarePath.careTeam.other', []).map(hcp => hcp.id) || []
+                                },
                                 documentIds: _.get(this, 'selectedCarePath.linkedDocuments', []),
                                 prescriberId: _.trim(_.get(this,"user.healthcarePartyId")),
-                                status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 0
+                                status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 1 << 1
                             }
-                            this.set("_dialogData.lastNewPoaId", _.trim(_.get(poaToAdd,"id","")))
-                            return !_.size(_.get(poaToAdd,"documentIds",[])) ? ([he, poaToAdd]) : Promise.all(_.map(poaToAdd.documentIds, docId => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), _.get(this,"patient",{}), this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(docId))).then(encryptedContent => Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))).catch(()=>docId))).then(encryptedDocumentIds => ([he, _.merge({}, poaToAdd, {documentIds: _.uniq(_.compact(encryptedDocumentIds||[]))})]) )
+
+                            return !_.size(_.get(poaToAdd,"documentIds",[])) ? ([he, poaToAdd]) : Promise.all(_.map(poaToAdd.documentIds, docId => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), _.get(this,"_dialogData.currentPatient",{}), this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(docId))).then(encryptedContent => Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))).catch(()=>docId))).then(encryptedDocumentIds => ([he, _.merge({}, poaToAdd, {documentIds: _.uniq(_.compact(encryptedDocumentIds||[]))})]) )
+
                         })
                         .then(([he, poaToAdd]) => {
                             const alreadyHasPlanOfActionsKey = _.keys(he).indexOf("plansOfAction") > -1 && Array.isArray(_.get(he,"plansOfAction","notOfTypeArray"))
-                            if(!!alreadyHasPlanOfActionsKey) { he.plansOfAction.push(poaToAdd) } else { he = _.merge({},he, {plansOfAction: [poaToAdd]}) }
+                            if(!!alreadyHasPlanOfActionsKey) { he.plansOfAction.push(poaToAdd) } else { this.set('selectedHealthElement',  _.merge({},he, {plansOfAction: [poaToAdd]})) }
+                            !!_.trim(_.get(this.selectedCarePath,"id","")) ? _.trim(_.get(this.selectedCarePath,"id","")) : this.set('selectedCarePath.id', _.get(poaToAdd, 'id', null))
                             return he
                         })
                         .then(he => !_.trim(_.get(he,"id","")) ? promResolve : this.api.helement().modifyHealthElement(he).then(he=>this.api.register(he, 'helement')))
-                }, 2000)
+
+                    }, 2000)
+
+                }*/
             }
 
             _getRenalPdfContent(){
