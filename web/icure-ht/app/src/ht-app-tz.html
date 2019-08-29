@@ -548,8 +548,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             #update-notification {
                 z-index: 1000;
                 position: fixed;
-                right: 32px;
-                top: 32px;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
                 height: 48px;
                 width: 256px;
                 font-size: 12px;
@@ -561,6 +562,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 justify-content: space-around;
                 align-items: center;
                 color: var(--app-text-color-light);
+                box-shadow: 0 2px 4px 0 rgba(0,0,0,0.14),
+                0 3px 4px 0 rgba(0,0,0,0.12),
+                0 1px 5px 0 rgba(0,0,0,0.20),
+                0 0 0 200vw rgba(0,0,0,.24);
             }
 
             span.warn {
@@ -779,14 +784,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <ht-main id="htmain" name="main" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" route="{{subroute}}" socket="[[socket]]" on-error-electron="setElectronErrorMessage">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-main>
-                    <ht-pat id="htpat" name="pat" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}" credentials="[[credentials]]"
+                    <ht-pat id="ht-pat" name="pat" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}" credentials="[[credentials]]"
                             socket="[[socket]]" on-user-saved="_userSaved" on-idle="resetTimer" on-error-electron="setElectronErrorMessage">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-pat>
                     <ht-hcp name="hcp" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-hcp>
-                    <ht-msg name="msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" force-refresh="[[_forceEhBoxRefresh]]" on-trigger-open-my-profile="_triggerOpenMyProfile" on-trigger-goto-admin="_triggerOpenAdminGroupsManagementSubMenu" on-idle="resetTimer">
+                    <ht-msg name="msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" force-refresh="[[_forceEhBoxRefresh]]" on-trigger-open-my-profile="_triggerOpenMyProfile" on-trigger-goto-admin="_triggerOpenAdminGroupsManagementSubMenu" on-idle="resetTimer" on-refresh-patient="_refreshPatient">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-msg>
                     <ht-diary id="htDiary" name="diary" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]">
@@ -800,7 +805,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </app-header-layout>
             <footer class="log-info">
                 <div>
-                    <div class="user-email"><iron-icon icon="icons:account-circle"></iron-icon>[[user.login]]</div>
+                    <div class="user-email" on-click="_debugPostUser"><iron-icon icon="icons:account-circle"></iron-icon>[[user.login]]</div>
                     <div class="eHealth-status-container">
                         <iron-icon icon="icure-svg-icons:ehealth"></iron-icon>
                         <span>eHealth</span>
@@ -1284,7 +1289,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                         this.socket.on("auto-read-card-eid", cards =>{
                             if(this.route.path.includes("/pat")){
-                                this.$["htpat"].autoReadCardEid(cards)
+                                this.$["ht-pat"].autoReadCardEid(cards)
                             }else if(this.route.path.includes("/main")){
                                 this.$["htmain"].autoReadCardEid(cards)
                             }
@@ -1378,6 +1383,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _userSaved(e) {
                 this.set('user', e.detail)
+            }
+
+            _debugPostUser() {
+                return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                    console.log("user:", this.user)
+                    console.log("hcp:", hcp)
+                    if(hcp.parentId) {
+                        return this.$.api.hcparty().getHealthcareParty(hcp.parentId).then(hcp => {
+                            console.log("parentHcp:", hcp)
+                        })
+                    }
+                })
             }
 
             _openUtility(e) {
@@ -1474,7 +1491,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     //setTimeout(() => window.location.reload(), 100) // don't reload at logout
                 } else {
                     console.log("page is -> " + page)
-
                     if (!this.icureUrl) { this.setUrls() }
 
                     if (!this.authenticated && (!page || !page.startsWith('auth'))) {
@@ -1489,10 +1505,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         //keep patient opened
                         if(dest==="pat" && this.subroute.path!=="/"){
                             this.set('patientOpened',this.subroute.path)
-                        }else if(dest==="pat" && this.view!=="pat" && this.patientOpened!==""){
+                        }else if(dest==="pat" && this.view!=="pat" && this.patientOpened){
                             this.set("subroute.path",this.patientOpened)
-                        }else if(dest==="pat" && this.view==="pat" && this.patientOpened!==""){
-                            this.set('patientOpened',"")
+                        }else if(dest==="pat" && this.view==="pat" && this.patientOpened){
+                            this.set('patientOpened',null)
                         }
 
                         if (dest !== this.view) { this.set('view', dest) }
@@ -1750,6 +1766,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this._timeCheckMH(0)//Should launch directly, no wait in this case!!!
                         this._inboxMessageCheck()
                         this._checkForUpdateMessage()
+                        this._correctionDateOfBirth();
+
                     })
                 }).catch(function (e) {
                     this.authenticated = false
@@ -1818,7 +1836,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             uploadMHKeystoreAndCheckToken() {
-                if(!_.get(this, "user.healthcarePartyId", false)) return
+                if(!_.get(this, "user.healthcarePartyId", false)) return Promise.resolve()
                 const ksKey  = "org.taktik.icure.ehealth.keychain.MMH."+ this.user.healthcarePartyId;
                 Object.keys(localStorage).filter(k => k === ksKey).map(kM => {
                     const val = localStorage.getItem(kM);
@@ -1851,7 +1869,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('connected')
                                         if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.add('disconnected')
                                     }
-                                    return Promise.resolve(null);
+                                    return Promise.resolve()
                                 });
                         }
                     })
@@ -2266,6 +2284,66 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             closeNotifElectron(e){
                 this.$["electronErrorMessage"].classList.remove('notification')
                 this.set("electronErrorMessage","")
+            }
+
+            _correctionDateOfBirth() {
+
+                if( !this.user || !this.api || !!this.busyCorrectingDatesOfBirth || moment().format("YYYYMMDD") > "20190901" ) return;
+                this.busyCorrectingDatesOfBirth = true;
+
+                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""))
+                    .then(myPatients=>_.chain(myPatients).filter(p => [6,8,11,13].indexOf(_.trim(p.ssin).length) > -1 && !(parseInt(p.dateOfBirth)||null)).value())
+                    .then(patients => {
+
+                        let prom = Promise.resolve([])
+
+                        _.map(patients, pat => {
+                            prom = prom.then(promisesCarrier => {
+                                const patSsin = _.trim(_.get(pat,"ssin"))
+                                const patSsinLength = parseInt(patSsin.length)||0
+                                const evaluatedDateOfBirth = !!(patSsinLength === 6 && /^\d{2}(1[0-2])|(0[1-9])([0-2]\d)|(3[0-1])$/.test(patSsin)) ? (/^[0-1]/.test(patSsin) ? '20' : '19') + patSsin :
+                                    !!(patSsinLength === 8 && /^\d{4}(1[0-2])|(0[1-9])([0-2]\d|3[0-1])$/.test(patSsin)) ? patSsin :
+                                    !!(patSsinLength === 11 && this.api.patient().isValidSsin(patSsin)) ? (/^[0-1]/.test(patSsin) ? '20' : '19') + patSsin.substring(0, 6) :
+                                    !!(patSsinLength === 13 && this.api.patient().isValidSsin(patSsin.substring(2))) ? patSsin.substring(0, 8) :
+                                    false
+                                return !evaluatedDateOfBirth ?
+                                    Promise.resolve() :
+                                    this.api.patient().modifyPatientWithUser(this.user,_.merge({},pat,{dateOfBirth:parseInt(evaluatedDateOfBirth)||null}))
+                                        .then(p=>this.api.register(p,"patient"))
+                                        .then(p=>_.concat(promisesCarrier, p))
+                                        .catch(()=>Promise.resolve())
+                            })
+                        })
+
+                        return prom
+                            .then(() => {
+                                this.busyCorrectingDatesOfBirth = false
+                                setTimeout(() => { this._correctionDateOfBirth() }, 3600000)
+                            })
+
+                    })
+
+            }
+
+            _getPatientsByHcp(hcpId) {
+                return this.api.getRowsUsingPagination(
+                    (key,docId) =>
+                        this.api.patient().listPatientsByHcPartyWithUser(this.user, hcpId, null, key && JSON.stringify(key), docId, 1000)
+                            .then(pl => {
+                                return {
+                                    rows: _.filter( pl.rows, i => !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")) && parseInt(_.get(i,"ssin", "")) ),
+                                    nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                    nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                    done: !pl.nextKeyPair
+                                }
+                            })
+                            .catch(()=>{ return Promise.resolve(); })
+                )||[];
+            }
+
+            _refreshPatient() {
+                const htPat = this.shadowRoot.querySelector("#ht-pat") || this.$['ht-pat'] || null
+                return !htPat || typeof _.get(htPat, "_refreshPatient", false) !== "function" ? null : htPat._refreshPatient()
             }
 
         }
