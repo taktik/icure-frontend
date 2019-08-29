@@ -371,10 +371,10 @@
                                            value="{{selectedDoc.title}}"></vaadin-text-field>
                     </div>
                     <div class="input-form">
-                        <vaadin-date-picker id="importPicker"
-                                            label="[[localize('import_date','Date d\'importation',language)]]"
-                                            value="{{selectedDoc.importDate}}" i18n="[[i18n]]"
-                                            disabled></vaadin-date-picker>
+<!--                        <vaadin-date-picker id="importPicker"-->
+<!--                                            label="[[localize('import_date','Date d\'importation',language)]]"-->
+<!--                                            value="{{selectedDoc.importDate}}" i18n="[[i18n]]"-->
+<!--                                            disabled></vaadin-date-picker>-->
                         <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]"
                                             value="{{selectedDoc.docDate}}" i18n="[[i18n]]"></vaadin-date-picker>
                     </div>
@@ -404,11 +404,11 @@
                     </div>
                 </div>
                 <div class="buttons" id="form-buttons">
-                    <paper-button class="modal-button" on-tap="_saveDocuments" disabled="[[!selectedDoc]]">
-                        [[localize('save','Enregistrer',language)]]
-                    </paper-button>
                     <paper-button class="modal-button modal-button--cancel" on-tap="close">
                         [[localize('clo','Close',language)]]
+                    </paper-button>
+                    <paper-button class="modal-button" on-tap="_saveDocuments" disabled="[[!selectedDoc]]">
+                        [[localize('save','Enregistrer',language)]]
                     </paper-button>
                 </div>
             </div>
@@ -541,6 +541,18 @@
                         type: Boolean,
                         value: false
                     },
+                    contactOption: {
+                        type: String,
+                        value: ""
+                    },
+                    contactOptionsVisible: {
+                        type: Boolean,
+                        value: true
+                    },
+                    _currentContact: {
+                        type: Object,
+                        value: null
+                    }
                 };
             }
 
@@ -552,7 +564,7 @@
                     "_isInvalid(selectedDoc.*)",
                     "_filterPatChanged(filterPatient)",
                     "_patientIdChanged(selectedDoc.patientId)",
-                    "_patientNissChanged(selectedDoc.patientSsin)",
+                    "_patientNissChanged(selectedDoc.patientSsin)"
                 ];
             }
 
@@ -923,12 +935,16 @@
                 }
             }
 
-            open() {
+            open(currentContact) {
                 const vaadinUpload = this.$['vaadin-upload'];
                 vaadinUpload.set('i18n.addFiles.many', this.localize('imp', 'Import', this.language))
                 vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel', 'Drop files here...', this.language))
                 this.set('files', []);
                 this.set('_bodyOverlay', true)
+                this.set('_currentContact', currentContact);
+                this.set("contactOptionsVisible", this._currentContact);
+                this.set("contactOption", this._currentContact ? "current" : "new");
+
                 this.$['upload-dialog'].open();
                 this._hasElectronChanged();
             }
@@ -941,7 +957,7 @@
 
             defaultSaveDocuments(e) {
                 let messagesToSend = []
-                let contactUpdated = null
+                let updatedContact = null
                 if (!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
                 console.log("message to process ", e.detail.documents.length);
                 Promise.all((e.detail.documents || []).map(doc => Promise.all([
@@ -990,29 +1006,42 @@
                                 console.log("has patient for message ", msg.id);
                                 return this.api.patient().getPatientWithUser(this.user, doc.patientId)
                                     .then(patient => this.api.register(patient, "patient"))
-                                    .then(patient => this.api.contact().newInstance(this.user, patient, {
-                                        created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-                                        modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-                                        author: this.user.id,
-                                        responsible: this.user.healthcarePartyId,
-                                        subContacts: []
-                                    }))
+                                    .then(patient => {
+                                        if (this.contactOption === "current")
+                                            return this._currentContact;
+                                        else {
+                                            let contactDate = parseInt(moment(doc.docDate).format("YYYYMMDDHHmmss"));
+                                            return this.api.contact().newInstance(this.user, patient, {
+                                                openingDate: contactDate,
+                                                closingDate: contactDate,
+                                                author: this.user.id,
+                                                responsible: this.user.healthcarePartyId,
+                                                subContacts: []
+                                            });
+                                        }
+                                    })
                                     .then(contact => {
                                         const svc = this.api.contact().service().newInstance(this.user, {
                                             content: _.fromPairs([[this.language, {
                                                 documentId: doc.docId,
                                                 stringValue: doc.title
                                             }]]),
+                                            created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
                                             tags: [{type: 'CD-TRANSACTION', code: doc.type ? doc.type : 'report'}],
                                             label: 'imported document'
                                         });
-                                        contact.services = [svc];
+                                        if (contact.services === undefined) contact.services = [svc];
+                                        else contact.services.push(svc);
+
                                         const sc = {status: 64, services: [{serviceId: svc.id}]};
                                         contact.subContacts.push(sc);
-                                        return this.api.contact().createContactWithUser(this.user, contact)
+                                        if (this.contactOption === "new")
+                                            return this.api.contact().createContactWithUser(this.user, contact);
+                                        else
+                                            return this.api.contact().modifyContactWithUser(this.user, contact);
                                     })
                                     .then(contact => this.api.register(contact, "contact"))
-                                    .then(contact => contactUpdated=contact)
+                                    .then(contact => updatedContact = contact)
                                     .then(contact => this._encryptInfo(msg, [{
                                         'patientId': doc.patientId,
                                         'isAssigned': true,
@@ -1028,7 +1057,7 @@
                         messagesToSend = values
                     })
                     .catch((error) => console.log(error))
-                    .finally(() => this.dispatchEvent(new CustomEvent("post-process", {detail : {messages : messagesToSend, contact : contactUpdated},bubbles: true})))
+                    .finally(() => this.dispatchEvent(new CustomEvent("post-process", {detail : {messages : messagesToSend, contact : updatedContact},bubbles: true})))
             }
 
             showErrorMessage(e) {
