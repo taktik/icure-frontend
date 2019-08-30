@@ -212,7 +212,7 @@
                 margin: 1%;
             }
 
-            .page-title{
+            .tab-page-title{
                 height: 20px;
                 padding: 4px;
                 width: 98%;
@@ -534,7 +534,7 @@
                     </page>
                     <page id="carePathProcedure">
                         <template is="dom-if" if="[[activeProcedureListView]]">
-                            <div class="page-title">
+                            <div class="tab-page-title">
                                 [[localize('care-path-linked-proc', 'Linked procedures', language)]] <paper-icon-button class="button--icon-btn small-btn" icon="vaadin:plus" on-tap="_showAddProcedure"></paper-icon-button>
                             </div>
                             <div class="linked-proc-list">
@@ -716,7 +716,62 @@
                         </div>
                     </page>
                     <page id="carePathDocument">
+                        <template is="dom-if" if="[[isLinkedDocumentView]]">
+                            <div class="tab-page-title">
+                                [[localize('care-path-linked-doc', 'Linked documents', language)]] <paper-icon-button class="button--icon-btn small-btn" icon="vaadin:plus" on-tap="_showAddDocument"></paper-icon-button>
+                            </div>
+                            <div>
+                                <template is="dom-repeat" items="[[selectedCarePath.linkedDocuments]]" as="doc">
+                                    <paper-item class="linkedObjectTag" data-document-id="[[doc.documentId]]">
+                                        <div class="tagtype" data-document-id="[[doc.documentId]]">[[item.created]]</div>
+                                        <div class="one-line-menu list-title" data-document-id="[[doc.documentId]]">[[item.documentName]]</div>
+                                        <paper-icon-button class="deleteTag" icon="icons:delete" data-document-id="[[doc.documentId]]" on-tap="_removeLinkedDocument"></paper-icon-button>
+                                    </paper-item>
+                                </template>
+                            </div>
+                        </template>
+                        <template is="dom-if" if="[[!isLinkedDocumentView]]">
+                            <div>
+                                <div>
+                                    <paper-icon-button class="button--icon-btn close-view-btn" icon="vaadin:close" on-tap="_showAddDocument"></paper-icon-button>
+                                </div>
+                                <div>
+                                    <template is="dom-repeat" items="[[availableDocumentList]]" as="doc">
+                                        <div class="documentsList p10 pb0 borderDashed borderW1px borderColorAppPrimaryLight">
+                                            <div class="mb10">[[localize('availableToBeLinkedDocuments','Documents disponibles / à lier',language)]]:</div>
+                                            <template is="dom-repeat" items="[[_templateInsuranceDocuments_available]]" as="item" id="triptyqueAvailableInsuranceDocumentsDomRepeat">
+                                                <div class="singleDocumentContainer" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.documentId]]" data-attachment-id$="[[doc.attachmentId]]">
+                                                    <div class="header p10">
+                                                        <span class="date">[[item.created]]</span>
+                                                        <paper-button class="p0 m0 fr" on-tap="_linkInsuranceDocument" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.documentId]]" data-attachment-id$="[[doc.attachmentId]]"><iron-icon icon="icons:link" id$="link-insurance-[[doc.documentId]]"></iron-icon></paper-button><paper-tooltip for$="link-insurance-[[doc.documentId]]">[[localize('linkPdf','Link PDF',language)]]</paper-tooltip>
+                                                        <paper-button class="p0 m0 fr mr10" on-tap="_toggleCollapseInsuranceDocumentPreview" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.documentId]]" data-attachment-id$="[[doc.attachmentId]]"><iron-icon icon="icons:visibility" id$="view-insurance-[[doc.documentId]]"></iron-icon></paper-button><paper-tooltip for$="view-insurance-[[doc.documentId]]">[[localize('ehb.view','View',language)]]</paper-tooltip>
+                                                    </div>
+                                                    <div class="body p5 fspoint9em"><iron-icon icon="image:picture-as-pdf" class="mr5 darkRed"></iron-icon> [[doc.documentName]]</div>
 
+                                                    <template is="dom-if" if="[[_isEqual(_currentPreviewInsuranceDocumentId, doc.documentId)]]">
+                                                        <dynamic-doc
+                                                                id="insurance-document-preview-[[doc.documentId]]"
+                                                                api="[[api]]"
+                                                                i18n="[[i18n]]"
+                                                                user="[[user]]"
+                                                                document-id="[[doc.documentId]]"
+                                                                title="[[doc.documentName]]"
+                                                                language="[[language]]"
+                                                                preview="true"
+                                                                downloadable="true"
+                                                                fullwidth="true"
+                                                                force-no-assignation="true"
+                                                                force-no-document-header="true"
+                                                                additional-css-class="tripTyque"
+                                                        ></dynamic-doc>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
                     </page>
                     <page id="carePathPrescription">
 
@@ -883,6 +938,14 @@
                     selectedCarePathInfo:{
                         type: Object,
                         value: () => {}
+                    },
+                    isLinkedDocumentView:{
+                        type: Boolean,
+                        value: true
+                    },
+                    availableDocumentList:{
+                        type: Array,
+                        value: () => []
                     }
 
                 };
@@ -910,11 +973,13 @@
                 ;(_.get(this.selectedCarePathInfo, 'linkedHeId', null) && _.get(this.selectedCarePathInfo, 'carePathId', null) ? this.api.helement().getHealthElement(_.get(this.selectedCarePathInfo, 'linkedHeId', null)) : Promise.resolve({}))
                  .then(he => Promise.all([he, this._getCurrentCareTeam()]))
                  .then(([he, careTeam]) => Promise.all([he, careTeam, this.api.code().getCodes(carePathCode.join(','))]))
-                 .then(([he, careTeam, hes]) => {
+                 .then(([he, careTeam, hes]) => Promise.all([he, careTeam, hes, Promise.resolve([])]))
+                 .then(([he, careTeam, hes, availableDocuments]) => {
 
                      const carePath = _.get(he, 'plansOfAction', []).find(p => p.id === _.get(this.selectedCarePathInfo, 'carePathId', null))
 
                      this.set('availableCareTeam', careTeam)
+                     this.set('availableDocumentList', availableDocuments)
 
                      this.set("carePathList", [{
                          label: {fr: 'Trajet de soins insuffisance rénale chronique', nl: 'Chronisch nierfalen zorgpad' , en: 'Chronic renal failure care pathway'},
@@ -946,7 +1011,7 @@
                              specialist: _.get(carePath, 'agreementDate.specialist', null),
                              mutuality: _.get(carePath, 'agreementDate.mutuality', null)
                          },
-                         linkedDocuments: [],
+                         linkedDocuments: _.get(carePath, "documentIds", []).map(docId => availableDocuments.find(doc => doc.id === docId)),
                          linkedProcedures: []
                      })
 
@@ -1085,6 +1150,10 @@
                 this.activeProcedureListView ===  true ? this.set('activeProcedureListView', false) : this.set('activeProcedureListView', true)
             }
 
+            _showAddDocument(){
+                this.isLinkedDocumentView ===  true ? this.set('isLinkedDocumentView', false) : this.set('isLinkedDocumentView', true)
+            }
+
             _selectedTeamPhysicianChanged(){
                 if(this.selectedTeamPhysician){
                     this.push('selectedCarePath.careTeam.physician', this.selectedTeamPhysician)
@@ -1200,9 +1269,9 @@
                                     specialist: _.get(this, 'selectedCarePath.careTeam.specialist', []).map(hcp => hcp.id) || [],
                                     other: _.get(this, 'selectedCarePath.careTeam.other', []).map(hcp => hcp.id) || []
                                 },
-                                documentIds: _.get(this, 'selectedCarePath.linkedDocuments', []),
+                                documentIds: _.get(this, 'selectedCarePath.linkedDocuments', []).map(doc => doc.id),
                                 prescriberId: _.trim(_.get(this,"user.healthcarePartyId")),
-                                status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 1 << 1
+                                status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 1 << 1,
                             }
 
                             return !_.size(_.get(poaToAdd,"documentIds",[])) ? ([he, poaToAdd]) : Promise.all(_.map(poaToAdd.documentIds, docId => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), _.get(this,"_dialogData.currentPatient",{}), this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(docId))).then(encryptedContent => Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))).catch(()=>docId))).then(encryptedDocumentIds => ([he, _.merge({}, poaToAdd, {documentIds: _.uniq(_.compact(encryptedDocumentIds||[]))})]) )
@@ -1220,6 +1289,10 @@
                         }).catch( e => "Error when saving care path: "+e)
 
                 }
+            }
+
+            _removeLinkedDocument(){
+
             }
 
             _getRenalPdfContent(){
