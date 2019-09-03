@@ -401,9 +401,14 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 				type:String,
 				value:'day'
 			},
-			accuracyClosing:{
-				type:String,
-				value:'day'
+			accuracyClosing: {
+				type: String,
+				value: 'day'
+			},
+			locked: {
+			    type : Boolean,
+				value : false,
+				noReset: true
 			}
 		};
 	}
@@ -453,7 +458,7 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	_updateDescription() {
 	    // surgery is the only one to replace selectedItem by surgerySelectedItem, other kinds have both
         // selectedItem can be the only filled field when using normal He kind
-        if(this.selectedItem || this.surgerySelectedItem) {
+        if(!this.locked && (this.selectedItem || this.surgerySelectedItem)) {
             this.set('entity.descr',
                 (this.selectedItem && this.searchAllergen && this.allergenSelectedItem) ? `${this.selectedItem.descr} (${this.allergenSelectedItem.descr})`
                     : (this.selectedItem && this.searchFamilyRisk && this.familyRiskSelectedItem) ? `${this.selectedItem.descr} (${this.familyRiskSelectedItem.descr})`
@@ -798,8 +803,18 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 				type && type.code === "adr" ? this.set("searchDrug", true) : this.set("searchDrug", false)
                 type && type.code === "surgery" ? this.set("searchSurgery", true) :  this.set("searchSurgery", false)
 
-				this.dispatchEvent(new CustomEvent('open-health-problem', { bubbles: true, composed: true, detail: {entity: this.entity}}));
-				this._checkValidity();
+				this.set("locked", true)
+				Promise.all([
+					this._setComboboxValue("BE-THESAURUS","selectedItem"),
+					this._setComboboxValue("BE-FAMILY-LINK","familyRiskSelectedItem")
+				]).finally(() => {
+					this.set("locked", false)
+					this.dispatchEvent(new CustomEvent('open-health-problem', { bubbles: true, composed: true, detail: {entity: this.entity}}));
+					this._checkValidity();
+				})
+
+
+
 			})
 
 	}
@@ -920,6 +935,16 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 		else{
             this.set("isValid",false)
         }
+	}
+
+	_setComboboxValue(codeType, componenValueToSet) {
+
+		const promResolve = Promise.resolve()
+
+		const entityCode = _.find(_.get(this,"entity.codes",[]), c => c.type === codeType)
+		const entityCodeLabel = !!_.trim(_.get(entityCode,"label." + this.language, "")) ? _.trim(_.get(entityCode,"label." + this.language, "")) : _.trim(_.find(_.flatMap(_.get(entityCode,"label",{})),_.trim))
+		return !this.dataProvider || !_.size(entityCode) || !_.trim(entityCodeLabel) ? promResolve : promResolve.then(() => this.dataProvider.filter(entityCodeLabel, 500, 0, "descr", false, [codeType]).then(res => !!_.size(_.get(res,"rows[0]",{})) ? this.set(componenValueToSet,_.get(res,"rows[0]",{})) : false))
+
 	}
 
 }
