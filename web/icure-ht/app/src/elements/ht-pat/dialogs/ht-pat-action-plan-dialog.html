@@ -109,7 +109,7 @@
             <div class="content">
                 <vaadin-form-layout>
                     <vaadin-form-item  colspan="1">
-                        <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                        <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
                     </vaadin-form-item >
                     <vaadin-form-item  colspan="1">
                         <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
@@ -338,6 +338,14 @@
                     isValid: {
                         type: Boolean,
                         value : false
+                    },
+                    fullDateMode :{
+                        type: Boolean,
+                        value: false
+                    },
+                    accuracy:{
+                        type: String,
+                        value: "day"
                     }
                 };
             }
@@ -382,6 +390,7 @@
                 this.set("isExistingSvc",false)
                 this.set("hasSurgical",false)
                 this.set("isVaccineProcedure",false)
+                this.set("accuracy","day")
             }
 
             attached() {
@@ -449,12 +458,12 @@
 
                 let listFiltered=[]
                 const procedureCode = this.proceduresListItem.find(p=> p.code===code)
-                if(procedureCode) {
+                /*if(procedureCode) {
                     procedureCode.links.filter(link => link.includes("CD-HCPARTY|")).map(link => {
                         const info = link.split('|')
                         listFiltered.push(this.hcpartyTypeList.find(type => type.code === info[1]))
                     })
-                }
+                }*/
                 this.set("hcpartyTypeListFiltered",listFiltered)
             }
 
@@ -538,13 +547,13 @@
                             const procedureList = results[0];
                             const profCode = (this.selectedProfessionItem && this.selectedProfessionItem.id)
                             let filtered = procedureList.rows
-                            if(profCode) {
-                                filtered = filtered.filter(proc => {
+                           /* if(profCode) {
+                               filtered = filtered.filter(proc => {
                                     return proc.links && proc.links.some(link => {
                                         return link == profCode
                                     })
                                 })
-                            }
+                            }*/
                             filtered = _.flatten(filtered.map(procedure => ({
                                 id: procedure.id,
                                 label: procedure.label,
@@ -623,7 +632,7 @@
                 const action = this.plannedAction
                 const contactId = this.currentContact.id
                 const responsible = action.HcpId && action.HcpId !== "" ? action.HcpId : this.user.healthcarePartyId
-                const valueDate = action.Deadline && action.Deadline !== "" ? this.api.moment(action.Deadline).format('YYYYMMDD') : ""
+                const valueDate = action.Deadline && action.Deadline !== "" ? action.Deadline.split("-").join("") : ""
 
                 if (!action || !contactId || !valueDate) {
                     this.set('errMsg',this.localize('some_mandat_fields','Some fields are mandatory',this.language))
@@ -782,7 +791,17 @@
                     ]).then(([hcp, resultProced, resultProf, resultVaccine]) => {
                         this.push("hcpListItem", {id: hcp.id, name: hcp.lastName + ' ' + hcp.firstName});
 
-                        const date = this.api.moment(service.valueDate).format("YYYY-MM-DD");
+                        let  date ="";
+                        if(service.valueDate%100!==0){
+                            date =this.api.moment(service.valueDate).format("YYYY-MM-DD")
+                            this.set("accuracy","day")
+                        }else if(service.valueDate%10000!==0){
+                            date =this.api.moment(service.valueDate+1).format("YYYY-MM")+"-00"
+                            this.set("accuracy","month")
+                        }else{
+                            date =this.api.moment(service.valueDate+101).format("YYYY")+"-00-00"
+                            this.set("accuracy","year")
+                        }
 
                         this.set("proceduresListItem", [resultProced])
                         this.procedureChanged({detail: {value: (codeProcedure && codeProcedure.code) }})
