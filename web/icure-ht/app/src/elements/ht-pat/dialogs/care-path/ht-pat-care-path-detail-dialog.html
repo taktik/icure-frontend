@@ -736,26 +736,31 @@
                                     <paper-icon-button class="button--icon-btn close-view-btn" icon="vaadin:close" on-tap="_showAddDocument"></paper-icon-button>
                                 </div>
                                 <div>
+                                    <div class="mb10">[[localize('availableToBeLinkedDocuments','Documents disponibles / à lier',language)]]:</div>
                                     <template is="dom-repeat" items="[[availableDocumentList]]" as="doc">
                                         <div class="documentsList p10 pb0 borderDashed borderW1px borderColorAppPrimaryLight">
-                                            <div class="mb10">[[localize('availableToBeLinkedDocuments','Documents disponibles / à lier',language)]]:</div>
-                                            <template is="dom-repeat" items="[[_templateInsuranceDocuments_available]]" as="item" id="triptyqueAvailableInsuranceDocumentsDomRepeat">
-                                                <div class="singleDocumentContainer" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.documentId]]" data-attachment-id$="[[doc.attachmentId]]">
-                                                    <div class="header p10">
-                                                        <span class="date">[[item.created]]</span>
-                                                        <paper-button class="p0 m0 fr" on-tap="_linkInsuranceDocument" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.documentId]]" data-attachment-id$="[[doc.attachmentId]]"><iron-icon icon="icons:link" id$="link-insurance-[[doc.documentId]]"></iron-icon></paper-button><paper-tooltip for$="link-insurance-[[doc.documentId]]">[[localize('linkPdf','Link PDF',language)]]</paper-tooltip>
-                                                        <paper-button class="p0 m0 fr mr10" on-tap="_toggleCollapseInsuranceDocumentPreview" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.documentId]]" data-attachment-id$="[[doc.attachmentId]]"><iron-icon icon="icons:visibility" id$="view-insurance-[[doc.documentId]]"></iron-icon></paper-button><paper-tooltip for$="view-insurance-[[doc.documentId]]">[[localize('ehb.view','View',language)]]</paper-tooltip>
-                                                    </div>
-                                                    <div class="body p5 fspoint9em"><iron-icon icon="image:picture-as-pdf" class="mr5 darkRed"></iron-icon> [[doc.documentName]]</div>
+                                            <div class="singleDocumentContainer" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.service.content.fr.documentId]]" data-attachment-id$="[[doc.document.attachmentId]]">
+                                                <div class="header p10">
+                                                    <span class="date">[[item.created]]</span>
+                                                    <paper-button class="p0 m0 fr" on-tap="_linkInsuranceDocument" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.service.content.fr.documentId]]" data-attachment-id$="[[doc.document.attachmentId]]">
+                                                        <iron-icon icon="icons:link" id$="link-insurance-[[doc.service.content.fr.documentId]]"></iron-icon>
+                                                    </paper-button>
+                                                    <paper-tooltip for$="link-insurance-[[doc.service.content.fr.documentId]]">[[localize('linkPdf','Link PDF',language)]]</paper-tooltip>
+                                                    <paper-button class="p0 m0 fr mr10" on-tap="_toggleCollapseInsuranceDocumentPreview" data-message-id$="[[doc.messageId]]" data-document-id$="[[doc.service.content.fr.documentId]]" data-attachment-id$="[[doc.document.attachmentId]]">
+                                                        <iron-icon icon="icons:visibility" id$="view-insurance-[[doc.service.content.fr.documentId]]"></iron-icon>
+                                                    </paper-button>
+                                                    <paper-tooltip for$="view-insurance-[[doc.service.content.fr.documentId]]">[[localize('ehb.view','View',language)]]</paper-tooltip>
+                                                </div>
+                                                <div class="body p5 fspoint9em"><iron-icon icon="image:picture-as-pdf" class="mr5 darkRed"></iron-icon> [[doc.documentName]]</div>
 
-                                                    <template is="dom-if" if="[[_isEqual(_currentPreviewInsuranceDocumentId, doc.documentId)]]">
-                                                        <dynamic-doc
-                                                                id="insurance-document-preview-[[doc.documentId]]"
+                                                <template is="dom-if" if="[[_isEqual(_currentPreviewInsuranceDocumentId, doc.service.content.fr.documentId)]]">
+                                                    <dynamic-doc
+                                                                id="insurance-document-preview-[[doc.service.content.fr.documentId]]"
                                                                 api="[[api]]"
                                                                 i18n="[[i18n]]"
                                                                 user="[[user]]"
-                                                                document-id="[[doc.documentId]]"
-                                                                title="[[doc.documentName]]"
+                                                                document-id="[[doc.service.content.fr.documentId]]"
+                                                                title="[[doc.document.name]]"
                                                                 language="[[language]]"
                                                                 preview="true"
                                                                 downloadable="true"
@@ -763,10 +768,9 @@
                                                                 force-no-assignation="true"
                                                                 force-no-document-header="true"
                                                                 additional-css-class="tripTyque"
-                                                        ></dynamic-doc>
-                                                    </template>
-                                                </div>
-                                            </template>
+                                                    ></dynamic-doc>
+                                                </template>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -1056,13 +1060,60 @@
                          })
                      )
                  })
+                 .then(() => this._getDocuments())
+                 .then(availableDocument => this.set("availableDocumentList", availableDocument))
                  .finally(() => {
                      this.set('contactsOfCarePath',this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
                      this._initializeChartsDataProvider()
-
                      this.$['care-path-detail'].open()
                  })
                  .catch(e => console.log("Error when open care path: "+e))
+            }
+
+            _getDocuments(){
+                return this.api.contact().findBy( _.trim(_.get(this,"user.healthcarePartyId","")), this.patient )
+                    .then(patientContacts => _.compact(_.flatten(_.map(patientContacts, singleContact => _.map(singleContact.services, singleService => !_.trim(_.get(singleService,"content." + this.language + ".documentId")) ? false : {
+                        contact: singleContact,
+                        service: singleService,
+                        serviceTitle: _.trim(_.get(singleService,"content." + this.language + ".stringValue")),
+                        formId: _.trim(_.get(singleService,"formId")),
+                        date: parseInt(_.get(singleService,"valueDate")),
+                        dateAndTimeHr: moment(parseInt(_.trim(_.get(singleService,"valueDate")).substring(0,8)),"YYYYMMDD").format('DD/MM/YYYY') + " - " + _.trim(_.get(singleService,"valueDate")).substring(8,10) + ":" + _.trim(_.get(singleService,"valueDate")).substring(10,12),
+                        documentId: _.trim(_.get(singleService,"content." + this.language + ".documentId"))
+                    })))))
+                    .then(foundServicesWithPrescription => !_.size(foundServicesWithPrescription) ? false : this.api.document().getDocuments({ids:_.map(foundServicesWithPrescription,s=>s.documentId)}).then(foundDocuments=>[foundServicesWithPrescription,foundDocuments]))
+                    .then(([foundServicesWithPrescription,foundDocuments]) => _.compact(_.map(foundServicesWithPrescription, fswp => {
+                        const serviceDocument = _.find(foundDocuments, {id: _.trim(_.get(fswp, "documentId"))})
+                        const documentExtension = _.trim(_.last(_.trim(_.get(serviceDocument,"name","")).split("."))).toLowerCase()
+                        return (
+                            ['jpg','jpeg','pdf','png','tif','tiff'].indexOf(documentExtension) === -1 ||
+                            !_.trim(_.get(serviceDocument,"id","")) ||
+                            !_.trim(_.get(serviceDocument,"attachmentId","")) ||
+                            !_.trim(_.get(serviceDocument,"secretForeignKeys",""))
+                        ) ? false : _.merge({}, _.omit(fswp, ['documentId']), {document: serviceDocument})
+                    })))
+                    .then(servicesAndDocuments => Promise.all(servicesAndDocuments.map(sad => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this, "user.healthcarePartyId", null), _.trim(_.get(sad.document, "id", "")), _.size(_.get(sad.document, "encryptionKeys", [])) ? _.get(sad.document, "encryptionKeys", []) : _.get(sad.document, "delegations", []))
+                            .then(({extractedKeys: enckeys}) => !!_.trim(_.get(sad.document,"id","")) && _.trim(_.get(sad.document,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(sad.document,"id","")), _.trim(_.get(sad.document,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>(_.merge(sad, {document:{decryptedContent:decryptedContent}}))).catch(e=>{console.log("ERROR with getAttachment: ",e); }) : sad)
+                        )).then(servicesAndDocuments => servicesAndDocuments)
+                    )
+                    .then(servicesAndDocuments => _
+                        .chain(servicesAndDocuments)
+                        .filter(i => !!_.trim(_.get(i,"document.id")) && !!parseInt(_.get(i,"document.decryptedContent.byteLength")) )
+                        .orderBy(['date'], ['desc'])
+                        .value()
+                    )
+            }
+
+            _toggleCollapseInsuranceDocumentPreview(e) {
+                const promResolve = Promise.resolve();
+                const targetButton = !!_.size(_.get(e,"target","")) && _.get(e,"target.nodeName","") === "PAPER-BUTTON" ? _.get(e,"target",{}) : _.find( _.get(e,"path",[]), p => _.get(p,"nodeName","") === "PAPER-BUTTON")
+                const documentId = _.trim(_.get(targetButton,"dataset.documentId"))
+                return !_.trim(documentId) ? promResolve : promResolve
+                    .then(()=> _.trim(_.get(this,"_currentPreviewInsuranceDocumentId","")) === documentId ? this.set("_currentPreviewInsuranceDocumentId", "") : this.set("_currentPreviewInsuranceDocumentId", documentId) )
+                    .then(()=>{
+                        const targetPdfPreviewPdfElement = this.shadowRoot.querySelector("#insurance-document-preview-" + documentId) && this.shadowRoot.querySelector("#insurance-document-preview-" + documentId).shadowRoot.querySelector("pdf-element")
+                        return typeof _.get(targetPdfPreviewPdfElement,"onWidthChange","") === "function" ? targetPdfPreviewPdfElement.onWidthChange() : false
+                    })
             }
 
             _initializeChartsDataProvider(){
