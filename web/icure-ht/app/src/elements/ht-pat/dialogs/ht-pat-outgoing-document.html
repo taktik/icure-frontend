@@ -1,0 +1,550 @@
+<link rel="import" href="../../../../bower_components/polymer/polymer.html">
+
+<link rel="import" href="../../../../bower_components/paper-card/paper-card.html">
+<link rel="import" href="../../../../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../../../../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../../../../bower_components/paper-styles/shadow.html">
+<link rel="import" href="../../../../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../../../../bower_components/paper-input/paper-input-container.html">
+<link rel="import" href="../../../../bower_components/paper-input/paper-textarea.html">
+<link rel="import" href="../../../../bower_components/paper-tooltip/paper-tooltip.html">
+<link rel="import" href="../../../../bower_components/paper-dialog/paper-dialog.html">
+
+<link rel="import" href="../../../../bower_components/iron-icon/iron-icon.html">
+<link rel="import" href="../../../../bower_components/iron-icons/hardware-icons.html">
+<link rel="import" href="../../../../bower_components/iron-icons/image-icons.html">
+<link rel="import" href="../../../../bower_components/iron-icons/editor-icons.html">
+
+<link rel="import" href="../../../../bower_components/iron-meta/iron-meta.html">
+<link rel="import" href="../../../../bower_components/iron-input/iron-input.html">
+<link rel="import" href="../../../../bower_components/iron-iconset/iron-iconset.html">
+<link rel="import" href="../../../../bower_components/iron-flex-layout/iron-flex-layout.html">
+<link rel="import" href="../../../../bower_components/iron-iconset-svg/iron-iconset-svg.html">
+
+<link rel="import" href="../../../../bower_components/vaadin-icons/vaadin-icons.html">
+<link rel="import" href="../../../../bower_components/vaadin-upload/vaadin-upload.html">
+<link rel="import" href="../../../../bower_components/vaadin-checkbox/vaadin-checkbox.html">
+
+<link rel="import" href="../../dynamic-form/dynamically-loaded-form.html">
+<link rel="import" href="../../dynamic-form/entity-selector.html">
+
+<link rel="import" href="../../ht-spinner/ht-spinner.html">
+
+<link rel="import" href="../../../styles/scrollbar-style.html">
+<link rel="import" href="../../../styles/buttons-style.html">
+<link rel="import" href="../../../styles/dialog-style.html">
+<link rel="import" href="../../../styles/vaadin-icure-theme.html">
+<link rel="import" href="../../../styles/shared-styles.html">
+<link rel="import" href="../../../styles/dropdown-style.html">
+<link rel="import" href="../../../styles/paper-tabs-style.html">
+
+
+
+
+
+<dom-module id="ht-pat-outgoing-document">
+
+
+
+    <template>
+
+
+
+        <style include="scrollbar-style dialog-style buttons-style dropdown-style paper-tabs-style shared-styles">
+
+            .overlaySpinnerContainer {
+                position:absolute;
+                width:100%;
+                height:100%;
+                z-index:10;
+                background:rgba(255, 255, 255, .8);
+                top:0;
+                left:0;
+            }
+
+            .overlaySpinner {
+                max-width:80px;
+                margin:100px auto
+            }
+
+        </style>
+
+
+
+
+
+        <paper-dialog id="outgoingDocumentDialog" always-on-top="true" no-cancel-on-outside-click="true" no-cancel-on-esc-key="true">
+
+            <h2 class="modal-title">[[localize('new_out-doc','New outgoing document',language)]]</h2>
+
+            <div class="content">
+                <prose-editor id="prose-editor" class="content" on-refresh-context="_refreshContext"></prose-editor>
+            </div>
+
+            <div class="buttons">
+
+                Gauche: charger modèle, sauver modèle, imrpimer<br />
+                Droite: fermer, enregistrer et ajouter au dossier
+
+                <paper-button class="button button--other" dialog-dismiss><iron-icon icon="icons:close"></iron-icon> [[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_archiveBatch"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+
+
+
+<!--                Lettre de liaison:-->
+<!--                <paper-button class="button" on-tap="_closeLinkingLetterDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>-->
+<!--                <paper-button class="button button&#45;&#45;other" on-tap="_printLinkingLetter"><iron-icon icon="icons:print" class="mr5 smallIcon" ></iron-icon> [[localize('print','Print',language)]]</paper-button>-->
+<!--                <paper-button class="button button&#45;&#45;save" autofocus on-tap="_saveLinkingLetter"><iron-icon icon="icons:save" class="mr5 smallIcon" ></iron-icon> [[localize('saveToPatFile','Save to patient file',language)]]</paper-button>                -->
+
+
+
+<!--                Documents sortants:-->
+<!--                <paper-button class="button button&#45;&#45;other" on-tap="_openTemplateDescriptionDialog">[[localize('sav_mod','Save model',language)]]</paper-button>-->
+<!--                <paper-button class="button button&#45;&#45;other" on-tap="loadTemplate">[[localize('load_mod','Load model',language)]]</paper-button>-->
+<!--                <paper-button class="button button&#45;&#45;other" on-tap="printDocument">[[localize('print','Print',language)]]</paper-button>-->
+<!--                <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>-->
+<!--                <paper-button class="button button&#45;&#45;save" dialog-confirm autofocus on-tap="_saveReport">[[localize('save','Save',language)]]</paper-button>-->
+
+            </div>
+
+
+
+
+
+            <template is="dom-if" if="[[_isBusy]]"><div class="overlaySpinnerContainer"><div class="overlaySpinner"><ht-spinner active></ht-spinner></div></div></template>
+
+        </paper-dialog>
+
+
+
+
+
+    </template>
+
+
+
+    <script>
+
+
+
+        import _ from 'lodash/lodash';
+        import moment from 'moment/src/moment';
+        import { Base64 } from 'js-base64';
+
+
+
+        class HtPatOutgoingDocument extends Polymer.TkLocalizerMixin(Polymer.Element) {
+
+            static get is() {
+                return 'ht-pat-outgoing-document';
+            }
+
+            static get properties() {
+                return {
+                    api: {
+                        type: Object,
+                        noReset: true,
+                        value: () => {}
+                    },
+                    user: {
+                        type: Object,
+                        noReset: true,
+                        value: () => {}
+                    },
+                    i18n: {
+                        type: Object,
+                        noReset: true,
+                        value: () => {}
+                    },
+                    resources: {
+                        type: Object,
+                        noReset: true,
+                        value: () => {}
+                    },
+                    language: {
+                        type: String,
+                        noReset: true,
+                        value: "fr"
+                    },
+                    patient: {
+                        type: Object,
+                        noReset: true,
+                        value: () => {}
+                    },
+                    _isBusy: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
+                    },
+                    _data: {
+                        type: Object,
+                        value: () => {return{
+                            currentHcp: {
+                                type: Object,
+                                value: () => {}
+                            },
+                            currentPatient: {
+                                type: Object,
+                                value: () => {}
+                            },
+                            codes: {
+                                type: Object,
+                                value: ()=>{}
+                            },
+                            contact: {
+                                type: Object,
+                                value: ()=>{}
+                            },
+                        }}
+                    }
+                };
+            }
+
+            static get observers() {
+                return [];
+            }
+
+            constructor() {
+                super();
+            }
+
+            ready() {
+                super.ready();
+            }
+
+            _resetComponentProperties() {
+                const promResolve = Promise.resolve();
+                return promResolve
+                    .then(() => {
+                        const componentProperties = HtPatOutgoingDocument.properties
+                        Object.keys(componentProperties).forEach(k => { if (!_.get(componentProperties[k],"noReset", false)) { this.set(k, (typeof componentProperties[k].value === 'function' ? componentProperties[k].value() : (componentProperties[k].value || null))) }})
+                        return promResolve
+                    })
+            }
+
+            _msTstampToDDMMYYYY(msTstamp) {
+                return parseInt(msTstamp) ? this.api.moment(parseInt(msTstamp)).format('DD/MM/YYYY') : ""
+            }
+
+            _msTstampToYYYYMMDD(msTstamp) {
+                return parseInt(msTstamp) ? this.api.moment(parseInt(msTstamp)).format('YYYYMMDD') : ""
+            }
+
+            _YYYYMMDDToDDMMYYYY(inputValue) {
+                return parseInt(inputValue) ? this.api.moment(_.trim(parseInt(inputValue)),"YYYYMMDD").format('DD/MM/YYYY') : ""
+            }
+
+            _YYYYMMDDHHmmssToDDMMYYYYHHmmss(inputValue) {
+                return parseInt(inputValue) ? this.api.moment(_.trim(parseInt(inputValue)),"YYYYMMDDHHmmss").format('DD/MM/YYYY HH:mm:ss') : ""
+            }
+
+            _upperFirstAll(inputValue){
+                return _.trim(_.map(_.trim(inputValue).toLowerCase().split(" "),i=>_.upperFirst(_.trim(i))).join(" "))
+            }
+
+            _dobToAge(inputValue) {
+                return inputValue ? this.api.getCurrentAgeFromBirthDate(inputValue,( e , s ) => this.localize(e, s, this.language)) : ''
+            }
+
+            _getServiceShortDescription(svc) {
+                return this.api.contact().shortServiceDescription(svc, this.language);
+            }
+
+            _getServicesOfContacts(contacts) {
+
+                return _.filter(
+                    _.sortBy(
+                        _.compact(_.flatMap(contacts, c => {
+                            const labOrProtocolSubContacts = _.filter(_.get(c,"subContacts",[]),sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || (parseInt(_.get(sctc, "status", 0)) & (1 << 5))))
+                            const labOrProtocolSubContactsServices = _.compact(_.flatMap(labOrProtocolSubContacts, it => _.map(_.get(it,"services",[]), svc => _.trim(_.get(svc,"serviceId","")) )))
+                            return (!!parseInt(_.get(c,"endOfLife",0)) || !!parseInt(_.get(c,"deletionDate",0))) ? false :  _.compact(_.map(_.get(c,"services",{}), svc => !!parseInt(_.get(svc,"endOfLife",0)) || labOrProtocolSubContactsServices.indexOf(_.trim(_.get(svc,"id",""))) === -1 ? false : svc))
+                        })),
+
+                        ["modified","index"],["asc","asc"]
+                    ),
+                    svc => true /* !!_.trim(this._getServiceShortDescription(svc)) */
+                )
+
+            }
+
+            _getServiceNormalValues(svc) {
+                const c = this.api.contact().preferredContent(svc, this.language)
+                return c && c.measureValue && `${c.measureValue.ref ? c.measureValue.ref.toFixed(2) : ''} ${c.measureValue.min || c.measureValue.max ? `${c.measureValue.min ? c.measureValue.min.toFixed(1) : '*'} - ${c.measureValue.max ? c.measureValue.max.toFixed(1) : '*'}` : ''}` || '';
+            }
+
+            _getServicesMap(singleContact) {
+                return singleContact.reduce((map, ctc) => {
+                    const svcMap = ctc.subContacts.reduce((svcMap, subContact) => { subContact.services.reduce((svcMap, svcLink) => { (svcMap[svcLink.serviceId] || (svcMap[svcLink.serviceId] = [])).push(subContact); return svcMap; }, svcMap); return svcMap; }, {});
+                    ctc.services.reduce((map, svc) => { (map[svc.label] || (map[svc.label] = [])).push({ svc: svc, scs: svcMap[svc.id] || [], ctc: ctc }); return map; }, map);
+                    Object.values(map).forEach(arr => arr.sort((a, b) => b.svc.modified - a.svc.modified));
+                    return map;
+                }, {})
+            }
+
+            _getPrettifiedHcp() {
+
+                const promResolve = Promise.resolve()
+
+                return this.api.hcparty().getCurrentHealthcareParty()
+                    .then(hcp => {
+                        const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
+                        return _.merge({}, hcp, {
+                            address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
+                            postalCode: _.trim(_.get(addressData,"postalCode","")),
+                            city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
+                            country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
+                            phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
+                            mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
+                            email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
+                            firstName: this._upperFirstAll(_.get(hcp,"firstName","")),
+                            lastName: this._upperFirstAll(_.get(hcp,"lastName","")),
+                            nihiiHr: this.api.formatInamiNumber(_.trim(_.get(hcp,"nihii",""))),
+                            ssinHr: this.api.formatSsinNumber(_.trim(_.get(hcp,"ssin",""))),
+                        })
+                    })
+                    .catch(()=>promResolve)
+
+            }
+
+            _getPrettifiedPatient(user, patientId, patientObject=null) {
+
+                const promResolve = Promise.resolve()
+
+                return !_.size(patientObject) && (!_.trim(_.get(user, "id")) || !_.trim(patientId)) ? promResolve : (!!_.size(patientObject) ? Promise.resolve(patientObject) : this.api.patient().getPatientWithUser(user, patientId))
+                    .then(patient => {
+                        const addressData = _.find(_.get(patient,"addresses",[]), {addressType:"home"}) || _.find(_.get(patient,"addresses",[]), {addressType:"work"}) || _.get(patient,"addresses[0]",[])
+                        return _.merge({}, patient, {
+                            address: [ _.trim(_.get(addressData,"street","")), _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : "") ].join(", "),
+                            postalCode: _.trim(_.get(addressData,"postalCode","")),
+                            city: this._upperFirstAll(_.trim(_.get(addressData,"city",""))),
+                            country: this._upperFirstAll(_.trim(_.get(addressData,"country",""))),
+                            phone: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"phone"}), "telecomNumber", "")),
+                            mobile: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"mobile"}), "telecomNumber", "")),
+                            email: _.trim(_.get(_.find(_.get(addressData,"telecoms",[]), {"telecomType":"email"}), "telecomNumber", "")),
+                            firstName: this._upperFirstAll(_.get(patient,"firstName","")),
+                            lastName: this._upperFirstAll(_.get(patient,"lastName","")),
+                            ssinHr: this.api.formatSsinNumber(_.trim(_.get(patient, "ssin", ""))),
+                            gender: _.trim(_.get(patient, "gender", "male")),
+                            genderHr: this._upperFirstAll(this.localize(_.trim(_.get(patient, "gender", "male")) + "GenderLong", "masculin")),
+                            dateOfBirthHr: this._YYYYMMDDToDDMMYYYY(_.trim(_.get(patient, "dateOfBirth"))),
+                            insuranceData: _
+                                .chain(_.get(patient, "insurabilities",{}))
+                                .filter((i)=>{
+                                    return i &&
+                                        !!moment( _.trim(_.get(i, "startDate", "0") ), "YYYYMMDD" ).isBefore(moment()) &&
+                                        (!!moment( _.trim(_.get(i, "endDate", "0") ), "YYYYMMDD" ).isAfter(moment()) || !_.trim(_.get(i, "endDate", "") ) ) &&
+                                        !!_.trim( _.get( i, "insuranceId", "" ) )
+                                })
+                                .map(i => {return {
+                                    insuranceId: _.trim(_.get(i,"insuranceId","")),
+                                    identificationNumber: _.trim(_.get(i,"identificationNumber","")),
+                                    tc1: _.trim(_.get(i,"parameters.tc1","")),
+                                    tc2: _.trim(_.get(i,"parameters.tc2","")),
+                                    preferentialstatus: typeof _.get(i,"parameters.preferentialstatus") === "boolean" ? !!_.get(i,"parameters.preferentialstatus",false) : _.trim(_.get(i,"parameters.preferentialstatus")) === "true"
+                                }})
+                                .head()
+                                .value(),
+                        })
+                    })
+                    .then(patient => this._getInsuranceData(_.trim(_.get(patient,"insuranceData.insuranceId"))).then(insuranceData => _.merge({},patient,{insuranceData:insuranceData})))
+                    .catch(()=>promResolve)
+
+            }
+
+            _getInsuranceData(insuranceId) {
+
+                const promResolve = Promise.resolve()
+
+                return !_.trim(insuranceId) ? promResolve : this.api.insurance().getInsurance(insuranceId)
+                    .then(insuranceData => _.merge({}, {
+                        code: _.trim(_.get(insuranceData, "code", "")),
+                        name: this._upperFirstAll(!!_.trim(_.get(insuranceData, "name." + this.language, "")) ? _.trim(_.get(insuranceData, "name." + this.language, "")) : _.trim(_.find(_.get(insuranceData, "name", {}), _.trim)))
+                    }))
+                    .catch(()=>promResolve)
+
+            }
+
+            _getCodesByType(codeType) {
+
+                const promResolve = Promise.resolve()
+
+                return !_.trim(codeType) ? promResolve : this.api.code().findPaginatedCodes("be", codeType)
+                    .then(({rows}) => _
+                        .chain(rows)
+                        .filter(i=> !_.get(i,"disabled",false))
+                        .map(i => _.merge({},i,{
+                            labelHr: codeType === "CD-TRANSACTION" ?
+                                _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(i,"code")), _.trim(_.get(i,"code")), this.language)).toLowerCase()) :
+                                _.trim(_.get(i,"label." + this.language,"")) ?
+                                    _.upperFirst(_.trim(_.get(i,"label." + this.language,"")).toLowerCase()) :
+                                    _.upperFirst(_.trim(_.head(_.flatMap(_.get(i,"label","")))).toLowerCase())
+                        }))
+                        .orderBy(["labelHr"],["asc"])
+                        .value()
+                    )
+                    .then(codes => _.fromPairs([[codeType,codes]]))
+                    .catch(()=>promResolve)
+
+            }
+
+            _getContact(user, contactId) {
+
+                const promResolve = Promise.resolve()
+
+                return !_.trim(_.get(user, "id")) || !_.trim(contactId) ? promResolve : this.api.contact().getContactWithUser(user, contactId)
+                    .then(contact => _.merge(contact, {
+                        createdHr: this._msTstampToDDMMYYYY(_.get(contact,"created","")),
+                        openingDateHr: this._YYYYMMDDToDDMMYYYY(_.trim(_.get(contact,"openingDate","")).substring(0,8)),
+                        openingDateYYYYMMDD: _.trim(_.get(contact,"openingDate","")).substring(0,8),
+                        closingDateHr: this._YYYYMMDDToDDMMYYYY(_.trim(_.get(contact,"closingDate","")).substring(0,8)),
+                    }))
+                    .catch(()=>promResolve)
+
+            }
+
+            _isServiceOutOfRange(svc) {
+                const c = this.api.contact().preferredContent(svc, this.language)
+                return (c && c.measureValue && (c.measureValue.value < c.measureValue.min || c.measureValue.value > c.measureValue.max ))
+            }
+
+            _getServiceDate(svc) {
+                return (svc && svc.modified) ? this.api.moment(svc.modified).format(svc.modified > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
+            }
+
+            _getContentFromContact() {
+
+                const promResolve = Promise.resolve()
+
+                const user = _.get(this,"user",{})
+                const contact = _.get(this,"_data.contact")
+                const document = _.get(this,"_data.document",{})
+                const patient = _.get(this,"_data.currentPatient")
+                const sourceContactId = _.trim(_.get(contact,"id",""))
+                const sourceContactGroupId = _.trim(_.get(contact,"groupId",""))
+
+                return !sourceContactId ? promResolve : promResolve
+                    .then(() => (!_.trim(_.get(user, "id")) || !_.size(patient)) ? Promise.resolve([contact]) : this.api.contact().findBy(_.trim(_.get(user,"healthcarePartyId","")), patient)
+                        .then(contacts => (!sourceContactGroupId || _.size(contacts) === 1) ? contacts : _
+                            .chain(contacts)
+                            .filter(ctc => !!_.size(_.get(ctc, "services", [])) && _.trim(_.get(ctc,"groupId","")) === sourceContactGroupId)
+                            .orderBy(["modified"], ["asc"])
+                            .value()
+                        )
+                    )
+                    .then(contacts => {
+
+                        const servicesOfContacts = this._getServicesOfContacts(contacts)
+                        const contactType = _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.get(contact,"tags",[]),{type:"CD-TRANSACTION"}), "code","")}),"labelHr","")
+                        const subContactType = _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.get(_.find(_.flatMap(_.get(contact,"subContacts",[]),sctc => _.get(sctc,"tags",[])),{type:"CD-TRANSACTION"}), "code","")}),"labelHr","")
+                        const targetSubContact = _.find(_.get(contact,"subContacts",[]), sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 0)) || (parseInt(_.get(sctc, "status", 0)) & (1 << 5))))
+
+                        const documentServiceId = _.trim(_.get(_.find(_.get(contact,"subContacts",[]), sctc => !!((parseInt(_.get(sctc, "status", 0)) & (1 << 6)))),"services[0].serviceId",""))
+                        const documentService = _.find(_.get(contact,"services",[]),{id:documentServiceId})
+                        const documentType = _.get(_.find(_.get(this,"_data.codes.CD-TRANSACTION",[]), {code:_.trim(_.get(_.find(_.get(documentService,"tags",[]),{type:"CD-TRANSACTION"}), "code", ""))}),"labelHr","")
+                        const documentTitle = _.trim(_.get(documentService,"content." + this.language + ".stringValue",""))
+
+                        const contactOrDocumentType = !!_.trim(subContactType) ? _.trim(subContactType) : !!_.trim(contactType) ? _.trim(contactType) : _.trim(documentType)
+                        const contactOrDocumentTitle = !!_.trim(_.get(contact,"descr","")) && !!_.trim(_.trim(_.get(contact,"descr","")).replace(contactOrDocumentType+":","")) ?
+                            _.trim(_.get(contact,"descr","")).replace(contactOrDocumentType+":","") :
+                            (!!_.trim(_.get(targetSubContact,"descr","")) || !!_.trim(_.get(targetSubContact,"protocol",""))) ? _.trim(_.get(targetSubContact,"descr","")) + (!!_.trim(_.get(targetSubContact,"protocol","")) ? " (" + this.localize("prot", "Protocol", this.language) + " #" + _.trim(_.get(targetSubContact,"protocol","")) + ")" : "" ) :
+                                documentTitle
+
+                        return {
+                            dateHr: _.get(contact,"openingDateHr",""),
+                            dateYYYYMMDD: _.get(contact,"openingDateYYYYMMDD",""),
+                            title: contactOrDocumentTitle,
+                            type: contactOrDocumentType,
+                            fileExtension: _.trim(_.get(document, "attachment.fileExtension")).toLowerCase(),
+                            mimeType: _.trim(_.get(document, "attachment.mimeType")).toLowerCase(),
+                            downloadUrl: _.trim(_.get(document, "attachment.downloadUrl")),
+                            body: !_.size(servicesOfContacts) && typeof _.get(document, "attachment.content") === "string" && !!_.trim(_.get(document, "attachment.content")) ? this._prettifyText(_.trim(_.get(document, "attachment.content"))) :
+                                !_.size(servicesOfContacts) && _.get(document, "attachment.content") instanceof ArrayBuffer ? _.get(document, "attachment.content") :
+                                    _.size(servicesOfContacts) === 1 ? this._prettifyText(this._getServiceShortDescription(_.head(servicesOfContacts))) :
+                                        _.map(servicesOfContacts, svc => { return {
+                                            isOutOfRange: !!this._isServiceOutOfRange(svc),
+                                            label: _.trim(_.get(svc,"label","")),
+                                            date: this._getServiceDate(svc),
+                                            value: this._getServiceShortDescription(svc),
+                                            normalValue: this._getServiceNormalValues(svc),
+                                            author: this._getServiceAuthor(svc),
+                                        }})
+                        }
+
+                    })
+
+            }
+
+
+
+
+
+
+
+
+
+
+            open(inputData) {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+                this.set("_isBusy", true)
+
+                // this.shadowRoot.querySelector('#outgoingDocumentDialog').open();
+
+                console.log(inputData); return;
+
+                // _initOpenDialogActions
+
+                // https://github.com/AssossCare/icure-frontend/blob/feature/TOP-Kine-Fab/web/icure-ht/app/src/elements/ht-pat/dialogs/ht-pat-triptyque.html
+
+
+
+
+
+                const promResolve = Promise.resolve()
+                const patientId = !!_.trim(_.get(inputData,"patientId","")) ? _.trim(_.get(inputData,"patientId","")) : _.trim(_.get(this,"patient.id",""))
+                const contactId = _.trim(_.get(inputData,"contactId",""))
+
+                // Make sure properties of component (that aren't set yet) actually are a variable rather than an object with a value key representing their value.
+                _.map(_.get(this,"_data",{}), (propValue,propKey) => typeof _.get(propValue,"value",null) !== "function" ? null : this.set("_data." + propKey, _.get(propValue,"value",null)()))
+
+                return this._resetComponentProperties()
+                    .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
+                    .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
+                    .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
+                    .then(() => this._getContact(_.get(this,"user",{}), contactId, _.get(this,"_data.currentPatient")).then(contact => _.assign(this._data,{contact:contact})))
+                    .then(() => ((!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? promResolve : !!_.size(_.get(this,"_data.contact")) ? this._getContentFromContact() : promResolve).then(content => _.assign(this._data,{content:content})))
+                    .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
+
+                    //.then(() => this.api.pdfReport(this._data.pdfHtmlContent), {type:"rapp-mail",completionEvent:"pdfDoneRenderingEvent", printBackground:true})
+                    // .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" + _.trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
+
+                    .catch(e => { console.log("[ERROR] printDocument", e, inputData); return promResolve;})
+                    .finally(() => {
+
+                        console.log("--- this._data ---",this._data);
+                        console.log("inputData",inputData);
+
+                        this.set("_isBusy", false)
+                        return promResolve
+
+                    })
+
+            }
+
+
+
+
+
+
+
+        }
+
+        customElements.define(HtPatOutgoingDocument.is, HtPatOutgoingDocument);
+
+
+
+    </script>
+
+
+
+</dom-module>
