@@ -1127,6 +1127,7 @@
             defaultSaveDocuments(e) {
                 if (!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
                 let updatedContact = null;
+                let documentList = [];
                 const documents = e.detail.documents;
                 const docDateYMD = parseInt(moment(this._documentDate).format("YYYYMMDDHHmmss"));
                 const docDateMs = parseInt(moment(this._documentDate).format("x")) || new Date().getTime();
@@ -1148,14 +1149,7 @@
                         // },
                         metas: {
                             documentDate: this._documentDate,
-                            importDate: moment().format("YYYY-MM-DD"),
-                            documentListJson: JSON.stringify(documents.map(doc => {
-                                return {
-                                    filename: doc.title,
-                                    type: doc.type,
-                                    scanned: (doc.isScanned ? 1 : 0)
-                                }
-                            }))
+                            importDate: moment().format("YYYY-MM-DD")
                         },
                         toAddresses: [_.get(this.user, "email", _.get(this.user, "healthcarePartyId", "")), _.get(user, "email", this.hcpId)],
                         subject: "imported doc in message",
@@ -1196,6 +1190,15 @@
                                         .then(newDoc => this.api.document().createDocument(newDoc))
                                         .then(createdDoc => {
                                             doc.docId = createdDoc.id;
+                                            documentList.push(
+                                                {
+                                                    id: doc.docId,
+                                                    filename: doc.title,
+                                                    type: doc.type,
+                                                    scanned: (doc.isScanned ? 1 : 0)
+                                                }
+                                            );
+                                            console.log("1 - documentList: ", documentList);
                                             return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
                                         })
                                         .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent))
@@ -1227,13 +1230,22 @@
                                         return this.api.contact().modifyContactWithUser(this.user, contact);
                                 })
                                 .then(contact => this.api.register(contact, "contact"))
-                                .then(contact => updatedContact = contact)
+                                .then(contact => {
+                                    updatedContact = contact
+                                    return contact;
+                                })
                                 .then(contact => this._encryptInfo(msg, [{
                                     'patientId': this.patientId,
                                     'isAssigned': true,
                                     'contactId': contact.id
                                 }]))
                         }})
+                    .then((msg) => {
+                        msg.metas.documentListJson = JSON.stringify(documentList);
+                        console.log("2 - documentList: ", documentList);
+                        console.log("documentListJson: ", msg.metas.documentListJson);
+                        return msg;
+                    })
                     .then((msg) => this.api.message().modifyMessage(msg))
                     .catch((error) => console.log(error))
                     .finally((msg) => this.dispatchEvent(new CustomEvent("post-process", {
