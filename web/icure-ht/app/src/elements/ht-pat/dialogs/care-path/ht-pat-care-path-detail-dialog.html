@@ -1048,7 +1048,8 @@
                              specialist: _.get(carePath, 'agreementDate.specialist', null),
                              mutuality: _.get(carePath, 'agreementDate.mutuality', null)
                          },
-                         linkedDocuments: _.get(carePath, "documentIds", []),
+                         encryptedDocumentsId: _.get(carePath, "documentIds", []),
+                         linkedDocuments: [],
                          linkedProcedures: []
                      })
 
@@ -1069,15 +1070,23 @@
                      !_.isEmpty(he) ? this.set('selectedCarePathType', this.carePathList.find(cp => he.codes.find(c => c.code === cp.linkedHe.code))) : null
 
                  })
+                 .then(() => this._getDocuments())
+                 .then(availableDocument => this.set("availableDocumentList", availableDocument.map(ad => ad.document)))
                  .then(() => {
-                         return Promise.all( _.get(this,"selectedCarePath.linkedDocuments",[])
-                             .map(encryptedDocId =>
-                                 this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", _.get(this,"user",{}), _.get(this,"patient",{}), this.api.crypto().utils.text2ua(Base64.decode(_.trim(encryptedDocId))))
-                                .then(uaDecryptedContent => this.api.crypto().utils.ua2text(uaDecryptedContent))
-                                .catch(e => "Error when decrypting doc: "+e))
+                     let prom = Promise.resolve([]);
+                     const encryptedDocumentIds = _.uniq(_.compact(_.flatten(_.map(_.get(this.selectedCarePath, "encryptedDocumentsId", [])))))
+                     _.map(encryptedDocumentIds, encryptedDocId => {
+                         prom = prom.then(promisesCarrier => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", _.get(this,"user",{}), _.get(this,"patient",{}), this.api.crypto().utils.text2ua(Base64.decode(_.trim(encryptedDocId))))
+                             .then(uaDecryptedContent => _.concat(promisesCarrier, {encryptedDocId: encryptedDocId, decryptedDocId: this.api.crypto().utils.ua2text(uaDecryptedContent)}))
+                             .catch(()=>_.concat(promisesCarrier, {encryptedDocId: encryptedDocId, decryptedDocId: encryptedDocId}))
                          )
+                     })
+                     return prom.then(decryptedDocIds => decryptedDocIds)
                  })
-                 .then(decryptedDocId => console.log(decryptedDocId))
+                 .then(decryptedDocId => {
+                     this.set('selectedCarePath.linkedDocuments', decryptedDocId.map(docId => this.availableDocumentList.find(doc => doc.id === docId.decryptedDocId)))
+                     _.get(this.selectedCarePath, 'linkedDocuments', []).map(doc => this.splice('availableDocumentList', _.indexOf( _.get(this, 'availableDocumentList', []), _.get(this, 'availableDocumentList', []).find(ldoc => ldoc.id === doc.id)), 1))
+                 })
                  .then(() => this.api.hcparty().getCurrentHealthcareParty())
                  .then(hcp => {
                      const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
@@ -1098,8 +1107,6 @@
                          })
                      )
                  })
-                 .then(() => this._getDocuments())
-                 .then(availableDocument => this.set("availableDocumentList", availableDocument.map(ad => ad.document)))
                  .finally(() => {
                      this.set('contactsOfCarePath',this.contacts.filter(c => c.healthElements && c.healthElements.find(eh => eh.codes && eh.codes.find(c => c.type === "BE-THESAURUS" && c.id === _.get(this.selectedCarePathType, 'linkedHe.id', null)))).map(c => _.merge(c, {contactYear: this.api.moment(c.openingDate).format('YYYY')})))
                      this._initializeChartsDataProvider()
@@ -1512,8 +1519,12 @@
                                 status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 1 << 1,
                             }
 
-                            return !_.size(_.get(poaToAdd,"linkedDocuments",[])) ? ([he, poaToAdd]) : Promise.all(_.map(poaToAdd.documentIds, docId => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), _.get(this,"patient",{}), this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(docId))).then(encryptedContent => Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent)))).catch(()=>docId))).then(encryptedDocumentIds => ([he, _.merge({}, poaToAdd, {documentIds: _.uniq(_.compact(encryptedDocumentIds||[]))})]) )
-
+                            return !_.size(_.get(poaToAdd,"documentIds",[])) ? ([he, poaToAdd]) :
+                                Promise.all(_.map(poaToAdd.documentIds, docId =>
+                                    this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject( "encrypt", _.get(this,"user",{}), _.get(this,"patient",{}), this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(docId)))
+                                        .then(encryptedContent => Base64.encode(String.fromCharCode.apply(null, new Uint8Array(encryptedContent))))
+                                        .catch(()=>docId)))
+                                    .then(encryptedDocumentIds => ([he, _.merge(poaToAdd, {documentIds: _.uniq(_.compact(encryptedDocumentIds||[]))})]))
                         })
                         .then(([he, poaToAdd]) => {
                             const alreadyHasPlanOfActionsKey = _.keys(he).indexOf("plansOfAction") > -1 && Array.isArray(_.get(he,"plansOfAction","notOfTypeArray"))
