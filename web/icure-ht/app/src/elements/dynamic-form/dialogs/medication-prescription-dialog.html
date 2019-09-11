@@ -1044,8 +1044,9 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                        <div>[[item.label]]</div>
-                                        <div>[[item.pos]]</div>
+                                    <vaadin-grid-tree-toggle leaf="[[!item.hasChildren]]" expanded="{{expanded}}" level="[[level]]">
+                                        [[item.label]]
+                                    </vaadin-grid-tree-toggle>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1670,7 +1671,8 @@
 
                 this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), this._serviceAdapter.bind(this));
                 this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), this._serviceAdapter.bind(this));
-                this._initList('medicine-package-list', this._medecinePackagesSearch.bind(this), this._medicinePackageAdapter.bind(this));
+                // this._initList('medicine-package-list', this._medecinePackagesSearch.bind(this), this._medicinePackageAdapter.bind(this));
+                this._initList('medicine-package-list', this._medecinePackageSearchSamV2.bind(this), this._medicinePackageAdapterSamV2.bind(this));
                 this._initList('ingredient-list', this._ingredientSearch.bind(this), this._ingredientAdapter.bind(this));
                 this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), this._serviceAdapter.bind(this));
             }
@@ -1820,6 +1822,19 @@
                 }
             }
 
+            _medicinePackageAdapterSamV2(results) {
+                if (results && results.length) {
+                    return Promise.all(results.map(result => {
+                        return {
+                            "id": result.id,
+                            "label": result.name[this.language]
+                        }
+                    }));
+                } else {
+                    return Promise.resolve([]);
+                }
+            }
+
             _ingredientAdapter(results) {
                 return Promise.resolve(results.map(result => {
                     return {
@@ -1867,6 +1882,12 @@
                     this.api.bedrugs().getMedecinePackagesFromIngredients(searchValue, language, type, first, count)
                 ])
                     .then(([packs, packsIng]) => _.unionBy(packs, packsIng, 'id.id'));
+            }
+
+            _medecinePackageSearchSamV2(searchValue, language, type, first, count) {
+                if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
+                return this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count)
+                    .then(results => (results && results.rows || []));
             }
 
             _servicesSearch(source, searchValue, language, type, first, count) {
@@ -1922,6 +1943,9 @@
                     const pageSize = params.pageSize || grid.pageSize;
                     const startIndex = (params.page || 0) * pageSize;
                     const endIndex = ((params.page || 0) + 1) * pageSize;
+
+                    const parentUuid = params.parentItem ? params.parentItem.uuid : null;
+
 
                     let latestSearchValue = this.filterValue && this.filterValue.trim();
                     this.latestSearchValue = latestSearchValue;
