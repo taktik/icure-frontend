@@ -129,6 +129,10 @@
                 width: 40%;
             }
 
+            #TitleTextField {
+                width: 100%;
+            }
+
             .panel {
                 display: flex;
                 flex-direction: column;
@@ -363,6 +367,11 @@
                 <div id="list-panel" class="panel">
                     <div id="form">
                         <div class="input-form">
+                            <vaadin-text-field id="TitleTextField" label="[[localize('title-doc','Titre',language)]]"
+                                               value="{{title}}"
+                                               disabled="[[_patientDisabled]]"></vaadin-text-field>
+                        </div>
+                        <div class="input-form">
                             <vaadin-combo-box id="hcpCombo" filter={{filterHcp}} filtered-items="[[listHcp]]"
                                               on-filter-changed="_filterHcpChanged" on-value-changed="_hcpChanged" item-label-path="name"
                                               item-value-path="id"
@@ -453,9 +462,11 @@
                 <div id="info-panel" class="panel">
                     <div id="form-header">
                         <div class="input-form">
+                            <!--
                             <vaadin-text-field id="importTextField"
                                                label="[[localize('docTitle','Titre du document',language)]]"
                                                value="{{selectedDoc.title}}"></vaadin-text-field>
+                            -->
                             <vaadin-combo-box id="typeCombo" filtered-items="[[listType]]" item-label-path="name"
                                               item-value-path="code"
                                               label="[[localize('type-doc','Type de document',language)]]"
@@ -618,6 +629,12 @@
                     patientSsin: {
                         type: String,
                         value: ""
+                    },
+
+                    title: {
+                        type: String,
+                        // TODO: (LDE) Translate this
+                        value: "Document du " + moment().format("DD/MM/YY")
                     },
 
                     listType: {
@@ -1053,6 +1070,17 @@
             }
 
             _saveDocuments() {
+                if (this.title.length == 0) {
+                    this.dispatchEvent(new CustomEvent("error-message", {
+                        detail: {
+                            title: 'Missing title',
+                            message: 'err.document.missingField',
+                            detail: this.localize('docTitle', 'Title', this.language)
+                        }, bubbles: true
+                    }));
+                    return;
+                }
+
                 if (this.docList.length === 0) return;
                 let invalidDoc = this.docList.find(d => this._isInvalid(d));
                 if (invalidDoc) {
@@ -1072,7 +1100,8 @@
                 } else {
                     this.dispatchEvent(new CustomEvent('save-documents', {
                         detail: {
-                            documents: this.docList
+                            documents: this.docList,
+                            title: this.title
                         },
                         bubbles: true
                     }));
@@ -1128,9 +1157,14 @@
                 if (!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
                 let updatedContact = null;
                 let documentList = [];
+                const title = e.detail.title;
                 const documents = e.detail.documents;
-                const docDateYMD = parseInt(moment(this._documentDate).format("YYYYMMDDHHmmss"));
-                const docDateMs = parseInt(moment(this._documentDate).format("x")) || new Date().getTime();
+                let docDate = moment();
+                if (this._documentDate && this._documentDate.length > 0)
+                    docDate = moment(this._documentDate);
+                const docDateYMD = parseInt(docDate.format("YYYYMMDDHHmmss"));
+                const docDateMs = parseInt(docDate.format("x")) || new Date().getTime();
+                const docDateAsString = docDate.format("YYYY-MM-DD")
                 console.log("message to process ", documents.length);
                 Promise.all(
                     [
@@ -1148,11 +1182,13 @@
                         //     type: doc.type
                         // },
                         metas: {
-                            documentDate: this._documentDate,
+                            //documentDate: this._documentDate,
+                            documentDate: docDateAsString,
                             importDate: moment().format("YYYY-MM-DD")
                         },
                         toAddresses: [_.get(this.user, "email", _.get(this.user, "healthcarePartyId", "")), _.get(user, "email", this.hcpId)],
-                        subject: "imported doc in message",
+                        //subject: "imported doc in message",
+                        subject: title,
                         //@ToDo test on persphysician ==> traited or not
                         status: 1 << 1 | 1 << 25 | (this.patientId ? 1 << 26 : 0)
                     })))
