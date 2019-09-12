@@ -204,14 +204,22 @@
                                 type: Object,
                                 value: ()=>{}
                             },
-                            contact: {
-                                type: Object,
-                                value: ()=>{}
-                            },
                             proseEditorVariables: {
                                 type: Array,
                                 value: () => []
-                            }
+                            },
+                            currentContact: {
+                                type: Array,
+                                value: () => []
+                            },
+                            contactsFormsAndDocuments: {
+                                type: Array,
+                                value: () => []
+                            },
+                            allHealthElements: {
+                                type: Array,
+                                value: () => {}
+                            },
                         }}
                     }
                 };
@@ -232,6 +240,10 @@
             _resetComponentProperties() {
                 const promResolve = Promise.resolve();
                 return promResolve
+                    .then(() => {
+                        const proseEditor = this.shadowRoot.querySelector("#prose-editor")
+                        proseEditor && proseEditor.setHTMLContent("")
+                    })
                     .then(() => {
                         const componentProperties = HtPatOutgoingDocument.properties
                         Object.keys(componentProperties).forEach(k => { if (!_.get(componentProperties[k],"noReset", false)) { this.set(k, (typeof componentProperties[k].value === 'function' ? componentProperties[k].value() : (componentProperties[k].value || null))) }})
@@ -492,28 +504,40 @@
 
             }
 
+            _getCodesFromHealthElements() {
+
+                const resolvedCodes = {};
+                const codesToResolve = _.uniqWith(
+                    _.compact(
+                        _.flatMapDeep(
+                            _.map(_.get(this,"_data.allHealthElements",{}), hes => _.map(hes, he => _.concat(
+                                _.map(_.get(he,"codes",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
+                                _.map(_.get(he,"tags",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
+                            )))
+                        )
+                    ), _.isEqual
+                )
+
+                return Promise.all(_.map(codesToResolve, it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))))
+                    .then(promResults => _.map(promResults, promResult => _.map(promResult, singleCode => {
+                        singleCode = _.merge({},singleCode,{
+                            labelHr: singleCode.type === "CD-TRANSACTION" ?
+                                _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                                _.trim(_.get(singleCode,"label." + this.language,"")) ?
+                                    _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) :
+                                    _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())
+                        })
+                        return !resolvedCodes[singleCode.type] ? resolvedCodes[singleCode.type] = [singleCode] : resolvedCodes[singleCode.type].push(singleCode)
+                    })))
+                    .then(() => resolvedCodes)
+
+            }
+
             _refreshProseEditorContext() {
 
                 return Promise.resolve(this._doApplyProseEditorContext(this.shadowRoot.querySelector("#prose-editor")));
 
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
             _doApplyProseEditorContext(proseEditorObject) {
 
@@ -531,13 +555,11 @@
                     user: _.get(this,"user",{}),
                     patient: _.get(this,"_data.currentPatient",{}),
                     hcp: _.get(this,"_data.currentHcp",{}),
-
-                    contact: this.currentContact,
-                    contacts: this.contacts,
-                    healthElements: this.healthElements,
-                    servicesMap: this.servicesMap,
+                    currentContact: this.currentContact,
+                    contactsFormsAndDocuments: this.contactsFormsAndDocuments,
                     language: this.language,
-                    dataProvider: _.get(this,"dataProvider",{})
+                    dataProvider: _.get(this,"dataProvider",{}),
+                    healthElements: this.healthElements,
                 }
                 ctx.subContexts = makeSubContexts(ctx)
 
@@ -591,41 +613,51 @@
                     },
 
                     getLocalizedText: (value) => {
-                        return this.localize(_.trim(value), "", this.language)
+                        return this.localize(_.trim(value), _.trim(value), this.language)
                     }
 
                 })
 
             }
 
-
             _getProseEditorVariables() {
 
-                return Promise.resolve([
-                    {
-                        type:'global',
-                        name: this.localize('inv_prest', 'Healthcare party', this.language),
+                const promResolve = Promise.resolve();
+                const staticVariables = [{
+                    type:'blocks',
+                    name: this.localize('informationBlocks', 'Information blocks', this.language),
+                    subVars: [{
+                        name:this.localize('idHcp', 'Physician identification', this.language),
                         nodes: [
-                            {type: 'paragraph', attrs: {}, content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize('doctorAbreviation', 'Dr.', this.language) + ' '}, {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'hcp.firstName'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '}, {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'hcp.lastName'}}]},
-                            {type: 'paragraph',attrs: {},content: [{type: 'variable', attrs: {expr: 'hcp.address'}}]},
-                            {type: 'paragraph', attrs: {}, content: [{type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '},{type: 'variable', attrs: {expr: 'hcp.city'}}] },
-                            {type: 'paragraph',attrs: {}, content: [{type: 'text', text: "Tel: "}, {type: 'variable', attrs: {expr: 'hcp.phone'}}]},
-                            {type: 'paragraph',attrs: {}, content: [{type: 'text', text: "E-mail: "}, {type: 'variable', attrs: {expr: 'hcp.email'}}]},
-                            {type: 'paragraph',attrs: {}, content: [{type: 'text', text: _.trim(this.localize('inami', 'Nihii', this.language)).toUpperCase() + ': '}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}]},
-                        ],
-                        subVars: [
-                            {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.lastName'}}]},
-                            {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.firstName'}}]},
-                            {name: this.localize('inami', 'Nihii', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}]}
-                        ]
-                    },{
-                        type:'patientIdentification',
-                        name:this.localize('idPatient', 'Patient identification', this.language),
-                        nodes: [
-                            {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text:_.trim(this.localize('idPatient', 'Patient identification', this.language)).toUpperCase()}]},
+                            {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idHcp', 'Physician identification', this.language)).toUpperCase()}]},
                             {type: 'table',attrs: {},content: [
                                 {type: 'table_row',attrs: {},content: [
-                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":null,"background":null},content: [
+                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                        {type:'paragraph', attrs: {},content: [
+                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("doctor", "Doctor", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}},
+                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}},
+                                        ]},
+                                        {type:'paragraph',attrs: {},content: [
+                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
+                                            {type:'variable', attrs: {expr: 'hcp.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.city'}},
+                                        ]},
+                                        {type:'paragraph',attrs: {},content: [
+                                            {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'hcp.email'}},
+                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.phone'}},
+                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("mobile", "Mobile", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.mobile'}},
+                                        ]},
+                                    ]}
+                                ]}
+                            ]},
+                            {type: 'paragraph',attrs: {},content: [{type: 'text', text:" "}]},
+                        ]
+                    },{
+                        name:this.localize('idPatient', 'Patient identification', this.language),
+                        nodes: [
+                            {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatient', 'Patient identification', this.language)).toUpperCase()}]},
+                            {type: 'table',attrs: {},content: [
+                                {type: 'table_row',attrs: {},content: [
+                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
                                         {type:'paragraph',attrs: {},content: [
                                             {type: 'text', marks: [{type: 'strong'}], text: this.localize("lastAndAndFirstNames", "Last & first names", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.firstName'}},
                                             {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
@@ -638,47 +670,139 @@
                                         ]},
                                         {type:'paragraph',attrs: {},content: [
                                             {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'patient.email'}},
-                                            {type:'text', text: ' '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.phone'}},
-                                            {type:'text', text: ' '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("ssinPatVerbose", "NISS", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.ssinHr'}},
+                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.phone'}},
+                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("job", "Job", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.profession'}},
                                         ]},
-
-
                                         {type:'paragraph',attrs: {},content: [
                                             {type:'text', marks: [{type: 'strong'}], text: this.localize("adm_in", "Insurance", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},
                                             {type:'text', text: ' (#'}, {type: 'variable', attrs: {expr: 'patient.insuranceData.code'}}, {type:'text', text: ') - '},
                                             {type:'text', marks: [{type: 'strong'}], text: this.localize("AFF", "Membership number", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},
                                             {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: "CT1 - CT2: "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},
                                         ]},
-
-
                                     ]}
                                 ]}
                             ]},
                             {type: 'paragraph',attrs: {},content: [{type: 'text', text:" "}]},
+                        ]
+                    }]
+                },{
+                    type:'hcp',
+                    name: this.localize('physicianInformations', 'Physician informations', this.language),
+                    subVars: [
+                        {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.lastName'}},{type:'text', text: ' '}]},
+                        {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.firstName'}},{type:'text', text: ' '}]},
+                        {name: this.localize('inami', 'Nihii', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.nihiiHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize('postalAddress', 'Address', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.address'}},{type:'text', text: ' '}]},
+                        {name: this.localize('postalCode', 'Zip', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.postalCode'}},{type:'text', text: ' '}]},
+                        {name: this.localize('city', 'City', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.city'}},{type:'text', text: ' '}]},
+                        {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'hcp.email'}},{type:'text', text: ' '}]},
+                        {name: this.localize('phone', 'Phone', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.phone'}},{type:'text', text: ' '}]},
+                        {name: this.localize('mobile', 'Mobile', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.mobile'}},{type:'text', text: ' '}]},
+                    ]
+                },{
+                    type:'patient',
+                    name:this.localize('patientInformations', 'Patient informations', this.language),
+                    subVars: [
+                        {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.lastName'}},{type:'text', text: ' '}]},
+                        {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.firstName'}},{type:'text', text: ' '}]},
+                        {name: this.localize("postalAddress", "Address", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.address'}},{type:'text', text: ' '}]},
+                        {name: this.localize("postalCode", "Zip", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.postalCode'}},{type:'text', text: ' '}]},
+                        {name: this.localize("city", "City", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.city'}},{type:'text', text: ' '}]},
+                        {name: this.localize("sexLitteral", "Sex", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.genderHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize("birthDate", "Birthdate", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize("ssinPatVerbose", "NISS", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.ssinHr'}},{type:'text', text: ' '}]},
+                        {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'patient.email'}},{type:'text', text: ' '}]},
+                        {name: this.localize("phone", "Phone", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.phone'}},{type:'text', text: ' '}]},
+                        {name: this.localize("job", "Job", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.profession'}},{type:'text', text: ' '}]},
+                        {name: this.localize("adm_in", "Insurance", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceCode", "Insurance code", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.code'}},{type:'text', text: ' '}]},
+                        {name: "CT1 - CT2", nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},{type:'text', text: ' '}]},
+                        {name: this.localize("AFF", "Membership number", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},{type:'text', text: ' '}]},
+                    ]
+                }]
 
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("lastAndAndFirstNames", "Last & first names", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.lastName'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '}, {type: 'variable', marks: [{type: 'strong'}], attrs: {expr: 'patient.firstName'}},]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.address'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("zipAndCity", "Zip & city", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.postalCode'}}, {type: 'text', marks: [{type: 'strong'}], text: ' '},{type: 'variable', attrs: {expr: 'patient.city'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("birthDate", "Birthdate", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("ssinPatVerbose", "NISS", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.ssinHr'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: "E-mail: "}, {type: 'variable', attrs: {expr: 'patient.email'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.phone'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("adm_in", "Insurance", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.name'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("insuranceCode", "Insurance code", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.code'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: "CT1 - CT2: "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}}]},
-                            // {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'}], text: this.localize("AFF", "Membership number", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}}]},
-                        ]
-                    }, {
-                        type:'patient',
-                        name:this.localize('patientDetails', 'Patient details', this.language),
-                        subVars: [
-                            // Todo: injecter proprement / dynamicquement (avec translations) les valeurs qui on du sens
-                            {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.lastName'}},{type:'text', text: ' '}]},
-                            {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.firstName'}},{type:'text', text: ' '}]},
-                            {name: this.localize('dat_of_bir', 'Date of birth', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.dateOfBirthHr)'}},{type:'text', text: ' '}]}
-                        ]
+
+
+                // Add health elements
+                console.log(_.get(this,"_data.allHealthElements",[]));
+                const healthElementVariables = _.compact(_.map(_.get(this,"_data.allHealthElements",[]), (hes, heType) => {
+
+                    const heTypeLabel = heType === "activeHealthElements" ? this.localize("act_hea_pro","Active Health Problems", this.language) :
+                        heType === "inactiveHealthElements" ? this.localize("med_ant","Medical antecedents", this.language) :
+                        heType === "surgicalHealthElements" ? this.localize("surg","Surgical", this.language) :
+                        heType === "familyrisks" ? this.localize("fam_ris","Family risks", this.language) :
+                        heType === "risks" ? this.localize("ris","Risks", this.language) :
+                        heType === "allergies" ? this.localize("aller","Allergies", this.language) :
+                        heType === "medications" ? this.localize("med","Medication", this.language) : ""
+
+                    return (!_.size(hes) || heType==="archivedHealthElements") ? null : {
+                        type: heType,
+                        name: heTypeLabel,
+                        sorting: heType === "activeHealthElements" ? 1 :
+                            heType === "inactiveHealthElements" ? 2 :
+                            heType === "surgicalHealthElements" ? 3 :
+                            heType === "familyrisks" ? 4 :
+                            heType === "risks" ? 5 :
+                            heType === "allergies" ? 6 :
+                            heType === "medications" ? 7 : 999,
+                        subVars: _.compact(_.map(hes, he => {return{
+                            name: _.trim(_.get(he,"descr","")),
+                            nodes: [
+                                {type: 'paragraph',attrs: {},content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(heTypeLabel).toUpperCase()}, {type:'text', text: ': '}, {type: 'text', text:_.trim(_.get(he,"descr","")).toUpperCase()}]},
+                                {type: 'table',attrs: {},content: [
+                                    {type: 'table_row',attrs: {},content: [
+                                        {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                            {type:'paragraph', attrs: {},content: [
+                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("doctor", "Doctor", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}},
+                                                {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}},
+                                            ]},
+                                            {type:'paragraph',attrs: {},content: [
+                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
+                                                {type:'variable', attrs: {expr: 'hcp.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.city'}},
+                                            ]},
+                                            {type:'paragraph',attrs: {},content: [
+                                                {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'hcp.email'}},
+                                                {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.phone'}},
+                                                {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("mobile", "Mobile", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.mobile'}},
+                                            ]},
+                                        ]}
+                                    ]}
+                                ]},
+                                {type: 'paragraph',attrs: {},content: [{type: 'text', text:" "}]},
+                            ]
+                        }}))
                     }
-                ]);
+                }))
+
+                //     subVars: [
+                //          {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.lastName'}},{type:'text', text: ' '}]},
+                //          {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.firstName'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("postalAddress", "Address", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.address'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("postalCode", "Zip", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.postalCode'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("city", "City", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.city'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("sexLitteral", "Sex", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.genderHr'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("birthDate", "Birthdate", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("ssinPatVerbose", "NISS", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.ssinHr'}},{type:'text', text: ' '}]},
+                //          {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'patient.email'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("phone", "Phone", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.phone'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("job", "Job", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.profession'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("adm_in", "Insurance", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("insuranceCode", "Insurance code", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.code'}},{type:'text', text: ' '}]},
+                //          {name: "CT1 - CT2", nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},{type:'text', text: ' '}]},
+                //          {name: this.localize("AFF", "Membership number", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},{type:'text', text: ' '}]},
+                //      ]
+
+
+
+                const proseEditorVariables = _.compact(_.concat(staticVariables,_.orderBy(healthElementVariables,['sorting'],['asc'])))
+
+                /* Make it a method on purpose and return nothing */
+                _.map(proseEditorVariables, it => {_.assign(_.last(it.subVars), {isLast: "isLast"})})
+                _.assign(_.last(proseEditorVariables), {isLast: "isLast"})
+
+                return Promise.resolve(proseEditorVariables);
+
+
 
                 const formVars = _.sortBy( _.map(e.detail.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), k => {
                     return {
@@ -713,47 +837,31 @@
                 const promResolve = Promise.resolve()
                 const patientId = !!_.trim(_.get(inputData,"patientId","")) ? _.trim(_.get(inputData,"patientId","")) : _.trim(_.get(this,"patient.id",""))
 
-                // Make sure properties of component (that aren't set yet) actually are a variable rather than an object with a value key representing their value.
-                _.map(_.get(this,"_data",{}), (propValue,propKey) => typeof _.get(propValue,"value",null) !== "function" ? null : this.set("_data." + propKey, _.get(propValue,"value",null)()))
-
                 return this._resetComponentProperties()
-                    .then(() => {
-                        this.set("_isBusy", true)
-                        this.shadowRoot.querySelector('#outgoingDocumentDialog').open()
-                    })
+                    .then(() => _.map(this._data, (propValue,propKey) => typeof _.get(propValue,"value",null) !== "function" ? null : this.set("_data." + propKey, propValue.value())) )
+                    .then(() => _.assign(this._data, inputData))
+                    .then(() => { this.set("_isBusy", true); this.shadowRoot.querySelector('#outgoingDocumentDialog').open(); })
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
+                    .then(() => this._getCodesFromHealthElements().then(codes => _.assign(this._data, {codes:codes})))
                     .then(() => this._getProseEditorVariables().then(proseEditorVariables => _.assign(this._data, {proseEditorVariables:proseEditorVariables})))
-                    .then(() => {
-                        const proseEditor = this.shadowRoot.querySelector("#prose-editor")
-                        proseEditor.set("dynamicVars", _.get(this,"_data.proseEditorVariables",[]))
-                    })
+                    .then(() => { const proseEditor = this.shadowRoot.querySelector("#prose-editor"); proseEditor.set("dynamicVars", _.get(this,"_data.proseEditorVariables",[])) })
                     .then(() => this._getDataProvider().then(dataProvider => _.assign(this, {dataProvider:dataProvider})))
                     .then(() => this._refreshProseEditorContext())
                     .catch(e => { console.log("[ERROR] outgoing document", e, inputData); return promResolve; })
                     .finally(() => {
 
-                        console.log("inputData",inputData);
                         console.log("--- this._data ---",this._data);
-                        console.log("--- this.dataProvider ---",this.dataProvider);
 
                         this.set("_isBusy", false)
                         return promResolve
 
                     })
 
-
-
-                const contactId = _.trim(_.get(inputData,"contactId",""))
-
-                return this._resetComponentProperties()
-                    .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
-                    .then(() => this._getContact(_.get(this,"user",{}), contactId, _.get(this,"_data.currentPatient")).then(contact => _.assign(this._data,{contact:contact})))
-                    .then(() => ((!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? promResolve : !!_.size(_.get(this,"_data.contact")) ? this._getContentFromContact() : promResolve).then(content => _.assign(this._data,{content:content})))
-                    .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
-
-                    //.then(() => this.api.pdfReport(this._data.pdfHtmlContent), {type:"rapp-mail",completionEvent:"pdfDoneRenderingEvent", printBackground:true})
-                    // .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" + _.trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
+                // return this._resetComponentProperties()
+                //     .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
+                //     .then(() => this.api.pdfReport(this._data.pdfHtmlContent), {type:"rapp-mail",completionEvent:"pdfDoneRenderingEvent", printBackground:true})
+                //     .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" + _.trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
 
             }
 
