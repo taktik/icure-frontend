@@ -504,7 +504,7 @@
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                 <paper-button class="button button--other" on-tap="_generateDiaryNote" disabled="[[isLoading]]"><iron-icon icon="icons:build"></iron-icon> [[localize('_generateDiaryNote','_generateDiaryNote',language)]] V2</paper-button>
-                <paper-button class="button button--save" on-tap="_uploadDiaryNote" disabled="[[isLoading]]"><iron-icon icon="icons:backup"></iron-icon> [[localize('_uploadDiaryNote','Upload diary note',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_generateAndPutDiaryNote" disabled="[[isLoading]]"><iron-icon icon="icons:backup"></iron-icon> [[localize('_uploadDiaryNote','Upload diary note',language)]]</paper-button>
             </div>
         </paper-dialog>
 
@@ -950,6 +950,61 @@
                 })
             }
 
+            _generateAndPutDiaryNote(){
+                if (this.patient && this.patient.ssin && this.api.tokenId) {
+                    //read the checkboxes
+                    const ds = this.cdDiary.map(cd => this.shadowRoot.querySelector('#cdDiarySelection_' + cd).checked ? cd : "" ).filter(itm => itm !== "");
+                    console.log("ds", ds);
+                    const nc = this.noteContext.map(cd => this.shadowRoot.querySelector('#noteContextSelection_' + cd).checked ? cd : "" ).filter(itm => itm !== "");
+                    console.log("nc", nc);
+                    const isPsy = this.shadowRoot.querySelector('#psyDoc') ? this.shadowRoot.querySelector('#psyDoc').checked : false;
+                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto().extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys =>
+                                        this.api.bekmehr().generateDiaryNoteExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp,
+                                            note: this.myComment,
+                                            tags: ds,
+                                            contexts: nc,
+                                            isPsy: isPsy,
+                                            documentId: ""
+                                        }).then(output =>
+                                            this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
+                                                .then(hcp =>{
+                                                    let reader = new FileReader();
+                                                    let me = this;
+                                                    reader.onload = function() {
+                                                        console.log("diarynote = ", reader.result);
+                                                    }
+                                                    reader.readAsText(output);
+                                                    return this.api.fhc().Hubcontroller().putTransactionUsingPOST(this.hubEndPoint,
+                                                        this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
+                                                        hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip,
+                                                        this.hubId,
+                                                        this.patient.ssin,
+                                                        output,
+                                                        this.hubPackageId, this.hubApplication
+                                                    )}
+                                                ).then(putResp => {
+                                                    if (putResp) {
+                                                        return putResp;
+                                                        //todo close dialog
+                                                        //todo refresh list
+                                                    } else {
+                                                        return null;
+                                                    }
+                                                }
+                                            )
+                                        )
+                                    )
+                            ))
+                }else{
+                    return Promise.resolve(null)
+                }
+            }
 
             _patientHasHubConsent(cs){
                 if((cs && cs.author && cs.author.hcparties && cs.author.hcparties[0]) || !this.hubSupportsConsent){
@@ -965,11 +1020,59 @@
             }
 
             _generateDiaryNote(){
-                //read the checkboxes
-                const ds = this.cdDiary.map(cd => this.shadowRoot.querySelector('#cdDiarySelection_' + cd).checked ? cd : "" ).filter(itm => itm != "");
-                console.log("ds", ds);
-                const nc = this.noteContext.map(cd => this.shadowRoot.querySelector('#noteContextSelection_' + cd).checked ? cd : "" ).filter(itm => itm != "");
-                console.log("nc", nc);
+                if (this.patient) {
+                    //read the checkboxes
+                    const ds = this.cdDiary.map(cd => this.shadowRoot.querySelector('#cdDiarySelection_' + cd).checked ? cd : "" ).filter(itm => itm !== "");
+                    console.log("ds", ds);
+                    const nc = this.noteContext.map(cd => this.shadowRoot.querySelector('#noteContextSelection_' + cd).checked ? cd : "" ).filter(itm => itm !== "");
+                    console.log("nc", nc);
+                    const isPsy = this.shadowRoot.querySelector('#psyDoc') ? this.shadowRoot.querySelector('#psyDoc').checked : false;
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto()
+                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys => {
+                                        return this.api.bekmehr().generateDiaryNoteExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp,
+                                            note: this.myComment,
+                                            tags: ds,
+                                            contexts: nc,
+                                            isPsy: isPsy,
+                                            documentId: ""
+                                        }).then(output => {
+                                            let reader = new FileReader();
+                                            const myself = this;
+                                            reader.onload = function() {
+                                                // console.log("sumehr = ", reader.result);
+                                            }
+                                            reader.readAsText(output);
+
+
+                                            //creation of the xml file
+                                            let file = typeof output === "string" ? new Blob([output] ,{type: "application/xml"}) : output
+
+                                            //creation the downloading link
+                                            let a = document.createElement("a");
+                                            document.body.appendChild(a);
+                                            a.style = "display: none";
+
+                                            //download the new file
+                                            let url = window.URL.createObjectURL(file);
+                                            a.href = url;
+                                            a.download = (patientDto.lastName || "Doe").replace(" ","_") + "_" + (patientDto.firstName || "John").replace(" ","_") + "_" + (moment().format("x"))+"_diarynote.xml";
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+
+                                            document.body.removeChild(a);
+
+                                            // if(this.$['commentDialog']) this.$['commentDialog'].close();
+                                            // this.$["sumehrPreviewDialog"].close();
+                                        }).catch( error=> console.log(error))
+                                    })
+                            ))
+                }
             }
 
             _closeDialogs(){
