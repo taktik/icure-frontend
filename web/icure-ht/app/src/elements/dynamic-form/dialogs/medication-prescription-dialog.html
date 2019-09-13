@@ -1045,7 +1045,7 @@
                             <vaadin-grid-column flex-grow="1">
                                 <template>
                                     <vaadin-grid-tree-toggle leaf="[[!item.hasChildren]]" expanded="{{expanded}}" level="[[level]]">
-                                        [[item.label]]
+                                        <div>[[item.label]]</div>
                                     </vaadin-grid-tree-toggle>
                                 </template>
                             </vaadin-grid-column>
@@ -1486,6 +1486,7 @@
     <script>
         import _ from 'lodash/lodash'
         import accounting from '../../../../scripts/accounting';
+        import moment from 'moment/src/moment';
 
         class MedicationPrescriptionDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1673,7 +1674,7 @@
                 this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), this._serviceAdapter.bind(this));
                 // this._initList('medicine-package-list', this._medecinePackagesSearch.bind(this), this._medicinePackageAdapter.bind(this));
                 this._initList('medicine-package-list', this._medecinePackageSearchSamV2.bind(this), this._medicinePackageAdapterSamV2.bind(this));
-                this._initList('ingredient-list', this._ingredientSearch.bind(this), this._ingredientAdapter.bind(this));
+                this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), this._ingredientAdapterSamV2.bind(this));
                 this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), this._serviceAdapter.bind(this));
             }
 
@@ -1706,6 +1707,10 @@
                 return info.mp && info.mp.dopingcode ? 'cat-doping-prod' : 'void';
             }
 
+            _compProhibIconSamV2(vmpGroup) {
+                return vmpGroup && vmpGroup.noGenericPrescriptionReason && vmpGroup.noGenericPrescriptionReason.code === "5" ? 'cat-doping-prod' : 'void';
+            }
+
             _servereRenalInsufIcon(info) {
                 return true ? 'severe-renal-insufficiency' : 'void';
             }
@@ -1716,6 +1721,10 @@
 
             _reinfPharmaVigiIcon(info) {
                 return true ? 'reinf-pharma-vigi' : 'void';
+            }
+
+            _reinfPharmaVigiIconSamV2(info) {
+                return info.blackTriangle ? 'reinf-pharma-vigi' : 'void';
             }
 
             _rmaPharmaVigiIcon(info) {
@@ -1732,6 +1741,17 @@
                         return 'cat-notcheap-acm';
                     default :
                         return 'void';
+                }
+            }
+
+            _catIconSamV2(reimbursement) {
+                if (!reimbursement) return "";
+                if (reimbursement.cheap) {
+                    if (reimbursement.copaymentSupplement) return 'void';
+                    else return 'cat-cheap-noacm';
+                } else {
+                    if (reimbursement.copaymentSupplement) return 'cat-notcheap-acm';
+                    else return 'cat-notcheap-noacm';
                 }
             }
 
@@ -1823,16 +1843,40 @@
             }
 
             _medicinePackageAdapterSamV2(results) {
-                if (results && results.length) {
-                    return Promise.all(results.map(result => {
-                        return {
-                            "id": result.id,
-                            "label": result.name[this.language]
+                const now = moment().valueOf();
+                return Promise.all(results
+                    .reduce((ampps, result) => {
+                        if (result.ampps && result.ampps.length) {
+                            return ampps.concat(result.ampps.map(ampp => Object.assign(ampp, {
+                                    blackTriangle: result.blackTriangle
+                                })));
                         }
+                        return ampps;
+                    }, [])
+                    .filter(ampp => ampp.dmpps && ampp.dmpps.length)
+                    .map(ampp => {
+                        const dmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
+                        const reimbursement = dmpp && dmpp.reimbursements && dmpp.reimbursements.length && dmpp.reimbursements.find(reimbursement => reimbursement.from < now && (!reimbursement.to || reimbursement.to > now ));
+                        const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
+                        return {
+                            "id": ampp.ctiExtented,
+                            "label": ampp.prescriptionName[this.language] || dmpp.prescriptionName[this.language] || ampp.abbreviatedName[this.language],
+                            "atc": ampp.atcs[0].code,
+                            "atcCat": ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
+                            "publicPrice": reimbursement && reimbursement.reimbursementBasePrice + "€" || "",
+                            "compProhibIcon": this._compProhibIconSamV2(vmpGroup),
+                            "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
+                            "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
+                            "rmaPharmaVigiIcon": this._rmaPharmaVigiIcon(ampp),
+                            "reinfPharmaVigiIcon": this._reinfPharmaVigiIcon(ampp),
+                            "narcoticIcon": this._narcoticIcon(ampp),
+                            "catIcon": this._catIconSamV2(reimbursement),
+                            "chap4Status": this._chap4Status(ampp),
+                            "deliveryStatus": this._deliveryStatus(ampp),
+                            "startDate": '',
+                            "endDate": ''
+                        };
                     }));
-                } else {
-                    return Promise.resolve([]);
-                }
             }
 
             _ingredientAdapter(results) {
@@ -1842,6 +1886,19 @@
                         "label": result.name
                     };
                 }));
+            }
+
+            _ingredientAdapterSamV2(results) {
+                if (results && results.length) {
+                    return Promise.all(results.map(result => {
+                        return {
+                            "id": result.id,
+                            "label": result.name[this.language]
+                        };
+                    }));
+                } else {
+                    return Promise.resolve([]);
+                }
             }
 
             _serviceAdapter(results) {
@@ -1874,6 +1931,11 @@
                 return this.api.bedrugs().getInnClusters(searchValue, language, type, first, count);
             }
 
+            _ingredientSearchSamV2(searchValue, language, type, first, count) {
+                if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
+                return this.api.besamv2().findPaginatedVmpsByLabel(language, searchValue, null, null, count)
+                    .then(results => (results && results.rows || []));
+            }
 
             _medecinePackagesSearch(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
@@ -1888,6 +1950,15 @@
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count)
                     .then(results => (results && results.rows || []));
+
+                // .then(rows => Promise.all(rows.map(row => {
+                    //     if (row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.name) {
+                    //         return this.api.besamv2().findPaginatedVmpGroupsByLabel(this.language, row.vmp.vmpGroup.name[this.language], null, null, 1)
+                    //             .then(vmpGroup => row.vmp.vmpGroup = vmpGroup)
+                    //             .then(() => row);
+                    //     } else
+                    //         Promise.resolve(row);
+                    // })))
             }
 
             _servicesSearch(source, searchValue, language, type, first, count) {
