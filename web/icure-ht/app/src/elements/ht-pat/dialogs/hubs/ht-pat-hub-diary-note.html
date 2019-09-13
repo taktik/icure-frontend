@@ -974,37 +974,39 @@
                     const nc = this.noteContext.map(cd => this.shadowRoot.querySelector('#noteContextSelection_' + cd).checked ? cd : "" ).filter(itm => itm !== "");
                     console.log("nc", nc);
                     const isPsy = this.shadowRoot.querySelector('#psyDoc') ? this.shadowRoot.querySelector('#psyDoc').checked : false;
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                         this.api.patient().getPatientWithUser(this.user,this.patient.id)
-                            .then(patientDto =>
-                                this.api.crypto().extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
-                                    .then(secretForeignKeys =>
-                                        this.api.bekmehr().generateDiaryNoteExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
-                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                            .then(patientDto => this.getDocProm(this.documentId)
+                                .then(doc => this.getSfksProm(doc, hcp)
+                                    .then(sfks => {
+                                        console.log("patientDto", patientDto, "doc", doc, "sfks", sfks);
+                                        return this.api.bekmehr().generateDiaryNoteExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                            secretForeignKeys: sfks ? sfks.extractedKeys : [],//secretForeignKeys.extractedKeys, //todo: replace by the docs sfks
                                             recipient: hcp,
                                             note: this.myComment,
                                             tags: ds,
                                             contexts: nc,
                                             isPsy: isPsy,
-                                            documentId: "",
-                                            attachmentId: ""
+                                            documentId: this.documentId,
+                                            attachmentId: this.attachmentId
                                         }).then(output =>
                                             this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                                                .then(hcp =>{
-                                                    let reader = new FileReader();
-                                                    let me = this;
-                                                    reader.onload = function() {
-                                                        console.log("diarynote = ", reader.result);
+                                                .then(hcp => {
+                                                        let reader = new FileReader();
+                                                        let me = this;
+                                                        reader.onload = function () {
+                                                            console.log("diarynote = ", reader.result);
+                                                        }
+                                                        reader.readAsText(output);
+                                                        return this.api.fhc().Hubcontroller().putTransactionUsingPOST(this.hubEndPoint,
+                                                            this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
+                                                            hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip,
+                                                            this.hubId,
+                                                            this.patient.ssin,
+                                                            output,
+                                                            this.hubPackageId, this.hubApplication
+                                                        )
                                                     }
-                                                    reader.readAsText(output);
-                                                    return this.api.fhc().Hubcontroller().putTransactionUsingPOST(this.hubEndPoint,
-                                                        this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                                        hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip,
-                                                        this.hubId,
-                                                        this.patient.ssin,
-                                                        output,
-                                                        this.hubPackageId, this.hubApplication
-                                                    )}
                                                 ).then(putResp => {
                                                     if (putResp) {
                                                         return putResp;
@@ -1016,7 +1018,7 @@
                                                 }
                                             )
                                         )
-                                    )
+                                    }))
                             ))
                 }else{
                     return Promise.resolve(null)
@@ -1100,7 +1102,7 @@
 
             getSfksProm(doc, hcp){
                 if(doc){
-                    return this.api.crypto().extractCryptedFKs(doc, hcp.id)
+                    return this.api.crypto().extractEncryptionsSKs(doc, hcp.id)
                 } else {
                     return Promise.resolve(null);
                 }
