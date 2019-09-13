@@ -699,6 +699,14 @@
                         type: String,
                         value: ""
                     },
+                    documentId:{
+                        type: String,
+                        value: ""
+                    },
+                    attachmentId:{
+                        type: String,
+                        value: ""
+                    },
                     isTest:{
                         type: Boolean,
                         value: false
@@ -749,8 +757,16 @@
                 this.async(this.notifyResize, 1);
             }
 
-            open() {
+            open(docId, attId) {
                 this.set('isLoading',true);
+                if(docId) this.set("documentId", docId);
+                if(attId) this.set("attachmentId", attId);
+
+                //TODO: remove !!!
+                this.set("documentId", "cc5ec06f-c004-4055-b2d2-14dbe53e9277");//docId);
+                this.set("attachmentId", "90af095f2f9b363d3f38dd1de900b3e8bc497fa6d077c2f3b18579e5b43da2e9");//attId);
+                //http://localhost:9001/rest/v1/document/cc5ec06f-c004-4055-b2d2-14dbe53e9277/attachment/90af095f2f9b363d3f38dd1de900b3e8bc497fa6d077c2f3b18579e5b43da2e9;jsessionid=node0ll6aayo5xq8y2q5da21bm8sh2?enckeys=e5bc86ba-c13c-4e35-ac26-b3f03b746f78,e5bc86ba-c13c-4e35-ac26-b3f03b746f78
+
                 this.$['diaryNoteDialog'].open();
                 this._refresh();
                 this.set('isLoading',false);
@@ -970,7 +986,8 @@
                                             tags: ds,
                                             contexts: nc,
                                             isPsy: isPsy,
-                                            documentId: ""
+                                            documentId: "",
+                                            attachmentId: ""
                                         }).then(output =>
                                             this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
                                                 .then(hcp =>{
@@ -1021,6 +1038,7 @@
 
             _generateDiaryNote(){
                 if (this.patient) {
+                    let pat = null;
                     //read the checkboxes
                     const ds = this.cdDiary.map(cd => this.shadowRoot.querySelector('#cdDiarySelection_' + cd).checked ? cd : "" ).filter(itm => itm !== "");
                     console.log("ds", ds);
@@ -1029,18 +1047,19 @@
                     const isPsy = this.shadowRoot.querySelector('#psyDoc') ? this.shadowRoot.querySelector('#psyDoc').checked : false;
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                         this.api.patient().getPatientWithUser(this.user,this.patient.id)
-                            .then(patientDto =>
-                                this.api.crypto()
-                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
-                                    .then(secretForeignKeys => {
+                            .then(patientDto => this.getDocProm(this.documentId)
+                                .then(doc => this.getSfksProm(doc, hcp)
+                                    .then(sfks => {
+                                        console.log("patientDto", patientDto, "doc", doc,"sfks", sfks);
                                         return this.api.bekmehr().generateDiaryNoteExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
-                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            secretForeignKeys: sfks ? sfks.extractedKeys : [],//secretForeignKeys.extractedKeys, //todo: replace by the docs sfks
                                             recipient: hcp,
                                             note: this.myComment,
                                             tags: ds,
                                             contexts: nc,
                                             isPsy: isPsy,
-                                            documentId: ""
+                                            documentId: this.documentId,
+                                            attachmentId: this.attachmentId
                                         }).then(output => {
                                             let reader = new FileReader();
                                             const myself = this;
@@ -1048,30 +1067,42 @@
                                                 // console.log("sumehr = ", reader.result);
                                             }
                                             reader.readAsText(output);
-
-
                                             //creation of the xml file
                                             let file = typeof output === "string" ? new Blob([output] ,{type: "application/xml"}) : output
-
                                             //creation the downloading link
                                             let a = document.createElement("a");
                                             document.body.appendChild(a);
                                             a.style = "display: none";
-
                                             //download the new file
                                             let url = window.URL.createObjectURL(file);
                                             a.href = url;
                                             a.download = (patientDto.lastName || "Doe").replace(" ","_") + "_" + (patientDto.firstName || "John").replace(" ","_") + "_" + (moment().format("x"))+"_diarynote.xml";
                                             a.click();
                                             window.URL.revokeObjectURL(url);
-
                                             document.body.removeChild(a);
-
                                             // if(this.$['commentDialog']) this.$['commentDialog'].close();
                                             // this.$["sumehrPreviewDialog"].close();
                                         }).catch( error=> console.log(error))
                                     })
-                            ))
+                                )
+                            )
+                        )
+                }
+            }
+
+            getDocProm(docId){
+                if(docId){
+                    return this.api.document().getDocument(docId);
+                }else{
+                    return Promise.resolve(null);
+                }
+            }
+
+            getSfksProm(doc, hcp){
+                if(doc){
+                    return this.api.crypto().extractCryptedFKs(doc, hcp.id)
+                } else {
+                    return Promise.resolve(null);
                 }
             }
 
