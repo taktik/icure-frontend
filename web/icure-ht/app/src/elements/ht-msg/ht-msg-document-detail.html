@@ -131,6 +131,7 @@
 			/*.contact-title:first-child{
 				padding-top:0;
 			}*/
+
 			.msg-detail-card > .card-content {
 				padding: 16px 16px 32px !important;
 			}
@@ -974,20 +975,16 @@
                 height: 40px;
                 margin-top: -16px;
             }
-            #importTextField,#hcpTextField,#typeCombo{
-                width: 100%;
-            }
-            #importPicker,#docPicker{
+            #importPicker,#docPicker, #importTextField {
                 width: calc(50% - 2px);
             }
-            #patCombo {
+            #patCombo,#typeCombo {
                 width: calc(50% - 4px);
             }
             #NissTextField{
                 width: calc(50% - 2px);
             }
-
-            #visual-panel {
+            .visual-panel {
                 margin: 20px 0px;
             }
 
@@ -1017,40 +1014,42 @@
 
                     <paper-card class="msg-detail-card" >
                         <div id="form-panel" class="panel">
-                            <div id="form">
+                            <div class="form">
                                 <h2>[[localize('document','Document',language)]]<span class="extra-info"> (PDF, images and videos)</span></h2>
-                                <div class="input-form">
-                                    <vaadin-text-field id="importTextField" label="[[localize('doc-title','Titre du document',language)]]" value="{{selectedMessage.metas.filename}}" disabled="[[disabled]]"></vaadin-text-field>
-                                </div>
-                                <div class="input-form">
-                                    <vaadin-date-picker id="importPicker" label="[[localize('import_date','Date d\'importation',language)]]" value="{{selectedMessage.metas.importDate}}" i18n="[[i18n]]" disabled></vaadin-date-picker>
-                                    <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
-                                </div>
                                 <div class="input-form">
                                     <vaadin-text-field id="hcpTextField" label="[[localize('persphysicianRole','Recipient',language)]]" value="{{selectedMessage.hcp}}" disabled>
                                     </vaadin-text-field>
                                 </div>
                                 <div class="input-form">
-                                    <vaadin-combo-box id="typeCombo" filtered-items="[[listType]]" item-label-path="name" item-value-path="code" label="[[localize('type-doc','Type de document',language)]]" value="{{selectedMessage.metas.type}}" disabled="[[disabled]]">
-                                    </vaadin-combo-box>
-                                </div>
-                                <div class="input-form">
                                     <vaadin-combo-box id="patCombo" filter="{{filterPatient}}" label="[[localize('pat-name','Nom du patient',language)]]" filtered-items="[[patientList]]" item-label-path="name" item-value-path="id" value="{{selectedMessage.patientId}}" disabled="[[disabled]]"></vaadin-combo-box>
                                     <vaadin-text-field id="NissTextField" label="[[localize('ssin','NISS',language)]]" value="{{selectedMessage.patientSsin}}" disabled="[[disabled]]"></vaadin-text-field>
                                 </div>
+                                <div class="input-form">
+                                    <vaadin-date-picker id="importPicker" label="[[localize('import_date','Date d\'importation',language)]]" value="{{selectedMessage.metas.importDate}}" i18n="[[i18n]]" disabled></vaadin-date-picker>
+                                    <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
+                                </div>
                             </div>
-                            <div id="visual-panel">
-                                <template is="dom-if" if="[[selectedData]]">
-                                    <template is="dom-if" if="[[!isPdf]]">
-                                        <div class="img-container">
-                                            <img src="[[selectedData]]" alt=""/>
-                                        </div>
+                            <template is="dom-repeat" items="[[attachments]]" as="attachment">
+                                <div class="form">
+                                    <div class="input-form">
+                                        <vaadin-text-field id="importTextField" label="[[localize('doc-title','Titre du document',language)]]" value="{{attachment.filename}}" disabled="[[disabled]]"></vaadin-text-field>
+                                        <vaadin-combo-box id="typeCombo" filtered-items="[[listType]]" item-label-path="name" item-value-path="code" label="[[localize('type-doc','Type de document',language)]]" value="{{attachment.type}}" disabled="[[disabled]]">
+                                        </vaadin-combo-box>
+                                    </div>
+                                </div>
+                                <div class="visual-panel">
+                                    <template is="dom-if" if="[[attachment.content]]">
+                                        <template is="dom-if" if="[[!attachment.isPdf]]">
+                                            <div class="img-container">
+                                                <img src="[[attachment.content]]" alt=""/>
+                                            </div>
+                                        </template>
+                                        <template is="dom-if" if="[[attachment.isPdf]]">
+                                            <pdf-element width=600 height=600 id="pdfElement" src="[[attachment.content]]"></pdf-element>
+                                        </template>
                                     </template>
-                                    <template is="dom-if" if="[[isPdf]]">
-                                        <pdf-element width=600 height=600 id="pdfElement" src="[[selectedData]]"></pdf-element>
-                                    </template>
-                                </template>
-                            </div>
+                                </div>
+                            </template>
                         </div>
                     </paper-card>
 
@@ -1099,6 +1098,10 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             selectedData: {
 			    type: Object,
                 value: null
+            },
+            attachments: {
+			    type: Array,
+                value: () => []
             },
 			// selectedDocuments:{
 			// 	type: Object
@@ -1264,44 +1267,92 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             .then(msg => this.api.register(msg, 'message'))
     }
 
+    // _focusChanged() {
+    //     let selMsg = this.selectedMessage;
+	//     if (!selMsg) {
+    //         this.set('isLoadingMessage', false)
+    //         return;
+    //     }
+    //
+    //     this.set('disabled', ((selMsg.status & (1 << 26)) !== 0));
+    //     this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
+    //         .then(found => {
+    //             this.set("document",found[0]);
+    //             return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys);
+    //         })
+    //         .then(attachmentResponse => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.document, attachmentResponse))
+    //         .then(decryptedFileContent => {
+    //             let type = _.toLower(this.document.name.split('.').pop());
+    //             let base64 = btoa([].reduce.call(new Uint8Array(decryptedFileContent), (p,c) => p+ String.fromCharCode(c),''));
+    //             if (type === 'jpeg' || type === 'jpg' || type ==="PNG" || type ==="png") {
+    //                 this.set('isPdf', false);
+    //                 this.set('selectedData', 'data:image/jpeg;base64,' + base64);
+    //             } else if (type === 'tif' || type === 'tiff') {
+    //                 this.set('isPdf', false);
+    //                 this.set('selectedData', 'data:image/tiff;base64,' + base64);
+    //             } else if (type === 'pdf') {
+    //                 this.set('selectedData',base64);
+    //                 this.set('isPdf', true);
+    //             }
+    //         })
+    //         .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', { detail: {title: selMsg.metas.filename, message: "err.document.open", detail: error}, bubbles: true })))
+    //         .finally(() => this.set('isLoadingMessage', false))
+	// }
+
     _focusChanged() {
         let selMsg = this.selectedMessage;
-	    if (!selMsg) {
+        if (!selMsg) {
             this.set('isLoadingMessage', false)
             return;
         }
 
+        // if (selMsg.metas.documentListJson) {
+        //     selMsg.metas.documentList = JSON.parse(selMsg.metas.documentListJson);
+        // } else {
+        //     selMsg.metas.documentList = [{filename: selMsg.metas.filename, type: selMsg.metas.type}];
+        // }
+        //
+        this.set("attachments", []);
+        let attachment = null;
+
         this.set('disabled', ((selMsg.status & (1 << 26)) !== 0));
         this.api.document().findByMessage(this.user.healthcarePartyId, selMsg)
-            .then(found => {
-                this.set("document",found[0]);
-                return this.api.document().getAttachment(found[0].id, found[0].attachmentId, found[0].secretForeignKeys);
-            })
-            .then(attachmentResponse => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.document, attachmentResponse))
-            .then(decryptedFileContent => {
-                let type = _.toLower(this.document.name.split('.').pop());
-                let base64 = btoa([].reduce.call(new Uint8Array(decryptedFileContent), (p,c) => p+ String.fromCharCode(c),''));
-                if (type === 'jpeg' || type === 'jpg' || type ==="PNG" || type ==="png") {
-                    this.set('isPdf', false);
-                    this.set('selectedData', 'data:image/jpeg;base64,' + base64);
-                } else if (type === 'tif' || type === 'tiff') {
-                    this.set('isPdf', false);
-                    this.set('selectedData', 'data:image/tiff;base64,' + base64);
-                } else if (type === 'pdf') {
-                    this.set('selectedData',base64);
-                    this.set('isPdf', true);
-                }
-            })
+            .then(documents => Promise.all(documents.map(document => this.api.document().getAttachment(document.id, document.attachmentId, document.secretForeignKeys)
+                .then(attachment => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, document, attachment))
+                .then(decryptedAttachment => {
+                    let type = _.toLower(document.name.split('.').pop());
+                    let base64 = btoa([].reduce.call(new Uint8Array(decryptedAttachment), (p,c) => p+String.fromCharCode(c),''));
+                    let isPdf = false;
+                    let content = null;
+                    if (type === 'jpeg' || type === 'jpg' || type ==="PNG" || type ==="png") {
+                        content = 'data:image/jpeg;base64,' + base64;
+                    } else if (type === 'tif' || type === 'tiff') {
+                        content = 'data:image/tiff;base64,' + base64;
+                    } else if (type === 'pdf') {
+                        content = base64;
+                        isPdf = true;
+                    }
+
+                    let documentListItem = selMsg.metas.documentList.find(doc => doc.id === document.id);
+                    let item = {
+                        filename: documentListItem && documentListItem.filename || selMsg.metas.filename,
+                        type: documentListItem && documentListItem.type || selMsg.metas.type,
+                        content: content,
+                        isPdf: isPdf
+                    };
+                    this.push("attachments", item);
+                })
+            )))
             .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', { detail: {title: selMsg.metas.filename, message: "err.document.open", detail: error}, bubbles: true })))
             .finally(() => this.set('isLoadingMessage', false))
-	}
+    }
 
     _base64(data) {
         return base64js.fromByteArray(data);
     }
 
     _toDealWith(m) {
-        return !!((m.status & (1 << 26)) === 0)
+        return !!((m.status & (1 << 26)) === 0);
     }
 
     _wrapPatient(patient) {

@@ -459,7 +459,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.metas.filename]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.subject]]</div>
+                            <!--
+                            <div class$="cell [[_boldIfIsUnread(item)]]">
+                                <template is="dom-repeat" items="[[item.metas.documentList]]" as="document">
+                                    <p>
+                                    <div class="document">
+                                        <div class="document-title">[[document.type]]: [[document.filename]]</div>
+                                    </div>
+                                    </p>
+                                </template>
+                            </div>
+                            -->
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="1">
@@ -793,11 +804,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             if (currentPageNumber < totalPages) this.set('_currentPageNumber', currentPageNumber + 1)
         }
 
+        // _filterType(message, documentType) {
+        //     if (!documentType) return true;
+        //     if (!message.metas && !message.metas.type) return false;
+        //     if (!this.listType.filter(item => item.code === documentType)) return false;
+        //     return message.metas.type === documentType;
+        // }
         _filterType(message, documentType) {
             if (!documentType) return true;
-            if (!message.metas && !message.metas.type) return false;
+            if (!message.metas && !message.metas.documentList) return false;
             if (!this.listType.filter(item => item.code === documentType)) return false;
-            return message.metas.type === documentType;
+            return message.metas.documentList.some(doc => doc.type === documentType);
         }
 
         _getMessages(currentFolder, documentFilter) {
@@ -807,7 +824,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             let foundMessages = [];
 
             return !currentFolder ? foundMessages : Promise.all(this._importedDocumentType.map(importedDocumentType => this.api.message().findMessagesByTransportGuid('DOC:' + importedDocumentType + ':IN', null, null, null, 1000)
-                .then(messages => messages.rows.filter(m => (currentFolder === 'todealwith' ? this._toDealWith(m) : !this._toDealWith(m)) && this._filterType(m, documentFilter)))
+                .then(messages => messages.rows.filter(message => message.metas).map(message => {
+                    if (message.metas.documentListJson) {
+                        message.metas.documentList = JSON.parse(message.metas.documentListJson);
+                    } else {
+                        message.metas.documentList = [{filename: message.metas.filename, type: message.metas.type}];
+                    }
+                    return message;
+                }))
+                .then(messages => messages.filter(m => (currentFolder === 'todealwith' ? this._toDealWith(m) : !this._toDealWith(m)) && this._filterType(m, documentFilter)))
                 .then(messages => Promise.all(messages.map(m => this._getCachedDecryptedBlobs(m))))
                 .then(messages => {
                     console.log('got complete list');
@@ -1203,19 +1228,23 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             } else {
                                 message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
                                 return this.api.patient().getPatientWithUser(this.user, e.detail.patientId)
-                                    .then(patient => this.api.contact().newInstance(this.user, patient, {
-                                        created: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
-                                        modified: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
-                                        author: this.user.id,
-                                        responsible: this.user.healthcarePartyId,
-                                        subContacts: []
-                                    }))
+                                    .then(patient => {
+                                        let contactDate = parseInt(moment(e.detail.doc.documentDate).format("YYYYMMDDHHmmss"));
+                                        return this.api.contact().newInstance(this.user, patient, {
+                                            openingDate: contactDate,
+                                            closingDate: contactDate,
+                                            author: this.user.id,
+                                            responsible: this.user.healthcarePartyId,
+                                            subContacts: []
+                                        });
+                                    })
                                     .then(contact => {
                                         const svc = this.api.contact().service().newInstance(this.user, {
                                             content: _.fromPairs([[this.language, {
                                                 documentId: doc.id,
                                                 stringValue: e.detail.doc.filename
                                             }]]),
+                                            created: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
                                             tags: [{type: 'CD-TRANSACTION', code: doc.documentType ? doc.documentType : 'report'}],
                                             label: 'imported document'
                                         });
