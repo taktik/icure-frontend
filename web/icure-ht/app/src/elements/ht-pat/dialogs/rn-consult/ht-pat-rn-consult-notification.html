@@ -110,7 +110,7 @@
                             </vaadin-combo-box>
                         </template>
                         <template is="dom-if" if="[[!isCityOfBelgium]]">
-                            <dynamic-text-field class="w30 p4 mw0" label="[[localize('rn-birthCity', 'Birth city', language)]]" value="{{registerData.birth.city}}"></dynamic-text-field>
+                            <dynamic-text-field class="w30 p4 mw0" label="[[localize('rn-birthCity', 'Birth city', language)]]" value="{{registerData.birth.cityName}}"></dynamic-text-field>
                         </template>
                         <vaadin-combo-box id="registerType" class="w50" label="[[localize('rn-gender', 'Gender', language)]]" filter="{{genderFilter}}" selected-item="{{selectedGender}}"  filtered-items="[[genderType]]" item-label-path="label.fr" >
                             <template>[[_getLabel(item.label)]]</template>
@@ -124,7 +124,7 @@
                     <div class="container-title">[[localize('rn-based-in', 'Based on a residential address in Belgium', language)]]</div>
                     <div class="register-line">
                         <dynamic-text-field class="w20 p4 mw0" label="[[localize('rn-postalCode', 'Postal code', language)]]" value="{{registerData.inBelgium.postalCode}}"></dynamic-text-field>
-                        <dynamic-text-field class="w20 p4 mw0" label="[[localize('rn-street', 'Street', language)]]" value="{{registerData.inBelgium.street}}"></dynamic-text-field>
+                        <dynamic-text-field class="w20 p4 mw0" label="[[localize('rn-street', 'Street', language)]]" value="{{registerData.inBelgium.streetName}}"></dynamic-text-field>
                     </div>
                     <div class="register-line">
                         <vaadin-combo-box id="registerType" class="w50" label="[[localize('rn-country', 'Country', language)]]" filter="{{countryFilter}}" selected-item="{{selectedInBelgiumCountry}}"  filtered-items="[[listOfCountries]]" item-label-path="label.fr" >
@@ -140,8 +140,8 @@
                 <div class="sub-container">
                     <div class="container-title">[[localize('rn-based-out', 'Based on a residential address which is not in Belgium', language)]]</div>
                     <div class="register-line">
-                        <dynamic-text-field class="w30 p4 mw0" label="[[localize('rn-street', 'Street', language)]]" value="{{registerData.outBelgium.street}}"></dynamic-text-field>
-                        <dynamic-text-field class="w30 p4 mw0" label="[[localize('rn-city', 'City', language)]]" value="{{registerData.outBelgium.city}}"></dynamic-text-field>
+                        <dynamic-text-field class="w30 p4 mw0" label="[[localize('rn-street', 'Street', language)]]" value="{{registerData.outBelgium.streetName}}"></dynamic-text-field>
+                        <dynamic-text-field class="w30 p4 mw0" label="[[localize('rn-city', 'City', language)]]" value="{{registerData.outBelgium.cityName}}"></dynamic-text-field>
                         <vaadin-combo-box id="registerType" class="w30" label="[[localize('rn-country', 'Country', language)]]" filter="{{countryFilter}}" selected-item="{{selectedOutBelgiumCountry}}"  filtered-items="[[listOfCountries]]" item-label-path="label.fr" >
                             <template>[[_getLabel(item.label)]]</template>
                         </vaadin-combo-box>
@@ -240,7 +240,7 @@
             }
 
             static get observers() {
-                return ['_initialize(user, api)', '_selectedRegisterTypeChanged(selectedRegisterType)', '_selectedBirthMunicipalityChanged(selectedBirthMunicipality)', '_selectedBirthCountryChanged(selectedBirthCountry)', '_selectedGenderChanged(selectedGender)', '_selectedInBelgiumMunicipalityChanged(selectedInBelgiumMunicipality)', '_selectedOutBelgiumCountryChanged(selectedOutBelgiumCountry)'];
+                return ['_initialize(user, api)', '_selectedRegisterTypeChanged(selectedRegisterType)',  '_comboboxValueChanged(selectedRegisterType, selectedBirthMunicipality, selectedBirthCountry, selectedGender, selectedInBelgiumCountry, selectedInBelgiumMunicipality, selectedOutBelgiumCountry)'];
             }
 
             ready() {
@@ -249,20 +249,21 @@
 
             _initialize(){
                 this.set('selectedRegisterType', _.get(this, 'registerType', []).find(rt => rt.type === "birth"))
+                this.set('selectedInBelgiumCountry', _.get(this, 'listOfCountries', []).find(country => country.code === "150"))
                 this.set('registerData', {
                     type: 'birth',
                     person: {
                         lastName: null,
                         firstName: null,
                         birthYear: null,
-                        nationality: null
+                        nationalityCode: null,
+                        gender: null
                     },
                     birth: {
                         cityName: null,
                         cityCode: null,
                         countryCode: null,
-                        date: null,
-                        gender: null
+                        date: null
                     },
                     inBelgium: {
                         countryCode: '150',
@@ -279,7 +280,44 @@
             }
 
             _sendNotification(){
-                this.api.fhc().registerPersonUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, {}).then(resp => {
+                let mid = {
+
+                    firstName: _.get(this.registerData, 'person.firstName', null),
+                    lastName: _.get(this.registerData, 'person.lastName', null),
+                    nationalityCode: _.get(this.registerData, 'person.nationalityCode', null)
+                }
+
+                let midBirth = {
+                    dateOfBirth: _.get(this.registerData, 'birth.birthDate', null),
+                    birthPlace: {
+                        cityCode:  _.get(this.registerData, 'birth.cityCode', null),
+                        cityName:  _.get(this.registerData, 'birth.cityName', null),
+                        countryCode:  _.get(this.registerData, 'birth.countryCode', null)
+                    },
+                    gender: _.get(this.registerData, 'person.gender', null)
+                }
+
+                let midInBelgium = {
+                    residentialAddress: {
+                        countryCode : _.get(this.registerData, 'inBelgium.countryCode', null),
+                        cityCode : _.get(this.registerData, 'inBelgium.cityCode', null),
+                        postalCode: _.get(this.registerData, 'inBelgium.postalCode', null),
+                        streetName: _.get(this.registerData, 'inBelgium.streetName', null)
+                    }
+                }
+
+                let midOutBelgium = {
+                    residentialAddress: {
+                        countryCode : _.get(this.registerData, 'outBelgium.countryCode', null),
+                        cityName : _.get(this.registerData, 'outBelgium.cityName', null),
+                        streetName: _.get(this.registerData, 'outBelgium.streetName', null)
+                    }
+                }
+
+
+                _.get(this, 'selectedRegisterType.type', null) === "birth" ? _.assign(mid, midBirth) : _.get(this, 'selectedRegisterType.type', null) === "residentialAddressInBelgium" ? _.assign(mid, midInBelgium) : _.get(this, 'selectedRegisterType.type', null) === "residentialAddressOutBelgium" ? _.assign(mid, midOutBelgium) : {}
+
+                this.api.fhc().RnConsultController().registerPersonUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, mid).then(resp => {
                     console.log(resp)
                 })
             }
@@ -300,29 +338,16 @@
                 return _.get(label, this.language, label.en)
             }
 
-            _selectedBirthCountryChanged(){
+            _comboboxValueChanged(){
                 _.get(this, 'selectedBirthCountry', null) ? this.set('isCityOfBelgium', _.get(this.selectedBirthCountry, 'code', null) === "150" ? true : false) : null
-            }
-
-            _selectedRegisterTypeChanged(){
+                this.set('selectedInBelgiumCountry', _.get(this, 'listOfCountries', []).find(country => country.code === "150"))
                 this.set('registerData.type', _.get(this.selectedRegisterType, 'type', null))
-            }
-
-            _selectedBirthMunicipalityChanged(){
-                this.set('', _.get(this.selectedBirthMunicipality, 'code', null))
-            }
-
-            _selectedGenderChanged(){
+                this.set('registerData.birth.countryCode', _.get(this.selectedBirthCountry, 'code', null))
                 this.set('registerData.person.gender', _.get(this.selectedGender, 'type', null))
-            }
-
-            _selectedInBelgiumMunicipalityChanged(){
                 this.set('registerData.inBelgium.cityCode', _.get(this.selectedInBelgiumMunicipality, 'code', null))
-            }
-
-            _selectedOutBelgiumCountryChanged(){
                 this.set('registerData.outBelgium.countryCode', _.get(this.selectedOutBelgiumCountry, 'code', null))
             }
+
 
         }
         customElements.define(HtPatRnConsultNotification.is, HtPatRnConsultNotification);
