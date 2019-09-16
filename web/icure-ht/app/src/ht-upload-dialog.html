@@ -138,6 +138,25 @@
                 width: 100%;
             }
 
+            #CommentTextForm {
+                height: 80px;
+                width: 100%;
+            }
+
+            #CommentTextArea {
+                height: 60px;
+                width: 100%;
+            }
+
+            #scnCombo {
+                width: calc(60% - 2px);
+                margin-right: 2px;
+            }
+
+            #scnOptions {
+                width: 40%;
+            }
+
             .panel {
                 display: flex;
                 flex-direction: column;
@@ -392,6 +411,13 @@
                 --paper-radio-button-checked-ink-color: var(--app-secondary-color-dark);
             }
 
+            paper-checkbox {
+                --paper-checkbox-unchecked-color: var(--app-text-color);
+                --paper-checkbox-label-color: var(--app-text-color);
+                --paper-checkbox-checked-color: var(--app-secondary-color);
+                --paper-checkbox-checked-ink-color: var(--app-secondary-color-dark);
+            }
+
         </style>
         <template is="dom-if" if="[[_bodyOverlay]]">
             <div class="dialogContainer"></div>
@@ -401,11 +427,13 @@
             <div class="content container">
                 <div id="list-panel" class="panel">
                     <div id="form">
-                        <div class="input-form" id="TitleTextForm">
-                            <vaadin-text-field id="TitleTextField" label="[[localize('title-doc','Titre',language)]]"
-                                               value="{{title}}"
-                                               disabled="[[_patientDisabled]]"></vaadin-text-field>
-                        </div>
+                        <template is="dom-if" if="[[_contactOptionsDisabled]]">
+                            <div class="input-form">
+                                <vaadin-text-field id="TitleTextField" label="[[localize('title-doc','Titre',language)]]"
+                                                   value="{{title}}"
+                                                   disabled="[[_patientDisabled]]"></vaadin-text-field>
+                            </div>
+                        </template>
                         <div class="input-form">
                             <vaadin-combo-box id="hcpCombo" filter={{filterHcp}} filtered-items="[[listHcp]]"
                                               on-filter-changed="_filterHcpChanged" on-value-changed="_hcpChanged" item-label-path="name"
@@ -426,6 +454,11 @@
                                                value="{{patientSsin}}"
                                                disabled="[[_patientDisabled]]"></vaadin-text-field>
                         </div>
+
+                        <div class="input-form" id="CommentTextForm">
+                            <vaadin-text-area class="textarea-style" id="CommentTextArea" label="[[localize('com','Comments',language)]]" value="{{comment}}"></vaadin-text-area>
+                        </div>
+
                         <template is="dom-if" if="[[_contactOptionsVisible]]">
                             <div class="input-row">
                                 <paper-radio-group class="input-col" id="contactOptions" selected="{{contactOption}}">
@@ -445,6 +478,8 @@
                             </div>
                         </template>
                     </div>
+
+                    <div>[[localize('uplabel','Drop files here...',language)]]</div>
                     <vaadin-grid id="doc-list" class="material" items="[[docList]]" active-item="{{selectedDoc}}">
                         <vaadin-grid-column flex-grow="0" width="40px">
 <!--                            <template class="header">-->
@@ -481,27 +516,40 @@
                             </template>
                         </vaadin-grid-column>
                     </vaadin-grid>
+
+                    <div class="input-form">
+                        <vaadin-combo-box id="scnCombo" filtered-items="[[scannerList]]" item-label-path="label"
+                                          item-value-path="code"
+                                          label="[[localize('scanner','Scanner',language)]]"
+                                          value="{{selectedScanner}}"
+                                          disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">
+                        </vaadin-combo-box>
+                        <div id="scnOptions" class="input-col">
+                            <div class="scan-option">
+                                <paper-checkbox checked={{scannerColor}}
+                                                disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">[[localize('color','Color',language)]]</paper-checkbox>
+                            </div>
+                            <div class="scan-option">
+                                <paper-checkbox checked={{scannerDuplex}}
+                                                disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">[[localize('duplex','Duplex',language)]]</paper-checkbox>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="import-buttons">
                         <div id="upload">
                             <vaadin-upload id="vaadin-upload" no-auto files="{{files}}"
                                            accept="image/jpeg,application/pdf"
                                            form-data-name="attachment"></vaadin-upload>
                         </div>
-                        <template is="dom-if" if="[[_hasScanners(hasElectron,scannerList)]]">
-                            <paper-button class="button button--other" role="button" on-tap="_launchScan" disabled="[[isScanning]]">
-                                [[localize('scan','Scan',language)]]
-                            </paper-button>
-                        </template>
+                        <paper-button class="button button--other" role="button" on-tap="_launchScan" disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">
+                            [[localize('scan','Scan',language)]]
+                        </paper-button>
                     </div>
                 </div>
                 <div id="info-panel" class="panel">
                     <div id="form-header">
                         <div class="input-form">
-                            <!-- TODO Clean This
-                            <vaadin-text-field id="importTextField"
-                                               label="[[localize('docTitle','Titre du document',language)]]"
-                                               value="{{selectedDoc.title}}"></vaadin-text-field>
-                            -->
                             <vaadin-combo-box id="typeCombo" filtered-items="[[listType]]" item-label-path="name"
                                               item-value-path="code"
                                               label="[[localize('type-doc','Type de document',language)]]"
@@ -667,6 +715,11 @@
                     },
 
                     title: {
+                        type: String,
+                        value: ""
+                    },
+
+                    comment: {
                         type: String,
                         value: ""
                     },
@@ -971,8 +1024,12 @@
             }
 
             _hasScanners() {
-                return true;
+                //return true;
                 return this.hasElectron && this.scannerList && this.scannerList.length;
+            }
+
+            _canConfigureScan() {
+                return this._hasScanners() && !this.isScanning;
             }
 
             _isScannedFile(document) {
@@ -1165,13 +1222,14 @@
                 this.set('_bodyOverlay', true);
                 this.set('currentContact', currentContact);
 
+                this.scannerList = [
+                    { id: 1, code: '1', label : 'scanner A' },
+                    { id: 2, code: '2', label : 'scanner B' },
+                ];
+
                 const hasContact = !!(this.currentContact);
                 this.set('_patientDisabled', hasContact);
                 this.set('_contactOptionsDisabled', !hasContact);
-                if (hasContact) {
-                    this.$['TitleTextForm'].style.visibility = 'hidden';
-                    this.$['TitleTextForm'].style.height = 0;
-                }
 
                 this.set('title', this.localize('document','Document', this.language) + ' ' + moment().format("DD/MM/YY"));
 
@@ -1201,8 +1259,7 @@
                 let updatedContact = null;
                 let documentList = [];
                 const title = this.title;
-                //@TODO: clean this
-                //const title = e.detail.title;
+                const comment = this.comment;
                 const documents = e.detail.documents;
                 let docDate = moment();
                 if (this._documentDate && this._documentDate.length > 0)
