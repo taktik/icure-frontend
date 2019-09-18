@@ -169,16 +169,14 @@
 
         <div id="dialog" opened="{{opened}}">
             <h2 class="modal-title">[[localize('mh_timeline','Medical House Timeline',language)]]<ht-spinner active="[[isLoading]]"></ht-spinner></h2>
-            <div class="">
-                <p>[[patient.lastName]]</p>
-                <p>[[patient.medicalHouseContracts.length]]</p>
-                <template is="dom-repeat" items="[[patient.medicalHouseContracts]]" as="contract">
-                    <p>[[contract.mmNihii]]</p>
-                </template>
-            </div>
-            <div class="">
-                <paper-button class="button button--other" on-tap="_runTest">Test</paper-button>
-                <paper-button class="button button--save" on-tap="_generateInvoiceTest">Generate Invoice Test</paper-button>
+            <p>[[patient.lastName]]</p>
+            <p>[[patient.medicalHouseContracts.length]]</p>
+            <template is="dom-repeat" items="[[patient.medicalHouseContracts]]" as="contract">
+                <p>[[contract.mmNihii]]</p>
+            </template>
+            <paper-button on-tap="_runTest">Test</paper-button>
+
+            <paper-button on-tap="_generateInvoiceTest">Generate Invoice Test</paper-button>
             </div>
         </div>
     </template>
@@ -221,6 +219,10 @@
                     isLoading:{
                         type: Boolean,
                         value: false
+                    },
+                    insList:{
+                        type: Object,
+                        value: null
                     }
                 };
             }
@@ -237,6 +239,56 @@
 
             _dateFormat(date) {
                 return date ? this.api.moment(date).format('DD/MM/YYYY') : '';
+            }
+
+            _timeFormat(date) {
+                return date ? this.api.moment(date).format(date > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
+            }
+
+            _ageFormat(date) {
+                return date ? this.api.getCurrentAgeFromBirthDate(date,( e , s ) => this.localize(e, s, this.language)) : '';
+            }
+
+            _dateFormat2(date, fFrom, fTo){
+                return date ? this.api.moment(date, fFrom).format(fTo) : '';
+            }
+
+            _shortDateFormat(date, altDate) {
+                return (date || altDate) && "'"+this.api.moment((date || altDate)).format('YY') || '';
+            }
+
+            _isElevated(CT){
+                return CT && CT.substring(2) !== '0' ? this._yesOrNo(true) : this._yesOrNo(false);
+            }
+
+            _trueOrUnknown(b){
+                return b ? this.localize('yes','yes',this.language) : '?'
+            }
+
+            _yesOrNo(b){
+                return b ? this.localize('yes','yes',this.language) : this.localize('no','no',this.language)
+            }
+
+            _formatHospitalizedInfo(hi){
+                let info = '';
+                info += hi && hi.hospital ? this.localize('hosp', 'Hospital', this.language)+ ':' + hi.hospital + ' ' : ''
+                info += hi && hi.admissionDate ? this.localize('adm_dat', 'AdmissionDate', this.language) + ':' + this._dateFormat2(hi.admissionDate, 'YYYYMMDD', 'DD/MM/YYYY') + ' ' : ''
+                info += hi && hi.admissionService ? this.localize('adm_svc', 'AdmissionService', this.language)+ ':' + hi.admissionService + ' ' : ''
+                return info;
+            }
+
+            _hasErrors(errs){
+                return errs && errs.length > 0;
+                //return true;
+            }
+
+            _formatError(error){
+                return "[" + (this.language === 'nl' ? error.locNl : error.locFr) +  '] ' + (error.value?error.value + ' : ':"") + (this.language === 'nl' ? error.msgNl : error.msgFr);
+            }
+
+            _hasTransfers(genins){
+                return genins && genins.transfers && genins.transfers.length > 0;
+                //return true;
             }
 
             onWidthChange() {
@@ -259,6 +311,34 @@
             attached() {
                 super.attached();
                 this.async(this.notifyResize, 1);
+            }
+
+            _getGeninsHistory(){
+                this.set("isLoading", true);
+                let aMonths  = [];
+                let i;
+                for (i = 0; i < 24; i++) {
+                    aMonths.push(moment().startOf('month').subtract(i, 'month'));
+                }
+                this.set("insList", null);
+                let insList = [];
+                Promise.all(aMonths.map(m => this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(
+                    this.cleanNiss(this.patient.ssin),
+                    this.api.tokenId ? this.api.tokenId : this.api.tokenIdMH, this.api.tokenId ? this.api.keystoreId : this.api.keystoreIdMH, this.api.tokenId ? this.api.credentials.ehpassword : this.api.credentials.ehpasswordMH,
+                    this.api.tokenId ? hcp.nihii : this.api.nihiiMH, this.api.isMH ? this.api.MHContactPersonSsin : hcp.ssin, this.api.isMH ? this.api.MHContactPersonName : hcp.lastName + ' ' + hcp.firstName, this.api.tokenId ? "doctor" : "medicalhouse", m.format('x'), null
+                    ))
+                )).then(aRes => {
+                    aRes.map(res => {
+                        insList.push(res);
+                        //console.log(res);
+                    })
+                    this.set("insList",insList);
+                    this.set("isLoading", false);
+                }).finally(this.set("isLoading", false))
+            }
+
+            cleanNiss(niss){
+                return niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
             }
 
             _runTest(){
