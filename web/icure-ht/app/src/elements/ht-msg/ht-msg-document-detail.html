@@ -447,7 +447,7 @@
                 width: 100%;
                 padding: 0;
 				border-bottom: 1px solid var(--app-background-color-dark);
-				height: 56px;
+				min-height: 56px;
                 z-index: 10;
                 /*padding: 8px;*/
                 box-sizing: border-box;
@@ -455,6 +455,8 @@
                 flex-flow: row wrap;
                 justify-content: space-between;
                 align-items: center;
+                padding: 0 12px;
+                margin-top: 5px;
             }
 
             .buttons{
@@ -1005,7 +1007,7 @@
                             <paper-button class="button button--save" on-tap="update"><iron-icon icon="save"></iron-icon>[[localize('save','Sauver',language)]]</paper-button>
                         </template>
                         <template is="dom-if" if="[[disabled]]">
-                            <paper-button class="button button--sav" on-tap="unassign">[[localize('unassign','Désaffecter',language)]]</paper-button>
+                            <paper-button class="button button--save" on-tap="unassign">[[localize('unassign','Désaffecter',language)]]</paper-button>
                         </template>
                     </div>
                     <div>
@@ -1244,37 +1246,7 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
     apiReady() {
         this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
-        let exclusions = [
-            "medicaladvisoragreement",
-            "bvt-sample",
-            "clinicalpath",
-            "ecare-safe-consultation",
-            "ecare-tardis-consultation",
-            "perinatal",
-            "population-based-screening",
-            "medicationschemeelement",
-            "vaccinationschemeelement",
-            "genericregistryentry",
-            "ebirth-baby-medicalform",
-            "ebirth-mother-medicalform",
-            "intervention",
-            "applicationlink",
-            "ebirth-baby-notification",
-            "ebirth-mother-notification",
-            "child-prevention",
-            "radiationexposuremonitoring",
-            "treatmentsuspension",
-            "telemonitoring"
-        ];
-
-        this.api.code().findPaginatedCodes('be', 'CD-TRANSACTION', '')
-            .then(results => this.set("listType",  _.orderBy(results.rows.filter(r => !exclusions.includes(r.code)).map(result => {
-                return {
-                    code: result.code,
-                    name: this.localize('cd-transaction-' + result.code, result.code, this.language)
-                }
-            }), ['name'], ['asc'])))
-            .catch(error => console.log(error));
+        return !!_.size(_.get(this,"listType",[])) ? null : this.api.getDocumentTypes(this.resources, this.language).then(documentTypes => this.set("listType", documentTypes))
     }
 
 
@@ -1429,12 +1401,14 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         detail.doc.id = this.document.id;
         detail.contactId = this.selectedMessage.contactId;
         this.dispatchEvent(new CustomEvent("document-unassign",  { detail: detail, bubbles: true }))
+        this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
     }
 
     delete(e) {
         let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id};
         detail.doc.id = this.document.id;
         this.dispatchEvent(new CustomEvent("document-delete",  { detail: detail, bubbles: true }))
+        this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
     }
 
     update(e){
@@ -1452,9 +1426,12 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     detail: errorDetail
                 }, bubbles: true
             }));
+            this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
         }
-	    else
-	        this.dispatchEvent(new CustomEvent("document-update",  { detail: detail, bubbles: true }))
+	    else {
+            this.dispatchEvent(new CustomEvent("document-update", {detail: detail, bubbles: true}));
+            this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
+        }
     }
 
     _gotoPreviousGridPage() {
