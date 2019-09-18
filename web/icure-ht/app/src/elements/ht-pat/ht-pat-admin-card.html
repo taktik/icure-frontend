@@ -33,6 +33,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../styles/scrollbar-style.html">
 <link rel="import" href="../../styles/buttons-style.html">
 <link rel="import" href="../../styles/paper-tabs-style.html">
+<link rel="import" href="../../styles/notification-style.html">
 
 <dom-module id="ht-pat-admin-card">
 	<template>
@@ -653,7 +654,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </page>
                 <page><!--Timeline-->
                     <div class="page-container">
-                        <ht-pat-medicalhouse-timeline class="page-content printable"  api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" no-print/>
+                        <ht-pat-medicalhouse-timeline id="timeline" class="page-content printable"  api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" no-print/>
                     </div>
                 </page>
             </iron-pages>
@@ -817,6 +818,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             <h3>Lien de première connexion</h3>
             <h4>[[invitedHcpLink]]</h4>
         </paper-dialog>
+
+<!--        <paper-item id="flatrate-notification" class="notification-container dark">-->
+<!--            <iron-icon class="notification-icn" icon="vaadin:edit"></iron-icon>-->
+<!--            <div class="notification-msg">-->
+<!--                <h4>[[localize('postit','Post-it',language)]]</h4>-->
+<!--                <p>[[flatrateMsg]]</p>-->
+<!--            </div>-->
+<!--            <paper-button name="closePostit" class="notification-btn" on-tap="closePostit">-->
+<!--                [[localize('clo','Close',language)]]-->
+<!--            </paper-button>-->
+<!--            <paper-button name="editPostit" class="notification-btn" on-tap="editPostit">-->
+<!--                [[localize('edi','Edit',language)]]-->
+<!--            </paper-button>-->
+<!--        </paper-item>-->
 
         </template>
 
@@ -986,12 +1001,19 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             linkNoSaveLanguage:{
                 type: String,
                 value: 'niss-already-used'
+            },
+            flatrateMsg: {
+                type:String,
+                value: null
             }
         };
     }
 
     static get observers() {
-        return ['patientChanged(api,user,patient)', 'partnershipsChanged(patient.partnerships.*)', 'medicalPostitChanged(medicalPostit)', 'administrativePostitChanged(administrativePostit)'];
+        return ['patientChanged(api,user,patient)',
+            'partnershipsChanged(patient.partnerships.*)',
+            'medicalPostitChanged(medicalPostit)',
+            'administrativePostitChanged(administrativePostit)'];
     }
 
     constructor() {
@@ -1281,7 +1303,11 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                         //    } else {
                         //        patient.ssin = "";
                         //    }
-
+                            const timeline = this.$.timeline;
+                            const res = timeline.checkFlatrateData(patient, 201909);
+                            if(res.errors.length > 0){
+                                this.set("flatrateMsg", res.errors.join());
+                            }
                             this.api.patient().modifyPatientWithUser(this.user, patient)
                                 .catch(() => defer.resolve(patient))
                                 .then(p => this.api.register(p, 'patient', defer))
@@ -1309,6 +1335,23 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
         this.saveTimeout = setTimeout(this.saveAction, 5000);
     }
+
+    postitChanged(value) {
+        const trimmedValue = value && value.trim()
+        if(trimmedValue && trimmedValue.length) {
+            this.$["flatrate-notification"].classList.add('notification')
+            setTimeout(() => {
+                this.closePostit()
+            }, 60000);
+        }else {
+            this.closePostit()
+        }
+    }
+
+    closePostit() {
+        this.$["flatrate-notification"].classList.remove('notification')
+    }
+
 
     flushSave() {
         if (this.saveTimeout) {
