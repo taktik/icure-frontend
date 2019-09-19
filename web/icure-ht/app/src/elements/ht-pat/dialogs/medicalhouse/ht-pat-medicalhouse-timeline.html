@@ -320,36 +320,50 @@
             }
 
             _runForfaitCheck(){
-                this.checkFlatrateData(this.patient, Number(this.invoicedMonth));
+                this.checkFlatrateData(this.patient, Number(this.invoicedMonth)).then(res => {
+                    console.log("res", res)
+                    return res;
+                });
             }
 
             checkFlatrateData(pat, invoicedMonth){
-                let res = {};
-                //PatientData:
-                //  NISS
-                res.nissCheck = this.checkNissValid(pat);
-                //  Gender
-                res.genderCheck = this.checkGender(pat);
-                //  DeathDate
-                res.aliveCheck = this.checkAlive(pat, invoicedMonth);
-                //Insurability:
-                res.insurabilityCheck = this.checkInsurability(pat, invoicedMonth);
-                //  MUT
-                res.mutCheck = this.checkMut(res.insurabilityCheck);
-                //  CT12
-                res.ct12Check = this.checkCT12(res.insurabilityCheck);
-                //MH Contract:
-                res.mhContractCheck = this.checkMHContract(pat, invoicedMonth);
-                //  MM NIHII
-                res.mhCheck = this.checkMH(res.mhContractCheck);
-                //  No Suspension
-                res.mhSuspensionCheck = this.checkSuspension(res.mhContractCheck, invoicedMonth);
-                //  Disciplines
-                res.mhDisciplineCheck = this.checkMHDiscipline(res.mhContractCheck);
-                // oveview
-                res.flatrateStatus = this.checkMHStatus(res);
-                console.log("res", res, JSON.stringify(res));
-                return res;
+                //Check if hcp or hcpParrent is flatrateInvoicing
+                return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then( hcp =>
+                    hcp.parentId ? this.api.hcparty().getHealthcareParty(hcp.parentId) : hcp).then(hcp2 => {
+                    let res = {};
+                    res.hcp = hcp2;
+                    console.log("hcp flatrate ?", hcp2);
+                    if(hcp2.billingType && hcp2.billingType.toLowerCase() === "flatrate") {
+                        //PatientData:
+                        //  NISS
+                        res.nissCheck = this.checkNissValid(pat);
+                        //  Gender
+                        res.genderCheck = this.checkGender(pat);
+                        //  DeathDate
+                        res.aliveCheck = this.checkAlive(pat, invoicedMonth);
+                        //Insurability:
+                        res.insurabilityCheck = this.checkInsurability(pat, invoicedMonth);
+                        //  MUT
+                        res.mutCheck = this.checkMut(res.insurabilityCheck);
+                        //  CT12
+                        res.ct12Check = this.checkCT12(res.insurabilityCheck);
+                        //MH Contract:
+                        res.mhContractCheck = this.checkMHContract(pat, invoicedMonth);
+                        //  MM NIHII
+                        res.mhCheck = this.checkMH(res.mhContractCheck);
+                        //  No Suspension
+                        res.mhSuspensionCheck = this.checkSuspension(res.mhContractCheck, invoicedMonth);
+                        //  Disciplines
+                        res.mhDisciplineCheck = this.checkMHDiscipline(res.mhContractCheck);
+                        // oveview
+                        res.flatrateStatus = this.checkMHStatus(res);
+                        //console.log("res", res, JSON.stringify(res));
+                    } else {
+                        // non flatrate
+                        res.flatrateStatus = {status: "ok-no-flatrate-mh", errors: []}
+                    }
+                    return res;
+                })
             }
 
             checkMHStatus(res){
@@ -396,7 +410,7 @@
                 return mhcCheck.valid ?
                     (mhcCheck.medicalHouseContract.hcpId && mhcCheck.medicalHouseContract.hcpId !== '' ?
                             {valid: true, hcpId: mhcCheck.medicalHouseContract.hcpId, error: ''}
-                            : {valid: false, hcpId:'', error: 'insuranceId-absent-or-invalid'}
+                            : {valid: false, hcpId:'', error: 'mh-hcpId-absent-or-invalid'}
                     )
                     : {valid: false, hcpId:'', error: 'no-contract-for-period'}
             }
