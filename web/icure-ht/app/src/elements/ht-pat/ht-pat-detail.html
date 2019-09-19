@@ -78,6 +78,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="dialogs/hubs/ht-pat-hub-detail.html">
 <link rel="import" href="dialogs/hubs/ht-pat-hub-upload.html">
 <link rel="import" href="../../ht-upload-dialog.html">
+<link rel="import" href="./dialogs/medicalhouse/ht-pat-flatrate-utils.html">
 
 
 <link rel="import" href="../../styles/shared-styles.html">
@@ -1623,6 +1624,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </paper-button>
             </paper-item>
 
+            <paper-item id="flatrate-notification" class="notification-container error" style="top:148px; height: 168px; grid-template-rows: 28px 140px;">
+                <iron-icon class="notification-icn" icon="vaadin:exclamation" style="grid-row: 1 / span 1;"></iron-icon>
+                <div class="notification-msg" style="place-self: start;">
+                    <h4>[[localize('flatrate-err','Flatrate info',language)]]</h4>
+                    <p>[[flatrateMsg]]</p>
+                </div>
+                <paper-button name="closeFlatrateMsg" class="notification-btn" on-tap="closeFlatrateMsg">
+                    [[localize('clo','Close',language)]]
+                </paper-button>
+            </paper-item>
+
             <paper-item id="ehealth-notification" class="notification-container error">
                 <div class="notification-msg">
                     <h4>E-health</h4>
@@ -2151,6 +2163,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </entity-selector>
 
+        <ht-pat-flatrate-utils id="flatrateUtils" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" no-print/>
 
         <paper-dialog id="genInsDialog">
             <h2 class="modal-title">[[localize('gen_ins','General insurability',language)]]</h2>
@@ -2839,6 +2852,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type:String,
                         value: null
                     },
+                    flatrateMsg:{
+                        type:String,
+                        value: null
+                    },
                     adminTabIndex: {
                         type: Number,
                         value: 0
@@ -2914,6 +2931,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return [
                     'patientOpened(patient.id,api,user)',
                     'postitChanged(postitMsg)',
+                    'flatrateMsgChanged(flatrateMsg)',
                     'patientChanged(api,user,patient)',
                     'selectedHealthcareElementsSpliced(selectedHealthcareElements.splices)',
                     'selectedContactIdsChanged(selectedContactIds.*)',
@@ -3927,7 +3945,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const now = moment()
 
                 const currentlySelectedContactsIds = (this.selectedContactIds || []).map(id => id && id.substr(4) /* format is ctc_... see DOM */)
-                this.set('postitMsg',this.patient.note)
+                this.set('postitMsg',this.patient.note);
+                const flatRateUtil = this.$.flatrateUtils;
+                this.set("flatrateMsg", "");
+                flatRateUtil.checkFlatrateData(patient, Number(moment().format('YYYYMM'))).then(res => {
+                    console.log("flatrate res", res);
+                    if(res && res.flatrateStatus && res.flatrateStatus.errors.length > 0){
+                        this.set("flatrateMsg", res.flatrateStatus.errors.join());
+                        console.log("flatrateMsg", this.flatrateMsg);
+                    }
+                });
+
                 //console.log("Before load "+(+new Date() - now))
                 Promise.all([this.api.contact().findBy(this.user.healthcarePartyId, patient).then(ctcs => ctcs.map(ctc => this.api.register(ctc, 'contact'))), this.api.helement().findBy(this.user.healthcarePartyId, patient, true)]).then(([ctcs, allHes]) => {
                     //console.log("After load "+(+new Date() - now))
@@ -5268,6 +5296,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             closePostit() {
                 this.$["postit-notification"].classList.remove('notification')
+            }
+
+            flatrateMsgChanged(value){
+                const trimmedValue = value && value.trim()
+                if(trimmedValue && trimmedValue.length) {
+                    this.$["flatrate-notification"].classList.add('notification')
+                    setTimeout(() => {
+                        this.closeFlatrateMsg()
+                    }, 60000);
+                }else {
+                    this.closeFlatrateMsg()
+                }
+            }
+
+            closeFlatrateMsg(){
+                this.$["flatrate-notification"].classList.remove('notification')
             }
 
             createEvent(codeId){
