@@ -454,11 +454,6 @@
                                                value="{{patientSsin}}"
                                                disabled="[[_patientDisabled]]"></vaadin-text-field>
                         </div>
-
-                        <div class="input-form" id="CommentTextForm">
-                            <vaadin-text-area class="textarea-style" id="CommentTextArea" label="[[localize('com','Comments',language)]]" value="{{comment}}"></vaadin-text-area>
-                        </div>
-
                         <template is="dom-if" if="[[_contactOptionsVisible]]">
                             <div class="input-row">
                                 <paper-radio-group class="input-col" id="contactOptions" selected="{{contactOption}}">
@@ -517,24 +512,26 @@
                         </vaadin-grid-column>
                     </vaadin-grid>
 
-                    <div class="input-form">
-                        <vaadin-combo-box id="scnCombo" filtered-items="[[scannerList]]" item-label-path="label"
-                                          item-value-path="code"
-                                          label="[[localize('scanner','Scanner',language)]]"
-                                          value="{{selectedScanner}}"
-                                          disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">
-                        </vaadin-combo-box>
-                        <div id="scnOptions" class="input-col">
-                            <div class="scan-option">
-                                <paper-checkbox checked={{scannerColor}}
-                                                disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">[[localize('color','Color',language)]]</paper-checkbox>
-                            </div>
-                            <div class="scan-option">
-                                <paper-checkbox checked={{scannerDuplex}}
-                                                disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">[[localize('duplex','Duplex',language)]]</paper-checkbox>
+                    <template is="dom-if" if="[[_hasScanners(hasElectron, scannerList)]]">
+                        <div class="input-form">
+                            <vaadin-combo-box id="scnCombo" filtered-items="[[scannerList]]" item-label-path="label"
+                                              item-value-path="code"
+                                              label="[[localize('scanner','Scanner',language)]]"
+                                              value="{{selectedScanner}}"
+                                              disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">
+                            </vaadin-combo-box>
+                            <div id="scnOptions" class="input-col">
+                                <div class="scan-option">
+                                    <paper-checkbox checked={{scannerColor}}
+                                                    disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">[[localize('color','Color',language)]]</paper-checkbox>
+                                </div>
+                                <div class="scan-option">
+                                    <paper-checkbox checked={{scannerDuplex}}
+                                                    disabled="[[!_canConfigureScan(isScanning,hasElectron,scannerList)]]">[[localize('duplex','Duplex',language)]]</paper-checkbox>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </template>
 
                     <div id="import-buttons">
                         <div id="upload">
@@ -568,6 +565,11 @@
                                 <pdf-element fit-height id="viewer" src="[[selectedData]]"></pdf-element>
                             </template>
                         </template>
+                    </div>
+                    <div class="input-form" id="CommentTextForm">
+                        <vaadin-text-area class="textarea-style" id="CommentTextArea"
+                                          label="[[localize('com','Comments',language)]]"
+                                          value="{{selectedDoc.comment}}"></vaadin-text-area>
                     </div>
                 </div>
             </div>
@@ -1070,6 +1072,7 @@
                             // docDate: moment().format("YYYY-MM-DD"),
                             // hcp: "",
                             type: "",
+                            comment: "",
                             extension: "pdf",
                             // patientId: this.patient ? this.patient.id : "",
                             // patientSsin: this.patient ? this.patient.ssin : ""
@@ -1080,6 +1083,19 @@
                     .finally(() => {
                         this.set("isScanning", false);
                     })
+            }
+
+            _encryptComment(document, contact, subContact) {
+                try {
+                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, document, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(subContact.descr)))
+                        .then(uaEncryptedComment => {
+                            subContact.descr = Base64.encode(this.api.crypto().utils.ua2text(uaEncryptedComment));
+                            contact.subContacts.push(subContact);
+                            return contact;
+                        });
+                } catch (error) {
+                    return Promise.reject(error);
+                }
             }
 
             _encryptInfo(message, info) {
@@ -1121,6 +1137,7 @@
                             title: file.name,
                             fileBlob: dataFile,
                             type: "",
+                            comment: "",
                             extension: _.toLower(file.name.split('.').pop()),
                             patientId: "",
                             patientSsin: ""
@@ -1327,6 +1344,8 @@
                                     })
                                         .then(newDoc => this.api.document().createDocument(newDoc))
                                         .then(createdDoc => {
+                                            // TODO (LDE) : Clean This
+                                            this.createdDoc = createdDoc;
                                             doc.docId = createdDoc.id;
                                             documentList.push(
                                                 {
@@ -1353,9 +1372,8 @@
                                             });
                                             if (contact.services === undefined) contact.services = [svc];
                                             else contact.services.push(svc);
-
-                                            const sc = {status: 64, services: [{serviceId: svc.id}]};
-                                            contact.subContacts.push(sc);
+                                            const sc = {status: 64, descr: doc.comment, services: [{serviceId: svc.id}]};
+                                            return this._encryptComment(this.createdDoc, contact, sc);
                                         })
 
                                 }))
@@ -1386,12 +1404,16 @@
                     })
                     .then((msg) => this.api.message().modifyMessage(msg))
                     .catch((error) => console.log(error))
-                    .finally((msg) => this.dispatchEvent(new CustomEvent("post-process", {
-                        detail: {
-                            messages: msg,
-                            contact: updatedContact
-                        }, bubbles: true
-                    })))
+                    .finally((msg) => {
+                        this.createdDoc = null;
+                        this.dispatchEvent(new CustomEvent("post-process", {
+                            detail: {
+                                messages: msg,
+                                contact: updatedContact
+                            }, bubbles: true
+                        }))
+                    })
+
             }
 
             showErrorMessage(e) {
