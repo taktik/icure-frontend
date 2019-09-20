@@ -1670,12 +1670,12 @@
 
                 this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
 
-                this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), this._serviceAdapter.bind(this));
-                this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), this._serviceAdapter.bind(this));
+                this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), '_servicesSearch_medications', this._serviceAdapter.bind(this));
+                this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), '_servicesSearch_prescriptions', this._serviceAdapter.bind(this));
                 // this._initList('medicine-package-list', this._medecinePackagesSearch.bind(this), this._medicinePackageAdapter.bind(this));
-                this._initList('medicine-package-list', this._medecinePackageSearchSamV2.bind(this), this._medicinePackageAdapterSamV2.bind(this));
-                this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), this._ingredientAdapterSamV2.bind(this));
-                this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), this._serviceAdapter.bind(this));
+                this._initList('medicine-package-list', this._medicinePackageSearchSamV2.bind(this), '_medicinePackageSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
+                this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), '_ingredientSearchSamV2', this._ingredientAdapterSamV2.bind(this));
+                this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), '_compoundPrescriptionsSearch', this._serviceAdapter.bind(this));
             }
 
             _init() {
@@ -1842,33 +1842,45 @@
                 }
             }
 
+            unique(array, propertyName) {
+                return array.filter((e, i, a) => a.findIndex(x => x[propertyName] === e[propertyName]) === i);
+            }
+
             _medicinePackageAdapterSamV2(results) {
                 const now = moment().valueOf();
                 return Promise.all(results
                     .reduce((ampps, result) => {
                         if (result.ampps && result.ampps.length) {
-                            return ampps.concat(result.ampps.map(ampp => Object.assign(ampp, {
-                                    blackTriangle: result.blackTriangle
-                                })));
+                            return ampps.concat(result.ampps.map(ampp => {
+                                const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
+                                return Object.assign(ampp, {
+                                    publicDmpp: publicDmpp,
+                                    cnk: publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code,
+                                    prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
+                                    amp: result
+                                })
+                            }));
                         }
                         return ampps;
                     }, [])
-                    .filter(ampp => ampp.dmpps && ampp.dmpps.length)
+                    .filter((e, i, a) => e.publicDmpp && e.cnk && e.prescriptionName && a.findIndex(x => x.cnk === e.cnk) === i)
                     .map(ampp => {
-                        const dmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
-                        const reimbursement = dmpp && dmpp.reimbursements && dmpp.reimbursements.length && dmpp.reimbursements.find(reimbursement => reimbursement.from < now && (!reimbursement.to || reimbursement.to > now ));
+                        const reimbursement = ampp.publicDmpp && ampp.publicDmpp.reimbursements && ampp.publicDmpp.reimbursements.length && ampp.publicDmpp.reimbursements.find(reimbursement => reimbursement.from < now && (!reimbursement.to || reimbursement.to > now ));
+                        const basePrice = reimbursement && ((reimbursement.referenceBasePrice && parseFloat(reimbursement.referenceBasePrice)) ||
+                            reimbursement.reimbursementBasePrice && parseFloat(reimbursement.reimbursementBasePrice)) || 0;
                         const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
                         return {
-                            "id": ampp.ctiExtented,
-                            "label": ampp.prescriptionName[this.language] || dmpp.prescriptionName[this.language] || ampp.abbreviatedName[this.language],
+                            "id": ampp.ctiExtended,
+                            "label": ampp.prescriptionName,
                             "atc": ampp.atcs[0].code,
                             "atcCat": ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
-                            "publicPrice": reimbursement && reimbursement.reimbursementBasePrice + "€" || "",
+                            "patientPrice": reimbursement && reimbursement.referenceBasePrice + "€",
+                            "publicPrice": reimbursement && reimbursement.referenceBasePrice && reimbursement.copaymentSupplement && ((parseFloat(reimbursement.referenceBasePrice) + parseFloat(reimbursement.copaymentSupplement)).toFixed(2) + "€") || "",
                             "compProhibIcon": this._compProhibIconSamV2(vmpGroup),
                             "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
                             "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
                             "rmaPharmaVigiIcon": this._rmaPharmaVigiIcon(ampp),
-                            "reinfPharmaVigiIcon": this._reinfPharmaVigiIcon(ampp),
+                            "reinfPharmaVigiIcon": this._reinfPharmaVigiIconSamV2(ampp.amp),
                             "narcoticIcon": this._narcoticIcon(ampp),
                             "catIcon": this._catIconSamV2(reimbursement),
                             "chap4Status": this._chap4Status(ampp),
@@ -1946,7 +1958,7 @@
                     .then(([packs, packsIng]) => _.unionBy(packs, packsIng, 'id.id'));
             }
 
-            _medecinePackageSearchSamV2(searchValue, language, type, first, count) {
+            _medicinePackageSearchSamV2(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count)
                     .then(results => (results && results.rows || []));
@@ -1999,13 +2011,13 @@
                 });
             }
 
-            _initList(list, search, adapter) {
+            _initList(list, search, domain, adapter) {
                 this._list = list;
                 let grid = this.$[list];
                 if (!grid) return;
                 grid.lastParams = null; //Used to prevent double calls
                 grid.size = 0;
-                grid.pageSize = 10;
+                grid.pageSize = 100;
                 grid.drugsCache = [];
                 grid.dataProvider = (params, callback) => {
                     // const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path || columns[0] && columns[0].key;
@@ -2026,7 +2038,7 @@
 
                     const limit = endIndex || grid.pageSize;
                     const offset = params.index;
-                    search(latestSearchValue, this.language, null, 0, 20)
+                    this.api.dedup(() => search(latestSearchValue, this.language, null, 0, grid.pageSize), domain, `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000)
                         .then(packs => {
                             return {
                                 totalSize: packs.length,
@@ -2036,8 +2048,6 @@
                         .then(function (res) {
                             if (this.filterValue !== latestSearchValue) {
                                 console.log("Cancelling obsolete search");
-                                this.setGridSize(grid, 0);
-                                callback([]);
                                 return;
                             }
                             if (res.totalSize == 0) {
@@ -2047,11 +2057,14 @@
                                 return;
                             }
 
-                            if (grid.size !== res.totalSize) {
-                                this.setGridSize(grid, res.totalSize);
-                            }
+                            // if (grid.size !== res.totalSize) {
+                            //     this.setGridSize(grid, res.totalSize);
+                            // }
                             // adapter(res.rows);
                             adapter(_.slice(res.rows, startIndex, endIndex)).then(results => {
+                                if (grid.size !== results.length) {
+                                    this.setGridSize(grid, results.length);
+                                }
                                 grid.latestResults = results;
                                 if (grid.latestResults.length) {
                                     (grid.drugsCache || (grid.drugsCache = []))[startIndex] = null;
