@@ -82,7 +82,7 @@
 
         <paper-dialog id="outgoingDocumentDialog" class="mt60" always-on-top="true" no-cancel-on-outside-click="true" no-cancel-on-esc-key="true">
 
-            <h2 class="modal-title">[[localize('new_out-doc','New outgoing document',language)]]</h2>
+            <h2 class="modal-title">[[localize('new_out-doc','New outgoing document',language)]] <paper-icon-button class="button button--other" dialog-dismiss icon="icons:close"></paper-icon-button></h2>
 
             <div class="content">
                 <prose-editor id="prose-editor" class="content" on-refresh-context="_refreshProseEditorContext"></prose-editor>
@@ -113,10 +113,6 @@
 <!--                <paper-button class="button button&#45;&#45;save" dialog-confirm autofocus on-tap="_saveReport">[[localize('save','Save',language)]]</paper-button>-->
 
             </div>
-
-
-
-
 
             <template is="dom-if" if="[[_isBusy]]"><div class="overlaySpinnerContainer"><div class="overlaySpinner"><ht-spinner active></ht-spinner></div></div></template>
 
@@ -240,10 +236,6 @@
             _resetComponentProperties() {
                 const promResolve = Promise.resolve();
                 return promResolve
-                    .then(() => {
-                        const proseEditor = this.shadowRoot.querySelector("#prose-editor")
-                        proseEditor && proseEditor.setHTMLContent("")
-                    })
                     .then(() => {
                         const componentProperties = HtPatOutgoingDocument.properties
                         Object.keys(componentProperties).forEach(k => { if (!_.get(componentProperties[k],"noReset", false)) { this.set(k, (typeof componentProperties[k].value === 'function' ? componentProperties[k].value() : (componentProperties[k].value || null))) }})
@@ -533,17 +525,19 @@
                             _.map(_.get(this,"_data.allHealthElements",{}), hes => _.map(hes, he => _.concat(
                                 _.map(_.get(he,"codes",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
                                 _.map(_.get(he,"tags",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
+                                _.map(_.get(he,"content." + this.language + ".medicationValue.regimen",[]), it => _.merge({}, {type:_.trim(_.get(it,"dayPeriod.type","")), code:_.trim(_.get(it,"dayPeriod.code",""))})),
                             )))
                         )
                     ), _.isEqual
                 )
 
-                return Promise.all(_.map(codesToResolve, it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))))
+                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))))
                     .then(promResults => _.map(promResults, promResult => _.map(promResult, singleCode => {
                         singleCode = _.merge({},singleCode,{
                             labelHr: singleCode.type === "CD-TRANSACTION" ?
                                 _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
                                 singleCode.type === "CD-SEVERITY" ? _.upperFirst(_.trim(this.localize(_.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                                singleCode.type === "CD-DAYPERIOD" ? _.upperFirst(_.trim(this.localize('ms_' + _.trim(_.get(singleCode,"code")), (_.trim(_.get(singleCode,"label." + this.language,"")) ? _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) : _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())), this.language)).toLowerCase()) :
                                 _.trim(_.get(singleCode,"label." + this.language,"")) ?
                                     _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) :
                                     _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())
@@ -563,13 +557,20 @@
                         const evolutionExtraTemporalityCode = _.trim(_.get(_.find(_.get(he,"tags",[]), {type: "CD-EXTRA-TEMPORALITY"}),"code",""))
                         const heIcpcCodes = _.map(_.filter(_.get(he,"codes",[]), {type: "ICPC"}), i => _.trim(_.get(i,"code","")))||[]
                         const heIcdCodes = _.map(_.filter(_.get(he,"codes",[]), {type: "ICD"}), i => _.trim(_.get(i,"code","")))||[]
+                        const heHr = !!_.size(_.find(_.get(he,"codes",[]), {type: "BE-THESAURUS-SURGICAL-PROCEDURES"})) ? _.trim(_.get(_.find( _.get(this, "_data.codes.BE-THESAURUS-SURGICAL-PROCEDURES",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "BE-THESAURUS-SURGICAL-PROCEDURES"}),"code","")}), "labelHr","")) : _.trim(_.get(_.find( _.get(this, "_data.codes.BE-THESAURUS",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "BE-THESAURUS"}),"code","")}), "labelHr",""))
+                        const allergyHr = !!_.size(_.find(_.get(he,"codes",[]), {type: "CD-ATC"})) ? _.trim(_.get(_.find( _.get(this, "_data.codes.CD-ATC",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "CD-ATC"}),"code","")}), "labelHr","")) : _.trim(_.get(_.find( _.get(this, "_data.codes.BE-ALLERGEN",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "BE-ALLERGEN"}),"code","")}), "labelHr",""))
+                        const medicationContent = _.get(he, "content." + this.language)
+                        const cnkHrLabel = !!_.trim(_.get(medicationContent,"medicationValue.medicinalProduct.intendedname")) ? _.trim(_.get(medicationContent,"medicationValue.medicinalProduct.intendedname")) : _.trim(_.get(_.find( _.get(this, "_data.codes.CD-DRUG-CNK",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "CD-DRUG-CNK"}),"code","")}), "labelHr",""))
                         return _.merge(he, _.mapValues({
                             descr: _.upperFirst(_.trim(_.get(he, "descr",""))),
-                            heHr: _.trim(_.get(_.find( _.get(this, "_data.codes.BE-THESAURUS",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "BE-THESAURUS"}),"code","")}), "labelHr","")),
+                            heHr: heHr,
+                            allergyHr: allergyHr,
+                            cnkHr: _.trim(_.get(_.find(_.get(he,"codes",[]), {type: "CD-DRUG-CNK"}),"code","")) + " - " + cnkHrLabel,
                             statusHr: this._getHeHrStatus(he),
                             certaintyHr: _.trim(_.get(_.find( _.get(this, "_data.codes.CD-CERTAINTY",[]), {code:_.get(_.find(_.get(he,"tags",[]), {type: "CD-CERTAINTY"}),"code","")}), "labelHr","")),
                             severityHr: _.trim(_.get(_.find( _.get(this, "_data.codes.CD-SEVERITY",[]), {code:_.get(_.find(_.get(he,"tags",[]), {type: "CD-SEVERITY"}),"code","")}), "labelHr","")),
                             evolutionHr: !!evolutionExtraTemporalityCode ? this.localize(evolutionExtraTemporalityCode, evolutionExtraTemporalityCode, this.language) : "",
+                            familyLinkHr: _.trim(_.get(_.find( _.get(this, "_data.codes.BE-FAMILY-LINK",[]), {code:_.get(_.find(_.get(he,"codes",[]), {type: "BE-FAMILY-LINK"}),"code","")}), "labelHr","")),
                             openingDateHr: !!parseInt(_.get(he,"openingDate",0)) ? this._YYYYMMDDToDDMMYYYY(parseInt(_.get(he,"openingDate",0))) : "",
                             closingDateHr: !!parseInt(_.get(he,"closingDate",0)) ? this._YYYYMMDDToDDMMYYYY(parseInt(_.get(he,"closingDate",0))) : "",
                             temporalityHr: _.trim(_.get(_.find( _.get(this, "_data.codes.CD-TEMPORALITY",[]), {code:_.get(_.find(_.get(he,"tags",[]), {type: "CD-TEMPORALITY"}),"code","")}), "labelHr","")),
@@ -577,6 +578,21 @@
                             icpcsHr: _.compact(_.map(_.get(this,"_data.codes.ICPC",[]), it => heIcpcCodes.indexOf(_.trim(_.get(it,"code",""))) === -1 ? false : _.trim(_.get(it,"code","")) + " - " + _.trim(_.get(it,"labelHr","")) )).join(', '),
                             icdsHr: _.compact(_.map(_.get(this,"_data.codes.ICD",[]), it => heIcdCodes.indexOf(_.trim(_.get(it,"code",""))) === -1 ? false : _.trim(_.get(it,"code","")) + " - " + _.trim(_.get(it,"labelHr","")) )).join(', '),
                             lastUpdateDateHr: !!parseInt(_.get(he,"modified","")) ? this._msTstampToDDMMYYYY(parseInt(_.get(he,"modified",""))) : "",
+                            medication: {
+                                cnkCode: _.trim(_.get(_.find(_.get(he,"codes",[]), {type: "CD-DRUG-CNK"}),"code","")),
+                                cnkHrLabel: cnkHrLabel,
+                                begin: !parseInt(_.get(medicationContent, "medicationValue.beginMoment",0)) ? "" : this._YYYYMMDDToDDMMYYYY(parseInt(_.get(medicationContent, "medicationValue.beginMoment",0))),
+                                end: !parseInt(_.get(medicationContent, "medicationValue.endMoment",0)) ? "" : this._YYYYMMDDToDDMMYYYY(parseInt(_.get(medicationContent, "medicationValue.endMoment",0))),
+                                comment: _.trim(_.get(medicationContent, "commentForDelivery","")),
+                                isRenewal: this.localize( !!_.get(medicationContent, "isRenewal",false) ? "yes" : "no", !!_.get(medicationContent, "isRenewal",false) ? "yes" : "no", this.language),
+                                substitutionAllowed: this.localize( !!_.get(medicationContent, "substitutionAllowed",false) ? "subtitutionAllowed" : "subtitutionForbidden", !!_.get(medicationContent, "substitutionAllowed",false) ? "subtitutionAllowed" : "subtitutionForbidden", this.language),
+                                regimenHr: _.map(_.get(medicationContent,"medicationValue.regimen",[]), it => _.trim(_.get(it,"frequency","daily")) === "daily" ? _.trim(_.get(it,"administratedQuantity.quantity","")) + " " + _.trim(_.get(medicationContent,"regimen[0].administratedQuantity.unit","")) + " - " + _.trim(_.get(_.find(_.get(this, "_data.codes.CD-DAYPERIOD",[]), {code:_.trim(_.get(it,"dayPeriod.code",""))}), "labelHr","")) :
+                                    _.trim(_.get(it,"frequency","daily")) === "weekly" ? _.trim(_.get(it,"administratedQuantity.quantity","")) + " " + _.trim(_.get(medicationContent,"regimen[0].administratedQuantity.unit","")) + " " + this.locallize("perBy", "per", this.language) + " " + this.localize("week", "Week", this.language) + " (" + this.localize(_.trim(_.get(it,"administratedQuantity.day","")), _.trim(_.get(it,"administratedQuantity.day","")), this.language) + ") " :
+                                    _.trim(_.get(it,"frequency","daily")) === "monthly" ? _.trim(_.get(it,"administratedQuantity.quantity","")) + " " + _.trim(_.get(medicationContent,"regimen[0].administratedQuantity.unit","")) + " " + this.locallize("perBy", "per", this.language) + " " + this.localize("month", "Month", this.language).toLowerCase() + " (" + this.localize("the", "the", this.language) + " " + _.trim(_.get(it,"administratedQuantity.time","")).substr(-2) + "° " + this.localize("dayOfMonth", "dayOfMonth", this.language).toLowerCase() + ") " :
+                                    ""
+                               ).join(" // "),
+                            }
+
                         }, i => typeof i === "string" ? !!_.trim(i) ? _.trim(i) : '-' : i))
                     })))
                     .catch(()=>promResolve)
@@ -602,19 +618,7 @@
 
                 const makeSubContextsHes = (ctx) => ((key) =>
                     _.map(_.get(ctx,"healthElements." + key), he => {
-
-                        const subCtx = _.assign({}, ctx, {dataProvider: {form: () => {
-                            return {
-                                template: {id: _.trim(_.get(he,"id"))},
-                                dataProvider: he
-                            }
-                        }}})
-
-
-                        // const subCtx = _.assign({}, {hes: _.get(ctx,"healthElements." + key,[]), dataProvider: {form: () => {
-                        //     return { template:{ id: _.trim(_.get(he,"id")),} }
-                        // }}})
-
+                        const subCtx = _.assign({}, ctx, {dataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}})
                         subCtx.subContexts = makeSubContextsHes(subCtx)
                         return subCtx
                     })
@@ -692,7 +696,6 @@
 
             _getProseEditorVariables() {
 
-                const promResolve = Promise.resolve();
                 const staticVariables = [{
                     type:'blocks',
                     additionalCssClasses:'largeDivider',
@@ -793,15 +796,6 @@
                     ]
                 }]
 
-
-
-                // Todo: prendre en compte be-thesaurus-surgical-procedures (ou / quoi / comment)
-                // Todo: prendre en compte allèrges (< ssi allergies) -> se faire des exemples
-                // Todo: prendre en compte Medicaments (< ssi réactions indésirables) -> se faire des exemples
-                // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
-
-
-
                 const healthElementVariables = {
                     type:'hes',
                     additionalCssClasses:'largeDivider',
@@ -827,9 +821,63 @@
                                 heType === "allergies" ? 6 :
                                 heType === "medications" ? 7 :
                                 heType === "archivedHealthElements" ? 8 : 999,
-                            // nodes: [{type:'variable', attrs: { expr:`dataProvider.renderHe(_.get(healthElements,"${heType}"))`}}]
-                            // nodes: [{ type: 'template', attrs: { expr:`subContexts("${heType}")`, template: {'default':[ { type: 'variable', attrs: { expr:`dataProvider.renderHe(_.get(healthElements,"${heType}"))`}}]} } }]
-                            nodes: [{ type: 'template', attrs: { expr:`subContextsHes("${heType}")`, template: {'default':[ {type:'variable', attrs:{ expr:`template`}} ]}}}]
+                            nodes: [
+                                {type:'template', attrs: {
+                                    expr:`subContextsHes("${heType}")`,
+                                    template: {'default': heType !== "medications" ?
+                                        [
+                                            {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "}]},
+                                            {type: 'table',content: [
+                                                {type: 'table_row',content: [
+                                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: _.compact([
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("healthElement","Health element", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heHr`}}, {type:'text', text: " "}]},
+                                                            ((heType !== "allergies" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}, {type:'text', text: " "}]} ),
+                                                            {type:'paragraph',content: [
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("cert","Certainity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.certaintyHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("sev","Severity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.severityHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("temp","Temporality", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.evolutionHr`}}, {type:'text', text: " "},
+                                                            ]},
+                                                            ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}]} ),
+                                                            {type:'paragraph',content: [
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("remanence","Rémanence", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.temporalityHr`}}, {type:'text', text: " "}
+                                                            ]},
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICPC" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icpcsHr`}}, {type:'text', text: " "}]},
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICD" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icdsHr`}}, {type:'text', text: " "}]},
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
+                                                        ])
+                                                    },
+                                                ]},
+                                            ]},
+                                        ] : [
+                                            {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
+                                            {type: 'table',content: [
+                                                {type: 'table_row',content: [
+                                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                                        {type:'paragraph',content: [
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("begin","Begin", this.language) + ": "},
+                                                            {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},
+                                                            {type:'text', text: " - "},
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("end","End", this.language) + ": "},
+                                                            {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},
+                                                            {type:'text', text: " - "} ,
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("substitution","Substitution", this.language) + ": "},
+                                                            {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},
+                                                            {type:'text', text: " "}
+                                                        ]},
+                                                        {type:'paragraph',content: [{type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}]}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
+                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("pos","Posology", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.regimenHr`}}, {type:'text', text: " "}]},
+                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
+                                                    ]},
+                                                ]},
+                                            ]},
+                                        ]
+                                    },
+                                }},
+                                {type:'paragraph',content: [{type:'text', text: " "}]},
+                            ]
                         }
 
                     }))
@@ -906,6 +954,15 @@
                         return promResolve
 
                     })
+
+                // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
+                // Todo: Ne reset éditeur que si save / flush. Pas faire à chaque ouverture
+                // Todo: Mettre boutons comme il faut en bas dialog
+                // Todo: bouton "reset" / "effacer" et/ou lors du save & add au dossier:
+                //     const proseEditor = this.shadowRoot.querySelector("#prose-editor")
+                //     proseEditor && proseEditor.setHTMLContent("")
+                // Todo: fuck sais pas vraiment écrire texte libre dans template ? Curseur saute systématiquement en dehors du bloc, après 1er caractètre tapé
+                // Todo: Gérer les dates (complètes / incomplètes selon nouvelle méthod Julien icc-api)
 
                 // return this._resetComponentProperties()
                 //     .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
