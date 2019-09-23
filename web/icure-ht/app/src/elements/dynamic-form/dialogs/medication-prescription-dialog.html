@@ -1744,13 +1744,13 @@
                 }
             }
 
-            _catIconSamV2(reimbursement) {
-                if (!reimbursement) return "";
-                if (reimbursement.cheap) {
-                    if (reimbursement.copaymentSupplement) return 'void';
+            _catIconSamV2(ampp) {
+                if (!ampp.publicDmpp || !ampp.currentReimbursement) return "";
+                if (ampp.publicDmpp.cheap) {
+                    if (ampp.currentReimbursement.copaymentSupplement) return 'void';
                     else return 'cat-cheap-noacm';
                 } else {
-                    if (reimbursement.copaymentSupplement) return 'cat-notcheap-acm';
+                    if (ampp.currentReimbursement.copaymentSupplement) return 'cat-notcheap-acm';
                     else return 'cat-notcheap-noacm';
                 }
             }
@@ -1842,55 +1842,6 @@
                 }
             }
 
-            unique(array, propertyName) {
-                return array.filter((e, i, a) => a.findIndex(x => x[propertyName] === e[propertyName]) === i);
-            }
-
-            _medicinePackageAdapterSamV2(results) {
-                const now = moment().valueOf();
-                return Promise.all(results
-                    .reduce((ampps, result) => {
-                        if (result.ampps && result.ampps.length) {
-                            return ampps.concat(result.ampps.map(ampp => {
-                                const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
-                                return Object.assign(ampp, {
-                                    publicDmpp: publicDmpp,
-                                    cnk: publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code,
-                                    prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
-                                    amp: result
-                                })
-                            }));
-                        }
-                        return ampps;
-                    }, [])
-                    .filter((e, i, a) => e.publicDmpp && e.cnk && e.prescriptionName && a.findIndex(x => x.cnk === e.cnk) === i)
-                    .map(ampp => {
-                        const reimbursement = ampp.publicDmpp && ampp.publicDmpp.reimbursements && ampp.publicDmpp.reimbursements.length && ampp.publicDmpp.reimbursements.find(reimbursement => reimbursement.from < now && (!reimbursement.to || reimbursement.to > now ));
-                        const basePrice = reimbursement && ((reimbursement.referenceBasePrice && parseFloat(reimbursement.referenceBasePrice)) ||
-                            reimbursement.reimbursementBasePrice && parseFloat(reimbursement.reimbursementBasePrice)) || 0;
-                        const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
-                        return {
-                            "id": ampp.ctiExtended,
-                            "label": ampp.prescriptionName,
-                            "atc": ampp.atcs[0].code,
-                            "atcCat": ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
-                            "patientPrice": reimbursement && reimbursement.referenceBasePrice + "€",
-                            "publicPrice": reimbursement && reimbursement.referenceBasePrice && reimbursement.copaymentSupplement && ((parseFloat(reimbursement.referenceBasePrice) + parseFloat(reimbursement.copaymentSupplement)).toFixed(2) + "€") || "",
-                            "compProhibIcon": this._compProhibIconSamV2(vmpGroup),
-                            "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
-                            "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
-                            "rmaPharmaVigiIcon": this._rmaPharmaVigiIcon(ampp),
-                            "reinfPharmaVigiIcon": this._reinfPharmaVigiIconSamV2(ampp.amp),
-                            "narcoticIcon": this._narcoticIcon(ampp),
-                            "catIcon": this._catIconSamV2(reimbursement),
-                            "chap4Status": this._chap4Status(ampp),
-                            "deliveryStatus": this._deliveryStatus(ampp),
-                            "startDate": '',
-                            "endDate": ''
-                        };
-                    }));
-            }
-
             _ingredientAdapter(results) {
                 return Promise.resolve(results.map(result => {
                     return {
@@ -1961,17 +1912,57 @@
             _medicinePackageSearchSamV2(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count)
-                    .then(results => (results && results.rows || []));
-
-                // .then(rows => Promise.all(rows.map(row => {
-                    //     if (row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.name) {
-                    //         return this.api.besamv2().findPaginatedVmpGroupsByLabel(this.language, row.vmp.vmpGroup.name[this.language], null, null, 1)
-                    //             .then(vmpGroup => row.vmp.vmpGroup = vmpGroup)
-                    //             .then(() => row);
-                    //     } else
-                    //         Promise.resolve(row);
-                    // })))
+                    .then(results => (results && results.rows || []))
+                    .then(rows => rows
+                        .reduce((ampps, row) => {
+                            if (row.ampps && row.ampps.length) {
+                                return ampps.concat(row.ampps.map(ampp => {
+                                    const now = moment().valueOf();
+                                    const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
+                                    const currentReimbursement = publicDmpp && publicDmpp.reimbursements && publicDmpp.reimbursements.length && publicDmpp.reimbursements.find(reimbursement => reimbursement.from < now && (!reimbursement.to || reimbursement.to > now ));
+                                    return Object.assign(ampp, {
+                                        publicDmpp: publicDmpp,
+                                        currentReimbursement: currentReimbursement,
+                                        cnk: publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code,
+                                        prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
+                                        amp: row
+                                    })
+                                }));
+                            }
+                            return ampps;
+                        }, [])
+                        .filter((e, i, a) => e.publicDmpp && e.cnk && e.prescriptionName && a.findIndex(x => x.cnk === e.cnk) === i)
+                    );
             }
+
+            _medicinePackageAdapterSamV2(results) {
+                return Promise.resolve(results
+                    .map(ampp => {
+                        const basePrice = ampp.currentReimbursement && ((ampp.currentReimbursement.referenceBasePrice && parseFloat(ampp.currentReimbursement.referenceBasePrice)) ||
+                            ampp.currentReimbursement.reimbursementBasePrice && parseFloat(ampp.currentReimbursement.reimbursementBasePrice)) || 0;
+                        const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
+                        return {
+                            "id": ampp.ctiExtended,
+                            "label": ampp.prescriptionName,
+                            "atc": ampp.atcs[0].code,
+                            "atcCat": ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
+                            "patientPrice": ampp.currentReimbursement && ampp.currentReimbursement.referenceBasePrice + "€",
+                            "publicPrice": ampp.currentReimbursement && ampp.currentReimbursement.referenceBasePrice && ampp.currentReimbursement.copaymentSupplement && ((parseFloat(ampp.currentReimbursement.referenceBasePrice) + parseFloat(ampp.currentReimbursement.copaymentSupplement)).toFixed(2) + "€") || "",
+                            "compProhibIcon": this._compProhibIconSamV2(vmpGroup),
+                            "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
+                            "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
+                            "rmaPharmaVigiIcon": this._rmaPharmaVigiIcon(ampp),
+                            "reinfPharmaVigiIcon": this._reinfPharmaVigiIconSamV2(ampp.amp),
+                            "narcoticIcon": this._narcoticIcon(ampp),
+                            "catIcon": this._catIconSamV2(ampp),
+                            "chap4Status": this._chap4Status(ampp),
+                            "deliveryStatus": this._deliveryStatus(ampp),
+                            "startDate": '',
+                            "endDate": ''
+                        };
+                    }));
+            }
+
 
             _servicesSearch(source, searchValue, language, type, first, count) {
                 // todo: this must be done only once per search!
