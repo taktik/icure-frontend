@@ -1498,6 +1498,12 @@
                     api: {
                         type: Object
                     },
+
+                    patientBim: {
+                        type: Boolean,
+                        value: false
+                    },
+
                     medicationType: {
                         type: String,
                         value: 'medicinalProduct'
@@ -1657,16 +1663,16 @@
 
                 this.set('isPrescription', options.isPrescription);
 
-                this.set('compoundFilterString', '')
-                this.set('compound', '')
-                this.set('compoundPrescriptionText', '')
+                this.set('compoundFilterString', '');
+                this.set('compound', '');
+                this.set('compoundPrescriptionText', '');
 
-                this.$['medication-prescription'].open()
+                this.$['medication-prescription'].open();
 
-                // this.medications.map(m => {
-                //     const letter = ((m && m.codes && m.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0, 1)
-                //     m.atcCat = letter
-                // })
+                const insurability = ((this.patient || {}).insurabilities || []).find(a => !a.endDate && a.insuranceId && a.insuranceId !== "") || null;
+                if (insurability && insurability.parameters) {
+                    this.set('patientBim', (parseInt(insurability.parameters.tc1) % 2) === 1);
+                }
 
                 this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
 
@@ -1940,14 +1946,31 @@
                     .map(ampp => {
                         const basePrice = ampp.currentReimbursement && ((ampp.currentReimbursement.referenceBasePrice && parseFloat(ampp.currentReimbursement.referenceBasePrice)) ||
                             ampp.currentReimbursement.reimbursementBasePrice && parseFloat(ampp.currentReimbursement.reimbursementBasePrice)) || 0;
+
+                        let publicPrice = "";
+                        let patientPrice = "";
+                        const reimb = ampp.currentReimbursement;
+                        if (reimb) {
+                            if (reimb.referenceBasePrice && reimb.copaymentSupplement) {
+                                publicPrice = (parseFloat(reimb.referenceBasePrice) + parseFloat(reimb.copaymentSupplement)).toFixed(2) + "€";
+                            } else if (reimb.reimbursementBasePrice) {
+                                publicPrice = reimb.reimbursementBasePrice + "€";
+                            }
+
+                            if (reimb.copayments && reimb.copayments.length === 2) {
+                                patientPrice = parseFloat(this.patientBim ? reimb.copayments[0].feeAmount : reimb.copayments[1].feeAmount).toFixed(2) + "€";
+                            }
+                        }
+
                         const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
                         return {
                             "id": ampp.ctiExtended,
                             "label": ampp.prescriptionName,
                             "atc": ampp.atcs[0].code,
                             "atcCat": ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
-                            "patientPrice": ampp.currentReimbursement && ampp.currentReimbursement.referenceBasePrice + "€",
-                            "publicPrice": ampp.currentReimbursement && ampp.currentReimbursement.referenceBasePrice && ampp.currentReimbursement.copaymentSupplement && ((parseFloat(ampp.currentReimbursement.referenceBasePrice) + parseFloat(ampp.currentReimbursement.copaymentSupplement)).toFixed(2) + "€") || "",
+                            "patientPrice": patientPrice,
+                            // "publicPrice": ampp.currentReimbursement && ampp.currentReimbursement.referenceBasePrice && ampp.currentReimbursement.copaymentSupplement && ((parseFloat(ampp.currentReimbursement.referenceBasePrice) + parseFloat(ampp.currentReimbursement.copaymentSupplement)).toFixed(2) + "€") || "",
+                            "publicPrice": publicPrice,
                             "compProhibIcon": this._compProhibIconSamV2(vmpGroup),
                             "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
                             "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
