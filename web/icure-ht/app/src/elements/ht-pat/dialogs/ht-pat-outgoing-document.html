@@ -263,6 +263,10 @@
                 return parseInt(inputValue) ? this.api.moment(_.trim(parseInt(inputValue)),"YYYYMMDDHHmmss").format('DD/MM/YYYY HH:mm:ss') : ""
             }
 
+            _YYYYMMDDHHmmssToDDMMYYYY(inputValue) {
+                return parseInt(inputValue) ? this.api.moment(_.trim(parseInt(inputValue)),"YYYYMMDDHHmmss").format('DD/MM/YYYY') : ""
+            }
+
             _upperFirstAll(inputValue){
                 return _.trim(_.map(_.trim(inputValue).toLowerCase().split(" "),i=>_.upperFirst(_.trim(i))).join(" "))
             }
@@ -612,19 +616,25 @@
             _doApplyProseEditorContext(proseEditorObject) {
 
                 //This fn creates the function that return the subContexts (like the context but corresponding to a subForm)
-                const makeSubContextsForms = (ctx) => ((key) =>
-                    _.map(_.get(ctx,"formsDataProviders." + key), form => {
-                        return form.formDataProvider.getSubForms(key).map(sf => {
-                            const subCtx = _.assign({}, ctx, {formDataProvider: sf.dataProvider})
-                            subCtx.subContexts = makeSubContextsForms(subCtx)
-                            return subCtx
-                        })
+                const makeSubContextsSubForms = (ctx) => ((key) =>
+                    ctx.dataProvider.getSubForms(key).map(sf => {
+                        const subCtx = _.assign({}, ctx, {dataProvider: sf.dataProvider})
+                        subCtx.subContexts = makeSubContextsSubForms(subCtx)
+                        return subCtx
                     })
                 )
 
+                const makeSubContextsForms = (ctx) => ((key) => {
+
+                    const subCtx = _.assign({}, ctx, {dataProvider: _.get(ctx,"formsAndDataProviders["+key+"]").dataProvider})
+                    subCtx.subContextsSubForms = makeSubContextsSubForms(subCtx)
+                    return [subCtx]
+
+                })
+
                 const makeSubContextsHes = (ctx) => ((key) =>
                     _.map(_.get(ctx,"healthElements." + key), he => {
-                        const subCtx = _.assign({}, ctx, {heDataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}})
+                        const subCtx = _.assign({}, ctx, {dataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}})
                         subCtx.subContexts = makeSubContextsHes(subCtx)
                         return subCtx
                     })
@@ -635,18 +645,17 @@
                     user: _.get(this,"user",{}),
                     patient: _.get(this,"_data.currentPatient",{}),
                     hcp: _.get(this,"_data.currentHcp",{}),
-                    currentContact: this.currentContact,
+                    currentContact: _.get(this,"currentContact",{}),
+                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.currentContact.openingDate","")),
                     contactsFormsAndDocuments: this.contactsFormsAndDocuments,
                     language: this.language,
-                    formsDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
-                    heDataProvider: _.get(this,"dataProvider",{}),
+                    formsAndDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
+                    dataProvider: _.get(this,"dataProvider",{}),
                     healthElements: _.get(this,"_data.allHealthElements",{}),
                     _:_
                 }
                 ctx.subContextsForms = makeSubContextsForms(ctx)
                 ctx.subContextsHes = makeSubContextsHes(ctx)
-
-                console.log("---ctx---", ctx)
 
                 proseEditorObject.applyContext((expr, ctx) => {
                     return new Promise(function (resolve, reject) {
@@ -667,25 +676,6 @@
 
             }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             _getDataProvider() {
 
                 return Promise.resolve({
@@ -702,6 +692,25 @@
                 })
 
             }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             _getProseEditorVariables() {
 
@@ -835,50 +844,50 @@
                                     expr:`subContextsHes("${heType}")`,
                                     template: {'default': heType !== "medications" ?
                                         [
-                                            {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.descr`}}, {type:'text', text: " "}]},
+                                            {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "}]},
                                             {type: 'table',content: [
                                                 {type: 'table_row',content: [
                                                     {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: _.compact([
-                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("healthElement","Health element", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.heHr`}}, {type:'text', text: " "}]},
-                                                            ((heType !== "allergies" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.cnkHr`}}, {type:'text', text: " "}]} ),
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("healthElement","Health element", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heHr`}}, {type:'text', text: " "}]},
+                                                            ((heType !== "allergies" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}, {type:'text', text: " "}]} ),
                                                             {type:'paragraph',content: [
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.statusHr`}}, {type:'text', text: " "},
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("cert","Certainity", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.certaintyHr`}}, {type:'text', text: " "},
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("sev","Severity", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.severityHr`}}, {type:'text', text: " "},
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("temp","Temporality", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.evolutionHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("cert","Certainity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.certaintyHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("sev","Severity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.severityHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("temp","Temporality", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.evolutionHr`}}, {type:'text', text: " "},
                                                             ]},
-                                                            ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}]} ),
+                                                            ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}]} ),
                                                             {type:'paragraph',content: [
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.openingDateHr`}}, {type:'text', text: " "},
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.closingDateHr`}}, {type:'text', text: " "},
-                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("remanence","Rémanence", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.temporalityHr`}}, {type:'text', text: " "}
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}}, {type:'text', text: " "},
+                                                                {type:'text', marks: [{type: 'strong'}], text: this.localize("remanence","Rémanence", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.temporalityHr`}}, {type:'text', text: " "}
                                                             ]},
-                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICPC" + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.icpcsHr`}}, {type:'text', text: " "}]},
-                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICD" + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.icdsHr`}}, {type:'text', text: " "}]},
-                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICPC" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icpcsHr`}}, {type:'text', text: " "}]},
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICD" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icdsHr`}}, {type:'text', text: " "}]},
+                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
                                                         ])
                                                     },
                                                 ]},
                                             ]},
                                         ] : [
-                                            {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
+                                            {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
                                             {type: 'table',content: [
                                                 {type: 'table_row',content: [
                                                     {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
                                                         {type:'paragraph',content: [
                                                             {type:'text', marks: [{type: 'strong'}], text: this.localize("begin","Begin", this.language) + ": "},
-                                                            {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.begin`}},
+                                                            {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},
                                                             {type:'text', text: " - "},
                                                             {type:'text', marks: [{type: 'strong'}], text: this.localize("end","End", this.language) + ": "},
-                                                            {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.end`}},
+                                                            {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},
                                                             {type:'text', text: " - "} ,
                                                             {type:'text', marks: [{type: 'strong'}], text: this.localize("substitution","Substitution", this.language) + ": "},
-                                                            {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.substitutionAllowed`}},
+                                                            {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},
                                                             {type:'text', text: " "}
                                                         ]},
-                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
-                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("pos","Posology", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.medication.regimenHr`}}, {type:'text', text: " "}]},
-                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`heDataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
+                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
+                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("pos","Posology", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.regimenHr`}}, {type:'text', text: " "}]},
+                                                        {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
                                                     ]},
                                                 ]},
                                             ]},
@@ -908,30 +917,47 @@
                 const formVariables = {
                     type:'forms',
                     name: this.localize('forms', 'Forms', this.language),
-                    subVars: _.compact(_.map(_.get(this,"_data.formsAndDataProviders",[]), form => {
+                    subVars: _.compact(_.map(_.get(this,"_data.formsAndDataProviders",[]), (form,idx) => {
 
                         const formObject = typeof _.get(form,"dataProvider.form","") === "function" && _.get(form,"dataProvider.form","")()
+                        const formName = _.trim(_.get(formObject, "descr", _.trim(_.get(formObject,".template.name", ""))))
                         const formTemplateDataList = _.get(formObject,"template.layout.sections[0].formColumns[0].formDataList",[])
-
-                        console.log("---form---", form);
+                        const formTemplateIsConsultation = _.trim(_.get(formObject,"template.guid","")) === "FFFFFFFF-FFFF-FFFF-FFFF-CONSULTATION"
 
                         return {
                             name: _.get(formObject,"descr",""),
                             nodes: [
-                                {
-                                    type:'template',
-                                    attrs: {
-                                        expr: `subContextsForms("${formObject.id}")`,
-                                        template: {'default': _.flatten( _.map( form.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), k => {
-                                            const fieldLabel = _.trim(_.get( _.find(formTemplateDataList, {name: _.get(k,"name","")}), "label", _.trim(_.get(k,"name",""))))
-                                            return [
-                                                {type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},
-                                                {type: 'variable', attrs: {expr: `const v = formDataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`}}
-                                            ]
-                                        }))}
-                                    }
-                                },
-                                {type:'paragraph',content: [{type:'text', text: " "}]}
+
+                                {type:'paragraph',marks:[{type: 'underlined'}], content: [
+                                    {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("form", "Form", this.language).toUpperCase()},
+                                    {type:'text', marks: [{type: 'strong'}], text: ": " + _.trim(formName).toUpperCase()},
+                                    {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
+                                    {type: 'variable', attrs: {expr: `contactOpeningDate`}},
+                                ]},
+                                {type: 'table',content: [
+                                    {type: 'table_row',content: [
+                                        {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                            {
+                                                type:'template',
+                                                attrs: {
+                                                    expr: `subContextsForms(${idx})`,
+                                                    template: {'default': _.map( form.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), k => {
+                                                        const fieldLabel = !!formTemplateIsConsultation ? _.trim(_.get(k,"name","")) : _.trim(_.get( _.find(formTemplateDataList, {name: _.get(k,"name","")}), "label", _.trim(_.get(k,"name",""))))
+
+                                                        return !!_.get(k,"isSubForm") ?
+                                                            {type:'template', attrs: { expr:`subContextsSubForms("${k.name}")`, template: {'default':[{type:'variable', attrs:{expr:`dataProvider.form().template.name`}}, {type:'text',text: ' '}]}}} :
+                                                            {type:'paragraph', content: [
+                                                                {type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},
+                                                                {type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`}},
+                                                            ]}
+
+                                                    })}
+                                                }
+                                            },
+                                        ]},
+                                    ]},
+                                ]},
+
                             ]
                         }
                     }))
