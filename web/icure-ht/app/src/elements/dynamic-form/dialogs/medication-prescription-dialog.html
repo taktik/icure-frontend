@@ -15,6 +15,7 @@
 
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-column.html">
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-sorter.html">
+<link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-tree-toggle.html">
 
 <link rel="import" href="../../../styles/atc-styles.html">
 <link rel="import" href="../../../styles/dialog-style.html">
@@ -1922,23 +1923,17 @@
                     .then(rows => Promise.all(
                         rows.map(row => this.api.besamv2().findPaginatedAmpsByGroupId(row.vmp.vmpGroup.id)
                                 .then(subResults => (subResults && subResults.rows || []))
-                                // .then(subRows => subRows.map(subRow => {
-                                //     return Object.assign(subRow, {
-                                //         parentId: row.id,
-                                //         hasChild: false
-                                //     })
-                                // }))
                                 .then(subRows => {
-                                    return Object.assign(row, {
-                                        children: subRows
-                                    })
+                                    row.ampps && row.ampps.length && row.ampps.map(ampp => Object.assign(ampp, {uuid: row.vmp.vmpGroup.id, parentUuid: 0, hasChildren: (subRows.length > 0)}));
+                                    return subRows;
                                 })
+                                .then(subRows => subRows.reduce((subRowsWithParent, subRow) => {
+                                    subRow.ampps && subRow.ampps.length && subRow.ampps.map(ampp => Object.assign(ampp, {parentUuid: row.vmp.vmpGroup.id, hasChildren: false}));
+                                    return subRowsWithParent.concat(row, subRows);
+                                }, []))
                         ))
                     )
-                    .then(rows => rows.reduce((flatRows, row) => {
-                        row.children.map(child => findPaginatedAmpsByGroupId)
-                        flatRows.concat(row.children)
-                    }))
+                    .then(rows => rows.reduce((flatRows, row) => flatRows.concat(row), []))
                     .then(rows => rows
                         .reduce((ampps, row) => {
                             if (row.ampps && row.ampps.length) {
@@ -1984,6 +1979,9 @@
 
                         const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
                         return {
+                            "uuid": ampp.uuid,
+                            "parentUuid": ampp.parentUuid,
+                            "hasChildren": ampp.hasChildren,
                             "id": ampp.ctiExtended,
                             "label": ampp.prescriptionName,
                             "atc": ampp.atcs[0].code,
@@ -2062,7 +2060,7 @@
                     const startIndex = (params.page || 0) * pageSize;
                     const endIndex = ((params.page || 0) + 1) * pageSize;
 
-                    const parentUuid = params.parentItem ? params.parentItem.uuid : null;
+                    const parentUuid = params.parentItem ? params.parentItem.uuid : 0;
 
 
                     let latestSearchValue = this.filterValue && this.filterValue.trim();
@@ -2074,6 +2072,7 @@
                     const offset = params.index;
                     this.api.dedup(() => search(latestSearchValue, this.language, null, 0, grid.pageSize), domain, `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000)
                         .then(packs => {
+                            // const packs = results.filter(pack => pack.parentUuid === parentUuid);
                             return {
                                 totalSize: packs.length,
                                 rows: (desc ? _.reverse(_.sortBy(packs, sort)) : _.sortBy(packs, sort)).slice(offset, limit)
@@ -2091,20 +2090,17 @@
                                 return;
                             }
 
-                            // if (grid.size !== res.totalSize) {
-                            //     this.setGridSize(grid, res.totalSize);
-                            // }
+                            if (grid.size !== res.totalSize) {
+                                this.setGridSize(grid, res.totalSize);
+                            }
                             // adapter(res.rows);
                             adapter(_.slice(res.rows, startIndex, endIndex)).then(results => {
-                                if (grid.size !== results.length) {
-                                    this.setGridSize(grid, results.length);
-                                }
                                 grid.latestResults = results;
                                 if (grid.latestResults.length) {
                                     (grid.drugsCache || (grid.drugsCache = []))[startIndex] = null;
                                     grid.drugsCache.splice(startIndex, grid.latestResults.length, ...grid.latestResults);
                                 }
-                                callback(grid.latestResults)
+                                callback(grid.latestResults, res.totalSize);
                             })
                         }.bind(this));
                 };
