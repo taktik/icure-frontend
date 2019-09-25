@@ -1680,7 +1680,7 @@
                 this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), '_servicesSearch_medications', this._serviceAdapter.bind(this));
                 this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), '_servicesSearch_prescriptions', this._serviceAdapter.bind(this));
                 // this._initList('medicine-package-list', this._medecinePackagesSearch.bind(this), this._medicinePackageAdapter.bind(this));
-                this._initList('medicine-package-list', this._medicinePackageSearchSamV2.bind(this), '_medicinePackageSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
+                this._initList('medicine-package-list', this._medicinePackageHierarchicalSearchSamV2.bind(this), '_medicinePackageHierarchicalSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
                 this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), '_ingredientSearchSamV2', this._ingredientAdapterSamV2.bind(this));
                 this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), '_compoundPrescriptionsSearch', this._serviceAdapter.bind(this));
             }
@@ -1916,6 +1916,39 @@
                     .then(([packs, packsIng]) => _.unionBy(packs, packsIng, 'id.id'));
             }
 
+            _medicinePackageHierarchicalSearchSamV2(searchValue, language, type, first, count, parentUuid) {
+                if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
+                return (parentUuid ?
+                    this.api.besamv2().findPaginatedAmpsByGroupId(parentUuid) :
+                    this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count))
+                        .then(results => (results && results.rows || []))
+                        .then(rows => rows
+                            .reduce((ampps, row) => {
+                                if (row.ampps && row.ampps.length) {
+                                    return ampps.concat(row.ampps.map(ampp => {
+                                        const now = moment().valueOf();
+                                        const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
+                                        const currentReimbursement = publicDmpp && publicDmpp.reimbursements && publicDmpp.reimbursements.length && publicDmpp.reimbursements.find(reimbursement => reimbursement.from < now && (!reimbursement.to || reimbursement.to > now ));
+                                        const hasChildren = !parentUuid && !!(row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.id);
+                                        return Object.assign(ampp, {
+                                            hasChildren: hasChildren,
+                                            uuid: hasChildren && row.vmp.vmpGroup.id,
+                                            parentUuid: parentUuid,
+                                            publicDmpp: publicDmpp,
+                                            currentReimbursement: currentReimbursement,
+                                            cnk: publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code,
+                                            prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
+                                            amp: row
+                                        })
+                                    }));
+                                }
+                                return ampps;
+                            }, [])
+                            .filter(e => e.publicDmpp && e.cnk && e.prescriptionName)
+                            .filter((e, i, a) => a.findIndex(x => x.cnk === e.cnk) === i)
+                        );
+            }
+
             _medicinePackageSearchSamV2(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count)
@@ -2067,8 +2100,7 @@
                     const startIndex = (params.page || 0) * pageSize;
                     const endIndex = ((params.page || 0) + 1) * pageSize;
 
-                    const parentUuid = params.parentItem ? params.parentItem.uuid : 0;
-
+                    const parentUuid = params.parentItem && params.parentItem.uuid || "";
 
                     let latestSearchValue = this.filterValue && this.filterValue.trim();
                     this.latestSearchValue = latestSearchValue;
@@ -2077,9 +2109,8 @@
 
                     const limit = endIndex || grid.pageSize;
                     const offset = params.index;
-                    this.api.dedup(() => search(latestSearchValue, this.language, null, 0, grid.pageSize), domain, `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000)
+                    this.api.dedup(() => search(latestSearchValue, this.language, null, 0, grid.pageSize, parentUuid), domain, `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000)
                         .then(packs => {
-                            // const packs = results.filter(pack => pack.parentUuid === parentUuid);
                             return {
                                 totalSize: packs.length,
                                 rows: (desc ? _.reverse(_.sortBy(packs, sort)) : _.sortBy(packs, sort)).slice(offset, limit)
@@ -2090,7 +2121,7 @@
                                 console.log("Cancelling obsolete search");
                                 return;
                             }
-                            if (res.totalSize == 0) {
+                            if (res.totalSize === 0) {
                                 console.log("Empty search");
                                 this.setGridSize(grid, 0);
                                 callback([]);
