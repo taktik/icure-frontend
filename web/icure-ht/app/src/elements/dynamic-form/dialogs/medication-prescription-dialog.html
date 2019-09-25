@@ -1921,24 +1921,25 @@
                 return this.api.besamv2().findPaginatedAmpsByLabel(language, searchValue, null, null, count)
                     .then(results => (results && results.rows || []))
                     .then(rows => Promise.all(
-                        rows.map(row => this.api.besamv2().findPaginatedAmpsByGroupId(row.vmp.vmpGroup.id)
-                                .then(subResults => (subResults && subResults.rows || []))
-                                .then(subRows => {
-                                    row.ampps && row.ampps.length && row.ampps.map(ampp => Object.assign(ampp, {uuid: row.vmp.vmpGroup.id, parentUuid: 0, hasChildren: (subRows.length > 0)}));
-                                    subRows.map(subRow => {
-                                        subRow.ampps && subRow.ampps.length && subRow.ampps.map(ampp => Object.assign(ampp, {parentUuid: row.vmp.vmpGroup.id, hasChildren: false}));
-                                        return subRow;
-                                    });
-                                    return subRows;
-                                })
-                                .then(subRows => { return {row: row, subRows: subRows}})
-                            )
-                            .then(pairs => pairs.reduce((subRowsWithParent, pair) => {
-                                subRowsWithParent.concat(pair.row, pair.subRows);
-                                return subRowsWithParent;
-                            }, []))
-                        )
-                    )
+                        rows.map(row => {
+                            if (row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.id) {
+                                return this.api.besamv2().findPaginatedAmpsByGroupId(row.vmp.vmpGroup.id)
+                                    .then(subResults => (subResults && subResults.rows || []))
+                                    .then(subRows => {
+                                        row.ampps && row.ampps.length && row.ampps.map(ampp => Object.assign(ampp, {uuid: row.vmp.vmpGroup.id, parentUuid: 0, hasChildren: (subRows.length > 0)}));
+                                        subRows.map(subRow => {
+                                            subRow.ampps && subRow.ampps.length && subRow.ampps.map(ampp => Object.assign(ampp, {parentUuid: row.vmp.vmpGroup.id, hasChildren: false}));
+                                            return subRow;
+                                        });
+                                        return subRows;
+                                    })
+                                    .then(subRows => [row, ...subRows])
+                            } else {
+                                return new Promise(row);
+                            }
+                        })
+                        .then(array => array.reduce((allRows, e) => allRows.concat(e), []))
+                    ))
                     .then(rows => rows
                         .reduce((ampps, row) => {
                             if (row.ampps && row.ampps.length) {
