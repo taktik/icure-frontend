@@ -1944,7 +1944,7 @@
                                 }
                                 return ampps;
                             }, [])
-                            .filter(e => e.publicDmpp && e.cnk && e.prescriptionName && e.id !== parentId)
+                            .filter(e => e.publicDmpp && e.cnk && e.prescriptionName && (e.id !== parentId))
                             .filter((e, i, a) => a.findIndex(x => x.cnk === e.cnk) === i)
                         );
             }
@@ -2092,6 +2092,7 @@
                 grid.size = 0;
                 grid.pageSize = 100;
                 grid.drugsCache = [];
+                let levelSizes = [];
                 grid.dataProvider = (params, callback) => {
                     // const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path || columns[0] && columns[0].key;
                     const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path;
@@ -2100,9 +2101,15 @@
                     const pageSize = params.pageSize || grid.pageSize;
                     const startIndex = (params.page || 0) * pageSize;
                     const endIndex = ((params.page || 0) + 1) * pageSize;
+                    let parentUuid = "";
+                    let parentId = "";
 
-                    const parentUuid = params.parentItem && params.parentItem.uuid || "";
-                    const parentId = params.parentItem && params.parentItem.id || "";
+                    if (params.parentItem) {
+                        parentUuid = params.parentItem.parentUuid;
+                        parentId = params.parentItem.id;
+                    }
+
+                    let totalSize = 0;
 
                     let latestSearchValue = this.filterValue && this.filterValue.trim();
                     this.latestSearchValue = latestSearchValue;
@@ -2114,24 +2121,28 @@
                     this.api.dedup(() => search(latestSearchValue, this.language, null, 0, grid.pageSize, parentUuid, parentId), domain, `${this.latestSearchValue}|${this.language}|${grid.drugsCacheUpperSearchIndex}`, 5000)
                         .then(packs => {
                             return {
-                                totalSize: packs.length,
+                                size: packs.length,
                                 rows: (desc ? _.reverse(_.sortBy(packs, sort)) : _.sortBy(packs, sort)).slice(offset, limit)
                             }
                         })
                         .then(function (res) {
                             if (this.filterValue !== latestSearchValue) {
                                 console.log("Cancelling obsolete search");
+                                totalSize = 0;
                                 return;
                             }
-                            if (res.totalSize === 0) {
+
+                            totalSize = totalSize + res.size;
+
+                            if (totalSize === 0) {
                                 console.log("Empty search");
                                 this.setGridSize(grid, 0);
                                 callback([]);
                                 return;
                             }
 
-                            if (grid.size !== res.totalSize) {
-                                this.setGridSize(grid, res.totalSize);
+                            if (grid.size !== totalSize) {
+                                this.setGridSize(grid, totalSize);
                             }
                             // adapter(res.rows);
                             adapter(_.slice(res.rows, startIndex, endIndex)).then(results => {
@@ -2140,7 +2151,7 @@
                                     (grid.drugsCache || (grid.drugsCache = []))[startIndex] = null;
                                     grid.drugsCache.splice(startIndex, grid.latestResults.length, ...grid.latestResults);
                                 }
-                                callback(grid.latestResults, res.totalSize);
+                                callback(grid.latestResults, totalSize);
                             })
                         }.bind(this));
                 };
