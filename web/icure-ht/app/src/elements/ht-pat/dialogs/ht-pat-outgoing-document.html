@@ -208,10 +208,6 @@
                                 type: Array,
                                 value: () => []
                             },
-                            contactsFormsAndDocuments: {
-                                type: Array,
-                                value: () => []
-                            },
                             allHealthElements: {
                                 type: Array,
                                 value: () => {}
@@ -613,47 +609,55 @@
 
             }
 
-            _doApplyProseEditorContext(proseEditorObject) {
+            _getDataProvider() {
 
-                //This fn creates the function that return the subContexts (like the context but corresponding to a subForm)
-                const makeSubContextsSubForms = (ctx) => ((idx, key) => {
+                return Promise.resolve({
 
-                    console.log("---------------------------");
-                    console.log("subContextsSubForms");
-                    console.log("ctx",ctx);
-                    console.log("idx",idx);
-                    console.log("key",key);
-                    console.log("---------------------------");
+                    getVariableValue: (value) => {
+                        return _.trim(
+                            value === "todaysDate" ? this.localize('day_' + parseInt(moment().day()), this.language) + ` ` + moment().format('DD') + ` `+ (this.localize('month_' + parseInt(moment().format('M')), this.language)).toLowerCase() + ` ` + moment().format('YYYY') :
+                            ""
+                        )
+                    },
 
-                    // return _.get(ctx,"formsAndDataProviders["+idx+"]").dataProvider.getSubForms(key).map(sf => {
-                    //     const subCtx = _.assign({}, ctx, {dataProvider: sf.dataProvider})
-                    //     console.log("SUBFORM", sf);
-                    //     subCtx.subContexts = makeSubContextsSubForms(subCtx)
-                    //         return subCtx
-                    // })
-
-                    return ctx.dataProvider.getSubForms(key).map(sf => {
-                        const subCtx = _.assign({}, ctx, {dataProvider: sf.dataProvider})
-                        console.log("SUBFORM 222", sf);
-                        subCtx.subContexts = makeSubContextsSubForms(subCtx)
-                        return subCtx
-                    })
+                    getLocalizedText: (value) => { return this.localize(_.trim(value), _.trim(value), this.language) }
 
                 })
 
+            }
+
+            _getFormEditorSortedItemsBasedOnTemplate(formDataProvider) {
+
+                const formObject = typeof _.get(formDataProvider,"form",false) === "function" && formDataProvider.form()
+                const layoutItems = _.flatten(_.flatten(_.get(formObject,"template.layout.sections",[]).map(s => s.formColumns)).map(c => c.formDataList))
+
+                // Make it look like on screen / don't use form's DP.sortedItems method
+                return !formDataProvider || !formObject || !layoutItems ? ( typeof _.trim(_.get(formDataProvider,"sortedItems",false)) === "string" ? formDataProvider.sortedItems() : formDataProvider ) :
+                    _.concat(
+                        _.chain(layoutItems).filter(it => _.trim(_.get(it,"type","")) !=="TKSubConsult" ).orderBy(["sortOrder","editor.top","editor.left"]).value(),
+                        _.chain(layoutItems).filter(it => _.trim(_.get(it,"type","")) ==="TKSubConsult" ).orderBy(["sortOrder","editor.top","editor.left"]).map(it => _.merge(it, {isSubForm:true})).value()
+                   )
+
+            }
+
+            _doApplyProseEditorContext(proseEditorObject) {
+
+                //This fn creates the function that return the subContexts (like the context but corresponding to a subForm)
+                const makeSubContextsSubForms = (ctx) => ((key, subFormIdx) =>
+                    _.compact(ctx.dataProvider.getSubForms(key).map((sf,idx) => {
+                        const subCtx = _.assign({}, ctx, {dataProvider: sf.dataProvider})
+                        subCtx.subContexts = makeSubContextsSubForms(subCtx)
+                        return parseInt(idx) !== parseInt(subFormIdx) ? false : subCtx
+                    }))
+                )
+
                 const makeSubContextsForms = (ctx) => ((key) => {
-                    const subCtx = _.assign({}, ctx, {dataProvider: _.get(ctx,"formsAndDataProviders["+key+"]").dataProvider})
+                    const subCtx = _.assign({}, ctx, {dataProvider: _.get(ctx,"formsAndDataProviders["+key+"].dataProvider",null)})
                     subCtx.subContextsSubForms = makeSubContextsSubForms(subCtx)
                     return [subCtx]
                 })
 
-                const makeSubContextsHes = (ctx) => ((key) =>
-                    _.map(_.get(ctx,"healthElements." + key), he => {
-                        const subCtx = _.assign({}, ctx, {dataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}})
-                        subCtx.subContexts = makeSubContextsHes(subCtx)
-                        return subCtx
-                    })
-                )
+                const makeSubContextsHes = (ctx) => ((key) => _.map(_.get(ctx,"healthElements." + key), he => _.assign({}, ctx, {dataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}})))
 
                 const ctx = {
                     formatDate: (date) => this.api.moment(date).format('DD/MM/YYYY'),
@@ -662,7 +666,6 @@
                     hcp: _.get(this,"_data.currentHcp",{}),
                     currentContact: _.get(this,"currentContact",{}),
                     contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.currentContact.openingDate","")),
-                    contactsFormsAndDocuments: this.contactsFormsAndDocuments,
                     language: this.language,
                     formsAndDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
                     dataProvider: _.get(this,"dataProvider",{}),
@@ -692,22 +695,6 @@
 
             }
 
-            _getDataProvider() {
-
-                return Promise.resolve({
-
-                    getVariableValue: (value) => {
-                        return _.trim(
-                            value === "todaysDate" ? this.localize('day_' + parseInt(moment().day()), this.language) + ` ` + moment().format('DD') + ` `+ (this.localize('month_' + parseInt(moment().format('M')), this.language)).toLowerCase() + ` ` + moment().format('YYYY') :
-                            ""
-                        )
-                    },
-
-                    getLocalizedText: (value) => { return this.localize(_.trim(value), _.trim(value), this.language) }
-
-                })
-
-            }
 
 
 
@@ -919,141 +906,107 @@
 
                 _.assign(healthElementVariables, {subVars: _.orderBy(_.get(healthElementVariables,"subVars",[]), ['sorting'],['asc'])})
 
-
-
-                // const formVariables = _.sortBy( _.map(_.get(this,"_data.selectedFormDataProvider",{}).sortedItems().filter(i => i.type !== 'TKAction'), k => { return {
-                //     type:'form',
-                //     name:k.label,
-                //     nodes: [k.isSubForm ?
-                //         {type:'template', attrs: { expr:`subContexts("${k.name}")`, template: {'default':[{type:'variable', attrs:{expr:`dataProvider.form().template.name`}}, {type:'text',text: ' '}]}}} :
-                //         {type:'variable', attrs: { expr:`const v = dataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`}}
-                //     ]
-                // }}), "name" )
-
                 const formVariables = {
                     type:'forms',
-                    name: this.localize('forms', 'Forms', this.language),
-                    subVars: _.compact(_.map(_.get(this,"_data.formsAndDataProviders",[]), (form,idx) => {
+                    additionalCssClasses:'largeDivider',
+                    name: this.localize('formBlocks', 'Form blocks', this.language),
+                    subVars: _.flatten(_.compact(_.map(_.get(this,"_data.formsAndDataProviders",[]), (form,templateGuid) => {
 
                         const formObject = typeof _.get(form,"dataProvider.form","") === "function" && _.get(form,"dataProvider.form","")()
                         const formName = _.trim(_.get(formObject, "descr", _.trim(_.get(formObject,".template.name", ""))))
                         const formTemplateDataList = _.get(formObject,"template.layout.sections[0].formColumns[0].formDataList",[])
                         const formTemplateIsConsultation = _.trim(_.get(formObject,"template.guid","")) === "FFFFFFFF-FFFF-FFFF-FFFF-CONSULTATION"
 
-                        return {
-                            name: _.get(formObject,"descr",""),
-                            nodes: [
+                        const templateGuidAndIndex = templateGuid.split('#')
+                        const templateGuidsAndIndexes = _.keys(_.get(this,"_data.formsAndDataProviders",[]))
+                        const totalFormsForCurrentTemplateGuid = parseInt(_.size(_.filter(templateGuidsAndIndexes, it => it.indexOf(templateGuidAndIndex[0]) > -1)))
 
-                                {type:'paragraph',marks:[{type: 'underlined'}], content: [
+                        return {
+                            name: _.get(formObject,"descr","") + (totalFormsForCurrentTemplateGuid === 1 ? "" : " (" + _.trim(parseInt(templateGuidAndIndex[1])) + "/" + totalFormsForCurrentTemplateGuid + ")" ),
+                            nodes: [
+                                {type:'paragraph', content: [
                                     {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("form", "Form", this.language).toUpperCase()},
-                                    {type:'text', marks: [{type: 'strong'}], text: ": " + _.trim(formName).toUpperCase()},
+                                    {type:'text', text: ": " + _.trim(formName).toUpperCase()},
                                     {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
                                     {type: 'variable', attrs: {expr: `contactOpeningDate`}},
                                     {type:'text',text: ' '}
                                 ]},
                                 {type: 'table',content: [
                                     {type: 'table_row',content: [
-                                        {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
-                                            {
-                                                type:'template',
-                                                attrs: {
-                                                    expr: `subContextsForms(${idx})`,
-                                                    template: {'default': _.compact(_.flattenDeep(_.map( form.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), k => {
+                                        {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [{
+                                            type:'template',
+                                            attrs: {
+                                                expr: `subContextsForms("${templateGuid}")`,
+                                                template: {'default': _.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
 
-                                                        const isSubForm = !!_.get(k,"isSubForm", false)
-                                                        const subForms = !!isSubForm && form.dataProvider.getSubForms(_.get(k,"name"))
-                                                        const fieldLabel = !!formTemplateIsConsultation ? _.trim(_.get(k,"name")) : _.trim(_.get( _.find(formTemplateDataList, {name: _.get(k,"name")}), "label")) || _.trim(_.get(k,"name"))
+                                                    const isSubForm = !!_.get(k,"isSubForm", false)
+                                                    const subForms = !!isSubForm && form.dataProvider.getSubForms(_.get(k,"name"))
+                                                    const fieldLabel = !!formTemplateIsConsultation ? _.trim(_.get(k,"name")) : _.trim(_.get( _.find(formTemplateDataList, {name: _.get(k,"name")}), "label")) || _.trim(_.get(k,"name"))
+                                                    const fieldValue = form && form.dataProvider && form.dataProvider.getValue(k.name)
 
-                                                        // Empty subform ?
-                                                        if(!!isSubForm && !_.size(subForms)) return false;
+                                                    return (!!isSubForm && !_.size(subForms)) ?
 
-                                                        // Not sub form ?
-                                                        if(!isSubForm) return {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},{type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`}}, {type:'text',text: ' '}]}
+                                                        // Empty subform
+                                                        false :
 
-                                                        console.log("subForms", subForms);
+                                                        // Field with no value
+                                                        /* (!isSubForm && (!_.trim(fieldValue) || _.trim(fieldValue) === "-" || _.trim(fieldValue).toLowerCase() === "ok")) ? false : */
 
-                                                        return _.map(subForms, subForm => {
+                                                        // Not sub form and has field value
+                                                        (!isSubForm) ? {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},{type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`}}, {type:'text',text: ' '}]} :
 
-                                                            const subFormObject = typeof _.get(subForm,"dataProvider.form","") === "function" && _.get(subForm,"dataProvider.form","")()
-                                                            const subFormName = _.trim(_.get(subFormObject,"template.name", ""))
-                                                            const subFormTemplateDataList = _.get(subFormObject,"template.layout.sections[0].formColumns[0].formDataList",[])
+                                                        // Non-empty subform, map all its fields => values
+                                                        _.concat(
+                                                            _.compact(_.map(subForms, (subForm,subFormIdx) => {
+                                                                const subFormObject = typeof _.get(subForm,"dataProvider.form","") === "function" && _.get(subForm,"dataProvider.form","")()
+                                                                const subFormName = _.trim(_.get(subFormObject,"template.name", ""))
+                                                                const subFormTemplateDataList = _.get(subFormObject,"template.layout.sections[0].formColumns[0].formDataList",[])
 
-                                                            return [
-                                                                {type:'paragraph',content: [{type:'text', text: " "}]},
-                                                                {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("subForm", "Sub-form", this.language).toUpperCase()},
-                                                                {type:'text', marks: [{type: 'strong'}], text: ": " + _.trim(subFormName).toUpperCase()},
-                                                                {type:'paragraph',content: [{type:'text', text: " "}]},
-                                                                {
-                                                                    type:'template',
-                                                                    attrs: {
-                                                                        // expr:`subContextsSubForms(${idx}, "${k.name}")`,
-                                                                        expr:`subContextsSubForms("${k.name}")`,
-                                                                        template: {'default': _.map( subForm.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), kk => {
-                                                                            const subFormFieldLabel = _.trim(_.get( _.find(subFormTemplateDataList, {name: _.get(kk,"name","")}), "label", _.trim(_.get(kk,"name",""))))
-                                                                            return {
-                                                                                type:'paragraph',
-                                                                                content: [
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: subFormFieldLabel + ": "},
-                                                                                    {type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${kk.name}"); Array.isArray(v) ? v.join(', ') : v`}}, {type:'text',text: ' '}
-                                                                                ]
-                                                                            }
-                                                                        })}
-                                                                    }
-                                                                },
-                                                            ]
-
-                                                        })
-
-
-
-
-
-
-                                                        /*
-
-
-                                                            {
-                                                                type:'template',
-                                                                attrs: {
-                                                                    expr:`subContextsSubForms("${k.name}")`,
-                                                                    template: {'default': _.flatten(_.map( form.dataProvider.getSubForms(_.trim(_.get(k,"name"))), subForm => _.map( subForm.dataProvider.sortedItems().filter(i => i.type !== 'TKAction'), kk => {
-
-                                                                        const subFormObject = typeof _.get(subForm,"dataProvider.form","") === "function" && _.get(subForm,"dataProvider.form","")()
-                                                                        const subFormName = _.trim(_.get(subFormObject, "descr", _.trim(_.get(subFormObject,".template.name", ""))))
-                                                                        const subFormTemplateDataList = _.get(subFormObject,"template.layout.sections[0].formColumns[0].formDataList",[])
-                                                                        const subFormFieldLabel = _.trim(_.get( _.find(subFormTemplateDataList, {name: _.get(kk,"name","")}), "label", _.trim(_.get(kk,"name",""))))
-
-                                                                        return {
-                                                                            type:'paragraph',
-                                                                            content: [
-                                                                                {type:'text', marks: [{type: 'strong'}], text: subFormFieldLabel + ": "},
-                                                                                {type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${kk.name}"); Array.isArray(v) ? v.join(', ') : v`}},
-                                                                            ]
-                                                                        }
-                                                                    })))}
-                                                                }
-                                                            }
-
-                                                    */
-
-
-
-
-
-
-
-                                                    })))}
-                                                }
-                                            },
-                                        ]},
+                                                                return [
+                                                                    {type:'paragraph',content: [{type:'text', text: " "}]},
+                                                                    {type:'paragraph', content: [
+                                                                        {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("subForm", "Sub-form", this.language).toUpperCase()},
+                                                                        {type:'text', text: ": " + _.trim(subFormName).toUpperCase()},
+                                                                        {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
+                                                                        {type:'variable', attrs: {expr: `contactOpeningDate`}},
+                                                                        {type:'text',text: ' '}
+                                                                    ]},
+                                                                    {type: 'table',content: [
+                                                                        {type: 'table_row',content: [
+                                                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [{
+                                                                                type:'template',
+                                                                                attrs: {
+                                                                                    expr:`subContextsSubForms("${k.name}",${subFormIdx})`,
+                                                                                    template: {'default': _.compact( _.map( this._getFormEditorSortedItemsBasedOnTemplate(subForm.dataProvider).filter(i => i.type !== 'TKAction'), kk => {
+                                                                                        const subFormFieldLabel = _.trim(_.get( _.find(subFormTemplateDataList, {name: _.get(kk,"name","")}), "label", _.trim(_.get(kk,"name",""))))
+                                                                                        const subFormFieldValue = subForm && subForm.dataProvider && subForm.dataProvider.getValue(kk.name)
+                                                                                        return /* (!_.trim(subFormFieldValue) || _.trim(subFormFieldValue) === "-" || _.trim(subFormFieldValue).toLowerCase() === "ok") ? false : */ {
+                                                                                            type:'paragraph',
+                                                                                            content: [
+                                                                                                {type:'text', marks: [{type: 'strong'}], text: subFormFieldLabel + ": "},
+                                                                                                {type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${kk.name}"); Array.isArray(v) ? v.join(', ') : v`}}, {type:'text',text: ' '}
+                                                                                            ]
+                                                                                        }
+                                                                                    }))}
+                                                                                }
+                                                                            }]}
+                                                                        ]}
+                                                                    ]}
+                                                                ]
+                                                            })),
+                                                            [{type:'paragraph',content: [{type:'text', text: " "}]}]
+                                                        )
+                                                })))}
+                                            }
+                                        }]},
                                     ]},
                                 ]},
-
+                                {type:'paragraph',content: [{type:'text', text: " "}]},
                             ]
                         }
-                    }))
-                }
 
+                    })))
+                }
 
 
                 const proseEditorVariables = _
@@ -1085,12 +1038,39 @@
 
                 if(!!_.get(this,"_isBusy",false)) return;
 
+                let formCountsByTemplateGuid = [];
                 const promResolve = Promise.resolve()
                 const patientId = !!_.trim(_.get(inputData,"patientId","")) ? _.trim(_.get(inputData,"patientId","")) : _.trim(_.get(this,"patient.id",""))
 
                 return this._resetComponentProperties()
                     .then(() => _.map(this._data, (propValue,propKey) => typeof _.get(propValue,"value",null) !== "function" ? null : this.set("_data." + propKey, propValue.value())) )
-                    .then(() => _.assign(this._data, inputData))
+                    // .then(() => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders: _
+                    //     .chain(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[])))
+                    //     .map(formAndDp => {
+                    //         const formObject = typeof _.get(formAndDp,"dataProvider.form") === "function" && _.get(formAndDp,"dataProvider.form")()
+                    //         const templateGuid = _.trim(_.get(formObject, "template.guid",""))
+                    //         return !!formObject && !!templateGuid && {templateGuid:templateGuid, formAndDp:formAndDp}
+                    //     })
+                    //     .compact()
+                    //     .reduce((acc,v) => { (acc[v.templateGuid] || (acc[v.templateGuid] = [])).push(v.formAndDp); return acc; },{})
+                    //     .value()
+                    // }))
+                    .then(() => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders: _
+                        .chain(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[])))
+                        .map(formAndDp => {
+                            const formObject = typeof _.get(formAndDp,"dataProvider.form") === "function" && _.get(formAndDp,"dataProvider.form")()
+                            const templateGuid = _.trim(_.get(formObject, "template.guid",""))
+                            return !!formObject && !!templateGuid && {templateGuid:templateGuid, formAndDp:formAndDp}
+                        })
+                        .compact()
+                        .map(it => {
+                            const templateGuid = _.trim(_.get(it,"templateGuid",""))
+                            if(!_.get(formCountsByTemplateGuid,templateGuid,false)) formCountsByTemplateGuid[templateGuid] = 0; formCountsByTemplateGuid[templateGuid]++;
+                            return [templateGuid + "#" + _.trim(formCountsByTemplateGuid[templateGuid]),_.get(it,"formAndDp",null)]
+                        })
+                        .fromPairs()
+                        .value()
+                    }))
                     .then(() => { this.set("_isBusy", true); this.shadowRoot.querySelector('#outgoingDocumentDialog').open(); })
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
@@ -1102,12 +1082,9 @@
                     .then(() => this._refreshProseEditorContext())
                     .catch(e => { console.log("[ERROR] outgoing document", e, inputData); return promResolve; })
                     .finally(() => {
-
-                        console.log("--- this._data ---",this._data);
-
                         this.set("_isBusy", false)
+                        console.log("--- this._data ---",this._data);
                         return promResolve
-
                     })
 
                 // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
