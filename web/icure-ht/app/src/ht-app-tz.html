@@ -1766,7 +1766,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this._timeCheckMH(0)//Should launch directly, no wait in this case!!!
                         this._inboxMessageCheck()
                         this._checkForUpdateMessage()
-                        this._correctionDateOfBirth();
+                        this._correctionGenderPatients();
 
                     })
                 }).catch(function (e) {
@@ -2286,12 +2286,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set("electronErrorMessage","")
             }
 
+            //Deprecated - restore date of brith of patients with the ssin of patient
             _correctionDateOfBirth() {
 
                 if( !this.user || !this.api || !!this.busyCorrectingDatesOfBirth || moment().format("YYYYMMDD") > "20190901" ) return;
                 this.busyCorrectingDatesOfBirth = true;
 
-                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""))
+                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""),this.filterForDate)
                     .then(myPatients=>_.chain(myPatients).filter(p => [6,8,11,13].indexOf(_.trim(p.ssin).length) > -1 && !(parseInt(p.dateOfBirth)||null)).value())
                     .then(patients => {
 
@@ -2325,13 +2326,57 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
-            _getPatientsByHcp(hcpId) {
+            // - restore gender of patients with the ssin of patient
+            _correctionGenderPatients(){
+                const isChecked = localStorage.getItem("checked_gender_"+_.get(this,"user.healthcarePartyId","0")) || false;
+                if( !this.user || isChecked || !!this.busyCorrectingGender || !this.api || moment().format("YYYYMMDD") > "20191201" ) return;
+                this.busyCorrectingGender = true;
+
+                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""),this.filterForGender)
+                    .then(patients => _.chain(patients).filter(p => this.api.patient().isValidSsin(p.ssin)).value())
+                    .then(patients => {
+                        let prom = Promise.resolve([])
+                        let number = 1;
+                        _.map(patients, pat => {
+                            prom = prom.then(promisesCarrier => {
+                                const gender = pat.ssin.slice(6, 9) % 2 === 1 ? "male" : "female";
+                                console.log("patient n°"+number+"/"+patients.length+" with ssin n°"+pat.ssin+" : gender de base ==="+pat.gender+" | nouveau gender ==="+gender)
+                                number+=1;
+                                if (gender !== pat.gender) {
+                                    return this.api.patient().modifyPatientWithUser(this.user,_.merge({},pat,{gender : gender || "unknow"}))
+                                        .then(p=>this.api.register(p,"patient"))
+                                        .then(p=>_.concat(promisesCarrier, p))
+                                        .catch(()=>Promise.resolve())
+                                }else{
+                                    return Promise.resolve([])
+                                }
+                            })
+                        })
+
+                        return prom
+                            .then(() => {
+                                this.busyCorrectingGender = false
+                                console.log("fini")
+                                localStorage.setItem("checked_gender_"+_.get(this,"user.healthcarePartyId","0"),true);
+                            })
+                    })
+            }
+
+            filterForDate(pl){
+                return _.filter( pl.rows, i => !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")) && parseInt(_.get(i,"ssin", "")) )
+            }
+
+            filterForGender(pl){
+                return _.filter( pl.rows, i => parseInt(_.get(i,"ssin", "0")))
+            }
+
+            _getPatientsByHcp(hcpId,filterFunction) {
                 return this.api.getRowsUsingPagination(
                     (key,docId) =>
                         this.api.patient().listPatientsByHcPartyWithUser(this.user, hcpId, null, key && JSON.stringify(key), docId, 1000)
                             .then(pl => {
                                 return {
-                                    rows: _.filter( pl.rows, i => !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")) && parseInt(_.get(i,"ssin", "")) ),
+                                    rows: filterFunction(pl),
                                     nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
                                     nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
                                     done: !pl.nextKeyPair
