@@ -438,17 +438,32 @@
 
             }
 
-            _getCodesFromHealthElements() {
+            _getCodesFromData() {
 
                 const resolvedCodes = {};
+
+                const formAndSubFormValues = _.compact(
+                    _.flatten(_.map(_.get(this,"_data.formsAndDataProviders",{}), form => !_.get(form,"dataProvider",false) ? false :
+                        _.compact(_.concat(
+                            _.get(form,"dataProvider.getValue")()||[],
+                            _.compact(_.flatten(_.map( (_.get(form,"dataProvider.getSubForms")()||[]), subForm => _.get(subForm,"dataProvider.getValue")()||[])))
+                        ))
+                    ))
+                )
+                .filter(it => _.trim(it).toLowerCase().startsWith("cd-") && _.trim(it).indexOf("|") > 1)
+                .map(it => {const splittedCode = it.split("|"); return {type: _.trim(_.get(splittedCode,"[0]")), code: _.trim(_.get(splittedCode,"[1]"))}})
+
                 const codesToResolve = _.uniqWith(
                     _.compact(
-                        _.flatMapDeep(
-                            _.map(_.get(this,"_data.allHealthElements",{}), hes => _.map(hes, he => _.concat(
-                                _.map(_.get(he,"codes",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
-                                _.map(_.get(he,"tags",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
-                                _.map(_.get(he,"content." + this.language + ".medicationValue.regimen",[]), it => _.merge({}, {type:_.trim(_.get(it,"dayPeriod.type","")), code:_.trim(_.get(it,"dayPeriod.code",""))})),
-                            )))
+                        _.concat(
+                            _.flatMapDeep(
+                                _.map(_.get(this,"_data.allHealthElements",{}), hes => _.map(hes, he => _.concat(
+                                    _.map(_.get(he,"codes",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
+                                    _.map(_.get(he,"tags",[]), it => _.merge({}, {type:_.trim(_.get(it,"type","")), code:_.trim(_.get(it,"code",""))})),
+                                    _.map(_.get(he,"content." + this.language + ".medicationValue.regimen",[]), it => _.merge({}, {type:_.trim(_.get(it,"dayPeriod.type","")), code:_.trim(_.get(it,"dayPeriod.code",""))})),
+                                )))
+                            ),
+                            formAndSubFormValues
                         )
                     ), _.isEqual
                 )
@@ -531,16 +546,29 @@
 
                 return Promise.resolve({
 
+                    getYYYYMMDDAsDDMMYYYY: (value) => parseInt(value) ? this.api.moment(_.trim(parseInt(value)),"YYYYMMDD").format('DD/MM/YYYY') : "",
+
+                    getMeasureValue: (value) => !value ? "" : _.trim(_.get(value,"value")) + _.trim(_.get(value,"unit")),
+
+                    getBooleanValue: (value) => ( typeof value === "boolean" && !!value ) ? this.localize("yes","Yes", this.language) : this.localize("no","No", this.language),
+
+                    getLocalizedText: (value) => this.localize(_.trim(value), _.trim(value), this.language),
+
                     getVariableValue: (value) => {
                         return _.trim(
                             value === "todaysDate" ? this.localize('day_' + parseInt(moment().day()), this.language) + ` ` + moment().format('DD') + ` `+ (this.localize('month_' + parseInt(moment().format('M')), this.language)).toLowerCase() + ` ` + moment().format('YYYY') :
-                            value === "documentTitle" ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr",this.localize('hub-doc-title', 'Document title', this.language))) :
-                            value === "time" ? "" + moment().format('HH:mm') :
-                            ""
+                                value === "documentTitle" ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr",this.localize('hub-doc-title', 'Document title', this.language))) :
+                                    value === "time" ? "" + moment().format('HH:mm') :
+                                        ""
                         )
                     },
 
-                    getLocalizedText: (value) => { return this.localize(_.trim(value), _.trim(value), this.language) }
+                    getHrCodesAndTagsValue: (value) => {
+                        if(!_.trim(value) || !(_.trim(value).toLowerCase().startsWith("cd-") && _.trim(value).indexOf("|") > 1)) return value
+                        const splittedValue = _.trim(value).split("|")
+                        const hrValue = _.get(_.find(_.get(this,"_data.codes." + _.trim(_.get(splittedValue,"[0]"))), {code:_.trim(_.get(splittedValue,"[1]"))}),"labelHr","")
+                        return !!_.trim(hrValue) ? _.trim(hrValue) : value
+                    },
 
                 })
 
@@ -565,14 +593,14 @@
                 //This fn creates the function that return the subContexts (like the context but corresponding to a subForm)
                 const makeSubContextsSubForms = (ctx) => ((key, subFormIdx) =>
                     _.compact(ctx.dataProvider.getSubForms(key).map((sf,idx) => {
-                        const subCtx = _.assign({}, ctx, {dataProvider: sf.dataProvider})
+                        const subCtx = _.assign({}, ctx, {componentDataProvider: ctx.componentDataProvider, dataProvider: sf.dataProvider})
                         subCtx.subContexts = makeSubContextsSubForms(subCtx)
                         return parseInt(idx) !== parseInt(subFormIdx) ? false : subCtx
                     }))
                 )
 
                 const makeSubContextsForms = (ctx) => ((key) => {
-                    const subCtx = _.assign({}, ctx, {dataProvider: _.get(ctx,"formsAndDataProviders["+key+"].dataProvider",null)})
+                    const subCtx = _.assign({}, ctx, {componentDataProvider: ctx.componentDataProvider, dataProvider: _.get(ctx,"formsAndDataProviders["+key+"].dataProvider",null)})
                     subCtx.subContextsSubForms = makeSubContextsSubForms(subCtx)
                     return [subCtx]
                 })
@@ -589,6 +617,7 @@
                     language: this.language,
                     formsAndDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
                     dataProvider: _.get(this,"dataProvider",{}),
+                    componentDataProvider: _.get(this,"dataProvider",{}),
                     healthElements: _.get(this,"_data.allHealthElements",{}),
                     _:_
                 }
@@ -831,6 +860,19 @@
 
                 _.assign(healthElementVariables, {subVars: _.orderBy(_.get(healthElementVariables,"subVars",[]), ['sorting'],['asc'])})
 
+                const getterByDataType = {
+                    TKDate: "getDateValue",
+                    TKNumber: "getNumberValue",
+                    TKMeasure: "getMeasureValue",
+                    TKBoolean: "getBooleanValue",
+                }
+
+                // Prose editor will try to have our templates / variables to fit on one page.
+                // If not enough space is available, Prose editor will jump to the next A4 page, trying to make it fit there.
+                // Ie: if we are "too long" => infinite loop seeking for next A4 page hoping to have enough space again and again.
+                // Todo: improve Prose editor and have it to split content over several pages when required
+                const maxVaribalesPerPage = 43;
+
                 const formVariables = {
                     type:'forms',
                     additionalCssClasses:'largeDivider',
@@ -853,16 +895,16 @@
                                         {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("form", "Form", this.language).toUpperCase()},
                                         {type:'text', text: ": " + _.trim(formName).toUpperCase()},
                                         {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
-                                        {type: 'variable', attrs: {expr: `contactOpeningDate`}},
+                                        {type:'variable', attrs: {expr: `contactOpeningDate`}},
                                         {type:'text',text: ' '}
                                     ]},
                                 {type: 'table',content: [
                                         {type: 'table_row',content: [
-                                                {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [{
+                                                {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content:[{
                                                         type:'template',
                                                         attrs: {
                                                             expr: `subContextsForms("${templateGuid}")`,
-                                                            template: {'default': _.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
+                                                            template: {'default': _.slice(_.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
 
                                                                     const isSubForm = !!_.get(k,"isSubForm", false)
                                                                     const subForms = !!isSubForm && form.dataProvider.getSubForms(_.get(k,"name"))
@@ -878,7 +920,16 @@
                                                                         /* (!isSubForm && (!_.trim(fieldValue) || _.trim(fieldValue) === "-" || _.trim(fieldValue).toLowerCase() === "ok")) ? false : */
 
                                                                         // Not sub form and has field value
-                                                                        (!isSubForm) ? {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},{type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${k.name}"); Array.isArray(v) ? v.join(', ') : v`}}, {type:'text',text: ' '}]} :
+                                                                        (!isSubForm) ? {type:'paragraph',content: [
+                                                                            {type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},
+                                                                            {type:'variable', attrs: {expr: `const v = dataProvider.` + _.trim(_.get(getterByDataType, k.type, "getValue")) + `("${k.name}"); Array.isArray(v) ? v.join(', ') : ` + (
+                                                                                _.trim(_.get(k,"type")) === "TKDate" ? "componentDataProvider.getYYYYMMDDAsDDMMYYYY(v)" :
+                                                                                _.trim(_.get(k,"type")) === "TKMeasure" ? "componentDataProvider.getMeasureValue(v)" :
+                                                                                _.trim(_.get(k,"type")) === "TKBoolean" ? "componentDataProvider.getBooleanValue(v)" :
+                                                                                "componentDataProvider.getHrCodesAndTagsValue(v)"
+                                                                            )}},
+                                                                            {type:'text',text: ' '}
+                                                                        ]} : false
 
                                                                             // Non-empty subform, map all its fields => values
                                                                             _.concat(
@@ -909,7 +960,12 @@
                                                                                                                                 type:'paragraph',
                                                                                                                                 content: [
                                                                                                                                     {type:'text', marks: [{type: 'strong'}], text: subFormFieldLabel + ": "},
-                                                                                                                                    {type: 'variable', attrs: {expr: `const v = dataProvider.getValue("${kk.name}"); Array.isArray(v) ? v.join(', ') : v`}}, {type:'text',text: ' '}
+                                                                                                                                    {type:'variable', attrs: {expr: `const v = dataProvider.` + _.trim(_.get(getterByDataType, kk.type, "getValue")) + `("${kk.name}"); Array.isArray(v) ? v.join(', ') : ` + (
+                                                                                                                                        _.trim(_.get(k,"type")) === "TKDate" ? "componentDataProvider.getYYYYMMDDAsDDMMYYYY(v)" :
+                                                                                                                                        _.trim(_.get(k,"type")) === "TKMeasure" ? "componentDataProvider.getMeasureValue(v)" :
+                                                                                                                                        _.trim(_.get(k,"type")) === "TKBoolean" ? "componentDataProvider.getBooleanValue(v)" :
+                                                                                                                                        "componentDataProvider.getHrCodesAndTagsValue(v)"
+                                                                                                                                    )}},
                                                                                                                                 ]
                                                                                                                             }
                                                                                                                         }))}
@@ -921,7 +977,7 @@
                                                                                 })),
                                                                                 [{type:'paragraph',content: [{type:'text', text: " "}]}]
                                                                             )
-                                                                })))}
+                                                                }))),0,maxVaribalesPerPage)}
                                                         }
                                                     }]},
                                             ]},
@@ -972,7 +1028,7 @@
 
             _refreshDataProseEditorTemplates() {
 
-                return this._getProseEditorTemplates().then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates}))
+                return this._getProseEditorTemplatesAndAttachment().then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates}))
 
             }
 
@@ -994,25 +1050,6 @@
                 this.$['loadTemplateDialog'].refresh();
 
                 window.setTimeout(()=>{this.$['loadTemplateDialog'].filterValue = ""},1000);
-
-            }
-
-            _getProseEditorTemplates() {
-
-                const promResolve = Promise.resolve()
-
-                return promResolve
-                    .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
-                    .then(foundTemplates => _
-                        .chain(foundTemplates)
-                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language)
-                        .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
-                        .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
-                        .orderBy(["name", "crdate"],["asc", "asc"])
-                        .value()
-                    )
-                    .then(foundTemplates => Promise.all(_.map(foundTemplates, template => this.api.doctemplate().getAttachmentText(template.id, template.attachmentId).then(attachmentFileContent => _.merge({}, template, {attachmentFileContent:attachmentFileContent})) )))
-                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplates", e); return null; })
 
             }
 
@@ -1099,6 +1136,7 @@
                             }) :
                             this.api.doctemplate().updateDocumentTemplate(_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", "")), {
                                 created: parseInt(_.get(this, "_data.proseEditorSelectedTemplate.created", +new Date())),
+                                guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.guid","")),
                                 documentType: "template",
                                 mainUti: "prose.template.json." + this.language,
                                 name: _.trim(this.shadowRoot.querySelector('#templateName').value),
@@ -1111,9 +1149,7 @@
                         const proseJsonContent = prose.editorView.state.doc.toJSON();
                         const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
                         const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
-
-                        console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
-
+                        //console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
                         return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(proseJsonContentWithoutVars))
                     })
                     .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
@@ -1142,25 +1178,55 @@
 
             }
 
+            _getProseEditorTemplatesAndAttachment() {
 
+                const promResolve = Promise.resolve()
 
+                return this._getProseEditorTemplates()
+                    .then(foundTemplates => Promise.all(_.map(foundTemplates, template => template && this.api.doctemplate().getAttachmentText(template.id, template.attachmentId).then(attachmentFileContent => _.merge({}, template, {attachmentFileContent:attachmentFileContent})) )))
+                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplatesAndAttachment", e); return promResolve; })
 
+            }
 
+            _getProseEditorTemplates(forceNoAutoInject=false) {
 
+                const promResolve = Promise.resolve()
+                const coreTemplateGuids = ["lettre-liaison", "msoap", "amu", "coups-blessures", "presence-consultation", "violences-physiques",]
 
+                return promResolve
+                    .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
+                    .then(foundTemplates => _
+                        .chain(foundTemplates)
+                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language)
+                        .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
+                        .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
+                        .orderBy(["name", "crdate"],["asc", "asc"])
+                        .value()
+                    )
+                    .then(foundTemplates => {
 
+                        const foundTemplateGuids = _.uniq(_.compact(_.map(foundTemplates, it=>_.trim(_.get(it,"guid","")))))
+                        const missingTemplateGuids = _.uniq(_.compact(_.difference(coreTemplateGuids, foundTemplateGuids)))
 
+                        // Auto-inject part, when core templates are not found
+                        return (!_.size(missingTemplateGuids) || !!forceNoAutoInject) ? foundTemplates : promResolve
+                            .then(() => Promise.all(_.map(missingTemplateGuids, missingTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + missingTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } })))
+                            .then(loadedMissingTemplates => Promise.all(_.map(loadedMissingTemplates, templateToInject => this.api.doctemplate().createDocumentTemplate({
+                                    created: +new Date(),
+                                    documentType: _.trim(_.get(templateToInject,"documentType", "template")),
+                                    guid: _.trim(_.get(templateToInject,"guid", "")),
+                                    mainUti: _.trim(_.get(templateToInject,"mainUti", "prose.template.json." + this.language)),
+                                    name: _.trim(_.get(templateToInject,"name", this.api.crypto().randomUuid())),
+                                    descr: _.trim(_.get(templateToInject,"descr", "-")),
+                                })
+                                .then(docTemplateObject => this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(_.get(templateToInject,"content"))))
+                            )))
+                            .then(()=>this._getProseEditorTemplates(true)) // "True" param avoids infinite loop in case template couldn't be "required"
 
+                    })
+                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplates", e); return promResolve; })
 
-
-
-
-
-
-
-
-
-
+            }
 
 
 
@@ -1190,11 +1256,11 @@
                     .then(() => this._getPrettifiedFormsAndDataProviders(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[]))).then(formsAndDataProviders => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders:formsAndDataProviders})))
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
-                    .then(() => this._getCodesFromHealthElements().then(codes => _.assign(this._data, {codes:codes})))
+                    .then(() => this._getCodesFromData().then(codes => _.assign(this._data, {codes:codes})))
                     .then(() => this._getPrettifiedHealthElements(_.get(this,"_data.allHealthElements",[])).then(x=>x))
                     .then(() => this._getProseEditorVariables().then(proseEditorVariables => _.assign(this._data, {proseEditorVariables:proseEditorVariables})))
                     .then(() => { const proseEditor = this.shadowRoot.querySelector("#prose-editor"); proseEditor.set("dynamicVars", _.get(this,"_data.proseEditorVariables",[])) })
-                    .then(() => this._getProseEditorTemplates().then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates})))
+                    .then(() => this._getProseEditorTemplatesAndAttachment().then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates})))
                     .then(() => this._getDataProvider().then(dataProvider => _.assign(this, {dataProvider:dataProvider})))
                     .then(() => !!_.trim(_.get(this,"_data.docTemplateId","")) ? this._applyProseEditorTemplate(null, _.find(_.get(this,"_data.proseEditorTemplates",[]), {id:_.trim(_.get(this,"_data.docTemplateId",""))})) : this._refreshProseEditorContext())
                     .catch(e => { console.log("[ERROR] outgoing document", e, inputData); return promResolve; })
