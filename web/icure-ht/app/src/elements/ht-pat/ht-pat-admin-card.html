@@ -551,7 +551,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
 
             <iron-pages class="iron-container" selected="[[tabs]]" class="">
-                <page>
+                <page><!--Administrative form-->
                     <div class="page-container">
                         <div class="form-container">
                         <dynamic-form id="dynamic-form-administrative" class="page-content printable" api="[[api]]" user="[[user]]" template="[[patientForm]]" data-map="[[patientMap]]"
@@ -560,7 +560,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         </div>
                     </div>
                 </page>
-                <page>
+                <page><!--Contact persons-->
                     <div class="page-container">
                         <vaadin-combo-box id="researchFuturPartnerShip" filtered-items="[[listPatient]]" on-filter-changed="researchPat" filter="{{filterPartner}}"
                                           label="[[localize('add-patient','Lier un patient déjà existant',language)]]" item-label-path="prettyName" item-value-path="id"
@@ -569,7 +569,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                       data-map="[[patientMap]]" data-provider="[[dataProvider]]" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" no-print></dynamic-form>
                     </div>
                 </page>
-                <page>
+                <page><!--Care team-->
                     <div class="page-container">
                             <div class="not-form-page">
                                 <h4 class="subtitle">[[localize('icp','Internal care provider',language)]]</h4>
@@ -656,7 +656,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </div>
                     </div>
                 </page>
-                <page>
+                <page><!--Post-it-->
                     <div class="page-container">
                         <div class="not-form-page">
                             <h4 class="subtitle">[[localize('adm_post_it_adm','Post-it administratif',language)]]</h4>
@@ -671,9 +671,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         </div>
                     </div>
                 </page>
-                <page>
+                <page><!--Timeline-->
                     <div class="page-container">
-                        <ht-pat-medicalhouse-timeline class="page-content printable"  api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" no-print/>
+                        <ht-pat-medicalhouse-timeline id="timeline" class="page-content printable"  api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" no-print/>
                     </div>
                 </page>
             </iron-pages>
@@ -1066,12 +1066,19 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
             linkNoSaveLanguage:{
                 type: String,
                 value: 'niss-already-used'
+            },
+            flatrateMsg: {
+                type:String,
+                value: null
             }
         };
     }
 
     static get observers() {
-        return ['patientChanged(api,user,patient)', 'partnershipsChanged(patient.partnerships.*)', 'medicalPostitChanged(medicalPostit)', 'administrativePostitChanged(administrativePostit)'];
+        return ['patientChanged(api,user,patient)',
+            'partnershipsChanged(patient.partnerships.*)',
+            'medicalPostitChanged(medicalPostit)',
+            'administrativePostitChanged(administrativePostit)'];
     }
 
     constructor() {
@@ -1361,6 +1368,13 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
                         //    } else {
                         //        patient.ssin = "";
                         //    }
+                            const timeline = this.$.timeline;
+                            timeline.checkFlatrateData(patient, Number(moment().format('YYYYMM'))).then(res => {
+                                if(res && res.flatrateStatus && res.flatrateStatus.errors.length > 0){
+                                    this.set("flatrateMsg", res.flatrateStatus.errors.join());
+                                    console.log("flatrateMsg", this.flatrateMsg);
+                                }
+                            });
 
                             this.api.patient().modifyPatientWithUser(this.user, patient)
                                 .catch(() => defer.resolve(patient))
@@ -1389,6 +1403,23 @@ class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
         this.saveTimeout = setTimeout(this.saveAction, 5000);
     }
+
+    postitChanged(value) {
+        const trimmedValue = value && value.trim()
+        if(trimmedValue && trimmedValue.length) {
+            this.$["flatrate-notification"].classList.add('notification')
+            setTimeout(() => {
+                this.closePostit()
+            }, 60000);
+        }else {
+            this.closePostit()
+        }
+    }
+
+    closePostit() {
+        this.$["flatrate-notification"].classList.remove('notification')
+    }
+
 
     flushSave() {
         if (this.saveTimeout) {
