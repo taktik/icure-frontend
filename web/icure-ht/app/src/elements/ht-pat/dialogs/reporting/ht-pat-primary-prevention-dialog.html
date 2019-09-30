@@ -1,0 +1,213 @@
+<link rel="import" href="../../../../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../../../../bower_components/vaadin-icons/vaadin-icons.html">
+<link rel="import" href="../../../../../bower_components/vaadin-material-theme/vaadin-date-picker.html">
+<link rel="import" href="../../../../../bower_components/vaadin-material-theme/vaadin-text-field.html">
+<link rel="import" href="../../../../../bower_components/vaadin-material-theme/vaadin-checkbox.html">
+<link rel="import" href="../../../../../bower_components/vaadin-date-picker/vaadin-date-picker.html">
+<link rel="import" href="../../../../../bower_components/vaadin-form-layout/vaadin-form-layout.html">
+<link rel="import" href="../../../../../bower_components/vaadin-combo-box/vaadin-combo-box.html">
+<link rel="import" href="../../../../../bower_components/vaadin-text-field/vaadin-text-area.html">
+<link rel="import" href="../../../../../bower_components/vaadin-checkbox/vaadin-checkbox.html">
+<link rel="import" href="../../../../../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../../../../../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../../../../../bower_components/paper-card/paper-card.html">
+<link rel="import" href="../../../../../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../../../../../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../../../../../bower_components/paper-fab/paper-fab.html">
+<link rel="import" href="../../../../../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../../../../../bower_components/paper-styles/shadow.html">
+<link rel="import" href="../../../../../bower_components/iron-resizable-behavior/iron-resizable-behavior.html">
+<link rel="import" href="../../../dynamic-form/dynamic-link.html">
+<link rel="import" href="../../../dynamic-form/dynamic-pills.html">
+<link rel="import" href="../../../ht-spinner/ht-spinner.html">
+<link rel="import" href="../../../dynamic-form/dynamic-doc.html">
+<link rel="import" href="../../../collapse-button/collapse-button.html">
+<link rel="import" href="../../../../styles/dialog-style.html">
+<link rel="import" href="../../../../styles/scrollbar-style.html">
+
+<dom-module id="ht-pat-primary-prevention-dialog">
+    <template>
+        <style include="dialog-style scrollbar-style">
+
+            #preventionDialog{
+                height: calc(98% - 12vh);
+                width: 98%;
+                max-height: calc(100% - 64px - 48px - 20px); /* 100% - header - margin - footer*/
+                min-height: 400px;
+                min-width: 800px;
+                top: 64px;
+            }
+
+            .preventionDialog{
+                display: flex;
+                height: calc(100% - 45px);;
+                width: auto;
+                margin: 0;
+                padding: 0;
+            }
+
+            .prevention-dialog-content{
+                height: 100%;
+                width: 100%;
+                position: relative;
+                background: white;
+            }
+
+            .prevention-dialog-title{
+                height: 48px;
+                width: 100%;
+                border-bottom: 1px solid var(--app-background-color-darker);
+                background-color: var(--app-background-color-dark);
+                padding: 0 12px;
+                display: flex;
+                flex-flow: row wrap;
+                justify-content: flex-start;
+                align-items: center;
+                box-sizing: border-box;
+            }
+
+        </style>
+
+        <paper-dialog id="preventionDialog">
+            <div class="preventionDialog">
+                <div class="prevention-dialog-content">
+                    <div class="prevention-dialog-title">
+                        [[localize('prev-crea-prev-act', 'Create prevention acts', language)]]
+                    </div>
+                    <div>
+                        <vaadin-combo-box filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]"></vaadin-combo-box>
+                        <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                        <vaadin-combo-box class="full-width" filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" selected-item="{{selectedHcpItem}}" label="Prestataire lié" readonly="[[readonly]]"></vaadin-combo-box>
+                        <vaadin-combo-box filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{selectedProfessionItem}}" readonly="[[readonly]]"></vaadin-combo-box>
+                        <vaadin-text-area class="textarea-style" id="cpa_description" label="Description" value="{{plannedAction.Description}}" readonly="[[readonly]]"></vaadin-text-area>
+                        Type de rappel:
+                    </div>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button" on-tap="_closeDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                    <paper-button class="button button--save" on-tap=""><iron-icon icon="icons:send" class="mr5 smallIcon" ></iron-icon> [[localize('send','Send',language)]]</paper-button>
+                </div>
+            </div>
+        </paper-dialog>
+
+    </template>
+    <script>
+        import moment from 'moment/src/moment';
+
+        class HtPatPrimaryPreventionDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+            static get is() {
+                return 'ht-pat-primary-prevention-dialog';
+            }
+
+            static get properties() {
+                return {
+                    api: {
+                        type: Object,
+                        value: null
+                    },
+                    user: {
+                        type: Object,
+                        value: null
+                    },
+                    language: {
+                        type: String
+                    },
+                    selectedPatientForPrevention:{
+                        type: Array,
+                        value: () => []
+                    },
+                    proceduresListItem:{
+                        type: Array,
+                        value: []
+                    }
+                };
+            }
+
+            static get observers() {
+                return [];
+            }
+
+            ready() {
+                super.ready();
+            }
+
+            openPreventionDialog(){
+                this.$['preventionDialog'].open()
+                console.log(this.selectedPatientForPrevention)
+            }
+
+            _closeDialog(){
+                this.$['preventionDialog'].close()
+            }
+
+            procedureChanged(e){
+                if(!(e && e.detail && e.detail.value))return;
+                const code = e && e.detail && e.detail.value
+                let codeExp = code.split(".");
+                let CISPType = codeExp[0].substr(1,3)
+
+                if(CISPType === "44"){
+                    this.set("isVaccineProcedure", true)
+                }else{
+                    this.set("isVaccineProcedure", false)
+                }
+
+                let listFiltered=[]
+                const procedureCode = this.proceduresListItem.find(p=> p.code===code)
+                if(procedureCode && procedureCode.links) {
+                    procedureCode.links.filter(link => link.includes("CD-HCPARTY|")).map(link => {
+                        const info = link.split('|')
+                        listFiltered.push(this.hcpartyTypeList.find(type => type.code === info[1]))
+                    })
+                }
+                this.set("hcpartyTypeListFiltered",listFiltered)
+            }
+
+            _proceduresFilterChanged(e){
+                let latestSearchValue = e && e.detail.value;
+                this.latestSearchValue = latestSearchValue;
+                if (!latestSearchValue || latestSearchValue.length < 2) {
+                    console.log("Cancelling empty search");
+                    this.set('proceduresListItem', []);
+                    return;
+                }
+                this._proceduresDataProvider() && this._proceduresDataProvider().filter(latestSearchValue).then(res => {
+                    if (latestSearchValue !== this.latestSearchValue) {
+                        console.log("Cancelling obsolete search");
+                        return [];
+                    }
+                    if (!(res && res.rows && res.rows.length)) {
+                        return [];
+                    }
+                    return this.api.code().getCodes(res.rows.map(code => code.id))
+                })
+                    .then(codes =>{
+                        this.set('proceduresListItem', codes);
+                    });
+            }
+
+            _proceduresDataProvider(){
+                return {
+                    filter: function (proceduresFilterValue) {
+                        let count = 15;
+                        return Promise.all([this.api.code().findPaginatedCodesByLabel('be', 'BE-THESAURUS-PROCEDURES', 'fr', proceduresFilterValue, null, null, count)]).then(results => {
+                            const procedureList = results[0];
+                            let filtered = procedureList.rows
+                            filtered = _.flatten(filtered.map(procedure => ({
+                                id: procedure.id,
+                                label: procedure.label,
+                                code: procedure.code,
+                                searchTerms: procedure.searchTerms
+                            })))
+                            return {totalSize: filtered.length, rows: filtered};
+                        })
+
+                    }.bind(this)
+                };
+            }
+
+
+        }
+        customElements.define(HtPatPrimaryPreventionDialog.is, HtPatPrimaryPreventionDialog);
+    </script>
+</dom-module>
