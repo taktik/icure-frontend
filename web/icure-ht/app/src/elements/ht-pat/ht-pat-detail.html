@@ -2081,6 +2081,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     <iron-icon class="selection-toast-icon" icon="icons:add"></iron-icon>
                                     {{localize("more","More",language)}}
                                 </paper-button>
+                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0"
+                                              animated aria-disabled="false" elevation="0" on-tap="_exportContactListAsCsv">
+                                    <iron-icon class="selection-toast-icon" icon="editor:vertical-align-bottom"></iron-icon>
+                                    {{localize("export","Exporter",language)}}
+                                </paper-button>
                             </paper-toast>
                             <template is="dom-if" if="[[!currentContact]]">
                                 <div class="new-ctc-btn-container"><paper-button class="add-btn" on-tap="newContact">[[localize('new_con','New Contact',language)]]</paper-button></div>
@@ -2531,6 +2536,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         import _ from 'lodash/lodash';
         import styx from '../../../scripts/styx';
         import { AccessLogDto } from "icc-api/dist/icc-api/model/AccessLogDto";
+
+        const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
         class HtPatDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -4569,6 +4576,102 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _selectCurrentContact() {
                 this.currentContact && this.currentContact.id && this.shadowRoot.querySelector('#_contacts_listbox').set('selectedValues', [this.currentContact.id]);
             }
+
+            _exportContactListAsCsv() {
+                // Data mapping
+                var dataColumns = [
+                    "openingDate",
+                    "userDescr",
+                    "author",
+                    "closingDate",
+                ]
+
+                // Human readable columns
+                var hrColumns = [
+                    this.localize('date', 'Date', this.language),
+                    this.localize('descr', 'Description', this.language),
+                    this.localize('aut', 'Author', this.language),
+                    this.localize('endDate', 'Date de fin', this.language),
+                ]
+
+                // Define csv content, header = column names
+                var csvFileContent = hrColumns.join(";") + "\n\n"
+                const allContacts = _.concat(this.currentContact ? [this.currentContact] : [], this.contacts)
+                var items = allContacts
+                items = items.filter(this.contactFilter())
+
+                // Rewrite date for HR, input = yyyymmdd, output = dd/mm/yyyy
+                //items.forEach(item => item.dateOfBirth = item.dateOfBirth ? ("" + item.dateOfBirth).replace(/([0-9]{4})([0-9]{2})([0-9]{2})/, '$3/$2/$1') : this.localize('na_short', 'N/A'))
+
+                // Populate / collect
+                //items = items.map(item => _.pick(item, dataColumns))
+                items = items.map(item => {
+                    let newitem = {}
+                    dataColumns.forEach((key, idx) => {
+                        newitem[hrColumns[idx]] = item[key]
+                        if(key == "openingDate" || key == "closingDate") {
+                            newitem[hrColumns[idx]] = newitem[hrColumns[idx]] ? this.api.moment( newitem[hrColumns[idx]] ).format("YYYY-MM-DD hh:mm:ss") : ""
+                        }
+                        if(key == "userDescr") {
+                            newitem[hrColumns[idx]] = (newitem[hrColumns[idx]] || "").replace(/(\r\n|\n|\r)/gm, " ")
+                        }
+                        if(key == "author") {
+                            newitem[hrColumns[idx]] = this.hcp(item)
+                        }
+                    })
+                    newitem["openingDate"]
+                    return newitem
+                })
+
+                this.generateXlsFile(items, "contact-list_" + moment().format("YYYYMMDD-HHmmss") + ".csv", "Contact List", "Topaz")
+
+            }
+
+            generateXlsFile(data, filename, title, author) {
+                // FIXME: xls is truncated at 255 chars and xlsx is corrupt, i use csv for the moment
+
+                // Create xls work book and assign properties
+                filename = filename || ("patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xlsx")
+                title = title || "Patients list"
+                author = author || "iCure"
+                const xlsWorkBook = {SheetNames: [], Sheets: {}}
+                xlsWorkBook.Props = {Title: title, Author: author}
+
+                // Create sheet based on json data collection
+                var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
+
+                // Link sheet to workbook
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, title)
+
+                // Virtual data output
+                var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'csv', type: 'buffer', FS:"\t"}))
+
+                // Put output to virtual "file"
+                var fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.ms-excel"})
+
+                // Create download link and append to page's body
+                var downloadLink = document.createElement("a")
+                document.body.appendChild(downloadLink)
+                downloadLink.style = "display: none"
+
+                // Create url
+                var urlObject = window.URL.createObjectURL(fileBlob)
+
+                // Link to url
+                downloadLink.href = urlObject
+                downloadLink.download = filename
+
+                // Trigger download and drop object
+                downloadLink.click()
+                window.URL.revokeObjectURL(urlObject)
+
+                // Free mem
+                fileBlob = false
+                xlsWorkBookOutput = false
+
+                return
+            }
+
 
             updateContactYears() {
                 this.notifyPath('contactYears');
