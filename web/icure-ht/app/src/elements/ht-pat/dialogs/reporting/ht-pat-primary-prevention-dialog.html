@@ -145,24 +145,24 @@
                         </paper-tabs>
                         <page>
                             <div class="prevention-line">
-                                <vaadin-combo-box class="w70" filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}"></vaadin-combo-box>
-                                <vaadin-date-picker class="w30" id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                                <vaadin-combo-box class="w70" filtered-items="[[filteredProcedures]]" item-label-path="label.[[language]]" item-value-path="id" id="procedures-list" filter="{{procedureFilter}}" label="Procédure*" value="{{prevention.procedureId}}"></vaadin-combo-box>
+                                <vaadin-date-picker class="w30" id="date-picker" label="Date d'échéance*" value="{{prevention.deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
                             </div>
                             <div class="prevention-line">
-                                <vaadin-combo-box class="w100" filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{selectedProfessionItem}}"></vaadin-combo-box>
+                                <vaadin-combo-box class="w100" filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{prevention.linkedProfession}}"></vaadin-combo-box>
                             </div>
                             <div class="prevention-line">
-                                <vaadin-text-area class="w100" class="textarea-style" id="cpa_description" label="Description" value="{{plannedAction.Description}}"></vaadin-text-area>
+                                <vaadin-text-area class="w100" class="textarea-style" id="cpa_description" label="Description" value="{{prevention.description}}"></vaadin-text-area>
                             </div>
                            <div class="prevention-line">
-                               <vaadin-combo-box class="w100" filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" label="Procédure*" value="{{plannedAction.ProcedureId}}"></vaadin-combo-box>
+                               <vaadin-combo-box class="w100" filtered-items="[[remindType]]" item-label-path="label.[[language]]" item-value-path="code" id="remindType-list" label="Type de rappel*" value="{{prevention.remindType}}"></vaadin-combo-box>
                            </div>
                         </page>
                     </div>
                 </div>
                 <div class="buttons">
                     <paper-button class="button" on-tap="_closeDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
-                    <paper-button class="button button--save" on-tap=""><iron-icon icon="icons:send" class="mr5 smallIcon" ></iron-icon> [[localize('send','Send',language)]]</paper-button>
+                    <paper-button class="button button--save" on-tap="_sendPrevention"><iron-icon icon="icons:send" class="mr5 smallIcon" ></iron-icon> [[localize('send','Send',language)]]</paper-button>
                 </div>
             </div>
         </paper-dialog>
@@ -200,12 +200,35 @@
                     tabs:{
                         type: Number,
                         value: 0
+                    },
+                    listOfProcedures:{
+                        type: Array,
+                        value: []
+                    },
+                    procedureFilter:{
+                        type: String,
+                        value: null
+                    },
+                    filteredProcedures:{
+                        type: Array,
+                        value: () => []
+                    },
+                    prevention: {
+                        type: Object,
+                        value: () => {}
+                    },
+                    remindType:{
+                        type: Array,
+                        value: () => [
+                            {label: {fr:'Par sms', nl:'Bij sms', en:'By sms'}, code: "sms"},
+                            {label: {fr:'Par email', nl:'Bij mail', en:'By email'}, code:"mail"}
+                        ]
                     }
                 };
             }
 
             static get observers() {
-                return [];
+                return ['_procedureFilterChanged(procedureFilter)'];
             }
 
             ready() {
@@ -213,79 +236,109 @@
             }
 
             openPreventionDialog(){
-                this.$['preventionDialog'].open()
-                console.log(this.selectedPatientForPrevention)
+                this.api.code().findCodes("be", "BE-THESAURUS-PROCEDURES").then(listOfProc => {
+                    this.set('listOfProcedures',listOfProc.map(p => _.assign(p, {
+                        normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.get(p, _.trim('label.'+this.language), ""), _.get(p, 'code', ""), _.get(p, 'searchTerms.'+this.language, "")])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
+                    })))
+                }).finally(() => {
+                    this.set('prevention', {
+                        procedureId: null,
+                        deadline: null,
+                        linkedProfession: null,
+                        description: null,
+                        remindType: null,
+                        label: 'Actes'
+                    })
+                    this.set('filterdProcedure', this.listOfProcedures)
+                    this.$['preventionDialog'].open()
+                })
+
             }
 
             _closeDialog(){
+                this.set('prevention', {})
                 this.$['preventionDialog'].close()
             }
 
-            procedureChanged(e){
-                if(!(e && e.detail && e.detail.value))return;
-                const code = e && e.detail && e.detail.value
-                let codeExp = code.split(".");
-                let CISPType = codeExp[0].substr(1,3)
-
-                if(CISPType === "44"){
-                    this.set("isVaccineProcedure", true)
-                }else{
-                    this.set("isVaccineProcedure", false)
+            _procedureFilterChanged(){
+                if(this.procedureFilter){
+                    const keywordsString = _.trim(_.get(this,"procedureFilter","")).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")
+                    const keywordsArray = _.compact(_.uniq(_.map(keywordsString.split(" "), i=>_.trim(i))))
+                    setTimeout(() => {
+                        if(parseInt(_.get(keywordsString,"length",0)) > 2) {
+                            const proceduresSearchResults =  _.chain(_.get(this, "listOfProcedures", []))
+                                .chain(_.get(this, "procedureFilter", []))
+                                .filter(i => _.size(keywordsArray) === _.size(_.compact(_.map(keywordsArray, keyword => _.trim(_.get(i, "normalizedSearchTerms", "")).indexOf(keyword) > -1))))
+                                .compact()
+                                .uniq()
+                                .orderBy(['code', 'label.' + this.language, 'id'], ['asc', 'asc', 'asc'])
+                                .value()
+                            this.set('filteredProcedures', _.sortBy(proceduresSearchResults, ['code', 'label.' + this.language, 'id'], ['asc', 'asc', 'asc']))
+                        }else{
+                            this.set('filteredProcedures', this.listOfProcedures, ['code', 'label.'+this.language, 'id'], ['asc', 'asc', 'asc'])
+                        }
+                    }, 100)
                 }
-
-                let listFiltered=[]
-                const procedureCode = this.proceduresListItem.find(p=> p.code===code)
-                if(procedureCode && procedureCode.links) {
-                    procedureCode.links.filter(link => link.includes("CD-HCPARTY|")).map(link => {
-                        const info = link.split('|')
-                        listFiltered.push(this.hcpartyTypeList.find(type => type.code === info[1]))
-                    })
-                }
-                this.set("hcpartyTypeListFiltered",listFiltered)
             }
 
-            _proceduresFilterChanged(e){
-                let latestSearchValue = e && e.detail.value;
-                this.latestSearchValue = latestSearchValue;
-                if (!latestSearchValue || latestSearchValue.length < 2) {
-                    console.log("Cancelling empty search");
-                    this.set('proceduresListItem', []);
-                    return;
-                }
-                this._proceduresDataProvider() && this._proceduresDataProvider().filter(latestSearchValue).then(res => {
-                    if (latestSearchValue !== this.latestSearchValue) {
-                        console.log("Cancelling obsolete search");
-                        return [];
-                    }
-                    if (!(res && res.rows && res.rows.length)) {
-                        return [];
-                    }
-                    return this.api.code().getCodes(res.rows.map(code => code.id))
-                })
-                    .then(codes =>{
-                        this.set('proceduresListItem', codes);
-                    });
-            }
+            _sendPrevention(){
+                console.log(this.prevention)
+                let prom = Promise.resolve()
 
-            _proceduresDataProvider(){
-                return {
-                    filter: function (proceduresFilterValue) {
-                        return Promise.all([this.api.code().findPaginatedCodesByLabel('be', 'BE-THESAURUS-PROCEDURES', 'fr', proceduresFilterValue, null, null)]).then(results => {
-                            const procedureList = results[0];
-                            let filtered = procedureList.rows
-                            filtered = _.flatten(filtered.map(procedure => ({
-                                id: procedure.id,
-                                label: procedure.label,
-                                code: procedure.code,
-                                searchTerms: procedure.searchTerms
-                            })))
-                            return {totalSize: filtered.length, rows: filtered};
+                this.selectedPatientForPrevention.map(pat => {
+                    if(pat.check === true){
+                        prom = prom.then(listOfContact => {
+                            return this.api.patient().getPatientWithUser(this.user, pat.id).then(pat => Promise.all([pat, this.api.contact().newInstance(this.user, pat, {
+                                created: +new Date,
+                                modified: +new Date,
+                                author: _.trim(_.get(this,"user.id","")),
+                                responsible: _.trim(_.get(this,"user.healthcarePartyId","")),
+                                openingDate: +new Date,
+                                closingDate: +new Date,
+                                encounterType: { type: "CD-TRANSACTION", version: "1", code: 'request' },
+                                descr: _.get(this.prevention, 'description', null),
+                                tags: [
+                                    { type: 'CD-TRANSACTION', code: 'request'},
+                                    {type: 'CD-CLINICALPLAN', code: 'primaryprevention'},
+                                    {type: 'care.topaz.prevention', code:''}
+                                ],
+                                subContacts: []
+                            })])).then(([pat, ctc]) => Promise.all([pat, ctc, this.api.contact().service().newInstance(this.user, {
+                                content: _.fromPairs([[this.language, {
+                                    stringValue: _.trim(_.get(this.prevention, 'description', null))}]]),
+                                label: _.get(this.prevention, "label", "Actes"),
+                                comment: _.trim(_.get(this.prevention, 'description', null)),
+                                valueDate: _.get(this.prevention, 'deadline', null) ? this.api.moment(_.get(this.prevention, 'deadline', null)).format('YYYYMMDD') : null,
+                                codes: [
+                                    {
+                                        id: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'id', null),
+                                        type: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'type', null),
+                                        code:  _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'code', null),
+                                        version:  _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'version', null)
+                                    }
+                                ],
+                                tags: [
+                                    { type: 'CD-TRANSACTION', code: 'request'},
+                                    { type: 'CD-CLINICALPLAN', code: 'primaryprevention'},
+                                    { type: 'care.topaz.prevention', code:'' },
+                                    { type: 'CD-LIFECYCLE', code:'planned'}
+                                ]
+                            })])).then(([pat, ctc, svc]) => {
+                                ctc.subContacts.push(svc)
+                                return Promise.all([pat, this.api.contact().createContactWithUser(this.user, ctc)])
+                            }).then(([pat, ctc]) => _.concat(listOfContact, {contact: ctc, patient: pat}))
                         })
+                    }
+                })
 
-                    }.bind(this)
-                };
+                prom = prom.then(listOfContact => {
+                    listOfContact.map(ctc => {
+                        _.get(this.prevention, 'remindType', null) === 'sms' ? "curl https://msg-gw.svcacc.icure.cloud/luta/sms/to/+32499534536 -u luta:@dv@nc3dPl@nn1ng -d '{\"message\": "+_.get(this.prevention, 'description', null)+"}' -H 'Content-type: application/json'" : null
+                    })
+                })
+
+
             }
-
 
         }
         customElements.define(HtPatPrimaryPreventionDialog.is, HtPatPrimaryPreventionDialog);
