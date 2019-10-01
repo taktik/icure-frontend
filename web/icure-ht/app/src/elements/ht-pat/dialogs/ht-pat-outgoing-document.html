@@ -1031,6 +1031,7 @@
                 return this._getProseEditorTemplatesAndAttachment()
                     .then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates}))
                     .then(() => this.dispatchEvent(new CustomEvent('refresh-templates-menu', {composed: true, bubbles: true, detail: {}})))
+                    .then(() => this._refreshDialogLoadTemplate())
 
             }
 
@@ -1047,11 +1048,15 @@
 
             _openDialogLoadTemplate() {
 
-                this.$['loadTemplateDialog'].open();
-                this.$['loadTemplateDialog'].filterValue = "  ";
-                this.$['loadTemplateDialog'].refresh();
+                this.shadowRoot.querySelector("#loadTemplateDialog") && this.shadowRoot.querySelector("#loadTemplateDialog").open()
+                setTimeout(()=>{this._refreshDialogLoadTemplate()},100)
 
-                window.setTimeout(()=>{this.$['loadTemplateDialog'].filterValue = ""},1000);
+            }
+
+            _refreshDialogLoadTemplate() {
+
+                const loadTemplateDialog = this.shadowRoot.querySelector("#loadTemplateDialog")
+                loadTemplateDialog && ((loadTemplateDialog.filterValue = "  ")||true) && (loadTemplateDialog.refresh()||true) && (loadTemplateDialog.forceRefresh()||true) && setTimeout(()=>{loadTemplateDialog.filterValue = ""},1100)
 
             }
 
@@ -1059,12 +1064,9 @@
 
                 return {
                     filter: function (filterValue, limit, offset, sortKey, descending) {
-
                         const searchTermRegExp = _.trim(filterValue) && new RegExp(_.trim(filterValue).normalize('NFD').replace(/[\u0300-\u036f ]/g, ""), "i")
                         const filteredResults = _.filter(_.get(this,"_data.proseEditorTemplates",[]), it => _.trim(_.get(it,"searchTerms","")).match(searchTermRegExp))
-
                         return Promise.resolve({ totalSize: _.size(filteredResults), rows: (descending ? _.reverse(_.sortBy(filteredResults, sortKey)) : _.sortBy(filteredResults, sortKey)).slice(0, limit) })
-
                     }.bind(this)
                 }
 
@@ -1151,7 +1153,7 @@
                         const proseJsonContent = prose.editorView.state.doc.toJSON();
                         const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
                         const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
-                        //console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
+                        console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
                         return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(proseJsonContentWithoutVars))
                     })
                     .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
@@ -1230,6 +1232,48 @@
 
             }
 
+            _getPdfFooter() {
+
+                return `` +
+                    '<'+'script'+'>'+'document.fonts.ready.then(() => { setInterval(() => {document.body.dispatchEvent(new CustomEvent("pdfDoneRenderingEvent"))}, 1000); }); <'+'/script'+'>' + `
+                    </body>
+                </html>`
+
+            }
+
+            _getPdfHeader() {
+
+                return `
+                    <html>
+                        <head>
+
+                            <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Alegreya|Barlow|Barlow+Condensed|Cardo|Crete+Round|EB+Garamond|Exo|Exo+2|Fjalla+One|Great+Vibes|Indie+Flower|Josefin+Sans|Kurale|Libre+Baskerville|Lobster|Lora|Maven+Pro|Monoton|Montserrat|Montserrat+Alternates|Nanum+Myeongjo|Neucha|Old+Standard+TT|Open+Sans|Oswald|Pathway+Gothic+One|Poiret+One|Poppins|Quattrocento|Quattrocento+Sans|Quicksand|Raleway:400,700|Roboto|Roboto+Condensed|Source+Serif+Pro|Spectral|Teko|Tinos|Vollkorn">
+
+                            <style>
+
+                                @page {size: A4; width: 210mm; height: 297mm; margin: 0; padding: 0; }
+                                body {margin: 0; padding: 0mm; font-family: 'Roboto', Arial, Helvetica, sans-serif; font-size:12px; line-height:1.2em; background:#ffffff; -webkit-font-smoothing: antialiased; font-smooth: always; }
+                                .page { padding:8mm; color:#000000; position:relative; background:#ffffff; }
+
+                                h1 { font-size: 1.8em; font-weight: bold; padding:0; margin-top:0; color:#101079; text-transform:uppercase;}
+                                h2 { font-size: 1.5em; font-weight: bold; padding:0; }
+                                h3 { font-size: 1.3em; font-weight: bold; padding:0; }
+                                h4 { font-size: 1.1em; font-weight: bold; padding:0; }
+                                h5 { font-size: 1em; padding:0; }
+
+                                p { padding:0; margin:10px 0 10px 0; }
+
+                                table { width:100%; margin:0 0 10mm 0; border:1px solid #dddddd; border-collapse: collapse; font-size:12px; line-height:1.2em; }
+                                table tr td { border:1px solid #dddddd; font-size:12px; padding:0 3mm; vertical-align:top; }
+
+                            </style>
+
+                        </head>
+
+                    <body>
+                `
+
+            }
 
 
 
@@ -1239,6 +1283,39 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+            _saveAndAddToPatFile() {
+
+            }
+
+            _print(parameters={}) {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+
+                const promResolve = Promise.resolve()
+                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
+                const proseContent = _.trim(_.get(proseEditor,"$.container.innerHTML"))
+                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")), this.localize("out-doc","Outgoing document",this.language), +new Date()]).join(" ")) + ".pdf"
+
+                return promResolve
+                    .then(() => this.set("_isBusy", true))
+                    .then(() => this.api.pdfReport(this._getPdfHeader() + this.api.rewriteTableColumnsWidth(proseContent) + this._getPdfFooter(),_.merge({completionEvent:"pdfDoneRenderingEvent"/*, printBackground:true*/},(!!_.get(parameters,"forceReturnFile",false) ? {} : {type : "rapp-mail"}))))
+                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", fileName))
+                    .catch(e => console.log("[ERROR] _print", e))
+                    .finally(() => this.set("_isBusy", false))
+
+            }
 
 
 
@@ -1249,7 +1326,6 @@
 
                 if(!!_.get(this,"_isBusy",false)) return;
 
-                const promResolve = Promise.resolve()
                 const patientId = !!_.trim(_.get(inputData,"patientId","")) ? _.trim(_.get(inputData,"patientId","")) : _.trim(_.get(this,"patient.id",""))
 
                 return this._resetComponentProperties()
@@ -1265,8 +1341,8 @@
                     .then(() => this._getProseEditorTemplatesAndAttachment().then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates})))
                     .then(() => this._getDataProvider().then(dataProvider => _.assign(this, {dataProvider:dataProvider})))
                     .then(() => !!_.trim(_.get(this,"_data.docTemplateId","")) ? this._applyProseEditorTemplate(null, _.find(_.get(this,"_data.proseEditorTemplates",[]), {id:_.trim(_.get(this,"_data.docTemplateId",""))})) : this._refreshProseEditorContext())
-                    .catch(e => { console.log("[ERROR] outgoing document", e, inputData); return promResolve; })
-                    .finally(() => (this.set("_isBusy", false)||true) && (console.log("--- this._data ---",this._data)||true) && promResolve)
+                    .catch(e => console.log("[ERROR] outgoing document", e, inputData))
+                    .finally(() => (this.set("_isBusy", false)||true) && console.log("--- this._data ---",this._data))
 
                 // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
                 // Todo: fuck sais pas vraiment écrire texte libre dans template ? Curseur saute systématiquement en dehors du bloc, après 1er caractètre tapé
