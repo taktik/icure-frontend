@@ -1275,6 +1275,23 @@
 
             }
 
+            _print(parameters={}) {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+
+                const promResolve = Promise.resolve()
+                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
+                const proseContent = _.trim(_.get(proseEditor,"$.container.innerHTML"))
+                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")), this.localize("out-doc","Outgoing document",this.language), +new Date()]).join(" ")) + ".pdf"
+
+                return promResolve
+                    .then(() => this.set("_isBusy", true))
+                    .then(() => this.api.pdfReport(this._getPdfHeader() + this.api.rewriteTableColumnsWidth(proseContent) + this._getPdfFooter(),_.merge({completionEvent:"pdfDoneRenderingEvent"/*, printBackground:true*/},(!!_.get(parameters,"forceReturnFile",false) ? {} : {type : "rapp-mail"}))))
+                    .then(printedPdf => !!_.get(parameters,"forceReturnFile",false) ? ([printedPdf.pdf,fileName]) : !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", fileName))
+                    .catch(e => console.log("[ERROR] _print", e))
+                    .finally(() => this.set("_isBusy", false))
+
+            }
 
 
 
@@ -1297,25 +1314,84 @@
 
             _saveAndAddToPatFile() {
 
-            }
-
-            _print(parameters={}) {
-
                 if(!!_.get(this,"_isBusy",false)) return;
 
-                const promResolve = Promise.resolve()
-                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
-                const proseContent = _.trim(_.get(proseEditor,"$.container.innerHTML"))
-                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")), this.localize("out-doc","Outgoing document",this.language), +new Date()]).join(" ")) + ".pdf"
+                return this._print({forceReturnFile:true})
+                    .then(([printedPdf,fileName]) => {
 
-                return promResolve
-                    .then(() => this.set("_isBusy", true))
-                    .then(() => this.api.pdfReport(this._getPdfHeader() + this.api.rewriteTableColumnsWidth(proseContent) + this._getPdfFooter(),_.merge({completionEvent:"pdfDoneRenderingEvent"/*, printBackground:true*/},(!!_.get(parameters,"forceReturnFile",false) ? {} : {type : "rapp-mail"}))))
-                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", fileName))
-                    .catch(e => console.log("[ERROR] _print", e))
+                        this.set("_isBusy", true)
+
+                        const messageObject = {
+                            transportGuid: "OUTGOING-DOCUMENT:PATIENT:ARCHIVE",
+                            recipients: [_.trim(_.get(this, "currentHcp.id", ""))],
+                            metas: {
+                                filename : fileName,
+                                hcpId: _.trim(_.get(this, "currentHcp.id", "")) ,
+                                contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
+                            },
+                            toAddresses: [_.trim(_.get(this, "currentHcp.id", ""))],
+                            subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
+                        }
+
+                        const documentMetas = _.get(messageObject,"metas",{})
+
+                        console.log("_saveAndAddToPatFile")
+                        console.log("printedPdf", printedPdf)
+                        console.log("fileName", fileName)
+                        console.log("messageObject", messageObject)
+
+                    })
+
+
+
+
+                    // .then(resourcesObject => this.api.message().newInstanceWithPatient(this.user, this.patient)
+                    //     .then(newMessageInstance=>_.assign({newMessageInstance: newMessageInstance}, resourcesObject))
+                    //     .then(resourcesObject=>this.api.message().createMessage(
+                    //         _.merge(
+                    //             resourcesObject.newMessageInstance,
+                    //             {
+                    //                 transportGuid: "LINKING-LETTER:PATIENT:ARCHIVE",
+                    //                 recipients: [_.get(this.user, 'healthcarePartyId', _.trim(this.user.id))],
+                    //                 metas: resourcesObject.documentMetas,
+                    //                 toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', _.trim(this.user.id)))],
+                    //                 subject: resourcesObject.documentMetas.title
+                    //             }
+                    //         )
+                    //     ).then(createMessageResponse=>_.assign({createMessageResponse: createMessageResponse}, resourcesObject)))
+                    // )
+                    // .then(resourcesObject=>this.api.document().newInstance(
+                    //     this.user,
+                    //     resourcesObject.createMessageResponse,
+                    //     {
+                    //         documentType: 'report',
+                    //         mainUti: this.api.document().uti("application/pdf"),
+                    //         name: resourcesObject.documentMetas.title + " - " + resourcesObject.documentMetas.patientName + ".pdf"
+                    //     }
+                    //     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
+                    // )
+                    // .then(resourcesObject=>this.api.document().createDocument(resourcesObject.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},resourcesObject)))
+                    // .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
+                    // .then(resourcesObject=>this.api.document().setAttachment(resourcesObject.createDocumentResponse.id, null, resourcesObject.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},resourcesObject)))
+                    // .then(resourcesObject=>{
+                    //     this._saveDocumentAsService({
+                    //         documentId: _.trim(_.get(resourcesObject, "createDocumentResponse.id", "")),
+                    //         stringValue: resourcesObject.documentMetas.title,
+                    //         formId: "",
+                    //         contactId: _.trim(_.get(this, "currentContact.id", ""))
+                    //     })
+                    //     this.proseEditorLinkingLetterTemplateAlreadyApplied = false;
+                    //     return resourcesObject
+                    // })
+
+
+
+                    .catch(e => console.log("[ERROR] _saveAndAddToPatFile", e))
                     .finally(() => this.set("_isBusy", false))
 
             }
+
+
 
 
 
@@ -1344,13 +1420,9 @@
                     .catch(e => console.log("[ERROR] outgoing document", e, inputData))
                     .finally(() => (this.set("_isBusy", false)||true) && console.log("--- this._data ---",this._data))
 
-                // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
-                // Todo: fuck sais pas vraiment écrire texte libre dans template ? Curseur saute systématiquement en dehors du bloc, après 1er caractètre tapé
-                // Todo: Gérer les dates (complètes / incomplètes selon nouvelle méthod Julien icc-api)
-
-                //     .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
-                //     .then(() => this.api.pdfReport(this._data.pdfHtmlContent, {type:"rapp-mail",completionEvent:"pdfDoneRenderingEvent", printBackground:true}))
-                //     .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" + _.trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
+                    // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
+                    // Todo: fuck sais pas vraiment écrire texte libre dans template ? Curseur saute systématiquement en dehors du bloc, après 1er caractètre tapé
+                    // Todo: Gérer les dates (complètes / incomplètes selon nouvelle méthod Julien icc-api)
 
             }
 
