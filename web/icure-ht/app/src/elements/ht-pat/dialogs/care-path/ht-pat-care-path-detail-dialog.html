@@ -785,19 +785,7 @@
                             </div>
                             <div class="procedure-content-container">
                                 <div class="procedureFormContainer w100pc">
-                                    <div class="fl50">
-                                        <div class="formItem mt5 displayFlex">
-                                            <dynamic-text-field class="m0 mr5" read-only="true" disabled="true" label="[[localize('proc','Procedure',language)]]" value="[[selectedProcedure.content.fr.stringValue]]"></dynamic-text-field>
-                                        </div>
-                                        <div class="formItem mt6"><dynamic-text-field class="m0" read-only="true" disabled="true" value="[[_procedureForm.linkedSpecialities]]" label="[[localize('speciality','Speciality',language)]]"></dynamic-text-field></div>
-                                    </div>
-                                    <div class="fr50">
-                                        <div class="formItem mt1"><vaadin-combo-box class="triptyqueVaadinComboBox validationRequired" filtered-items="[[availableLifeCycleCodes]]" item-label-path="label.fr" item-value-path="id" value="{{selectedProcedure.status}}" label="[[localize('status','Status',language)]]" auto-validate required></vaadin-combo-box></div>
-                                        <div class="formItem mt1"><dynamic-date-field class="dynamicDateField validationRequired" label="[[localize('deadline','Deadline',language)]]" value="{{selectedProcedure.careDeadline}}" i18n="[[i18n]]" auto-validate required></dynamic-date-field></div>
-                                        <div class="formItem mt4"><vaadin-combo-box class="triptyqueVaadinComboBox validationRequired" filtered-items="[[availableCareTeam]]" item-label-path="displayedName" item-value-path="id" value="{{selectedProcedure.linkedPhysician}}" label="[[localize('linkedPhysician','Related physician',language)]]" auto-validate required></vaadin-combo-box></div>
-                                    </div>
-                                    <div class="clear"></div>
-                                    <div class="formItem"><dynamic-text-area class="m0" value="{{_procedureForm.descr}}" label="[[localize('des','Description',language)]]" additional-css-classes="fullWidth"></dynamic-text-area></div>
+
                                 </div>
                             </div>
                         </div>
@@ -1757,9 +1745,25 @@
 
             _saveCarePath(){
                 const promResolve = Promise.resolve();
+                let careTeamMemberships = []
                 if(!_.isEmpty(_.get(this.selectedCarePath, 'linkedHealthElement', {})) && _.get(this.selectedCarePath, 'startDate', null) !== null && _.get(this,"selectedCarePath.type", null) !== null){
                     this.api.helement().getHealthElement(_.get(this.selectedCarePath, 'linkedHealthElement.id', null))
                         .then(he => {
+                            he.careTeam = _.concat(he.careTeam, _.concat(this.selectedCarePath.careTeam.physician.map(hcp => _.assign(hcp, {careTeamMemberType: 'physician'})), this.selectedCarePath.careTeam.specialist.map(hcp => _.assign(hcp, {careTeamMemberType: 'specialist'})), this.selectedCarePath.careTeam.other.map(hcp => _.assign(hcp, {careTeamMemberType: 'other'}))).map(hcp => {
+                                if(!_.get(he, 'careTeam', []).find(ct => ct.healthcarePartyId === hcp.id)){
+                                   return {
+                                       id: this.api.crypto().randomUuid(),
+                                       healthcarePartyId: _.get(hcp, 'id', null),
+                                       quality: _.get(hcp, 'specialityCodes', []).length ? {
+                                           code: _.get(_.head(_.get(hcp, 'specialityCodes', [])), 'code', null),
+                                           type: _.get(_.head(_.get(hcp, 'specialityCodes', [])), 'type', null),
+                                           version: _.get(_.head(_.get(hcp, 'specialityCodes', [])), 'version', null),
+                                           id: _.get(_.head(_.get(hcp, 'specialityCodes', [])), 'id', null)
+                                       } : null,
+                                       careTeamMemberType: _.get(hcp, 'careTeamMemberType', null)
+                                   }
+                                }
+                            }))
 
                             const removedPlanOfAction = !!_.trim(_.get(this.selectedCarePath,"id","")) ? _.head(_.remove(_.get(he,"plansOfAction",[]), {id: _.get(this.selectedCarePath,"id","")})) : null
                             const poaToAdd = {
@@ -1777,11 +1781,12 @@
                                 agreementDate: _.get(this, 'selectedCarePath.agreementsDate', {}),
                                 codes: [],
                                 tags: [],
-                                team: {
-                                    physician: _.get(this, 'selectedCarePath.careTeam.physician', []).map(hcp => hcp.id) || [],
-                                    specialist: _.get(this, 'selectedCarePath.careTeam.specialist', []).map(hcp => hcp.id) || [],
-                                    other: _.get(this, 'selectedCarePath.careTeam.other', []).map(hcp => hcp.id) || []
-                                },
+                                careTeamMemberships: _.concat(_.get(this, 'selectedCarePath.careTeam.physician', []).map(hcp => _.assign(hcp, {careTeamMemberType: 'physician'})), _.get(this, 'selectedCarePath.careTeam.specialist', []).map(hcp => _.assign(hcp, {careTeamMemberType: 'specialist'})), _.get(this, 'selectedCarePath.careTeam.other', []).map(hcp => _.assign(hcp, {careTeamMemberType: 'other'}))).map(hcp => {
+                                    return {
+                                        careTeamMemberId: _.get(_.get(he, 'careTeam', []).find(ct => ct.healthcarePartyId === hcp.id), 'id', null),
+                                        membershipType: 'doctor'
+                                    }
+                                }),
                                 documentIds: _.get(this, 'selectedCarePath.linkedDocuments', []).map(doc => doc.id),
                                 prescriberId: _.trim(_.get(this,"user.healthcarePartyId")),
                                 status: !!_.trim(_.get(removedPlanOfAction,"status","")) ? parseInt(_.trim(_.get(removedPlanOfAction,"status",""))) : 1 << 1,
