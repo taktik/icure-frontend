@@ -76,7 +76,7 @@
 
             .prevention-procedure-content{
                 height: calc(100% - 50px);
-                width: 70%;
+                width: 100%;
                 position: relative;
                 background: white;
             }
@@ -126,17 +126,24 @@
                 width: 99%;
             }
 
+            .m4{
+                margin: 4px;
+            }
+
+            .p4{
+                padding: 4px;
+            }
+
+            .mw30{
+                min-width: 29%;
+            }
+
 
         </style>
 
         <paper-dialog id="preventionDialog">
             <div class="preventionDialog">
                 <div class="prevention-dialog-content">
-                    <div class="prevention-history-content">
-                        <div class="prevention-dialog-title">
-                            [[localize('prev-histo', 'History', language)]]
-                        </div>
-                    </div>
                     <div class="prevention-procedure-content">
                         <paper-tabs selected="{{tabs}}" >
                             <paper-tab>
@@ -144,19 +151,21 @@
                             </paper-tab>
                         </paper-tabs>
                         <page>
-                            <div class="prevention-line">
-                                <vaadin-combo-box class="w70" filtered-items="[[filteredProcedures]]" item-label-path="label.[[language]]" item-value-path="id" id="procedures-list" filter="{{procedureFilter}}" label="Procédure*" value="{{prevention.procedureId}}"></vaadin-combo-box>
-                                <vaadin-date-picker class="w30" id="date-picker" label="Date d'échéance*" value="{{prevention.deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                            <div class="m4">
+                                <div class="prevention-line">
+                                    <vaadin-combo-box class="w100 p4" filtered-items="[[listOfClinicalPlan]]" item-label-path="label.[[language]]" item-value-path="id" id="prevention-list" label="Type de prévention*" value="{{prevention.clinicalPlanId}}"></vaadin-combo-box>
+                                </div>
+                                <div class="prevention-line">
+                                    <vaadin-combo-box class="w70 p4" filtered-items="[[filteredProcedures]]" item-label-path="label.[[language]]" item-value-path="id" id="procedures-list" filter="{{procedureFilter}}" label="Procédure*" value="{{prevention.procedureId}}"></vaadin-combo-box>
+                                    <vaadin-date-picker class="mw30 p4" id="date-picker" label="Date d'échéance*" value="{{prevention.deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                                </div>
+                                <div class="prevention-line">
+                                    <vaadin-text-area class="w100 p4" class="textarea-style" id="cpa_description" label="Description" value="{{prevention.description}}"></vaadin-text-area>
+                                </div>
+                                <div class="prevention-line">
+                                    <vaadin-combo-box class="w100 p4" filtered-items="[[remindType]]" item-label-path="label.[[language]]" item-value-path="code" id="remindType-list" label="Type de rappel*" value="{{prevention.remindType}}"></vaadin-combo-box>
+                                </div>
                             </div>
-                            <div class="prevention-line">
-                                <vaadin-combo-box class="w100" filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{prevention.linkedProfession}}"></vaadin-combo-box>
-                            </div>
-                            <div class="prevention-line">
-                                <vaadin-text-area class="w100" class="textarea-style" id="cpa_description" label="Description" value="{{prevention.description}}"></vaadin-text-area>
-                            </div>
-                           <div class="prevention-line">
-                               <vaadin-combo-box class="w100" filtered-items="[[remindType]]" item-label-path="label.[[language]]" item-value-path="code" id="remindType-list" label="Type de rappel*" value="{{prevention.remindType}}"></vaadin-combo-box>
-                           </div>
                         </page>
                     </div>
                 </div>
@@ -223,7 +232,12 @@
                             {label: {fr:'Par sms', nl:'Bij sms', en:'By sms'}, code: "sms"},
                             {label: {fr:'Par email', nl:'Bij mail', en:'By email'}, code:"mail"}
                         ]
+                    },
+                    listOfClinicalPlan:{
+                        type: Array,
+                        value: () => []
                     }
+
                 };
             }
 
@@ -240,8 +254,12 @@
                     this.set('listOfProcedures',listOfProc.map(p => _.assign(p, {
                         normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.get(p, _.trim('label.'+this.language), ""), _.get(p, 'code', ""), _.get(p, 'searchTerms.'+this.language, "")])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                     })))
-                }).finally(() => {
+                }).then(() => this.api.code().findCodes("be", "CD-CLINICALPLAN"))
+                    .then(listOfClinicalPlan => this.set('listOfClinicalPlan', listOfClinicalPlan))
+                    .finally(() => {
                     this.set('prevention', {
+                        title: null,
+                        clinicalPlanId: null,
                         procedureId: null,
                         deadline: null,
                         linkedProfession: null,
@@ -299,8 +317,12 @@
                                 descr: _.get(this.prevention, 'description', null),
                                 tags: [
                                     { type: 'CD-TRANSACTION', code: 'request'},
-                                    {type: 'CD-CLINICALPLAN', code: 'primaryprevention'},
-                                    {type: 'care.topaz.prevention', code:''}
+                                    {
+                                        id: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'id' , null),
+                                        type: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'type' , null),
+                                        code: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'code' , null),
+                                        version: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'version' , null)
+                                    }
                                 ],
                                 services: []
                             })])).then(([pat, ctc]) => Promise.all([pat, ctc, this.api.contact().service().newInstance(this.user, {
@@ -319,8 +341,12 @@
                                 ],
                                 tags: [
                                     { type: 'CD-TRANSACTION', code: 'request'},
-                                    { type: 'CD-CLINICALPLAN', code: 'primaryprevention'},
-                                    { type: 'care.topaz.prevention', code:'' },
+                                    {
+                                        id: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'id' , null),
+                                        type: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'type' , null),
+                                        code: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'code' , null),
+                                        version: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'version' , null)
+                                    },
                                     { type: 'CD-LIFECYCLE', code:'planned'}
                                 ]
                             })])).then(([pat, ctc, svc]) => {
@@ -332,9 +358,11 @@
                 })
 
                 prom = prom.then(listOfContact => {
-                    listOfContact.map(ctc => {
-                        //_.get(this.prevention, 'remindType', null) === 'sms' ? "curl https://msg-gw.svcacc.icure.cloud/luta/sms/to/+32499534536 -u luta:@dv@nc3dPl@nn1ng -d '{\"message\": "+_.get(this.prevention, 'description', null)+"}' -H 'Content-type: application/json'" : null
-                    })
+                    /*listOfContact.map(ctc => {
+                        _.get(this.prevention, 'remindType', null) === 'sms' ? "curl https://msg-gw.svcacc.icure.cloud/luta/sms/to/+32499534536 -u luta:@dv@nc3dPl@nn1ng -d '{\"message\": "+_.get(this.prevention, 'description', null)+"}' -H 'Content-type: application/json'" : null
+                    })*/
+                }).finally(() => {
+                    this._closeDialog()
                 })
 
 
