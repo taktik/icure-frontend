@@ -1266,14 +1266,9 @@
 
                      this.set('selectedCarePath', {
                          careTeam: {
-                             physician: _.get(carePath, "team.physician", []).map(hcpId => careTeam.find(ct => ct.id === hcpId)),
-                             specialist: _.get(carePath, "team.specialist", []).map(hcpId => careTeam.find(ct => ct.id === hcpId)),
-                             other: _.get(carePath, "team.other", []).map(hcpId => careTeam.find(ct => ct.id === hcpId))
-                         },
-                         _careTeam: {
-                             physician: _.get(carePath, "team.physician", []).map(hcpId => careTeam.find(ct => ct.id === hcpId)),
-                             specialist: _.get(carePath, "team.specialist", []).map(hcpId => careTeam.find(ct => ct.id === hcpId)),
-                             other: _.get(carePath, "team.other", []).map(hcpId => careTeam.find(ct => ct.id === hcpId))
+                             physician: _.compact(_.uniq(_.get(carePath, "careTeamMemberships", []).map(ctms => _.get(_.get(he, "careTeam", []).find(ct => ctms.careTeamMemberId === ct.id && ct.careTeamMemberType === "physician"), 'healthcarePartyId', null)))).map(hcpId => careTeam.find(hcp => hcp.id === hcpId)),
+                             specialist: _.compact(_.uniq(_.get(carePath, "careTeamMemberships", []).map(ctms => _.get(_.get(he, "careTeam", []).find(ct => ctms.careTeamMemberId === ct.id && ct.careTeamMemberType === "specialist"), 'healthcarePartyId', null)))).map(hcpId => careTeam.find(hcp => hcp.id === hcpId)),
+                             other: _.compact(_.uniq(_.get(carePath, "careTeamMemberships", []).map(ctms => _.get(_.get(he, "careTeam", []).find(ct => ctms.careTeamMemberId === ct.id && ct.careTeamMemberType === "other"), 'healthcarePartyId', null)))).map(hcpId => careTeam.find(hcp => hcp.id === hcpId)),
                          },
                          linkedHealthElement: he,
                          type: _.get(carePath, 'name', null),
@@ -1749,9 +1744,8 @@
                 if(!_.isEmpty(_.get(this.selectedCarePath, 'linkedHealthElement', {})) && _.get(this.selectedCarePath, 'startDate', null) !== null && _.get(this,"selectedCarePath.type", null) !== null){
                     this.api.helement().getHealthElement(_.get(this.selectedCarePath, 'linkedHealthElement.id', null))
                         .then(he => {
-                            he.careTeam = _.concat(he.careTeam, _.concat(this.selectedCarePath.careTeam.physician.map(hcp => _.assign(hcp, {careTeamMemberType: 'physician'})), this.selectedCarePath.careTeam.specialist.map(hcp => _.assign(hcp, {careTeamMemberType: 'specialist'})), this.selectedCarePath.careTeam.other.map(hcp => _.assign(hcp, {careTeamMemberType: 'other'}))).map(hcp => {
-                                if(!_.get(he, 'careTeam', []).find(ct => ct.healthcarePartyId === hcp.id)){
-                                   return {
+                            he.careTeam = _.concat(he.careTeam, _.compact(_.concat(this.selectedCarePath.careTeam.physician.map(hcp => _.assign(hcp, {careTeamMemberType: 'physician'})), this.selectedCarePath.careTeam.specialist.map(hcp => _.assign(hcp, {careTeamMemberType: 'specialist'})), this.selectedCarePath.careTeam.other.map(hcp => _.assign(hcp, {careTeamMemberType: 'other'}))).map(hcp => {
+                                !_.get(he, 'careTeam', []).find(ct => ct.healthcarePartyId === hcp.id) ? {
                                        id: this.api.crypto().randomUuid(),
                                        healthcarePartyId: _.get(hcp, 'id', null),
                                        quality: _.get(hcp, 'specialityCodes', []).length ? {
@@ -1761,10 +1755,8 @@
                                            id: _.get(_.head(_.get(hcp, 'specialityCodes', [])), 'id', null)
                                        } : null,
                                        careTeamMemberType: _.get(hcp, 'careTeamMemberType', null)
-                                   }
-                                }
-                            }))
-
+                                   } : {}
+                            })))
                             const removedPlanOfAction = !!_.trim(_.get(this.selectedCarePath,"id","")) ? _.head(_.remove(_.get(he,"plansOfAction",[]), {id: _.get(this.selectedCarePath,"id","")})) : null
                             const poaToAdd = {
                                 id: !!_.trim(_.get(removedPlanOfAction,"id","")) ? _.trim(_.get(removedPlanOfAction,"id","")) : this.api.crypto().randomUuid(),
