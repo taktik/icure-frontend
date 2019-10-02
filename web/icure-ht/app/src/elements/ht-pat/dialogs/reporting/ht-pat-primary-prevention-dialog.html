@@ -138,6 +138,10 @@
                 min-width: 29%;
             }
 
+            .prevention-error{
+                color: var(--app-status-color-nok)
+            }
+
 
         </style>
 
@@ -163,8 +167,15 @@
                                     <vaadin-text-area class="w100 p4" class="textarea-style" id="cpa_description" label="Description" value="{{prevention.description}}"></vaadin-text-area>
                                 </div>
                                 <div class="prevention-line">
-                                    <vaadin-combo-box class="w100 p4" filtered-items="[[remindType]]" item-label-path="label.[[language]]" item-value-path="code" id="remindType-list" label="Type de rappel*" value="{{prevention.remindType}}"></vaadin-combo-box>
+                                    <vaadin-combo-box class="w100 p4" filtered-items="[[remindType]]" item-label-path="label.[[language]]" item-value-path="code" id="remindType-list" label="Type de rappel" value="{{prevention.remindType}}"></vaadin-combo-box>
                                 </div>
+                            </div>
+                            <div class="prevention-error m4">
+                                <template is="dom-repeat" items="[[errorList]]">
+                                    <div>
+                                        [[localize(item.code, item.label, language)]]
+                                    </div>
+                                </template>
                             </div>
                         </page>
                     </div>
@@ -236,6 +247,10 @@
                     listOfClinicalPlan:{
                         type: Array,
                         value: () => []
+                    },
+                    errorList:{
+                        type: Array,
+                        value: () => []
                     }
 
                 };
@@ -275,6 +290,7 @@
 
             _closeDialog(){
                 this.set('prevention', {})
+                this.set('errorList', [])
                 this.$['preventionDialog'].close()
             }
 
@@ -301,71 +317,78 @@
 
             _sendPrevention(){
                 console.log(this.prevention)
+                this.set('errorList', [])
                 let prom = Promise.resolve()
 
-                this.selectedPatientForPrevention.map(pat => {
-                    if(pat.check === true){
-                        prom = prom.then(listOfContact => {
-                            return this.api.patient().getPatientWithUser(this.user, pat.id).then(pat => Promise.all([pat, this.api.contact().newInstance(this.user, pat, {
-                                created: +new Date,
-                                modified: +new Date,
-                                author: _.trim(_.get(this,"user.id","")),
-                                responsible: _.trim(_.get(this,"user.healthcarePartyId","")),
-                                openingDate: +new Date,
-                                closingDate: +new Date,
-                                encounterType: { type: "CD-TRANSACTION", version: "1", code: 'request' },
-                                descr: _.get(this.prevention, 'description', null),
-                                tags: [
-                                    { type: 'CD-TRANSACTION', code: 'request'},
-                                    {
-                                        id: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'id' , null),
-                                        type: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'type' , null),
-                                        code: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'code' , null),
-                                        version: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'version' , null)
-                                    }
-                                ],
-                                services: []
-                            })])).then(([pat, ctc]) => Promise.all([pat, ctc, this.api.contact().service().newInstance(this.user, {
-                                content: _.fromPairs([[this.language, {
-                                    stringValue: _.trim(_.get(this.prevention, 'description', null))}]]),
-                                label: _.get(this.prevention, "label", "Actes"),
-                                comment: _.trim(_.get(this.prevention, 'description', null)),
-                                valueDate: _.get(this.prevention, 'deadline', null) ? this.api.moment(_.get(this.prevention, 'deadline', null)).format('YYYYMMDD') : null,
-                                codes: [
-                                    {
-                                        id: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'id', null),
-                                        type: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'type', null),
-                                        code:  _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'code', null),
-                                        version:  _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'version', null)
-                                    }
-                                ],
-                                tags: [
-                                    { type: 'CD-TRANSACTION', code: 'request'},
-                                    {
-                                        id: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'id' , null),
-                                        type: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'type' , null),
-                                        code: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'code' , null),
-                                        version: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'version' , null)
-                                    },
-                                    { type: 'CD-LIFECYCLE', code:'planned'}
-                                ]
-                            })])).then(([pat, ctc, svc]) => {
-                                ctc.services.push(svc)
-                                return Promise.all([pat, this.api.contact().createContactWithUser(this.user, ctc)])
-                            }).then(([pat, ctc]) => _.concat(listOfContact, {contact: ctc, patient: pat}))
-                        })
-                    }
-                })
+                if(_.get(this.prevention, 'clinicalPlanId', null) && _.get(this.prevention, 'deadline', null) && _.get(this.prevention, 'procedureId', null)){
+                    this.selectedPatientForPrevention.map(pat => {
+                        if(pat.check === true){
+                            prom = prom.then(listOfContact => {
+                                return this.api.patient().getPatientWithUser(this.user, pat.id).then(pat => Promise.all([pat, this.api.contact().newInstance(this.user, pat, {
+                                    created: +new Date,
+                                    modified: +new Date,
+                                    author: _.trim(_.get(this,"user.id","")),
+                                    responsible: _.trim(_.get(this,"user.healthcarePartyId","")),
+                                    openingDate: +new Date,
+                                    closingDate: +new Date,
+                                    encounterType: { type: "CD-TRANSACTION", version: "1", code: 'request' },
+                                    descr: _.get(this.prevention, 'description', null),
+                                    tags: [
+                                        { type: 'CD-TRANSACTION', code: 'request'},
+                                        {
+                                            id: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'id' , null),
+                                            type: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'type' , null),
+                                            code: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'code' , null),
+                                            version: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'version' , null)
+                                        }
+                                    ],
+                                    services: []
+                                })])).then(([pat, ctc]) => Promise.all([pat, ctc, this.api.contact().service().newInstance(this.user, {
+                                    content: _.fromPairs([[this.language, {
+                                        stringValue: _.trim(_.get(this.prevention, 'description', null))}]]),
+                                    label: _.get(this.prevention, "label", "Actes"),
+                                    comment: _.trim(_.get(this.prevention, 'description', null)),
+                                    valueDate: _.get(this.prevention, 'deadline', null) ? this.api.moment(_.get(this.prevention, 'deadline', null)).format('YYYYMMDD') : null,
+                                    codes: [
+                                        {
+                                            id: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'id', null),
+                                            type: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'type', null),
+                                            code:  _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'code', null),
+                                            version:  _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'version', null)
+                                        }
+                                    ],
+                                    tags: [
+                                        { type: 'CD-TRANSACTION', code: 'request'},
+                                        {
+                                            id: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'id' , null),
+                                            type: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'type' , null),
+                                            code: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'code' , null),
+                                            version: _.get(this.listOfClinicalPlan.find(cp => cp.id === _.get(this.prevention, 'clinicalPlanId', null)), 'version' , null)
+                                        },
+                                        { type: 'CD-LIFECYCLE', code:'planned'}
+                                    ]
+                                })])).then(([pat, ctc, svc]) => {
+                                    ctc.services.push(svc)
+                                    return Promise.all([pat, this.api.contact().createContactWithUser(this.user, ctc)])
+                                }).then(([pat, ctc]) => _.concat(listOfContact, {contact: ctc, patient: pat}))
+                            })
+                        }
+                    })
 
-                prom = prom.then(listOfContact => {
-                    /*listOfContact.map(ctc => {
-                        _.get(this.prevention, 'remindType', null) === 'sms' ? "curl https://msg-gw.svcacc.icure.cloud/luta/sms/to/+32499534536 -u luta:@dv@nc3dPl@nn1ng -d '{\"message\": "+_.get(this.prevention, 'description', null)+"}' -H 'Content-type: application/json'" : null
-                    })*/
-                }).finally(() => {
-                    this._closeDialog()
-                })
+                    prom = prom.then(listOfContact => {
+                        /*listOfContact.map(ctc => {
+                            _.get(this.prevention, 'remindType', null) === 'sms' ? "curl https://msg-gw.svcacc.icure.cloud/luta/sms/to/+32499534536 -u luta:@dv@nc3dPl@nn1ng -d '{\"message\": "+_.get(this.prevention, 'description', null)+"}' -H 'Content-type: application/json'" : null
+                        })*/
+                    }).finally(() => {
+                        this._closeDialog()
+                        this.dispatchEvent(new CustomEvent('close-prevention', {detail : null, bubbles: true, composed: true}))
+                    })
 
-
+                }else{
+                    !_.get(this.prevention, 'clinicalPlanId', null) ? this.push('errorList', {code: 'prev-crea-err-clinPlan', label: "Clinical plan must be completed"}) : null
+                    !_.get(this.prevention, 'deadline', null) ? this.push('errorList', {code: 'pre-crea-err-deadline', label: " Deadline must be completed"}) : null
+                    !_.get(this.prevention, 'procedureId', null) ? this.push('errorList', {code: 'pre-crea-err-procedure', label: "Procedure must be completed"}) : null
+                }
             }
 
         }
