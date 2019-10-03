@@ -427,7 +427,7 @@
 
                     <template is="dom-if" if="[[_imageMimeType(document.mainUti, document.otherUtis.*, dataUrl, data)]]">
                         <div class="form-title">
-                            [[_title(document.name, title)]] - [[comment]]
+                            [[_title(document.name, title)]]
                             <div>
                                 <template is="dom-if" if="[[downloadable]]">
                                     <paper-icon-button icon="file-download" on-tap="_downloadAnnex" dataUrl$='[[item.dataUrl]]' class="button--icon-btn" id="downloadFile-1"></paper-icon-button>
@@ -692,6 +692,11 @@
                                     </template>
                                 </div>
                             </div>
+                            <template is="dom-if" if="[[!hasComment]]">
+                                <div class="form-comment">
+                                    [[document.comment]]
+                                </div>
+                            </template>
 
                             <template is="dom-if" if="[[_size(patientData)]]">
                                 <div class="resInfos">
@@ -1039,6 +1044,10 @@
                         type: Object,
                         value: () => {}
                     },
+                    contact: {
+                        type: Object,
+                        value: () => {}
+                    },
                     annexesInfos: {
                         type: Object,
                         value: () => {}
@@ -1089,6 +1098,13 @@
                 const docId = this.documentId
                 this.api.document().getDocument(docId).then(doc => {
                     this.set('document', doc)
+
+                    const contact = this._getContact();
+                    this.set("contact", contact);
+
+                    const contactId = this._contactId();
+                    this.set("contactId", contactId);
+
                     if (_.size(doc.encryptionKeys) || _.size(doc.delegations)) {
                         this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, doc.id, _.size(doc.encryptionKeys) ? doc.encryptionKeys : doc.delegations
                         ).then(({extractedKeys: enckeys}) => {
@@ -1386,9 +1402,47 @@
                 return _.trim(_.get(a,"id",""))
             }
 
-            _contactId(contacts) {
-                const targetContact = _.find(contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(svc,"content."+ this.language +".documentId")) === _.trim(_.get(this,"document.id",""))))
-                return _.trim(_.get(targetContact,"id",""))
+            _updateContactInfo() {
+                const contact = _.find(this.contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(svc,"content."+ this.language +".documentId")) === _.trim(_.get(this,"document.id",""))));
+                this.set("contact", contact);
+                this.set("contactId", _.trim(_.get(this.contact,"id","")))
+            }
+
+            _getContact() {
+                return _.find(this.contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(svc,"content."+ this.language +".documentId")) === _.trim(_.get(this,"document.id",""))));
+            }
+
+            _contactId() {
+                return _.trim(_.get(this.contact,"id",""))
+            }
+
+            _hasComment(contacts) {
+
+            }
+
+            _getComment(contacts) {
+                if (!this.documentId || !this.document) {
+                    return Promise.resolve("");
+                } else {
+                    const encryptedComment = contacts && contacts.map(ctc => ctc.services)
+                        .reduce((all, svcs) => services.concat(svcs), [])
+                        .find(svc => svc.content && svc.content.hasObject(this.language) && svc.content[this.language].documentId === this.documentId) || "";
+                    if (!encryptedComment) {
+                        return Promise.resolve("");
+                    } else {
+                        const ua = this.api.crypto().utils.text2ua(Base64.decode(encryptedComment));
+                        return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this.document, ua)
+                            .then(ua => {
+                                const clearComment = this.api.crypto().utils.ua2text(ua)
+                                console.log("document id:" + this.documentId + " -> comment:" + clearComment);
+                                return clearComment;
+                            })
+                            .catch(error => {
+                                console.log(error);
+                                Promise.resolve("");
+                            })
+                    }
+                }
             }
 
             _printDocument(e) {
