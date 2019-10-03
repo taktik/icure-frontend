@@ -1293,6 +1293,32 @@
 
             }
 
+            _saveDocumentAsService(inputConfig) {
+
+                const promResolve = Promise.resolve()
+
+                const svc = this.api.contact().service().newInstance( _.get(this,"user",{}), {
+                    content: _.fromPairs([[this.language, { documentId: inputConfig.documentId, stringValue: inputConfig.stringValue }]]),
+                    label: _.trim(_.get(inputConfig, "messageObject.subject","")),
+                    contactId: inputConfig.contactId,
+                    tags: [{ type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) }]
+                })
+
+                let newServiceData = { ctc: _.trim(_.get(this, "_data.currentContact.id", "")), svc: svc, scs: _.get(this, "_data.currentContact.subContacts", []) }
+                if(Array.isArray(_.get(newServiceData, "scs.services", false))) { newServiceData.scs.services.push({ serviceId: svc.id, status: 64, tags:svc.tags }); } else { newServiceData.scs["services"] = [{ serviceId: svc.id, status: 64, tags:svc.tags }]; }
+
+                _.get(this, "_data.currentContact.services", []).push(svc);
+
+                return promResolve
+                    .then(() => !!_.trim(_.get(this, "_data.currentContact.rev", "")) ?
+                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {})) :
+                        this.api.contact().createContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {}))
+                    )
+                    .then(c=>this.api.register(c,'contact')).then(c => (this._data.currentContact.rev = c.rev) && c)
+                    .then(()=>this.dispatchEvent(new CustomEvent('refresh-services', {composed: true, bubbles: true, detail: {}})))
+
+            }
+
 
 
 
@@ -1323,69 +1349,29 @@
 
                         const messageObject = {
                             transportGuid: "OUTGOING-DOCUMENT:PATIENT:ARCHIVE",
-                            recipients: [_.trim(_.get(this, "currentHcp.id", ""))],
-                            metas: {
-                                filename : fileName,
-                                hcpId: _.trim(_.get(this, "currentHcp.id", "")) ,
-                                contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
-                            },
-                            toAddresses: [_.trim(_.get(this, "currentHcp.id", ""))],
+                            recipients: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
+                            metas: { filename : fileName, hcpId: _.trim(_.get(this, "_data.currentHcp.id", "")), contactId : _.trim(_.get(this, "_data.currentContact.id", "")), },
+                            toAddresses: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
                             subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
                         }
 
-                        const documentMetas = _.get(messageObject,"metas",{})
-
-                        console.log("_saveAndAddToPatFile")
-                        console.log("printedPdf", printedPdf)
-                        console.log("fileName", fileName)
-                        console.log("messageObject", messageObject)
+                        return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"_data.patient",{}))
+                            .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
+                            .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {documentType: 'report', mainUti: this.api.document().uti("application/pdf"), name: _.get(messageObject,"metas.filename")}))
+                            .then(documentInstance => this.api.document().createDocument(documentInstance))
+                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, printedPdf).then(encryptedFileContent => [createdDocument,encryptedFileContent]))
+                            .then(([createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => createdDocument))
+                            .then(createdDocument=> this._saveDocumentAsService({
+                                documentId: _.trim(_.get(createdDocument, "id", "")),
+                                stringValue: _.trim(_.get(messageObject,"subject","")),
+                                contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
+                                messageObject: messageObject,
+                            }))
+                            .then(()=>this._flushProseEditorContent())
+                            .then(()=>this.set("_data.proseEditorSelectedTemplate",{}))
+                            .then(()=>this.shadowRoot.querySelector('#outgoingDocumentDialog').close())
 
                     })
-
-
-
-
-                    // .then(resourcesObject => this.api.message().newInstanceWithPatient(this.user, this.patient)
-                    //     .then(newMessageInstance=>_.assign({newMessageInstance: newMessageInstance}, resourcesObject))
-                    //     .then(resourcesObject=>this.api.message().createMessage(
-                    //         _.merge(
-                    //             resourcesObject.newMessageInstance,
-                    //             {
-                    //                 transportGuid: "LINKING-LETTER:PATIENT:ARCHIVE",
-                    //                 recipients: [_.get(this.user, 'healthcarePartyId', _.trim(this.user.id))],
-                    //                 metas: resourcesObject.documentMetas,
-                    //                 toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', _.trim(this.user.id)))],
-                    //                 subject: resourcesObject.documentMetas.title
-                    //             }
-                    //         )
-                    //     ).then(createMessageResponse=>_.assign({createMessageResponse: createMessageResponse}, resourcesObject)))
-                    // )
-                    // .then(resourcesObject=>this.api.document().newInstance(
-                    //     this.user,
-                    //     resourcesObject.createMessageResponse,
-                    //     {
-                    //         documentType: 'report',
-                    //         mainUti: this.api.document().uti("application/pdf"),
-                    //         name: resourcesObject.documentMetas.title + " - " + resourcesObject.documentMetas.patientName + ".pdf"
-                    //     }
-                    //     ).then(newDocumentInstance=>_.assign({newDocumentInstance:newDocumentInstance},resourcesObject))
-                    // )
-                    // .then(resourcesObject=>this.api.document().createDocument(resourcesObject.newDocumentInstance).then(createDocumentResponse=>_.assign({createDocumentResponse:createDocumentResponse},resourcesObject)))
-                    // .then(resourcesObject=>this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, resourcesObject.createDocumentResponse, resourcesObject.pdfFileContent).then(encryptedFileContent=>_.assign({encryptedFileContent:encryptedFileContent},resourcesObject)))
-                    // .then(resourcesObject=>this.api.document().setAttachment(resourcesObject.createDocumentResponse.id, null, resourcesObject.encryptedFileContent).then(setAttachmentResponse=>_.assign({setAttachmentResponse:setAttachmentResponse},resourcesObject)))
-                    // .then(resourcesObject=>{
-                    //     this._saveDocumentAsService({
-                    //         documentId: _.trim(_.get(resourcesObject, "createDocumentResponse.id", "")),
-                    //         stringValue: resourcesObject.documentMetas.title,
-                    //         formId: "",
-                    //         contactId: _.trim(_.get(this, "currentContact.id", ""))
-                    //     })
-                    //     this.proseEditorLinkingLetterTemplateAlreadyApplied = false;
-                    //     return resourcesObject
-                    // })
-
-
-
                     .catch(e => console.log("[ERROR] _saveAndAddToPatFile", e))
                     .finally(() => this.set("_isBusy", false))
 
