@@ -1061,8 +1061,20 @@
             }
 
             _encrypt(documentObject, object) {
+                if (!object) {
+                    return Promise.resolve("");
+                }
                 return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, documentObject, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(object))))
                     .then(ua => Base64.encode(this.api.crypto().utils.ua2text(ua)))
+            }
+
+            _decrypt(documentObject, cryptedString) {
+                if (!cryptedString) {
+                    return Promise.resolve("");
+                }
+                const ua = this.api.crypto().utils.text2ua(Base64.decode(cryptedString));
+                return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, documentObject, ua)
+                    .then(ua => JSON.parse(this.api.crypto().utils.ua2text(ua)));
             }
 
             // _encryptInfo(message, info) {
@@ -1268,11 +1280,7 @@
                         status: 1 << 1 | 1 << 25 | (this.patientId ? 1 << 26 : 0)
                     })))
                     .then(msg => new Promise(resolve => {
-                            if (!this.patientId) {
-                                console.log("no patient for message ", msg.id);
-                                // return this._encryptInfo(msg, [{}])
-                                return resolve();
-                            } else {
+                            if (this.patientId) {
                                 console.log("has patient for message ", msg.id);
                                 return this.api.patient().getPatientWithUser(this.user, this.patientId)
                                     .then(patient => this.api.register(patient, "patient"))
@@ -1289,6 +1297,10 @@
                                         }
                                     })
                                     .then(contact => resolve(contact))
+                            } else {
+                                console.log("no patient for message ", msg.id);
+                                // return this._encryptInfo(msg, [{}])
+                                return resolve();
                             }
                         })
                         .then(contact => Promise.all(documents.map(doc => {
@@ -1315,30 +1327,30 @@
                                             scanned: (doc.isScanned ? 1 : 0)
                                         });
                                         console.log("-- 1 - documentList: ", documentList);
+
+                                        if (!contact) return;
+                                        const svc = this.api.contact().service().newInstance(this.user, {
+                                            content: _.fromPairs([[this.language, {
+                                                documentId: doc.docId,
+                                                stringValue: doc.title
+                                            }]]),
+                                            created: docDateMs,
+                                            tags: [{type: 'CD-TRANSACTION', code: doc.type ? doc.type : 'report'}],
+                                            label: 'imported document',
+                                            comment: cryptedComment
+                                        });
+
+                                        if (contact.services === undefined) contact.services = [svc];
+                                        else contact.services.push(svc);
+
+                                        const sc = {status: 64, services: [{serviceId: svc.id}]};
+                                        contact.subContacts.push(sc);
+                                        console.log("2 - pushed sc");
                                     })
                                     .then(() => createdDoc)
                                 )
                                 .then(createdDoc => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob))
                                 .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent))
-                                .then(() =>  {
-                                    if (!contact) return;
-                                    const svc = this.api.contact().service().newInstance(this.user, {
-                                        content: _.fromPairs([[this.language, {
-                                            documentId: doc.docId,
-                                            stringValue: doc.title
-                                        }]]),
-                                        created: docDateMs,
-                                        tags: [{type: 'CD-TRANSACTION', code: doc.type ? doc.type : 'report'}],
-                                        label: 'imported document'
-                                    });
-
-                                    if (contact.services === undefined) contact.services = [svc];
-                                    else contact.services.push(svc);
-
-                                    const sc = {status: 64, services: [{serviceId: svc.id}]};
-                                    contact.subContacts.push(sc);
-                                    console.log("2 - pushed sc");
-                                })
                             }))
                             .then(() => contact)
                         )
