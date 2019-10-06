@@ -981,7 +981,7 @@
             #commentTextField {
                 width: 100%;
             }
-            #patCombo,#typeCombo {
+            #patCombo,.typeCombo {
                 width: calc(50% - 4px);
             }
             #NissTextField{
@@ -1031,7 +1031,11 @@
                             <div class="form">
                                 <h2>[[localize('document','Document',language)]]<span class="extra-info"> (PDF, images and videos)</span></h2>
                                 <div class="input-form">
-                                    <vaadin-text-field id="hcpTextField" label="[[localize('persphysicianRole','Recipient',language)]]" value="{{selectedMessage.hcp}}" disabled>
+                                    <vaadin-text-field id="subject" label="[[localize('docTitle','Titre',language)]]" value="[[selectedMessage.subject]]" disabled="[[disabled]]">
+                                    </vaadin-text-field>
+                                </div>
+                                <div class="input-form">
+                                    <vaadin-text-field id="hcpTextField" label="[[localize('persphysicianRole','Recipient',language)]]" value="[[selectedMessage.hcp]]" disabled>
                                     </vaadin-text-field>
                                 </div>
                                 <div class="input-form">
@@ -1039,7 +1043,7 @@
                                     <vaadin-text-field id="NissTextField" label="[[localize('ssin','NISS',language)]]" value="{{selectedMessage.patientSsin}}" disabled="[[disabled]]"></vaadin-text-field>
                                 </div>
                                 <div class="input-form">
-                                    <vaadin-date-picker id="importPicker" label="[[localize('import_date','Date d\'importation',language)]]" value="{{selectedMessage.metas.importDate}}" i18n="[[i18n]]" disabled></vaadin-date-picker>
+                                    <vaadin-date-picker id="importPicker" label="[[localize('import_date','Date d\'importation',language)]]" value="[[selectedMessage.metas.importDate]]" i18n="[[i18n]]" disabled></vaadin-date-picker>
                                     <vaadin-date-picker id="docPicker" label="[[localize('doc_date','Date du document',language)]]" value="{{selectedMessage.metas.documentDate}}" i18n="[[i18n]]" disabled="[[disabled]]"></vaadin-date-picker>
                                 </div>
                             </div>
@@ -1047,7 +1051,7 @@
                                 <div class="form">
                                     <div class="input-form">
                                         <vaadin-text-field id="importTextField" label="[[localize('doc-title','Titre du document',language)]]" value="{{attachment.filename}}" disabled="[[disabled]]"></vaadin-text-field>
-                                        <vaadin-combo-box id="typeCombo" filtered-items="[[listType]]" item-label-path="name" item-value-path="code" label="[[localize('type-doc','Type de document',language)]]" value="{{attachment.type}}" disabled="[[disabled]]">
+                                        <vaadin-combo-box class="typeCombo" id="type_[[attachment.docmentId]]" filtered-items="[[listType]]" item-label-path="name" item-value-path="code" label="[[localize('docType','Type de document',language)]]" value="{{attachment.type}}" disabled="[[disabled]]">
                                         </vaadin-combo-box>
                                     </div>
                                 </div>
@@ -1351,14 +1355,17 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                         isPdf = true;
                     }
                     let documentListItem =  documentList.find(doc => doc.id === document.id);
+
                     return {
-                        filename: documentListItem && documentListItem.filename || selMsg.metas.filename,
-                        type: documentListItem && documentListItem.type || selMsg.metas.type,
+                        documentId: document.id,
+                        filename: document.name || selMsg.metas.filename,
+                        type: document.documentType || selMsg.metas.type,
                         content: content,
                         isPdf: isPdf,
                         cryptedComment: documentListItem && documentListItem.comment || ""
                     }
                 })
+
                 .then(item => this._decrypt(document, item.cryptedComment)
                     .then(comment => {
                         item.comment = comment;
@@ -1485,7 +1492,37 @@ class HtMsgDocDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
     }
 
-    update(e){
+    update(e) {
+        let detail = {
+            'selectedMessage': this.selectedMessage,
+            'attachments': this.attachments
+        };
+        if (!this.selectedMessage.metas.documentDate || this.attachments.some(att => !att.filename || !att.type)) {
+            let errors = [];
+
+            !this.selectedMessage.subject && errors.push(this.localize('docTitle', 'Titre', this.language));
+            !this.selectedMessage.metas.documentDate && errors.push(this.localize('doc_date', 'Document date', this.language));
+            !this.attachments.every(att => !!att.filename) && errors.push(this.localize('filename', 'Nom de fichier', this.language));
+            !this.attachments.every(att => !!att.type) && errors.push(this.localize('docType', 'Type de document', this.language));
+
+            let errorDetail = errors.filter(item => !!item).join(', ');
+            this.dispatchEvent(new CustomEvent("show-error-message", {
+                detail: {
+                    title: this.selectedMessage.subject,
+                    message: 'err.document.missingField',
+                    detail: errorDetail
+                }, bubbles: true
+            }));
+            // this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
+        }
+        else {
+            this.dispatchEvent(new CustomEvent("document-update", {detail: detail, bubbles: true}));
+            // this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
+        }
+    }
+
+
+    update2(e){
 	    let detail = { 'doc': this.selectedMessage.metas, 'messageId': this.selectedMessage.id, 'status': this.selectedMessage.status, 'patientId': this.selectedMessage.patientId };
 	    detail.doc.id = this.document.id;
 	    if (!this.selectedMessage.metas.type || !this.selectedMessage.metas.documentDate) {
