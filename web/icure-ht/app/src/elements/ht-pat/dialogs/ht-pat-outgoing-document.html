@@ -1356,11 +1356,27 @@
                     .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
                     .then(foundTemplates => _
                         .chain(foundTemplates)
-                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language)
+                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language && !parseInt(_.get(it,"deleted",0)))
                         .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
                         .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
                         .orderBy(["name", "crdate"],["asc", "asc"])
                         .value()
+                    )
+
+                    // Require static files core templates and compare versions (delete templates from db if obsolete)
+                    .then(foundTemplatesFromDb => Promise.all(_.map(coreTemplateGuids, coreTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + coreTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } }))
+                        .then(staticFilesCoreTemplates => _.compact(_.map(staticFilesCoreTemplates, staticFileTemplate => {
+                            const matchingTemplateFromDatabase = _.find(foundTemplatesFromDb, it => _.trim(_.get(it,"guid")) === _.trim(_.get(staticFileTemplate,"guid")))
+                            return (!!_.trim(_.get(matchingTemplateFromDatabase,"id","")) && (parseInt(_.get(staticFileTemplate,"version",0)) > parseInt(_.get(matchingTemplateFromDatabase,"group.guid",0))) ) ? matchingTemplateFromDatabase : null
+                        })))
+                        .then(templatesToDeleteFromDatabase => !_.size(templatesToDeleteFromDatabase) ?
+                            foundTemplatesFromDb :
+                            Promise.all(_.map(templatesToDeleteFromDatabase, it => this.api.doctemplate().deleteDocumentTemplate(_.trim(_.get(it,"id",""))).catch(e=>{})))
+                                .then(() => {
+                                    const deletedGuids = _.compact(_.map(templatesToDeleteFromDatabase, it => _.trim(_.get(it,"guid"))))
+                                    return _.filter(foundTemplatesFromDb, it => deletedGuids.indexOf(_.trim(_.get(it,"guid"))) === -1)
+                                })
+                        )
                     )
                     .then(foundTemplates => {
 
