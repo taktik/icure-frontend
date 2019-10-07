@@ -1263,11 +1263,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             this.api.message().getMessage(selectedMessage.id)
                 .then(message => {
                     message.status = message.status ^ 1 << 26;
-                    const documentList = JSON.parse(message.metas.documentListJson);
+                    const docIds = JSON.parse(message.metas.documentListJson).map(item => item.id);
                     return this.api.contact().getContactWithUser(this.user, selectedMessage.contactId)
                         .then(contact => {
-                            const servicesLeft = contact.services.filter(svc => documentList.includes(item => item.id === svc.content[this.language].documentId));
-                            if (servicesLeft.length === contact.services.length) {
+                            const servicesLeft = contact.services.filter(svc => !docIds.includes(svc.content[this.language].documentId));
+                            if (servicesLeft.length === 0) {
                                 contact.deletionDate = parseInt(moment().format('YYYYMMDDHHmmss'));
                             } else {
                                 contact.services = servicesLeft;
@@ -1277,7 +1277,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         .then(contact => this.api.register(contact, "contact"))
                         .then(() => message)
                 })
-                .then(message => this.encryptInfo(message, [{}])
+                .then(message => this.encryptInfo(message, [{}]))
                 .then(message => this.api.message().modifyMessage(message))
                 .then(message => this.api.register(message, 'message'))
                 .then(message => this._discardCachedMessage(message))
@@ -1292,13 +1292,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         }
 
         deleteDoc(e) {
-            if (!e.detail.doc || !e.detail.messageId) return;
-            if (e.detail.contactId) return;
-            this.api.message().getMessage(e.detail.messageId)
+            if (!e.detail || !e.detail.selectedMessage) return;
+            this.api.message().getMessage(e.detail.selectedMessage.id)
                 .then(message => this.api.message().deleteMessages(message.id)
                     .then(message => this._discardCachedMessage(message))
-                    .then(() => this._refresh())
                 )
+                .then(() => this._refresh())
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
                         title: e.detail.doc.filename,
