@@ -1151,88 +1151,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
         }
 
-        saveDoc(e) {
-            if (!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
-            let message = null;
-            (e.detail.documents || []).map(doc => {
-                Promise.all([
-                    this.api.user().findByHcpartyId(doc.hcp),
-                    this.api.message().newInstance(this.user)])
-                    .then(([user, msg]) => this.api.message().createMessage(_.merge(msg, {
-                        transportGuid: "DOC:" + (doc.isScanned ? "SCAN" : "IMPORT") + ":IN",
-                        recipients: [doc.hcp, (this.user.healthcarePartyId || (this.hcp && this.hcp.id) || "")],
-                        recipientsType: "org.taktik.icure.entities.HealthcareParty",
-                        metas: {
-                            filename: doc.title,
-                            importDate: doc.importDate,
-                            documentDate: doc.docDate,
-                            type: doc.type
-                        },
-                        toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")), _.get(user, "email", doc.hcp)],
-                        subject: "imported doc in message",
-                        //@ToDo test on persphysician ==> traited or not
-                        status: (doc.isScanned ? 1 << 24 : 0) | 1 << 25 | (doc.patientId ? 1 << 26 : 0) | 1 << 1
-                    })))
-                    // .then(msg => this.encryptPatientId(msg, doc.patientId))
-                    // .then(msg => this.api.message().modifyMessage(msg))
-                    .then(msg => {
-                        message = msg;
-                        return this.api.document().newInstance(this.user, msg, {
-                            documentType: doc.type,
-                            mainUti: this.api.document().uti(_.toLower(doc.extension) === "pdf" ? "application/" + _.toLower(doc.extension) : "image/" + _.toLower(doc.extension)),
-                            name: doc.title.includes("." + doc.extension) ? _.trim(doc.title) : _.trim(doc.title) + "." + doc.extension
-                        })
-                    })
-                    .then(newDoc => this.api.document().createDocument(newDoc))
-                    .then(createdDoc => {
-                        doc.docId = createdDoc.id
-                        return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
-                    })
-                    .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent)
-                        .then(x => x)
-                        .catch((e) => {
-                            console.log("---error upload attachment---")
-                        }))
-                    .finally(x => {
-                        if (!doc.patientId && !this.message) {
-                            this.encryptInfo(message, [{}])
-                                .then((msg) => this.api.message().modifyMessage(msg))
-                                .then(() => this._refresh())
-                        } else {
-                            this.api.patient().getPatientWithUser(this.user, doc.patientId)
-                                .then(patient => this.api.register(patient, "patient"))
-                                .then(patient => this.api.contact().newInstance(this.user, patient, {
-                                    created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-                                    modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-                                    author: this.user.id,
-                                    responsible: this.user.healthcarePartyId,
-                                    subContacts: []
-                                }))
-                                .then(contact => {
-                                    const svc = this.api.contact().service().newInstance(this.user, {
-                                        content: _.fromPairs([[this.language, {
-                                            documentId: doc.docId,
-                                            stringValue: doc.title
-                                        }]]), label: 'imported document'
-                                    });
-                                    contact.services = [svc];
-                                    const sc = {status: 64, services: [{serviceId: svc.id}]};
-                                    contact.subContacts.push(sc);
-
-                                    return this.api.contact().createContactWithUser(this.user, contact)
-                                })
-                                .then(contact => this.api.register(contact, "contact"))
-                                .then(contact => this.encryptInfo(message, [{
-                                    'patientId': doc.patientId,
-                                    'isAssigned': true,
-                                    'contactId': contact.id
-                                }]))
-                                .then((msg) => this.api.message().modifyMessage(msg))
-                                .then(() => this._refresh())
-                        }
-                    })
-            })
-        }
         _encrypt(documentObject, object) {
             return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, documentObject, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(object || "")))
                 .then(ua => Base64.encode(this.api.crypto().utils.ua2text(ua)))
@@ -1249,7 +1167,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 docDate = moment(selectedMessage.metas.documentDate);
             const docDateYMD = parseInt(docDate.format("YYYYMMDDHHmmss"));
             const docDateMs = parseInt(docDate.format("x")) || new Date().getTime();
-            const docDateAsString = docDate.format("YYYY-MM-DD")
+            const docDateAsString = docDate.format("YYYY-MM-DD");
 
             this.api.message().getMessage(selectedMessage.id)
                 .then(msg => new Promise(resolve => {
@@ -1259,15 +1177,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         msg.status = msg.status ^ 1 << 26 | (selectedMessage.patientId ? 1 << 26 : 0);
                         return this.api.patient().getPatientWithUser(this.user, selectedMessage.patientId)
                             .then(patient => this.api.register(patient, "patient"))
-                            .then(patient => {
-                                return this.api.contact().newInstance(this.user, patient, {
+                            .then(patient => this.api.contact().newInstance(this.user, patient, {
                                     openingDate: docDateYMD,
                                     closingDate: docDateYMD,
                                     author: this.user.id,
                                     responsible: this.user.healthcarePartyId,
                                     subContacts: []
                                 })
-                            })
+                            )
                             .then(contact => resolve(contact))
                         } else {
                             return resolve();
@@ -1340,95 +1257,31 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 })
         }
 
-        updateDoc2(e) {
-            if (!e.detail.doc || !e.detail.messageId) return;
-            this.api.message().getMessage(e.detail.messageId)
-                .then(message => {
-                    message.metas.filename = e.detail.doc.filename;
-                    message.metas.documentDate = e.detail.doc.documentDate;
-                    message.metas.type = e.detail.doc.type;
-                    message.subject = "modified and imported doc in patient folder";
-                    return this.api.document().getDocument(e.detail.doc.id)
-                        .then(doc => {
-                            doc.documentType = e.detail.doc.type;
-                            let extension = _.toLower(doc.name.split('.').pop());
-                            doc.name = e.detail.doc.filename.includes("." + extension) ? _.trim(e.detail.doc.filename) : _.trim(e.detail.doc.filename) + "." + extension;
-                            doc.created = parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime()
-                            return this.api.document().modifyDocument(doc)
-                        })
-                        .then(doc => this.api.register(doc, "document"))
-                        .then(doc => {
-                            if (!e.detail.patientId) {
-                                return message;
-                            } else {
-                                message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
-                                return this.api.patient().getPatientWithUser(this.user, e.detail.patientId)
-                                    .then(patient => {
-                                        let contactDate = parseInt(moment(e.detail.doc.documentDate).format("YYYYMMDDHHmmss"));
-                                        return this.api.contact().newInstance(this.user, patient, {
-                                            openingDate: contactDate,
-                                            closingDate: contactDate,
-                                            author: this.user.id,
-                                            responsible: this.user.healthcarePartyId,
-                                            subContacts: []
-                                        });
-                                    })
-                                    .then(contact => {
-                                        const svc = this.api.contact().service().newInstance(this.user, {
-                                            content: _.fromPairs([[this.language, {
-                                                documentId: doc.id,
-                                                stringValue: e.detail.doc.filename
-                                            }]]),
-                                            created: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
-                                            tags: [{type: 'CD-TRANSACTION', code: doc.documentType ? doc.documentType : 'report'}],
-                                            label: 'imported document'
-                                        });
-                                        contact.services = [svc];
-                                        const sc = {status: 64, services: [{serviceId: svc.id}]};
-                                        contact.subContacts.push(sc);
-                                        return this.api.contact().createContactWithUser(this.user, contact)
-                                    })
-                                    .then(contact => this.api.register(contact, "contact"))
-                                    .then(contact => this.encryptInfo(message, [{
-                                        'patientId': e.detail.patientId,
-                                        'isAssigned': true,
-                                        'contactId': contact.id
-                                    }]))
-                            }
-                        })
-                })
-                .then(msg => this.api.message().modifyMessage(msg))
-                .then(msg => this.api.register(msg, 'message'))
-                .then(msg => this._discardCachedMessage(msg))
-                .then(() => this._refresh())
-                .catch(error => {
-                    this.dispatchEvent(new CustomEvent('show-error-message', {
-                        detail: {
-                            title: e.detail.doc.filename || this.localize("error", "Error", this.language),
-                            message: "err.document.update",
-                            detail: error
-                        }, bubbles: true
-                    }))
-                })
-        }
-
         unassignDoc(e) {
-            if (!e.detail.doc || !e.detail.messageId || !e.detail.contactId) return;
-            this.api.message().getMessage(e.detail.messageId)
+            if (!e.detail || !e.detail.selectedMessage) return;
+            const selectedMessage = e.detail.selectedMessage;
+            this.api.message().getMessage(selectedMessage.id)
                 .then(message => {
                     message.status = message.status ^ 1 << 26;
-                    return this.encryptInfo(message, [{}])
-                        .then(message => this.api.message().modifyMessage(message))
-                        .then(message => this.api.register(message, 'message'))
-                        .then(() => this.api.contact().getContactWithUser(this.user, e.detail.contactId))
+                    const documentList = JSON.parse(message.metas.documentListJson);
+                    return this.api.contact().getContactWithUser(this.user, selectedMessage.contactId)
                         .then(contact => {
-                            contact.deletionDate = parseInt(moment().format('YYYYMMDDHHmmss'));
+                            const servicesLeft = contact.services.filter(svc => documentList.includes(item => item.id === svc.content[this.language].documentId));
+                            if (servicesLeft.length === contact.services.length) {
+                                contact.deletionDate = parseInt(moment().format('YYYYMMDDHHmmss'));
+                            } else {
+                                contact.services = servicesLeft;
+                            }
                             return this.api.contact().modifyContactWithUser(this.user, contact);
                         })
                         .then(contact => this.api.register(contact, "contact"))
-                        .then(message => this._discardCachedMessage(message))
-                        .then(() => this._refresh())
+                        .then(() => message)
                 })
+                .then(message => this.encryptInfo(message, [{}])
+                .then(message => this.api.message().modifyMessage(message))
+                .then(message => this.api.register(message, 'message'))
+                .then(message => this._discardCachedMessage(message))
+                .then(() => this._refresh())
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
                         title: e.detail.doc.filename,
