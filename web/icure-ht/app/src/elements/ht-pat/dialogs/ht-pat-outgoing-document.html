@@ -1119,51 +1119,6 @@
                 return proseJsonContent;
             }
 
-            _doSaveTemplate(e) {
-
-                const promResolve = Promise.resolve()
-                const fieldsToValidate = ["templateName","templateDescription"]
-                const fieldsValidation = _.compact(_.map( fieldsToValidate, k => { const fieldToValidate = this.shadowRoot.querySelector('#' + k); return (fieldToValidate && typeof _.get(fieldToValidate, "validate", false) === "function" && fieldToValidate.validate()); }))
-
-                return (_.size(fieldsToValidate) !== _.size(fieldsValidation)) ? promResolve : promResolve
-                    .then(() => this.set("_isBusy", true))
-                    .then(() => {
-                        const targetButton = !!_.size(_.get(e, "target", "")) && _.get(e, "target.nodeName", "") === "PAPER-BUTTON" ? _.get(e, "target", {}) : _.find(_.get(e, "path", []), p => _.get(p, "nodeName", "") === "PAPER-BUTTON")
-                        const saveAsNewVersion = _.get(targetButton, "dataset.version", {}) === "new"
-                        return (!!saveAsNewVersion || !_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", ""))) ?
-                            this.api.doctemplate().createDocumentTemplate({
-                                created: +new Date(),
-                                documentType: "template",
-                                mainUti: "prose.template.json." + this.language,
-                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
-                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
-                            }) :
-                            this.api.doctemplate().updateDocumentTemplate(_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", "")), {
-                                created: parseInt(_.get(this, "_data.proseEditorSelectedTemplate.created", +new Date())),
-                                guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.guid","")),
-                                documentType: "template",
-                                mainUti: "prose.template.json." + this.language,
-                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
-                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
-                                rev: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.rev", "")),
-                            })
-                    })
-                    .then(docTemplateObject => {
-                        const prose = this.root.querySelector("#prose-editor");
-                        const proseJsonContent = prose.editorView.state.doc.toJSON();
-                        const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
-                        const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
-                        console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
-                        return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(proseJsonContentWithoutVars))
-                    })
-                    .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
-                    .then(docTemplateObject=> this.set("_data.proseEditorSelectedTemplate",docTemplateObject))
-                    .then(()=> this._confirmTemplateSaved())
-                    .catch(e=>{ console.log("[ERROR] _doSaveTemplate", e); this._confirmTemplateNotSaved(); })
-                    .finally(() => (this.set("_isBusy", false)||true) && this.$['saveTemplateDialog'].close())
-
-            }
-
             _confirmTemplateSaved() {
 
                 if( this.shadowRoot.querySelector("#templateSavedLabel") && this.shadowRoot.querySelector("#templateSavedLabel").classList ) {
@@ -1189,46 +1144,6 @@
                 return this._getProseEditorTemplates()
                     .then(foundTemplates => Promise.all(_.map(foundTemplates, template => template && this.api.doctemplate().getAttachmentText(template.id, template.attachmentId).then(attachmentFileContent => _.merge({}, template, {attachmentFileContent:attachmentFileContent})) )))
                     .catch(e=>{ console.log("[ERROR] _getProseEditorTemplatesAndAttachment", e); return promResolve; })
-
-            }
-
-            _getProseEditorTemplates(forceNoAutoInject=false) {
-
-                const promResolve = Promise.resolve()
-                const coreTemplateGuids = ["lettre-liaison", "msoap", "amu", "coups-blessures", "presence-consultation", "violences-physiques",]
-
-                return promResolve
-                    .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
-                    .then(foundTemplates => _
-                        .chain(foundTemplates)
-                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language)
-                        .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
-                        .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
-                        .orderBy(["name", "crdate"],["asc", "asc"])
-                        .value()
-                    )
-                    .then(foundTemplates => {
-
-                        const foundTemplateGuids = _.uniq(_.compact(_.map(foundTemplates, it=>_.trim(_.get(it,"guid","")))))
-                        const missingTemplateGuids = _.uniq(_.compact(_.difference(coreTemplateGuids, foundTemplateGuids)))
-
-                        // Auto-inject part, when core templates are not found
-                        return (!_.size(missingTemplateGuids) || !!forceNoAutoInject) ? foundTemplates : promResolve
-                            .then(() => Promise.all(_.map(missingTemplateGuids, missingTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + missingTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } })))
-                            .then(loadedMissingTemplates => Promise.all(_.map(loadedMissingTemplates, templateToInject => this.api.doctemplate().createDocumentTemplate({
-                                    created: +new Date(),
-                                    documentType: _.trim(_.get(templateToInject,"documentType", "template")),
-                                    guid: _.trim(_.get(templateToInject,"guid", "")),
-                                    mainUti: _.trim(_.get(templateToInject,"mainUti", "prose.template.json." + this.language)),
-                                    name: _.trim(_.get(templateToInject,"name", this.api.crypto().randomUuid())),
-                                    descr: _.trim(_.get(templateToInject,"descr", "-")),
-                                })
-                                .then(docTemplateObject => this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(_.get(templateToInject,"content"))))
-                            )))
-                            .then(()=>this._getProseEditorTemplates(true)) // "True" param avoids infinite loop in case template couldn't be "required"
-
-                    })
-                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplates", e); return promResolve; })
 
             }
 
@@ -1362,6 +1277,111 @@
                     .finally(() => this.set("_isBusy", false))
 
             }
+
+
+
+
+
+
+
+
+
+            _getProseEditorTemplates(forceNoAutoInject=false) {
+
+                const promResolve = Promise.resolve()
+                const coreTemplateGuids = ["lettre-liaison", "msoap", "amu", "coups-blessures", "presence-consultation", "violences-physiques",]
+
+                return promResolve
+                    .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
+                    .then(foundTemplates => _
+                        .chain(foundTemplates)
+                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language)
+                        .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
+                        .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
+                        .orderBy(["name", "crdate"],["asc", "asc"])
+                        .value()
+                    )
+                    .then(foundTemplates => {
+
+                        const foundTemplateGuids = _.uniq(_.compact(_.map(foundTemplates, it=>_.trim(_.get(it,"guid","")))))
+                        const missingTemplateGuids = _.uniq(_.compact(_.difference(coreTemplateGuids, foundTemplateGuids)))
+
+                        // Auto-inject part, when core templates are not found
+                        return (!_.size(missingTemplateGuids) || !!forceNoAutoInject) ? foundTemplates : promResolve
+                            .then(() => Promise.all(_.map(missingTemplateGuids, missingTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + missingTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } })))
+                            .then(loadedMissingTemplates => Promise.all(_.map(loadedMissingTemplates, templateToInject => this.api.doctemplate().createDocumentTemplate({
+                                    created: +new Date(),
+                                    documentType: _.trim(_.get(templateToInject,"documentType", "template")),
+                                    guid: _.trim(_.get(templateToInject,"guid", "")),
+                                    group: {name: "version", guid: _.trim(_.get(templateToInject,"version", ""))},
+                                    mainUti: _.trim(_.get(templateToInject,"mainUti", "prose.template.json." + this.language)),
+                                    name: _.trim(_.get(templateToInject,"name", this.api.crypto().randomUuid())),
+                                    descr: _.trim(_.get(templateToInject,"descr", "-")),
+                                })
+                                    .then(docTemplateObject => this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(_.get(templateToInject,"content"))))
+                            )))
+                            .then(()=>this._getProseEditorTemplates(true)) // "True" param avoids infinite loop in case template couldn't be "required"
+
+                    })
+                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplates", e); return promResolve; })
+
+            }
+
+            _doSaveTemplate(e) {
+
+                const promResolve = Promise.resolve()
+                const fieldsToValidate = ["templateName","templateDescription"]
+                const fieldsValidation = _.compact(_.map( fieldsToValidate, k => { const fieldToValidate = this.shadowRoot.querySelector('#' + k); return (fieldToValidate && typeof _.get(fieldToValidate, "validate", false) === "function" && fieldToValidate.validate()); }))
+
+                return (_.size(fieldsToValidate) !== _.size(fieldsValidation)) ? promResolve : promResolve
+                    .then(() => this.set("_isBusy", true))
+                    .then(() => {
+                        const targetButton = !!_.size(_.get(e, "target", "")) && _.get(e, "target.nodeName", "") === "PAPER-BUTTON" ? _.get(e, "target", {}) : _.find(_.get(e, "path", []), p => _.get(p, "nodeName", "") === "PAPER-BUTTON")
+                        const saveAsNewVersion = _.get(targetButton, "dataset.version", {}) === "new"
+                        return (!!saveAsNewVersion || !_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", ""))) ?
+                            this.api.doctemplate().createDocumentTemplate({
+                                created: +new Date(),
+                                documentType: "template",
+                                mainUti: "prose.template.json." + this.language,
+                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
+                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
+                            }) :
+                            this.api.doctemplate().updateDocumentTemplate(_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", "")), {
+                                created: parseInt(_.get(this, "_data.proseEditorSelectedTemplate.created", +new Date())),
+                                guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.guid","")),
+                                group: {name: "version", guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.group.guid",""))},
+                                documentType: "template",
+                                mainUti: "prose.template.json." + this.language,
+                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
+                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
+                                rev: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.rev", "")),
+                            })
+                    })
+                    .then(docTemplateObject => {
+                        const prose = this.root.querySelector("#prose-editor");
+                        const proseJsonContent = prose.editorView.state.doc.toJSON();
+                        const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
+                        const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
+                        console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
+                        return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(proseJsonContentWithoutVars))
+                    })
+                    .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
+                    .then(docTemplateObject=> this.set("_data.proseEditorSelectedTemplate",docTemplateObject))
+                    .then(()=> this._confirmTemplateSaved())
+                    .catch(e=>{ console.log("[ERROR] _doSaveTemplate", e); this._confirmTemplateNotSaved(); })
+                    .finally(() => (this.set("_isBusy", false)||true) && this.$['saveTemplateDialog'].close())
+
+            }
+
+
+
+
+
+
+
+
+
+
 
             open(inputData) {
 
