@@ -604,6 +604,11 @@
                 background: var(--paper-light-green-200) !important;
             }
 
+            .NO_ENTRY {
+                color: var(--app-primary-color) !important;
+                font-style: italic;
+            }
+
             .small {
                 padding: 1px;
                 height: 20px;
@@ -1031,8 +1036,10 @@
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
-                                    <paper-icon-button id="[[item.id]]" class="list-item-icon--add" icon="icons:add"
-                                                       on-tap="_addChron"></paper-icon-button>
+                                    <template is="dom-if" if="[[item.id]]">
+                                        <paper-icon-button id="[[item.id]]" class="list-item-icon--add" icon="icons:add"
+                                                           on-tap="_addChron"></paper-icon-button>
+                                    </template>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1054,7 +1061,7 @@
                             <vaadin-grid-column flex-grow="1">
                                 <template>
                                     <vaadin-grid-tree-toggle leaf="[[!item.hasChildren]]" expanded="{{expanded}}" level="[[level]]">
-                                        <div>[[item.label]]</div>
+                                        <div class$="[[_getNoEntryStyle(item.id)]]">[[item.label]]</div>
                                     </vaadin-grid-tree-toggle>
                                 </template>
                             </vaadin-grid-column>
@@ -1746,7 +1753,7 @@
             }
 
             _reinfPharmaVigiIconSamV2(info) {
-                return info.blackTriangle ? 'reinf-pharma-vigi' : 'void';
+                return (info && info.blackTriangle) ? 'reinf-pharma-vigi' : 'void';
             }
 
             _rmaPharmaVigiIcon(info) {
@@ -1832,6 +1839,11 @@
             _getStyle(prefix, cat) {
                 if (!cat) return '';
                 return prefix + '--' + cat.toUpperCase() + ' span';
+            }
+
+            _getNoEntryStyle(id) {
+                if (id) return '';
+                return "NO_ENTRY";
             }
             
             _getPriceIndexStyle(index) {
@@ -1996,30 +2008,34 @@
                                 filteredAmpps = hierarchicalAmpps.filter(hierarchicalAmpp => !parentUuids.includes(hierarchicalAmpp.uuid))
                             }
 
-                            return filteredAmpps.map(filteredAmpp => {
-                                const dmpp = filteredAmpp.publicDmpp;
-                                const reimb = filteredAmpp.currentReimbursement;
-                                const publicPrice =  !reimb ? 0 :
-                                    (reimb.referenceBasePrice && reimb.copaymentSupplement) ? (parseFloat(reimb.referenceBasePrice) + parseFloat(reimb.copaymentSupplement)) :
-                                        reimb.reimbursementBasePrice ? parseFloat(reimb.reimbursementBasePrice) : 0;
-                                const patientPrice = !reimb ? 0 :
-                                    (reimb.copayments && (reimb.copayments.length === 2)) ? parseFloat(this.patientBim ? reimb.copayments[0].feeAmount : reimb.copayments[1].feeAmount) : 0;
-                                return Object.assign(filteredAmpp, {
-                                    publicPrice: publicPrice,
-                                    patientPrice: patientPrice,
-                                    priceIndex: dmpp.cheapest ? 0 : (dmpp.cheap ? 1 : 2)
+                            const finalList = filteredAmpps
+                                .map(filteredAmpp => {
+                                    const dmpp = filteredAmpp.publicDmpp;
+                                    const reimb = filteredAmpp.currentReimbursement;
+                                    const publicPrice =  !reimb ? 0 :
+                                        (reimb.referenceBasePrice && reimb.copaymentSupplement) ? (parseFloat(reimb.referenceBasePrice) + parseFloat(reimb.copaymentSupplement)) :
+                                            reimb.reimbursementBasePrice ? parseFloat(reimb.reimbursementBasePrice) : 0;
+                                    const patientPrice = !reimb ? 0 :
+                                        (reimb.copayments && (reimb.copayments.length === 2)) ? parseFloat(this.patientBim ? reimb.copayments[0].feeAmount : reimb.copayments[1].feeAmount) : 0;
+                                    return Object.assign(filteredAmpp, {
+                                        publicPrice: publicPrice,
+                                        patientPrice: patientPrice,
+                                        priceIndex: dmpp.cheapest ? 0 : (dmpp.cheap ? 1 : 2)
+                                    })
                                 })
+                                .sort((a, b) => a.priceIndex !== b.priceIndex ? (a.priceIndex - b.priceIndex) : (a.patientPrice - b.patientPrice));
 
-                            })
-                                .sort((a, b) => a.priceIndex !== b.priceIndex ? (a.priceIndex - b.priceIndex) : (a.patientPrice - b.patientPrice))
+                            if (finalList.length === 0) {
+                                finalList.push({
+                                    prescriptionName: this.localize("no_alt", "Pas d'alternative", this.language)
+                                });
+                            }
+
+                            return finalList
                                 .map(ampp => {
                                     console.log(ampp);
                                     return ampp;
                                 })
-                                // .reduce((ampps, ampp) => {
-                                //
-                                //     return ampps;
-                                // }, []);
                         });
             }
 
@@ -2035,11 +2051,11 @@
                             "parentUuid": ampp.parentUuid,
                             "ctiExtended": ampp.ctiExtended,
                             "label": ampp.prescriptionName,
-                            "atc": ampp.atcs[0].code,
-                            "atcCat": ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
-                            "patientPrice": ampp.patientPrice.toFixed(2) + "€",
-                            "publicPrice": ampp.publicPrice.toFixed(2) + "€",
-                            "priceIndex": ampp.priceIndex,
+                            "atc": ampp.id && ampp.atcs[0].code || "",
+                            "atcCat": ampp.id && ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
+                            "patientPrice": ampp.id && ampp.patientPrice.toFixed(2) + "€",
+                            "publicPrice": ampp.id && ampp.publicPrice.toFixed(2) + "€",
+                            "priceIndex": ampp.id && ampp.priceIndex || 3,
                             "compProhibIcon": this._compProhibIconSamV2(ampp.vmp && ampp.vmp.vmpGroup),
                             "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
                             "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
