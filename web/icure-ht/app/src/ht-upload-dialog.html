@@ -1061,7 +1061,7 @@
             }
 
             _encrypt(documentObject, object) {
-                return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, documentObject, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(object || ""))))
+                return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, documentObject, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(object || "")))
                     .then(ua => Base64.encode(this.api.crypto().utils.ua2text(ua)))
             }
 
@@ -1071,22 +1071,22 @@
                 }
                 const ua = this.api.crypto().utils.text2ua(Base64.decode(cryptedString));
                 return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, documentObject, ua)
-                    .then(ua => JSON.parse(this.api.crypto().utils.ua2text(ua)));
+                    .then(ua => this.api.crypto().utils.ua2text(ua));
             }
 
-            // _encryptInfo(message, info) {
-            //     if (!message.metas)
-            //         return Promise.reject('Invalid message structure');
-            //     try {
-            //         return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, message, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(info))))
-            //             .then(encrypted => {
-            //                 message.metas.cryptedInfo = btoa(String.fromCharCode.apply(null, new Uint8Array(encrypted)));
-            //                 return message;
-            //             })
-            //     } catch (error) {
-            //         return Promise.reject(error);
-            //     }
-            // }
+            _encryptInfo(message, info) {
+                if (!message.metas)
+                    return Promise.reject('Invalid message structure');
+                try {
+                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, message, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(JSON.stringify(info))))
+                        .then(encrypted => {
+                            message.metas.cryptedInfo = btoa(String.fromCharCode.apply(null, new Uint8Array(encrypted)));
+                            return message;
+                        })
+                } catch (error) {
+                    return Promise.reject(error);
+                }
+            }
 
             _readFile(file) {
                 return new Promise(function (resolve, reject) {
@@ -1291,6 +1291,8 @@
                                                 responsible: this.user.healthcarePartyId,
                                                 subContacts: []
                                             })
+                                        } else {
+                                            return contact;
                                         }
                                     })
                                     .then(contact => resolve(contact))
@@ -1357,12 +1359,11 @@
                             return (this.contactOption === "new" ? this.api.contact().createContactWithUser(this.user, contact) : this.api.contact().modifyContactWithUser(this.user, contact))
                                 .then(contact => this.api.register(contact, "contact"))
                                 .then(contact => updatedContact = contact)
-                                .then(contact => this._encrypt(msg, [{
+                                .then(contact => this._encryptInfo(msg, [{
                                     'patientId': this.patientId,
                                     'isAssigned': true,
                                     'contactId': contact.id
                                 }]))
-                                .then(cryptedInfo => msg.metas.cryptedInfo = cryptedInfo)
                         })
                         .then(() => msg)
                     )
@@ -1373,6 +1374,10 @@
                         console.log("-- 2 - documentList: ", documentList);
                         console.log("-- documentListJson: ", msg.metas.documentListJson);
                         return this.api.message().modifyMessage(msg);
+                    })
+                    .then(msg => {
+                        console.log(msg);
+                        return msg;
                     })
                     .catch(error => console.log(error))
                     .finally(msg => {
