@@ -2015,16 +2015,17 @@
                                 .map(ampp => {
                                     console.log(ampp);
                                     return ampp;
-                                });
+                                })
+                                // .reduce((ampps, ampp) => {
+                                //
+                                //     return ampps;
+                                // }, []);
                         });
             }
 
             _medicinePackageAdapterSamV2(results) {
                 return Promise.resolve(results
                     .map(ampp => {
-                        const basePrice = ampp.currentReimbursement && ((ampp.currentReimbursement.referenceBasePrice && parseFloat(ampp.currentReimbursement.referenceBasePrice)) ||
-                            ampp.currentReimbursement.reimbursementBasePrice && parseFloat(ampp.currentReimbursement.reimbursementBasePrice)) || 0;
-                        const vmpGroup = ampp.vmp && ampp.vmp.vmpGroup;
                         return {
                             "id": ampp.id,
                             "groupId": ampp.groupId,
@@ -2039,7 +2040,7 @@
                             "patientPrice": ampp.patientPrice.toFixed(2) + "€",
                             "publicPrice": ampp.publicPrice.toFixed(2) + "€",
                             "priceIndex": ampp.priceIndex,
-                            "compProhibIcon": this._compProhibIconSamV2(vmpGroup),
+                            "compProhibIcon": this._compProhibIconSamV2(ampp.vmp && ampp.vmp.vmpGroup),
                             "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
                             "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
                             "rmaPharmaVigiIcon": this._rmaPharmaVigiIcon(ampp),
@@ -2139,50 +2140,14 @@
                 });
             }
 
-            _searchName(start, count, parentUuid) {
-                return new Promise(resolve => resolve(this.names.filter(name => (!parentUuid && !name.parentUuid) || (name.parentUuid === parentUuid))));
-            }
-
-            _initNameList() {
-                let grid = this.$["name-list"];
-                if (!grid) return;
-                grid.lastParams = null; //Used to prevent double calls
-                grid.size = 0;
-                grid.pageSize = 100;
-                grid.namesCache = [];
-                grid.dataProvider = (params, callback) => {
-                    const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path;
-                    const desc = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].direction === 'desc' || false;
-
-                    const pageSize = params.pageSize || grid.pageSize;
-                    const startIndex = (params.page || 0) * pageSize;
-                    const endIndex = ((params.page || 0) + 1) * pageSize;
-                    let parentUuid = params.parentItem && params.parentItem.uuid || "";
-
-                    const limit = endIndex || grid.pageSize;
-                    const offset = params.index;
-                    this._searchName(startIndex, grid.pageSize, parentUuid)
-                        .then(packs => {
-                            return {
-                                size: packs.length,
-                                rows: (desc ? _.reverse(_.sortBy(packs, sort)) : _.sortBy(packs, sort)).slice(offset, limit)
-                            }
-                        })
-                        .then(function (res) {
-                            callback(res.rows, res.size);
-                        })
-                }
-            }
-
             _initList(list, search, domain, adapter) {
                 this._list = list;
                 let grid = this.$[list];
                 if (!grid) return;
                 grid.lastParams = null; //Used to prevent double calls
                 grid.size = 0;
-                grid.pageSize = 100;
+                grid.pageSize = 20;
                 grid.drugsCache = [];
-                let levelSizes = [];
                 grid.dataProvider = (params, callback) => {
                     // const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path || columns[0] && columns[0].key;
                     const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path;
@@ -2191,6 +2156,7 @@
                     const pageSize = params.pageSize || grid.pageSize;
                     const startIndex = (params.page || 0) * pageSize;
                     const endIndex = ((params.page || 0) + 1) * pageSize;
+
                     let parentUuid = "";
                     let groupId = "";
                     let parentUuids = []
@@ -2228,9 +2194,6 @@
                                 return;
                             }
 
-                            // if (grid.size !== res.size) {
-                            //     this.setGridSize(grid, res.size);
-                            // }
                             adapter(_.slice(res.rows, startIndex, endIndex)).then(results => {
                                 grid.latestResults = results;
                                 if (grid.latestResults.length) {
