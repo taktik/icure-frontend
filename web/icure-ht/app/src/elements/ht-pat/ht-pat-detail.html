@@ -79,6 +79,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="dialogs/hubs/ht-pat-hub-upload.html">
 <link rel="import" href="../../ht-upload-dialog.html">
 <link rel="import" href="./dialogs/rn-consult/ht-pat-rn-consult-dialog.html">
+<link rel="import" href="./dialogs/rn-consult/ht-pat-rn-consult-history-dialog.html">
 
 
 <link rel="import" href="../../styles/shared-styles.html">
@@ -1580,6 +1581,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 background: #fff;
                 position: relative;
             }
+
+            #ssinHistory{
+                height:
+            }
+
         </style>
 
         <template is="dom-if" if="[[_bodyOverlay]]">
@@ -2483,6 +2489,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
         <ht-pat-rn-consult-dialog id="htPatRnConsultDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-rn-consult-dialog>
+        <ht-pat-rn-consult-history-dialog id="htPatRnConsultHistoryDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]" history-result="[[rnHistoryResult]]"></ht-pat-rn-consult-history-dialog>
 
         <print-document
             id="printDocument"
@@ -2495,9 +2502,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         ></print-document>
 
         <paper-item id="rnConsult-error-notification" class="notification-container error">
+            <iron-icon class="notification-icn" src="[[_rnConsultPicture()]]"></iron-icon>
             <div class="notification-msg">
-                <h4>[[localize('rn-consult-not', 'Rn consult', language)]]</h4>
-                <p>[[localize('', "You don't have consent with patient", language)]]</p>
+                <h4>[[localize('rn-consult-not-err', 'Rn consult error', language)]]</h4>
+                <p>[[rnHistoryResult.status.code]] :
+                    <template is="dom-repeat" items="[[rnHistoryResult.status.messages]]" as="msg">
+                        [[msg.value]]
+                    </template>
+                </p>
             </div>
         </paper-item>
 
@@ -2510,11 +2522,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             <paper-button name="closePostit" class="notification-btn" on-tap="_closeRnConsultChangedNotification">
                 [[localize('clo','Close',language)]]
             </paper-button>
-            <paper-button name="editPostit" class="notification-btn" on-tap="">
+            <paper-button name="editPostit" class="notification-btn" on-tap="_showRnConsultDiff">
                 [[localize('rn-consult-show','Show',language)]]
             </paper-button>
         </paper-item>
-
 
     </template>
     <script>
@@ -2910,6 +2921,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     documentType: {
                         type: String,
                         value: ""
+                    },
+                    rnHistoryResult:{
+                        type: Object,
+                        value: () => {}
                     }
                 };
             }
@@ -5698,11 +5713,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _consultRnHistory(patient){
+                this.set('rnHistoryResult', {})
                 if (this.api.tokenId){
                     this.api.fhc().RnConsultController().identifyUsingGET(_.get(this, 'api.keystoreId', null), _.get(this, 'api.tokenId', null), _.get(this, 'api.credentials.ehpassword', null), _.get(patient, 'ssin', null)).then(resp => {
                         if(!_.isEmpty(resp)){
+                            this.set('rnHistoryResult', resp)
                             if(_.get(resp, 'status.code', null) === '100' && _.get(resp, 'person.ssin.value', null)){
-                                /*
                                 _.get(resp, 'person.ssin.value', null) === _.get(patient, 'ssin', null) ? this.$['rnConsultStatus'].classList.add('rnConsultOk') :
                                     (_.get(resp, 'person.ssin.value', null) !== _.get(patient, 'ssin', null) && _.get(patient, 'ssin', null) !== null) ? this.$['rnConsultStatus'].classList.add('rnConsultPending') :
                                         this.$['rnConsultStatus'].classList.add('rnConsultNOk')
@@ -5710,8 +5726,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                                 ;((_.get(resp, 'person.ssin.value', null) !== _.get(patient, 'ssin', null)) && (_.get(patient, 'ssin', null) !== null)) ? this._rnConsultChangedNotification() : null
                                 _.get(resp, 'person.ssin.value', null) === _.get(patient, 'ssin', null) && (_.get(resp, 'person.ssin.value', null) !== _.get(patient, 'ssin', null) && _.get(patient, 'ssin', null) !== null) ? this._rnConsultErrorNotification() : null
-                                */
-                                this._rnConsultChangedNotification()
                             }else{
                                 this.$['rnConsultStatus'].classList.add('rnConsultNOk')
                                 this._rnConsultErrorNotification()
@@ -5741,6 +5755,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _closeRnConsultChangedNotification(){
                 this.$["rnConsult-changed-notification"].classList.remove('notification')
+            }
+
+            _showRnConsultDiff(){
+                this.$["htPatRnConsultHistoryDialog"]._openDialog()
             }
 
         }
