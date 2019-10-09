@@ -91,7 +91,10 @@
                 sessionId: {
                     type: String
                 },
-
+                listCurrentLog:{
+                    type: Array,
+                    value: []
+                }
             }
         }
 
@@ -154,6 +157,9 @@
             this.messageicc = new IccMessageXApi(this.host, this.headers120s, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
 
+            this._Spy(this.accesslogicc,"createAccessLog");
+            this._Spy(this.patienticc,"modifyPatientWithUser");
+            this._Spy(this.contacticc,"modifyContactWithUser");
             this.dispatchEvent(new CustomEvent('refresh', {detail: {}}))
         }
 
@@ -955,6 +961,82 @@
                     return this.user().modifyUser(_.assign(user, {properties:_.concat(otherProperties, acknowledgementUpdatedProperties)})).then(u => this.register(u, "user"))
                 })
 
+        }
+
+
+        /**
+         * Log manager by Julien Wathelet
+         * 1) méthode spy
+         * 2) gestion des log courrants ouvert.
+         * */
+         _Spy(obj, method) {
+            let spy = {
+                object : obj,
+                args: [],
+                method : method
+            };
+
+            const add = this._addNewCurrentLog.bind(this);
+            const modify = this._currentLogManagement.bind(this);
+            let original = obj[method];
+            obj[method] = function() {
+                spy.args = [].slice.apply(arguments);
+                if(spy.method.includes("createAccessLog"))
+                    add(spy)
+                else
+                    modify(spy)
+                return original.call(obj, spy.args);
+            };
+         }
+
+        _addNewCurrentLog(info){
+            let log = {}
+            if(info.method.includes("createAccessLog")){
+                log=info.args[0];
+            }else{
+                log={
+                    id: this.crypto().randomUuid(),
+                    patientId: _.trim(_.get(info,"patientId",null)),
+                    user: _.trim(_.get(info,"userId",null)),
+                    date: +new Date(),
+                    accessType: 'SYSTEM_ACCESS'
+                }
+                this.accesslogicc.createAccessLog(log)
+            }
+            const idx=this.listCurrentLog.findIndex(clog => log.patientId===clog.patientId && log.user===clog.user)
+            if(idx!==-1)
+                this.set("listCurrentLog."+idx,log);
+            else
+                this.push("listCurrentLog",log)
+            return log;
+        }
+
+        _currentLogManagement(info){
+            let log={}
+            if(info.object===this.patienticc && info.method==="modifyPatientWithUser"){
+                log = this._getCurrentLog(info.args[1],info.args[0])
+                if(!log){
+                    info.patientId=info.args[1]
+                    info.userId=info.args[0]
+                    log=this._addNewCurrentLog(info);
+                }
+            }
+
+            log.detail=JSON.stringify(JSON.parse(log.detail).push(info.method+": "+moment().format("HH:mm:ss")))
+            this.accesslogicc.modifyAccessLog(log)
+                .then(accessLog => this.register(accessLog,"accessLog"))
+                .then(accessLog => {
+                    const idx=this.listCurrentLog.findIndex(clog => accessLog.id===clog.id)
+                    if(idx!==-1)
+                        this.set("listCurrentLog."+idx,log);
+                    else
+                        this.push("listCurrentLog",log)
+                })
+        }
+
+        _getCurrentLog(patientId,userId){
+             if(!patientId && !userId)return false;
+             return this.listCurrentLog.find(log => log.patientId===patientId && log.user===userId);
         }
 
     }
