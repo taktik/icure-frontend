@@ -1303,7 +1303,7 @@
                                                 <template class="header">
                                                     [[localize('error','Error',language)]]
                                                 </template>
-                                                <template>[[_join(item.flatrateStatus.errors)]]</template>
+                                                <template>[[_join(item.geninsErrors)]]</template>
                                             </vaadin-grid-column>
                                             <!--                                                data-id$="[[access.patient.id]]-->
                                             <vaadin-grid-column flex-grow="0" width="10%" class="invoice-col">
@@ -2160,7 +2160,7 @@
                 const userIsMH = this._checkUserIsMH();
                 const useMHSession = mmehSession && !ehSession;
 
-                let limit = promiseLimit(100);
+                let limit = promiseLimit(2);
 
                 return Promise.all(resList.filter(res => res.nissCheck.valid).map(res => {
                     return limit(() => {
@@ -2181,9 +2181,83 @@
                             false
                         ).then(gi => {
                             res.genIns = gi;
+                            res.genInsChecks = [];
+                            const genInsOk = !gi.faultCode && gi.insurabilities && gi.insurabilities.length && gi.insurabilities[0].ct1 && !(gi.generalSituation && gi.generalSituation.length);
+                            res.genInsOk = genInsOk;
+                            if(gi.deceased){
+                                res.deceased = gi.deceased;
+                                let c = {check: "deceased", deceasedGenins: gi.deceased};
+                                if(res.pat.dateOfDeath){
+                                    if(res.pat.dateOfDeath === gi.deceased){
+                                        c.valid = true;
+                                    }else{
+                                        c.valid = false;
+                                        c.message = "incorrect.date.of.death";
+                                    }
+                                } else {
+                                    c.valid = false;
+                                    c.message = "missing.date.of.death";
+                                }
+                                res.genInsChecks.push(c);
+                            }
+                            if(genInsOk){
+                                const ins = gi.insurabilities[0];
+                                const month = (res.invoicedMonth * 100) + 1;
+                                return this.api.insurance().listInsurancesByCode(ins.mutuality).then(out => {
+                                    if(out && out.length){
+                                        const insuFound = res.pat.insurabilities.filter(l => out.some(insu => l.insuranceId===insu.id) && (!l.endDate || l.endDate===""))
+                                        if(insuFound && insuFound.length){
+                                            // let c = {check: "geninsOk", valid: true, message:"genins.mut.match"};
+                                            // res.genInsChecks.push(c);
+                                            if(insuFound[0].parameters){
+                                                const tc1 = insuFound[0].parameters.tc1;
+                                                const tc2 = insuFound[0].parameters.tc2;
+                                                if(tc1 && tc2 && tc1 === ins.ct1 && tc2 === ins.ct2){
+                                                    let c = {check: "geninsOk", valid: true, message:"genins.ins.match"};
+                                                    res.genInsChecks.push(c);
+                                                } else {
+                                                    let c = {check: "geninsOk", valid: false, message:"genins.ins.not.match"};
+                                                    res.genInsChecks.push(c);
+                                                }
+                                            }else{
+                                                let c = {check: "geninsOk", valid: false, message:"genins.ins.not.valid"};
+                                                res.genInsChecks.push(c);
+                                            }
+
+                                        }else{
+                                            let c = {check: "geninsOk", valid: false, message:"genins.mut.not.match"};
+                                            res.genInsChecks.push(c)
+                                        }
+                                        return res;
+                                    } else {
+                                        let c = {check: "geninsOk", valid: false, message:"genins.mut.not.found"};
+                                        res.genInsChecks.push(c);
+                                        return res;
+                                    }
+                                })
+                            }else{
+                                if (gi.errors && gi.errors.length && gi.errors.length > 0) {
+                                    let c = {check: "geninsOk", valid: false, message:"genins.svc.error"};
+                                    res.genInsChecks.push(c);
+                                }else {
+                                    let c = {check: "geninsOk", valid: false, message:"genins.not.ok"};
+                                    res.genInsChecks.push(c);
+                                }
+                                return res;
+                            }
+                            // const ins = gi.insurabilities[0];
+                            // const month = (res.invoicedMonth * 100) + 1;
+                            // //find matching topaz ins
+                            // //find mutid from genins result
+                            // this.api.insurance().listInsurancesByCode(ins.mutuality).then(out => {
+                            //     if(out && out.length){
+                            //
+                            //     }
+                            // })
+                            //Check if genins alive
+                            //
                             //TODO: check if gi differs from assu in res
-                            res.genInsMatch = true;
-                            return res;
+
                         })//--
                     })
 
@@ -2197,11 +2271,20 @@
 
             _checkAssurabilityInformation(){
                 if(this._checkEhealthSession()){
-                    this.checkGenins(this.flatRateResList).then(res => {
-                        console.log("check result", res);
-                        this.set("geninsResList", res);
+                    this.set('_isLoading', true);
+                    this.checkGenins(this.flatRateResList).then(resList => {
+                        resList.forEach(res => {
+                            res.geninsErrors = this.getGeninsErrors(res);
+                        })
+                        console.log("check result", resList);
+                        this.set("geninsResList", resList);
+                        this.set('_isLoading', false);
                     })
                 }
+            }
+
+            getGeninsErrors(res){
+                return res.genInsChecks.filter(c => !c.valid).map(c => c.message);
             }
 
             _checkAssurabilityInformationOLD(){
