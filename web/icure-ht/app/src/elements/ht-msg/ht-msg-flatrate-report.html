@@ -1276,6 +1276,47 @@
                     </page>
                     <page>
                         <paper-icon-button class="button--icon-btn" id="refreshFRCheck" on-tap="_checkAssurabilityInformation" icon="vaadin:refresh"></paper-icon-button>
+                        <div class="invoicesGridContainer">
+                            <div class="invoiceContainer">
+                                <div id="errorGridContainer" class="invoiceSubContainerMiddle">
+                                    <div class="scrollBox">
+                                        <vaadin-grid id="messagesGrid2" items="[[geninsResList]]" active-item="{{activeGridItem}}">
+                                            <vaadin-grid-column flex-grow="0" width="20%" class="oa-col">
+                                                <template class="header">
+                                                    <vaadin-grid-sorter path="pat.lastName">[[localize('pat','Patient',language)]]</vaadin-grid-sorter>
+                                                </template>
+                                                <template>[[item.pat.lastName]] [[item.pat.firstName]]</template>
+                                            </vaadin-grid-column>
+                                            <vaadin-grid-column flex-grow="0" width="10%" class="ref-col">
+                                                <template class="header">
+                                                    <vaadin-grid-sorter path="pat.ssin">[[localize('niss','Niss',language)]]</vaadin-grid-sorter>
+                                                </template>
+                                                <template>[[item.pat.ssin]]</template>
+                                            </vaadin-grid-column>
+                                            <vaadin-grid-column flex-grow="0" width="15%" class="invoice-col">
+                                                <template class="header">
+                                                    <vaadin-grid-sorter path="flatrateStatus.status">[[localize('status','Status',language)]]</vaadin-grid-sorter>
+                                                </template>
+                                                <template>[[localize(item.flatrateStatus.status, item.flatrateStatus.status)]]</template>
+                                            </vaadin-grid-column>
+                                            <vaadin-grid-column flex-grow="0" width="45%" class="invoice-col">
+                                                <template class="header">
+                                                    [[localize('error','Error',language)]]
+                                                </template>
+                                                <template>[[_join(item.flatrateStatus.errors)]]</template>
+                                            </vaadin-grid-column>
+                                            <!--                                                data-id$="[[access.patient.id]]-->
+                                            <vaadin-grid-column flex-grow="0" width="10%" class="invoice-col">
+                                                <template class="header">
+                                                    [[localize('open_pat','Open',language)]]
+                                                </template>
+                                                <template><paper-icon-button class="button--icon-btn" id="openPatient" data-id$="[[item.pat.id]]" on-tap="openPatient" icon="vaadin:edit">Open</paper-icon-button></template>
+                                            </vaadin-grid-column>
+                                        </vaadin-grid>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </page>
                 </iron-pages>
 
@@ -1444,6 +1485,14 @@
                         value: ""
                     },
                     flatRateCheckList: {
+                        type: Array,
+                        value: () => []
+                    },
+                    flatRateResList: {
+                        type: Array,
+                        value: () => []
+                    },
+                    geninsResList: {
                         type: Array,
                         value: () => []
                     },
@@ -1642,7 +1691,7 @@
                                                 .value()
                                         )
                                         && parseInt( _.size( _.get(i, "medicalHouseContracts", [] ) ) )
-                                        && !!parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return !!i && _.trim(_.get(i,"hcpId", "something")) === _.trim(_.get(this,"user.healthcarePartyId","else"))}) ) )
+                                        && !!parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return !!i && _.trim(_.get(i,"hcpId", "something")) === _.trim(hcpId)}) ) )
                                     )})
                                     .uniqBy( 'ssin' )
                                     .value()
@@ -1959,6 +2008,7 @@
                     console.log("resList", resList);
                     const errList = resList.filter(res => res.flatrateStatus.status !== 'ok-flatrate-patient' && res.flatrateStatus.status !== 'ok-no-flatrate-patient');
                     this.set("flatRateCheckList", errList);
+                    this.set("flatRateResList", resList);
                     this.set('_isLoading', false);
                     if(!this.selectedList) this.set('selectedList', 'main');
                     this._viewSelection();
@@ -2080,7 +2130,7 @@
                                         && !!_.trim(_.get(i,"dateOfBirth", ""))
                                         && !!_.trim(_.get(i,"ssin", ""))
                                         && parseInt( _.size( _.get(i, "medicalHouseContracts", [] ) ) )
-                                        && !!parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return !!i && _.trim(_.get(i,"hcpId", "something")) === _.trim(_.get(this,"user.healthcarePartyId","else"))}) ) )
+                                        && !!parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return !!i && _.trim(_.get(i,"hcpId", "something")) === _.trim(this.hcp.parentId ? this.hcp.parentId : this.hcp.id)}) ) )
                                     )})
                                     .uniqBy( 'ssin' )
                                     .value()
@@ -2103,45 +2153,114 @@
                 )||[];
             }
 
+            checkGenins(resList){
+                const ehSession = this._checkHasEhSession();
+                const mmehSession = this._checkHasMMEhSession();
+
+                const userIsMH = this._checkUserIsMH();
+                const useMHSession = mmehSession && !ehSession;
+
+                let limit = promiseLimit(100);
+
+                return Promise.all(resList.filter(res => res.nissCheck.valid).map(res => {
+                    return limit(() => {
+                        const dStart = this.getRequestDateFromRes(res);
+                        //TODO: only check patients where needed: niss-ok, mh-contract-ok
+                        return this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(
+                            _.get(res, 'pat.ssin', null),
+                            useMHSession ? _.get(this, 'api.tokenIdMH', null) : _.get(this, 'api.tokenId'),
+                            useMHSession ? _.get(this, 'api.keystoreIdMH', null) : _.get(this, 'api.keystoreId'),
+                            useMHSession ? _.get(this, 'api.credentials.ehpasswordMH', null) : _.get(this, 'api.credentials.ehpassword'),
+                            useMHSession ? _.get(this, 'api.nihiiMH', null) : _.get(this, 'hcp.nihii'),
+                            userIsMH ? _.get(this, 'api.MHContactPersonSsin') : _.get(this, 'hcp.ssin'),
+                            userIsMH ? _.get(this, 'api.MHContactPersonName') : _.get(this, 'hcp.lastName')+' '+_.get(this, 'hcp.firstName'),
+                            useMHSession ? 'medicalhouse' : 'doctor',
+                            dStart,
+                            useMHSession ?  dStart : null,
+                            null,
+                            false
+                        ).then(gi => {
+                            res.genIns = gi;
+                            //TODO: check if gi differs from assu in res
+                            res.genInsMatch = true;
+                            return res;
+                        })//--
+                    })
+
+                }))
+            }
+
+            getRequestDateFromRes(res){
+                const date = new Date(), y = Number(res.invoicedMonth.toString().substr(0,4)), m = Number(res.invoicedMonth.toString().substr(4,2));
+                return new Date(y,m - 1,1).getTime();
+            }
+
             _checkAssurabilityInformation(){
-                const mmSession = this._checkIsMMSession()
+                if(this._checkEhealthSession()){
+                    this.checkGenins(this.flatRateResList).then(res => {
+                        console.log("check result", res);
+                        this.set("geninsResList", res);
+                    })
+                }
+            }
+
+            _checkAssurabilityInformationOLD(){
+                let limit = promiseLimit(100);
+
+                const ehSession = this._checkHasEhSession();
+                const mmehSession = this._checkHasMMEhSession();
                 let prom = Promise.resolve()
+
+                const userIsMH = this._checkUserIsMH();
+                const useMHSession = mmehSession && !ehSession;
+
 
                 if(this._checkEhealthSession()){
                     this._getPatientForInsurabilityCheck().then(allPats => {
-                        allPats.map(pat => {
-                            this.api.patient().isValidSsin(pat.ssin) ?
-                            prom = prom.then(patAndAssurability =>
-                                this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(
-                                    _.get(pat, 'ssin', null),
-                                    mmSession ? _.get(this, 'api.tokenIdMH', null) : _.get(this, 'api.tokenId'),
-                                    mmSession ? _.get(this, 'api.keystoreIdMH', null) : _.get(this, 'api.keystoreId'),
-                                    mmSession ? _.get(this, 'api.credentials.ehpasswordMH', null) : _.get(this, 'api.credential.ehpassword'),
-                                    mmSession ? _.get(this, 'api.nihiiMH', null) : _.get(this, 'hcp.nihii'),
-                                    mmSession ? _.get(this, 'api.MHContactPersonSsin') : _.get(this, 'hcp.ssin'),
-                                    mmSession ? _.get(this, 'api.MHContactPersonName') : _.get(this, 'hcp.lastName')+' '+_.get(this, 'hcp.firstName'),
-                                    mmSession ? 'medicalhouse' : 'doctor',
-                                    moment().valueOf(),
-                                    mmSession ?  moment().valueOf() : null,
-                                    null,
-                                    false
-                                ).then(rep => _.assign(patAndAssurability, {mcn: rep}))
-                                    .catch(e => console.log('Error when verify assurability: '+e))
-                            ) : Promise.resolve(pat)
 
-                            prom = prom.then(patAndAssurability => {
-                                console.log(patAndAssurability)
+                        allPats.map(pat => {
+                            limit(() => {
+                            this.api.patient().isValidSsin(pat.ssin) ?
+                                prom = prom.then(patAndAssurability =>
+                                    this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(
+                                        _.get(pat, 'ssin', null),
+                                        useMHSession ? _.get(this, 'api.tokenIdMH', null) : _.get(this, 'api.tokenId'),
+                                        useMHSession ? _.get(this, 'api.keystoreIdMH', null) : _.get(this, 'api.keystoreId'),
+                                        useMHSession ? _.get(this, 'api.credentials.ehpasswordMH', null) : _.get(this, 'api.credentials.ehpassword'),
+                                        useMHSession ? _.get(this, 'api.nihiiMH', null) : _.get(this, 'hcp.nihii'),
+                                        userIsMH ? _.get(this, 'api.MHContactPersonSsin') : _.get(this, 'hcp.ssin'),
+                                        userIsMH ? _.get(this, 'api.MHContactPersonName') : _.get(this, 'hcp.lastName')+' '+_.get(this, 'hcp.firstName'),
+                                        useMHSession ? 'medicalhouse' : 'doctor',
+                                        moment().valueOf(),
+                                        useMHSession ?  moment().valueOf() : null,
+                                        null,
+                                        false
+                                    ).then(rep => _.assign(patAndAssurability, {mcn: rep}))
+                                        .catch(e => console.log('Error when verify assurability: '+e))
+                                ) : Promise.resolve(pat)
+
+                                prom = prom.then(patAndAssurability => {
+                                    console.log(patAndAssurability)
+                                })
                             })
-                        })
+                        })//--
                     })
                 }
+            }
+
+            _checkUserIsMH(){
+                return false;
             }
 
             _checkEhealthSession(){
                 return !!(_.get(this, 'api.tokenId', null) || _.get(this, 'api.tokenIdMH', null))
             }
 
-            _checkIsMMSession(){
+            _checkHasEhSession(){
+                return !!_.get(this, 'api.tokenId', null)
+            }
+
+            _checkHasMMEhSession(){
                 return !!_.get(this, 'api.tokenIdMH', null)
             }
 
