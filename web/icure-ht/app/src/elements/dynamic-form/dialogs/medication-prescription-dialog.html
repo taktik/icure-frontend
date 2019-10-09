@@ -613,6 +613,10 @@
                 font-style: italic;
             }
 
+            .ADR_WARNING {
+                background: var(--app-secondary-color) !important;
+            }
+
             .small {
                 padding: 1px;
                 height: 20px;
@@ -692,7 +696,7 @@
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template class="header">ATC</template>
                             </vaadin-grid-column>
-                            <vaadin-grid-column width="108px" flex-grow="0">
+                            <vaadin-grid-column width="54px" flex-grow="0">
                                 <template class="header">Type</template>
                             </vaadin-grid-column>
                             <vaadin-grid-column width="40px" flex-grow="0">
@@ -753,8 +757,10 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                        <div>[[item.label]]</div>
+                                    <div>[[item.label]]</div>
+                                    <template is="dom-if" if="[[item.pos]]">
                                         <div>[[item.pos]]</div>
+                                    </template>
                                 </template>
                             </vaadin-grid-column>
 
@@ -902,7 +908,9 @@
                             <vaadin-grid-column flex-grow="1">
                                 <template>
                                     <div>[[item.label]]</div>
-                                    <div>[[item.pos]]</div>
+                                    <template is="dom-if" if="[[item.pos]]">
+                                        <div>[[item.pos]]</div>
+                                    </template>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1053,7 +1061,7 @@
                             <vaadin-grid-column flex-grow="1">
                                 <template>
                                     <vaadin-grid-tree-toggle leaf="[[!item.hasChildren]]" expanded="{{expanded}}" level="[[level]]">
-                                        <div class$="[[_getNoEntryStyle(item.id)]]">[[item.label]]</div>
+                                        <div class$="[[_getNoEntryStyle(item.id)]] [[_getAdrStyle(item.adrWarning)]]">[[item.label]]</div>
                                     </vaadin-grid-tree-toggle>
                                 </template>
                             </vaadin-grid-column>
@@ -1203,8 +1211,7 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.label]]</div>
-                                    <div>[[item.pos]]</div>
+                                    <div class$="[[_getAdrStyle(item.adrWarning)]]">[[item.label]]</div>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1622,6 +1629,11 @@
                         notify: true,
                         value: ''
                     },
+
+                    allergies: {
+                        type: Array,
+                        value: () => []
+                    }
                 }
             }
 
@@ -1650,6 +1662,9 @@
             }
 
             open(medication, options = {}) {
+                this.api.helement().findBy(this.user.healthcarePartyId, this.patient)
+                    .then(hes => this.allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && tag.code === "allergy")).map(he => (he.codes.find(code => code.type === "CD-ATC") || {type: "", code: ""}).code));
+
                 this.set('newMedication', medication || {content: {}});
                 this.set('medicationAccumulator', []);
 
@@ -1785,6 +1800,11 @@
                     return 'hidden';
             }
 
+            _checkAdr(ampp) {
+                if (!ampp || !ampp.atcs || !ampp.atcs.length) return false;
+                return ampp.atcs.find(atc => this.allergies.includes(atc.code));
+            }
+
             _deliveryStatus(info) {
 
             }
@@ -1821,6 +1841,10 @@
             
             _getPriceIndexStyle(index) {
                 return index > 1 ? "" : "PRICE_INDEX--" + (index > 0 ? "CHEAP" : "CHEAPEST");
+            }
+
+            _getAdrStyle(adrWarning) {
+                return adrWarning ? "ADR_WARNING" : "";
             }
 
             _buildListItem(mppInfos, prescInfos) {
@@ -1914,14 +1938,35 @@
             _ingredientSearchSamV2(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return this.api.besamv2().findPaginatedVmpsByLabel(language, searchValue, null, null, count)
-                    .then(results => (results && results.rows || []));
+                    .then(results => (results && results.rows || []))
+                    .then (rows => {
+                        rows.map(row => console.log("vmp - ", row));
+                        return rows;
+                    })
+                    .then(rows => Promise.all(rows.map(row => {
+                        return this.api.besamv2().findPaginatedAmpsByVmpId(row.id, null, null, 1)
+                            .then(results => (results && results.rows && results.rows[0]))
+                            .then(amp => _.get(_.get(amp, "ampps", []).find(ampp => !!ampp.dmpps && ampp.dmpps.length > 0), "atcs", []))
+                            .then(atcs => {
+                                if (atcs.length) {
+                                    return Object.assign(row, {atcs: atcs});
+                                } else {
+                                    return row;
+                                }
+                            })
+                        })
+                    ))
             }
+
             _ingredientAdapterSamV2(results) {
                 if (results && results.length) {
-                    return Promise.all(results.map(result => {
+                    return Promise.all(results.map(vmp => {
                         return {
-                            "id": result.id,
-                            "label": result.name[this.language] || this.localize("unknown", "Inconnu", this.language)
+                            "id": vmp.id,
+                            "label": vmp.name[this.language] || this.localize("unknown", "Inconnu", this.language),
+                            "atc": _.get(vmp, "atcs[0].code", ""),
+                            "atcCat": _.get(vmp, "atcs[0].code[0]", ""),
+                            "adrWarning": this._checkAdr(vmp),
                         };
                     }));
                 } else {
@@ -1940,6 +1985,9 @@
                 ])
                     .then(([packs, packsIng]) => _.unionBy(packs, packsIng, 'id.id'));
             }
+
+
+
 
             _medicinePackageHierarchicalSearchSamV2(searchValue, language, type, first, count, parentUuid, parentUuids, groupId) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
@@ -1990,10 +2038,10 @@
                                 .map(filteredAmpp => {
                                     const dmpp = filteredAmpp.publicDmpp;
                                     const reimb = filteredAmpp.currentReimbursement;
-                                    const publicPrice =  !reimb ? parseFloat(dmpp.price) :
+                                    const publicPrice =  !reimb ? parseFloat(dmpp.price || 0) :
                                         (reimb.referenceBasePrice && reimb.copaymentSupplement) ? (parseFloat(reimb.referenceBasePrice) + parseFloat(reimb.copaymentSupplement)) :
                                             reimb.reimbursementBasePrice ? parseFloat(reimb.reimbursementBasePrice) : 0;
-                                    const patientPrice = !reimb ? parseFloat(dmpp.price) :
+                                    const patientPrice = !reimb ? parseFloat(dmpp.price || 0) :
                                         (reimb.copayments && (reimb.copayments.length === 2)) ? parseFloat(this.patientBim ? reimb.copayments[0].feeAmount : reimb.copayments[1].feeAmount) : 0;
                                     return Object.assign(filteredAmpp, {
                                         publicPrice: publicPrice,
@@ -2003,7 +2051,7 @@
                                 })
                                 .sort((a, b) => a.priceIndex !== b.priceIndex ? (a.priceIndex - b.priceIndex) : (a.patientPrice - b.patientPrice));
 
-                            if (finalList.length === 0) {
+                            if (finalList.length === 0 && level > 0) {
                                 finalList.push({
                                     prescriptionName: this.localize("no_alt", "Pas d'alternative", this.language)
                                 });
@@ -2011,7 +2059,7 @@
 
                             return finalList
                                 .map(ampp => {
-                                    console.log(ampp);
+                                    console.log("ampp - ", ampp);
                                     return ampp;
                                 })
                         });
@@ -2029,8 +2077,9 @@
                             "parentUuid": ampp.parentUuid,
                             "ctiExtended": ampp.ctiExtended,
                             "label": ampp.prescriptionName,
-                            "atc": ampp.id && ampp.atcs[0].code || "",
-                            "atcCat": ampp.id && ampp.atcs[0].code && ampp.atcs[0].code[0] || "",
+                            "atc": _.get(ampp, "atcs[0].code", ""),
+                            "atcCat": _.get(ampp, "atcs[0].code[0]", ""),
+                            "adrWarning": this._checkAdr(ampp),
                             "patientPrice": ampp.id && ampp.patientPrice.toFixed(2) + "€",
                             "publicPrice": ampp.id && ampp.publicPrice.toFixed(2) + "€",
                             "priceIndex": ampp.id && ampp.priceIndex || 3,
@@ -2048,6 +2097,10 @@
                         };
                     }));
             }
+
+
+
+
 
             _medicinePackageSearchSamV2(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
