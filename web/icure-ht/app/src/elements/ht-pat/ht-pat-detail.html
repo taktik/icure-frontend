@@ -5070,9 +5070,73 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             }
                             return {rows: _.sortBy( newItems , sortKey)}
                         })
+                    },
+                    filterDrugsSamV2: (filterValue, limit = 100, offset = 0, sortKey = name, descending) => {
+                        return this.api.besamv2().findPaginatedAmpsByLabel(this.language, filterValue, null, null, limit)
+                            .then(results => (results && results.rows || []))
+                            .then(rows => rows.reduce((ampps, row) => {
+                                    if (row.ampps && row.ampps.length) {
+                                        return ampps.concat(row.ampps.map(ampp => {
+                                            const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
+                                            const groupId = row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.id || "";
+                                            const id = publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code;
+                                            const atcCode = publicDmpp && publicDmpp.atcs && publicDmpp.atcs.length && publicDmpp.atcs[0] || ""; // todo: get all atcs!
+                                            id && (((ampp.codes || (ampp.codes = [])).find(c => c.type === "CD-DRUG-CNK") || (ampp.codes[ampp.codes.length] = {
+                                                type: "CD-DRUG-CNK",
+                                                version: "0.0.1"
+                                            })).code = id);
+                                            atcCode && (((ampp.codes || (ampp.codes = [])).find(c => c.type === "CD-ATC") || (ampp.codes[ampp.codes.length] = {
+                                                type: "CD-ATC",
+                                                version: "0.0.1"
+                                            })).code = atcCode);
+                                            return Object.assign(
+                                                ampp,
+                                                {
+                                                    id: id,
+                                                    groupId: groupId,
+                                                    publicDmpp: publicDmpp,
+                                                    prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
+                                                    amp: row
+                                                }
+                                            )
+                                        }));
+                                    }
+                                    return ampps;
+                                }, [])
+                                    .filter(e => e.publicDmpp && e.id && e.prescriptionName)
+                                    .filter((e, i, a) => a.findIndex(x => x.id === e.id) === i)
+                            )
+                            .then(packs => {
+                                return {rows: _.sortBy(packs, sortKey)}
+                            })
                     }
                 };
             }
+
+            _medicinePackageAdapter(results) {
+                if (results && results.length) {
+                    return Promise.all(results.map(med => this.api.bedrugs().getMppInfos(med.id.id, this.language === 'en' ? 'fr' : this.language || 'fr')
+                        .then(mppInfos => {
+                            mppInfos.id.id && (((med.codes || (med.codes = [])).find(c => c.type === 'CD-DRUG-CNK') || (med.codes[med.codes.length] = {
+                                type: 'CD-DRUG-CNK',
+                                version: '0.0.1'
+                            })).code = med.id.id)
+                            mppInfos.atcCode && (((med.codes || (med.codes = [])).find(c => c.type === 'CD-ATC') || (med.codes[med.codes.length] = {
+                                type: 'CD-ATC',
+                                version: '0.0.1'
+                            })).code = mppInfos.atcCode)
+
+                            return this._buildListItem(mppInfos);
+                        })))
+                        .catch(err => {
+                            console.log("error:", err);
+                            return [];
+                        });
+                } else {
+                    return Promise.resolve([]);
+                }
+            }
+
 
             _normalizedHealthElement(healthElement) {
                 return {

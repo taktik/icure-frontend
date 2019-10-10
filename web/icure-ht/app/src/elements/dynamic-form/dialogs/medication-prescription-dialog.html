@@ -623,6 +623,25 @@
                 width: 20px;
             }
 
+            .colour-code span{
+                content: '';
+                display: inline-block;
+                height: 8px;
+                width: 8px;
+                border-radius: 50%;
+                vertical-align: middle;
+                background-color: transparent;
+                margin-left: 2px;
+            }
+
+            .icon-code {
+                width: 12px;
+                height: 12px;
+                color: var(--app-primary-color-dark);
+            }
+
+
+
         </style>
 
         <paper-dialog id="medication-prescription" always-on-top="true">
@@ -1061,7 +1080,7 @@
                             <vaadin-grid-column flex-grow="1">
                                 <template>
                                     <vaadin-grid-tree-toggle leaf="[[!item.hasChildren]]" expanded="{{expanded}}" level="[[level]]">
-                                        <div class$="[[_getNoEntryStyle(item.id)]] [[_getAdrStyle(item.adrWarning)]]">[[item.label]]</div>
+                                        <div class$="[[_getNoEntryStyle(item.id)]]">[[item.label]]</div>
                                     </vaadin-grid-tree-toggle>
                                 </template>
                             </vaadin-grid-column>
@@ -1070,12 +1089,18 @@
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
-                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">
-                                        <span class="dot"></span>
-                                    </div>
-                                    <paper-tooltip z-index="1000" id="tt_[[item.atcCat]]_[[item.id]]"
-                                                   for="[[item.atcCat]]_[[item.id]]">[[_atcTooltip(item.atcCat)]]
-                                    </paper-tooltip>
+                                    <template is="dom-if" if="[[_hasIcon(item)]]">
+                                        <iron-icon class$="icon-code [[_getStyle('ATC', item.atcCat)]]" icon="[[_getIcon(item)]]"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[_hasColor(item)]]">
+                                        <label class$="colour-code [[_getStyle('ATC', item.atcCat)]]"><span></span></label>
+                                    </template>
+<!--                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">-->
+<!--                                        <span class="dot"></span>-->
+<!--                                    </div>-->
+<!--                                    <paper-tooltip z-index="1000" id="tt_[[item.atcCat]]_[[item.id]]"-->
+<!--                                                   for="[[item.atcCat]]_[[item.id]]">[[_atcTooltip(item.atcCat)]]-->
+<!--                                    </paper-tooltip>-->
                                 </template>
 
                             </vaadin-grid-column>
@@ -1211,7 +1236,7 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div class$="[[_getAdrStyle(item.adrWarning)]]">[[item.label]]</div>
+                                    <div>[[item.label]]</div>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1219,13 +1244,21 @@
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
-                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">
-                                        <span class="dot"></span>
-                                    </div>
-                                    <paper-tooltip z-index="1000" id="tt_[[item.atcCat]]_[[item.id]]"
-                                                   for="[[item.atcCat]]_[[item.id]]">[[_atcTooltip(item.atcCat)]]
-                                    </paper-tooltip>
+                                    <template is="dom-if" if="[[_hasIcon(item)]]">
+                                        <iron-icon class$="icon-code [[_getStyle('ATC', item.atcCat)]]" icon="[[_getIcon(item)]]"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[_hasColor(item)]]">
+                                        <label class$="colour-code [[_getStyle('ATC', item.atcCat)]]"><span></span></label>
+                                    </template>
                                 </template>
+<!--                                <template>-->
+<!--                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">-->
+<!--                                        <span class="dot"></span>-->
+<!--                                    </div>-->
+<!--                                    <paper-tooltip z-index="1000" id="tt_[[item.atcCat]]_[[item.id]]"-->
+<!--                                                   for="[[item.atcCat]]_[[item.id]]">[[_atcTooltip(item.atcCat)]]-->
+<!--                                    </paper-tooltip>-->
+<!--                                </template>-->
 
                             </vaadin-grid-column>
 
@@ -1630,9 +1663,17 @@
                         value: ''
                     },
 
-                    allergies: {
+                    Allergies: {
                         type: Array,
                         value: () => []
+                    },
+
+                    iconsMapping: {
+                        type: Object,
+                        value: () => ({
+                            allergy: "image:filter-vintage",
+                            adr: "vaadin:pill"
+                        })
                     }
                 }
             }
@@ -1663,7 +1704,15 @@
 
             open(medication, options = {}) {
                 this.api.helement().findBy(this.user.healthcarePartyId, this.patient)
-                    .then(hes => this.allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && tag.code === "allergy")).map(he => (he.codes.find(code => code.type === "CD-ATC") || {type: "", code: ""}).code));
+                    .then(hes => this.Allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && (tag.code === "allergy" || tag.code === "adr")))
+                        .map(he => {
+                            return {
+                                atc: (he.codes.find(code => code.type === "CD-ATC") || {code: ""}).code,
+                                type: (he.tags.find(tag => tag.code === "allergy" || tag.code === "adr") || {code: ""}).code
+                            }
+                        })
+                        .filter(allergy => allergy.atc && allergy.type)
+                    );
 
                 this.set('newMedication', medication || {content: {}});
                 this.set('medicationAccumulator', []);
@@ -1772,6 +1821,18 @@
                 }
             }
 
+            _getIcon(item) {
+                return item.allergyType === "allergy" ? "image:filter-vintage" : (item.allergyType === "adr" ? "vaadin:pill" : "");
+            }
+
+            _hasIcon(item) {
+                return !!item.allergyType;
+            }
+
+            _hasColor(item) {
+                return !item.allergyType;
+            }
+
             _narcoticIcon(info) {
                 return info.note === 'stupéfiant' ? 'stup' : 'void';
             }
@@ -1800,9 +1861,9 @@
                     return 'hidden';
             }
 
-            _checkAdr(ampp) {
-                if (!ampp || !ampp.atcs || !ampp.atcs.length) return false;
-                return ampp.atcs.find(atc => this.allergies.includes(atc.code));
+            _getAllergyType(item) {
+                if (!item || !item.atcs || !item.atcs.length) return "";
+                return (this.Allergies.find(allergy => item.atcs.find(atc => allergy.atc === atc.code)) || {type: ""}).type;
             }
 
             _deliveryStatus(info) {
@@ -1961,13 +2022,15 @@
             _ingredientAdapterSamV2(results) {
                 if (results && results.length) {
                     return Promise.all(results.map(vmp => {
-                        return {
+                        const item = {
                             "id": vmp.id,
                             "label": vmp.name[this.language] || this.localize("unknown", "Inconnu", this.language),
                             "atc": _.get(vmp, "atcs[0].code", ""),
                             "atcCat": _.get(vmp, "atcs[0].code[0]", ""),
-                            "adrWarning": this._checkAdr(vmp),
+                            "allergyType": this._getAllergyType(vmp)
                         };
+                        console.log("ingredient item: ", item);
+                        return item;
                     }));
                 } else {
                     return Promise.resolve([]);
@@ -2079,7 +2142,7 @@
                             "label": ampp.prescriptionName,
                             "atc": _.get(ampp, "atcs[0].code", ""),
                             "atcCat": _.get(ampp, "atcs[0].code[0]", ""),
-                            "adrWarning": this._checkAdr(ampp),
+                            "allergyType": this._getAllergyType(ampp),
                             "patientPrice": ampp.id && ampp.patientPrice.toFixed(2) + "€",
                             "publicPrice": ampp.id && ampp.publicPrice.toFixed(2) + "€",
                             "priceIndex": ampp.id && ampp.priceIndex || 3,
