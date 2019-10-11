@@ -5072,43 +5072,66 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         })
                     },
                     filterDrugsSamV2: (filterValue, limit = 100, offset = 0, sortKey = name, descending) => {
-                        return this.api.besamv2().findPaginatedAmpsByLabel(this.language, filterValue, null, null, limit)
+                        const AmpPromise = this.api.besamv2().findPaginatedAmpsByLabel(this.language, filterValue, null, null, limit)
                             .then(results => (results && results.rows || []))
-                            .then(rows => rows.reduce((ampps, row) => {
-                                    if (row.ampps && row.ampps.length) {
-                                        return ampps.concat(row.ampps.map(ampp => {
-                                            const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
-                                            const groupId = row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.id || "";
-                                            const id = {id: (publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code || "")}
-                                            const atcCode = ampp && ampp.atcs && ampp.atcs.length && ampp.atcs[0] || ""; // todo: get all atcs!
-                                            id.id && (((ampp.codes || (ampp.codes = [])).find(c => c.type === "CD-DRUG-CNK") || (ampp.codes[ampp.codes.length] = {
-                                                type: "CD-DRUG-CNK",
-                                                version: "0.0.1"
-                                            })).code = id.id);
-                                            atcCode && (((ampp.codes || (ampp.codes = [])).find(c => c.type === "CD-ATC") || (ampp.codes[ampp.codes.length] = {
-                                                type: "CD-ATC",
-                                                version: "0.0.1"
-                                            })).code = atcCode.code);
-                                            return Object.assign(
-                                                ampp,
-                                                {
-                                                    id: id,
-                                                    groupId: groupId,
-                                                    publicDmpp: publicDmpp,
-                                                    name: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
-                                                    amp: row
-                                                }
-                                            )
-                                        }));
-                                    }
-                                    return ampps;
-                                }, [])
-                                    .filter(e => e.publicDmpp && e.id && e.id.id && e.name)
-                                    .filter((e, i, a) => a.findIndex(x => x.id.id === e.id.id) === i)
-                            )
-                            .then(packs => {
-                                return {rows: _.sortBy(packs, sortKey)}
+                            .then(amps => amps.filter(amp =>
+                                !amp.to && amp.ampps && amp.ampps.some(ampp =>
+                                    !ampp.to &&
+                                    ampp.atcs && ampp.atcs.length &&
+                                    ampp.dmpps && ampp.dmpps.length && ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P')
+                                )
+                            ));
+
+                        const VmpPromise = this.api.besamv2().findPaginatedVmpsByLabel(this.language, filterValue, null, null, limit)
+                            .then(results => (results && results.rows || []))
+                            .then(vmps => vmps.filter(vmp => !vmp.to));
+
+                        return Promise.all([
+                            AmpPromise,
+                            VmpPromise
+                        ])
+                            .then(([ampRes, vmpRes]) => _.unionBy(ampRes || [], vmpRes || [], "id"))
+                            .then(results => results.filter(result => !result.to && result.name && result.name[this.language]).map(result => Object.assign(result , {name: result.name[this.language]})))
+                            .then(results => {
+                                return {rows: _.sortBy(results, sortKey)}
                             })
+
+                            // .then(results => (results && results.rows || []))
+                            // .then(rows => rows.reduce((ampps, row) => {
+                            //         if (row.ampps && row.ampps.length) {
+                            //             return ampps.concat(row.ampps.map(ampp => {
+                            //                 const publicDmpp = ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P");
+                            //                 const groupId = row.vmp && row.vmp.vmpGroup && row.vmp.vmpGroup.id || "";
+                            //                 const id = {id: (publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code || "")}
+                            //                 const atcCode = ampp && ampp.atcs && ampp.atcs.length && ampp.atcs[0] || ""; // todo: get all atcs!
+                            //                 id.id && (((ampp.codes || (ampp.codes = [])).find(c => c.type === "CD-DRUG-CNK") || (ampp.codes[ampp.codes.length] = {
+                            //                     type: "CD-DRUG-CNK",
+                            //                     version: "0.0.1"
+                            //                 })).code = id.id);
+                            //                 atcCode && (((ampp.codes || (ampp.codes = [])).find(c => c.type === "CD-ATC") || (ampp.codes[ampp.codes.length] = {
+                            //                     type: "CD-ATC",
+                            //                     version: "0.0.1"
+                            //                 })).code = atcCode.code);
+                            //                 return Object.assign(
+                            //                     ampp,
+                            //                     {
+                            //                         id: id,
+                            //                         groupId: groupId,
+                            //                         publicDmpp: publicDmpp,
+                            //                         name: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
+                            //                         amp: row
+                            //                     }
+                            //                 )
+                            //             }));
+                            //         }
+                            //         return ampps;
+                            //     }, [])
+                            //         .filter(e => e.publicDmpp && e.id && e.id.id && e.name)
+                            //         .filter((e, i, a) => a.findIndex(x => x.id.id === e.id.id) === i)
+                            // )
+                            // .then(packs => {
+                            //     return {rows: _.sortBy(packs, sortKey)}
+                            // })
                     }
                 };
             }

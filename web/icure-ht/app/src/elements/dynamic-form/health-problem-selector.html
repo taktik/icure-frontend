@@ -158,7 +158,7 @@
 				<template is="dom-if" if="[[searchDrug]]">
 					<div class="grid">
 						<div class="label">[[localize('drugs','Drugs',language)]]</div>
-						<vaadin-combo-box id="entities-list" filtered-items="[[drugItems]]" on-filter-changed="_drugFilterChanged" item-label-path="name" selected-item="{{drugSelectedItem}}" item-value-path="id.id"></vaadin-combo-box>
+						<vaadin-combo-box id="entities-list" filtered-items="[[drugItems]]" on-filter-changed="_drugFilterChanged" item-label-path="name" selected-item="{{drugSelectedItem}}" item-value-path="id"></vaadin-combo-box>
 					</div>
 				</template>
 				<template is="dom-if" if="[[searchFamilyLink]]">
@@ -491,12 +491,37 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
 	_drugChangedSamV2() {
-		if (this.drugSelectedItem) {
-			this.api.code().getCodes(this.drugSelectedItem.codes.map(c => this.api.code().normalize(c).id).join(',')).then(codes => {
-				this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
-				console.log("entity-codes", this.entity.codes);
-			})
+		const mp = this.drugSelectedItem;
+		if (!mp) return;
+		let codes = [];
+		if (mp.ampps) {
+			codes = mp.ampps
+				.filter(ampp => ampp =>
+					!ampp.to &&
+					ampp.atcs && ampp.atcs.length &&
+					ampp.dmpps && ampp.dmpps.length && ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P'))
+				.reduce((codes, ampp) => {
+					ampp.atcs.map(atc => {
+						codes.push({
+							type: "CD-ATC",
+							version: "0.0.1",
+							code: atc.code
+						})
+					})
+				}, []);
 		}
+		this.api.code().getCodes(codes.map(c => this.api.code().normalize(c).id).join(',')).then(codes => {
+			this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
+			console.log("entity-codes", this.entity.codes);
+		})
+
+
+		// if (this.drugSelectedItem) {
+		// 	this.api.code().getCodes(this.drugSelectedItem.codes.map(c => this.api.code().normalize(c).id).join(',')).then(codes => {
+		// 		this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
+		// 		console.log("entity-codes", this.entity.codes);
+		// 	})
+		// }
 	}
 
 	_fillMedecineCodes(med) {
@@ -576,7 +601,7 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 		}
 
 
-		const search = this.dataProvider && (() => this.dataProvider.filterDrugsSamV2(latestSearchValue, 500, 0, 'name', false))
+		const search = this.dataProvider && (() => this.dataProvider.filterDrugsSamV2(latestSearchValue, 100, 0, 'name', false))
 
 		if(this.drugFilterTimeout) {
 			clearTimeout(this.drugFilterTimeout)
