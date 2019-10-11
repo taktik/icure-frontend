@@ -780,6 +780,7 @@
 										show-extended-title="true"
 										contacts="[[allContacts]]"
 									></dynamic-doc>
+<!--									<div>[[_getComment(item, comments)]]</div>-->
 								</template>
 							</template>
 							<template is="dom-if" if="[[dof.unmappedServices.length]]">
@@ -892,6 +893,10 @@
 						value: function () {
 							return [];
 						}
+					},
+					comments: {
+						type: Object,
+						value: null
 					},
 					servicesMap: {
 						type: Object,
@@ -1190,10 +1195,114 @@
                 return date ? this.api.moment(date).format('DD/MM/YYYY') : '';
             }
 
+			// _decryptComment(subContact, encryptedComment) {
+			// 	const uaEncryptedComment = this.api.crypto().utils.text2ua(Base64.decode(encryptedComment));
+			// 	this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, subContact, uaEncryptedComment)
+			// 		.then(uaDecryptedComment => {
+			// 			const decryptedComment = this.api.crypto().utils.ua2text(uaDecryptedComment);
+			// 			return decryptedComment;
+			// 		})
+			// 		.catch(e => {
+			// 			console.log(e);
+			// 		});
+			// }
+
+			// _promDecryptComment(folder) {
+			// 	return new Promise(() => this._decryptComment(folder));
+			// }
+
+			// _decryptComments() {
+			// 	this.currentContact.subContacts.forEach(item => {
+			// 		this._decryptComment(item);
+			// 	});
+			// }
+
+            _testEncrypt(docId) {
+                try {
+                    let decrypted = "test";
+                    this.api.document().getDocument(docId)
+                    	.then(doc => {
+                    		this._doc = doc;
+		                    return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, this._doc, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(decrypted)))
+                    	})
+                        .then(uaEncryptedComment => {
+                            const encoded = Base64.encode(this.api.crypto().utils.ua2text(uaEncryptedComment));
+                            const decoded = Base64.decode(encoded)
+                            return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, this._doc, this.api.crypto().utils.text2ua(decoded))
+                        })
+                        .then(uaDecryptedComment => {
+                            const decryptedComment = this.api.crypto().utils.ua2text(uaDecryptedComment);
+                            return decryptedComment;
+                        });
+
+                } catch (error) {
+                    return Promise.reject(error);
+                }
+            }
+
 			_documentId(svc) {
 				const content = this.api.contact().preferredContent(svc, this.language)
-				return content && content.documentId
+				return content && content.documentId;
 			}
+
+			// _getComment(svc) {
+			// 	const comment = this._comments[svc.id] || "";
+			// 	console.log("getComment[" + svc.id + "]=" + comment);
+			// 	return comment;
+			// }
+
+			_decryptComments(contact) {
+				return Promise.all(contact.subContacts
+					.filter(sc => sc.status === 64)
+					.reduce((scSvcs, sc) => scSvcs.concat(sc.services), [])
+					.map(scSvc => {
+						const service = contact.services.find(svc => svc.id === scSvc.serviceId);
+						const docId = service && this._documentId(service);
+						if (!docId) Promise.resolve();
+						return this.api.document().getDocument(docId)
+								.then(doc => {
+									const ua = this.api.crypto().utils.text2ua(Base64.decode(service.comment));
+									return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, ua);
+								})
+								.then(ua => {
+									service.clearComment = this.api.crypto().utils.ua2text(ua)
+									console.log("document id:" + docId + " -> comment:" + service.clearComment);
+								})
+								.catch(error => {
+									console.log(error);
+									Promise.resolve();
+								})
+					}))
+			}
+
+
+			// _setComments(contact) {
+			// 	try {
+			// 		contact.subContacts.filter(sc => sc.status == 64).forEach(sc => {
+			// 			let encryptedComment = sc.descr;
+			// 			if (encryptedComment == null)
+			// 				return;
+			// 			const id = sc.services[0].serviceId;
+			// 			const services = contact.services.filter(s => s.id == id);
+			// 			const service = services[0];
+			// 			const uaEncryptedComment = this.api.crypto().utils.text2ua(Base64.decode(encryptedComment));
+			// 			const docId = this._documentId(service);
+			// 			this.api.document().getDocument(docId)
+			// 					.then(doc => {
+			// 						return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, uaEncryptedComment);
+			// 					})
+			// 					.then(uaDecryptedComment => {
+			// 						const decryptedComment = this.api.crypto().utils.ua2text(uaDecryptedComment);
+			// 						this._comments[id] = decryptedComment;
+			// 						this.set("comments", this._comments);
+			// 						console.log("setComment[" + id + "]=" + decryptedComment);
+			// 					});
+			//
+			// 		});
+			// 	} catch (e) {
+			// 		console.log("Error", e);
+			// 	}
+			// }
 
 			_planAction() {
 				this.dispatchEvent(new CustomEvent("plan-action", {composed: true, bubbles: true,detail: this.currentContact.services.filter(svc => svc.label==="Actes")[0]}))
@@ -1545,7 +1654,21 @@
 
                 }, [])
 
-                const climbFormHierarchy = function (formIds, formsCache) {
+				// // TODO (LDE) : Build comments here
+				//
+				// this._comments = {};
+				//
+				// let promises = [];
+				// this.contacts.forEach(contact => {
+				// 	promises.push(new Promise(() => this._setComments(contact)));
+				// });
+				//
+				// //let prom = Promise.resolve();
+				// //this.contacts.forEach(contact => {
+				// //	prom.then(() => this._setComments(contact))
+				// //});
+				//
+				const climbFormHierarchy = function (formIds, formsCache) {
 					return (formIds.length ? this.api.form().getForms({ ids: formIds }) : Promise.resolve([])).then(forms => {
 						forms.forEach(f => {
 							formsCache[f.id] = f;
@@ -1564,33 +1687,34 @@
 					});
 				}.bind(this);
 
-				climbFormHierarchy(_.chain(formGroups).map(fg => fg.forms.filter(f => f.id).map(f => f.id)).flatten().uniq().value(), {}).then(() => {
-					formGroups.forEach(fg => {
-						fg.forms = _.chain(fg.forms.reduce((acc, form) => {
-							let slot = acc.find(f => f.id === form.id);
-							if (slot) {
-								// _.concat(slot.docs, form.docs);
-								slot.docs = _.uniqBy(_.concat( slot.docs, form.docs), 'id')
-							} else {
-								acc.push(form);
-							}
-							return acc;
-						}, [])).sortBy(f=>-f.created).value()
+				Promise.all(this.contacts.map(contact => this._decryptComments(contact)))
+					.then(() => climbFormHierarchy(_.chain(formGroups).map(fg => fg.forms.filter(f => f.id).map(f => f.id)).flatten().uniq().value(), {}).then(() => {
+						formGroups.forEach(fg => {
+							fg.forms = _.chain(fg.forms.reduce((acc, form) => {
+								let slot = acc.find(f => f.id === form.id);
+								if (slot) {
+									// _.concat(slot.docs, form.docs);
+									slot.docs = _.uniqBy(_.concat( slot.docs, form.docs), 'id')
+								} else {
+									acc.push(form);
+								}
+								return acc;
+							}, [])).sortBy(f=>-f.created).value()
+						});
+						this.set('contactsFormsAndDocuments', _.sortBy(formGroups, fg => -fg.ctc.openingDate));
+					}))
+					.finally(() => {
+						console.log('contactsFormsAndDocuments',this.contactsFormsAndDocuments)
+						if (!this.contactsFormsAndDocuments.some(c => c.forms && c.forms.some(f => f.form && f.form.formTemplateId))
+							&& (!this.contactsFormsAndDocuments.some(f => f.ctc && f.ctc.services && f.ctc.services.some(s => _.values(s.content).some(c => c.documentId))))
+							&& (this.contactsFormsAndDocuments.some(f => f.ctc && f.ctc.services && f.ctc.services.length) || this.contactsFormsAndDocuments.some(f => f.unmappedServices && f.unmappedServices.length))
+							&& (!this.contactsFormsAndDocuments.some(f => f.ctc === this.currentContact)) && (this.contactsFormsAndDocuments.some(f => f.ctc && f.ctc.services && f.ctc.services.length) || this.contactsFormsAndDocuments.some(f => f.unmappedServices && f.unmappedServices.length))) {
+							this._list()
+						} else {
+							this._default()
+						}
+						this.set('isLoadingDoc',false)
 					});
-					this.set('contactsFormsAndDocuments', _.sortBy(formGroups, fg => -fg.ctc.openingDate));
-				}).finally(() => {
-				    console.log('contactsFormsAndDocuments',this.contactsFormsAndDocuments)
-                    if (!this.contactsFormsAndDocuments.some(c => c.forms && c.forms.some(f => f.form && f.form.formTemplateId))
-						&& (!this.contactsFormsAndDocuments.some(f => f.ctc && f.ctc.services && f.ctc.services.some(s => _.values(s.content).some(c => c.documentId))))
-						&& (this.contactsFormsAndDocuments.some(f => f.ctc && f.ctc.services && f.ctc.services.length) || this.contactsFormsAndDocuments.some(f => f.unmappedServices && f.unmappedServices.length))
-						&& (!this.contactsFormsAndDocuments.some(f => f.ctc === this.currentContact)) && (this.contactsFormsAndDocuments.some(f => f.ctc && f.ctc.services && f.ctc.services.length) || this.contactsFormsAndDocuments.some(f => f.unmappedServices && f.unmappedServices.length))) {
-                        this._list()
-                    } else {
-                        this._default()
-					}
-				    this.set('isLoadingDoc',false)
-                });
-
 			}
 
 			toggleDetailsFiltersPanel() {
