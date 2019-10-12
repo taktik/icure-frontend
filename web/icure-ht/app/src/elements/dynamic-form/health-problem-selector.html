@@ -490,38 +490,57 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
         }
     }
 
-	_drugChangedSamV2() {
-		const mp = this.drugSelectedItem;
-		if (!mp) return;
-		let codes = [];
-		if (mp.ampps) {
-			codes = mp.ampps
-				.filter(ampp => ampp =>
+    _getCodes(ampps) {
+		return ampps
+			.filter(ampp =>
 					!ampp.to &&
 					ampp.atcs && ampp.atcs.length &&
-					ampp.dmpps && ampp.dmpps.length && ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P'))
-				.reduce((codes, ampp) => {
-					ampp.atcs.map(atc => {
+					ampp.dmpps && ampp.dmpps.length && ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P' && !dmpp.to))
+			.reduce((codes, ampp) => {
+				ampp.atcs.map(atc =>
 						codes.push({
 							type: "CD-ATC",
 							version: "0.0.1",
 							code: atc.code
 						})
-					})
-				}, []);
-		}
-		this.api.code().getCodes(codes.map(c => this.api.code().normalize(c).id).join(',')).then(codes => {
-			this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
-			console.log("entity-codes", this.entity.codes);
+				);
+				ampp.dmpps.filter(dmpp => dmpp.deliveryEnvironment === 'P' && dmpp.codeType === 'CNK')
+						.map(dmpp =>
+								codes.push({
+									type: "CD-DRUG-CNK",
+									version: "0.0.1",
+									code: dmpp.code
+								})
+						);
+				return codes;
+			}, []);
+	}
+
+	_drugChangedSamV2() {
+		const mp = this.drugSelectedItem;
+		if (!mp) return;
+		new Promise((resolve) => {
+			if (mp.ampps) {
+				return resolve(mp.ampps)
+			} else {
+				this.api.besamv2().findPaginatedAmpsByVmpId(mp.id, null, 100)
+						.then(amps => amps.filter(amp =>
+								!amp.to && amp.ampps && amp.ampps.some(ampp =>
+								!ampp.to &&
+								ampp.atcs && ampp.atcs.length &&
+								ampp.dmpps && ampp.dmpps.length && ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P' && !dmpp.to)
+								)
+						))
+						.then(amps => amps.reduce((ampps, amp) => ampps.concat(amp.ampps), []))
+						.then(ampps => resolve(ampps))
+			}
 		})
-
-
-		// if (this.drugSelectedItem) {
-		// 	this.api.code().getCodes(this.drugSelectedItem.codes.map(c => this.api.code().normalize(c).id).join(',')).then(codes => {
-		// 		this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
-		// 		console.log("entity-codes", this.entity.codes);
-		// 	})
-		// }
+				.then(ampps => this._getCodes(ampps))
+				.then(codes => this.api.code().getCodes(codes.map(c => this.api.code().normalize(c).id).join(',')))
+				.then(codes => {
+					this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
+					console.log("entity-codes", this.entity.codes);
+				})
 	}
 
 	_fillMedecineCodes(med) {
