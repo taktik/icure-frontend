@@ -1093,7 +1093,7 @@
                                         <iron-icon class$="icon-code [[_getStyle('ATC', item.atcCat)]]" icon="[[_getIcon(item)]]"></iron-icon>
                                     </template>
                                     <template is="dom-if" if="[[_hasColor(item)]]">
-                                        <label class$="colour-code [[_getStyle('ATC', item.atcCat)]]"><span></span></label>
+                                        <label class$="colour-code [[_getStyle('ATC', item.atcCat, 'span')]]"><span></span></label>
                                     </template>
 <!--                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">-->
 <!--                                        <span class="dot"></span>-->
@@ -1248,7 +1248,7 @@
                                         <iron-icon class$="icon-code [[_getStyle('ATC', item.atcCat)]]" icon="[[_getIcon(item)]]"></iron-icon>
                                     </template>
                                     <template is="dom-if" if="[[_hasColor(item)]]">
-                                        <label class$="colour-code [[_getStyle('ATC', item.atcCat)]]"><span></span></label>
+                                        <label class$="colour-code [[_getStyle('ATC', item.atcCat, 'span')]]"><span></span></label>
                                     </template>
                                 </template>
 <!--                                <template>-->
@@ -1708,6 +1708,7 @@
                         .map(he => {
                             return {
                                 atc: (he.codes.find(code => code.type === "CD-ATC") || {code: ""}).code,
+                                cnk: (he.codes.find(code => code.type === "CD-DRUG-CNK") || {code: ""}).code,
                                 type: (he.tags.find(tag => tag.code === "allergy" || tag.code === "adr") || {code: ""}).code
                             }
                         })
@@ -1863,7 +1864,14 @@
 
             _getAllergyType(item) {
                 if (!item || !item.atcs || !item.atcs.length) return "";
-                return (this.Allergies.find(allergy => item.atcs.find(atc => allergy.atc === atc.code)) || {type: ""}).type;
+                const allergies = this.Allergies.filter(allergy => (allergy.cnk && (item.id === allergy.cnk)) || (item.atcs.some(atc => atc.code === allergy.atc)));
+                if (allergies.some(allergy => allergy.type === "allergy")) {
+                    return "allergy";
+                } else if (allergies.some(allergy => allergy.type === "adr")) {
+                    return "adr";
+                } else {
+                    return "";
+                }
             }
 
             _deliveryStatus(info) {
@@ -1890,9 +1898,9 @@
                 return "";
             }
 
-            _getStyle(prefix, cat) {
+            _getStyle(prefix, cat, el) {
                 if (!cat) return '';
-                return prefix + '--' + cat.toUpperCase() + ' span';
+                return prefix + '--' + cat.toUpperCase() + (el ? (' ' + el) : '');
             }
 
             _getNoEntryStyle(id) {
@@ -1995,7 +2003,6 @@
 
 
 
-
             _ingredientSearchSamV2(searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
                 return this.api.besamv2().findPaginatedVmpsByLabel(language, searchValue, null, null, count)
@@ -2007,7 +2014,8 @@
                     .then(rows => Promise.all(rows.map(row => {
                         return this.api.besamv2().findPaginatedAmpsByVmpId(row.id, null, null, 1)
                             .then(results => (results && results.rows && results.rows[0]))
-                            .then(amp => _.get(_.get(amp, "ampps", []).find(ampp => !!ampp.dmpps && ampp.dmpps.length > 0), "atcs", []))
+                            .then(amp => _.get(_.get(amp, "ampps", []).find(ampp => !ampp.to && ampp.atcs && ampp.atcs.length && ampp.dmpps && ampp.dmpps.length &&
+                                ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P' && dmpp.codeType === 'CNK' && !dmpp.to)), "atcs", []))
                             .then(atcs => {
                                 if (atcs.length) {
                                     return Object.assign(row, {atcs: atcs});
