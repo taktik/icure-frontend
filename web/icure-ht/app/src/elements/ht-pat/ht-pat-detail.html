@@ -79,6 +79,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="dialogs/hubs/ht-pat-hub-upload.html">
 <link rel="import" href="./dialogs/ht-pat-fusion-dialog.html">
 <link rel="import" href="../../ht-upload-dialog.html">
+<link rel="import" href="./dialogs/rn-consult/ht-pat-rn-consult-dialog.html">
+<link rel="import" href="./dialogs/rn-consult/ht-pat-rn-consult-history-dialog.html">
 <link rel="import" href="./dialogs/medicalhouse/ht-pat-flatrate-utils.html">
 
 
@@ -895,7 +897,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 overflow: hidden;
             }
 
-            #insuranceStatus, #hubStatus, #tlStatus, #consentStatus, #edmgStatus, #ebmPracticeNet, #cbipLink  {
+            #insuranceStatus, #hubStatus, #tlStatus, #consentStatus, #edmgStatus, #ebmPracticeNet, #cbipLink, #rnConsult  {
                 --paper-fab-background: var(--app-background-color-dark);
                 --paper-fab-keyboard-focus-background: var(--app-background-color);
                 color: var(--app-primary-color-dark);
@@ -938,15 +940,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 display: block;
             }
 
-            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending {
+            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #rnConsultStatus.rnConsultPending{
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
-            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk {
+            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk{
                 --paper-fab-background: var(--app-status-color-nok);
             }
 
-            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk {
+            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk {
                 --paper-fab-background: var(--app-status-color-ok);
             }
 
@@ -1581,6 +1583,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 background: #fff;
                 position: relative;
             }
+
+            #ssinHistory{
+                height:
+            }
+
         </style>
 
         <template is="dom-if" if="[[_bodyOverlay]]">
@@ -1704,6 +1711,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <paper-tooltip for="ebmPracticeNet">[[localize('adm_ebm','ebmPracticeNet',language)]]</paper-tooltip>
                                         <paper-fab id="cbipLink" mini on-tap="_linkToCBIP" src="[[_cbipPicture()]]"></paper-fab>
                                         <paper-tooltip for="cbipLink">[[localize('cbip','CBIP',language)]]</paper-tooltip>
+                                        <paper-fab id="rnConsultStatus" mini on-tap="_openRnConsultDialog" src="[[_rnConsultPicture()]]"></paper-fab>
+                                        <paper-tooltip for="rnConsult">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
                                     </div>
                                 </div>
                             </paper-item>
@@ -2509,6 +2518,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
+        <ht-pat-rn-consult-dialog id="htPatRnConsultDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-rn-consult-dialog>
+        <ht-pat-rn-consult-history-dialog id="htPatRnConsultHistoryDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]" history-result="[[rnHistoryResult]]"></ht-pat-rn-consult-history-dialog>
+
         <print-document
             id="printDocument"
             api="[[api]]"
@@ -2519,6 +2531,31 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             resources="[[resources]]"
         ></print-document>
 
+        <paper-item id="rnConsult-error-notification" class="notification-container error">
+            <iron-icon class="notification-icn" src="[[_rnConsultPicture()]]"></iron-icon>
+            <div class="notification-msg">
+                <h4>[[localize('rn-consult-not-err', 'Rn consult error', language)]]</h4>
+                <p>[[rnHistoryResult.status.code]] :
+                    <template is="dom-repeat" items="[[rnHistoryResult.status.messages]]" as="msg">
+                        [[msg.value]]
+                    </template>
+                </p>
+            </div>
+        </paper-item>
+
+        <paper-item id="rnConsult-changed-notification" class="notification-container dark">
+            <iron-icon class="notification-icn" src="[[_rnConsultPicture()]]"></iron-icon>
+            <div class="notification-msg">
+                <h4>[[localize('rn-consult-not', 'Rn consult changed', language)]]</h4>
+                <p>[[localize('rn-consult-niss-changed', "Niss number changed", language)]]</p>
+            </div>
+            <paper-button name="closePostit" class="notification-btn" on-tap="_closeRnConsultChangedNotification">
+                [[localize('clo','Close',language)]]
+            </paper-button>
+            <paper-button name="editPostit" class="notification-btn" on-tap="_showRnConsultDiff">
+                [[localize('rn-consult-show','Show',language)]]
+            </paper-button>
+        </paper-item>
 
 
         <ht-pat-outgoing-document
@@ -2954,9 +2991,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: String,
                         value: ""
                     },
-                    allHealthElements:{
+                    rnHistoryResult:{
                         type: Object,
-                        value: {}
+                        value: () => {}
                     }
                 };
             }
@@ -4378,20 +4415,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.showPatientTherLinkState()
                     this.showHubState()
                     this.updateEdmgStatus()
+                    this._consultRnHistory(patient)
                 }else{
-                    this.$.insuranceStatus.classList.remove('medicalHouse')
-                    this.$.insuranceStatus.classList.remove('noInsurance')
-                    this.$.insuranceStatus.classList.remove('insuranceOk')
-                    this.$.consentStatus.classList.remove('noConsent')
-                    this.$.consentStatus.classList.remove('consentOk')
-                    this.$.hubStatus.classList.remove('noAccess')
-                    this.$.hubStatus.classList.remove('accessOk')
-                    this.$.tlStatus.classList.remove('noTl');
-                    this.$.tlStatus.classList.remove('tlOk');
-                    this.$.edmgStatus.classList.remove('edmgPending');
-                    this.$.edmgStatus.classList.remove('edmgOk');
-                    this.$.edmgStatus.classList.remove('edmgNOk');
+                    this.$['insuranceStatus'].classList.remove('medicalHouse')
+                    this.$['insuranceStatus'].classList.remove('noInsurance')
+                    this.$['insuranceStatus'].classList.remove('insuranceOk')
+                    this.$['consentStatus'].classList.remove('noConsent')
+                    this.$['consentStatus'].classList.remove('consentOk')
+                    this.$['hubStatus'].classList.remove('noAccess')
+                    this.$['hubStatus'].classList.remove('accessOk')
+                    this.$['tlStatus'].classList.remove('noTl');
+                    this.$['tlStatus'].classList.remove('tlOk');
+                    this.$['edmgStatus'].classList.remove('edmgPending');
+                    this.$['edmgStatus'].classList.remove('edmgOk');
+                    this.$['edmgStatus'].classList.remove('edmgNOk');
+                    this.$['rnConsultStatus'].classList.remove('rnConsultPending');
+                    this.$['rnConsultStatus'].classList.remove('rnConsultNOk')
+                    this.$['rnConsultStatus'].classList.remove('rnConsultOk')
                 }
+
+                this._closeRnConsultChangedNotification()
             }
 
             showPatientTherLinkState(){
@@ -5320,6 +5363,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return require('../../../images/cbip-logo.png')
             }
 
+            _rnConsultPicture(){
+                return require('../../../images/bcss.png')
+            }
+
             showListPlanOfAction(e){
                 e.stopPropagation()
                 this.$["listActions"].opened=true;
@@ -5792,80 +5839,65 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const printDocumentComponent = this.shadowRoot.querySelector("#printDocument")
                 return printDocumentComponent && typeof _.get(printDocumentComponent,"printDocument", false) === "function"  && printDocumentComponent.printDocument(_.get(e,"detail",{}))
             }
+           
+                                                                                                                  
 
-            fusionDialogCalled(e){
-                if(e.detail.open){
-                    this.$["fusion-dialog"].open(e.detail.patients).then(()=>{
-                        e.detail.select && e.detail.select.length && this.$["fusion-dialog"].select(e.detail.select)
+            _openRnConsultDialog(e){
+                e.stopPropagation()
+                this.$['htPatRnConsultDialog'].open()
+            }
+
+            _consultRnHistory(patient){
+                this.set('rnHistoryResult', {})
+                if (this.api.tokenId){
+                    this.api.fhc().RnConsultController().historyUsingGET(_.get(this, 'api.keystoreId', null), _.get(this, 'api.tokenId', null), _.get(this, 'api.credentials.ehpassword', null), _.get(patient, 'ssin', null)).then(resp => {
+                        this.set('rnHistoryResult', resp)
+                        if(!_.isEmpty(resp)){
+                           if(_.get(resp, 'ssin.value', null) && !_.get(resp, 'ssin.replaces', null)){
+                               this.$['rnConsultStatus'].classList.add('rnConsultOk')
+                           }else if(_.get(resp, 'ssin.replaces', null)){
+                               this.$['rnConsultStatus'].classList.add('rnConsultPending')
+                               this._rnConsultChangedNotification()
+                           }else if(_.get(resp, 'ssin.canceled', null)){
+                               this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                               this._rnConsultErrorNotification()
+                           }else{
+                               this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                               this._rnConsultErrorNotification()
+                           }
+                        }else{
+                            this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                            this._rnConsultErrorNotification()
+                        }
                     })
                 }
             }
 
-            _patientMerged(e) {
-                this.shadowRoot.querySelector("#pat-admin-card").patientMerged(e)
-                if (e.detail.ok && e.detail.patientId !== this.patient.id) {
-                    location.replace(location.href.replace(/(.+?)#.*/, `$1#/pat/${e.detail.patientId}`));
-                }
-            }
-
-            _checkForEhealthSession(){
-               return !!(_.get(this, 'api.tokenId', null) || _.get(this, 'api.tokenIdMH', null))
-            }
-
-            _checkForConsent(){
-                return !_.isEmpty(_.get(this, 'patientConsent.consent', {}))
-            }
-
-            _checkForTherLink(){
-                return _.get(this, 'haveTherLinks', false)
-            }
-
-            _therLinkErrorNotification(){
-                this.$["therLink-notification"].classList.add('notification')
+            _rnConsultErrorNotification(){
+                this.$["rnConsult-error-notification"].classList.add('notification')
                 setTimeout(() => {
-                    this._closeTherLinkErrorNotification()
+                    this._closeRnConsultErrorNotification()
                 }, 10000);
             }
 
-            _closeTherLinkErrorNotification(){
-                this.$["therLink-notification"].classList.remove('notification')
-            }
-
-            _consentErrorNotification(){
-                this.$["consent-notification"].classList.add('notification')
+            _rnConsultChangedNotification(){
+                this.$["rnConsult-changed-notification"].classList.add('notification')
                 setTimeout(() => {
-                    this._closeConsentErrorNotification()
-                }, 10000);
+                    this._closeRnConsultChangedNotification()
+                }, 600000);
             }
 
-            _closeConsentErrorNotification() {
-                this.$["consent-notification"].classList.remove('notification')
+            _closeRnConsultErrorNotification(){
+                this.$["rnConsult-error-notification"].classList.remove('notification')
             }
 
-            _ehealthErrorNotification(){
-                this.$["ehealth-notification"].classList.add('notification')
-                setTimeout(() => {
-                    this._closeEhealthErrorNotification()
-                }, 10000);
+            _closeRnConsultChangedNotification(){
+                this.$["rnConsult-changed-notification"] ? this.$["rnConsult-changed-notification"].classList.remove('notification') : null
             }
 
-            _closeEhealthErrorNotification(){
-                this.$["ehealth-notification"].classList.remove('notification')
-            }
-
-            _newReport_v2(e) {
-                const outgoingDocumentComponent = this.shadowRoot.querySelector("#outgoingDocument")
-                return outgoingDocumentComponent && typeof _.get(outgoingDocumentComponent,"open", false) === "function"  && outgoingDocumentComponent.open(_.get(e,"detail"))
-            }
-
-            _triggerRefreshOutGoingDocumentTemplates(e) {
-                const ctcDetailPanel = this.shadowRoot.querySelector("#ctcDetailPanel")
-                return ctcDetailPanel && typeof _.get(ctcDetailPanel,"_getOutGoingDocumentTemplates", false) === "function"  && ctcDetailPanel._getOutGoingDocumentTemplates()
-            }
-
-            refreshPatientAndServices() {
-                this.refreshPatient()
-                this._refreshFromServices()
+            _showRnConsultDiff(){
+                this._closeRnConsultChangedNotification()
+                this.$["htPatRnConsultHistoryDialog"]._openDialog()
             }
 
         }
