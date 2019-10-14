@@ -15,12 +15,14 @@
 <link rel="import" href="../../../dynamic-form/dynamic-link.html">
 <link rel="import" href="../../../dynamic-form/dynamic-pills.html">
 <link rel="import" href="../../../ht-spinner/ht-spinner.html">
+<link rel="import" href="../../../../styles/dialog-style.html">
+<link rel="import" href="../../../../styles/buttons-style.html">
 
 <dom-module id="ht-pat-medicalhouse-timeline">
     <template>
         <style include="iron-flex iron-flex-alignment"></style>
         <!--suppress CssUnusedSymbol -->
-        <style include="icpc-styles scrollbar-style">
+        <style include="icpc-styles scrollbar-style dialog-style buttons-style">
 
             #dialog .hub-cons{
                 display: flex;
@@ -151,23 +153,6 @@
                 margin: 0;
                 padding: 0;
             }
-            .modal-button {
-                --paper-button-ink-color: var(--app-secondary-color-dark);
-                color: var(--app-text-color);
-                font-weight: 400;
-                font-size: 14px;
-                height: 40px;
-                min-width: 100px;
-                padding: 10px 1.2em;
-                text-transform: capitalize;
-            }
-
-            .modal-button--save {
-                box-shadow: var(--shadow-elevation-2dp_-_box-shadow);
-                background: var(--app-secondary-color);
-                color: var(--app-primary-color-dark);
-                font-weight: 700;
-            }
 
             ht-spinner {
                 position: relative;
@@ -187,11 +172,14 @@
             <p>[[patient.lastName]]</p>
             <p>[[patient.medicalHouseContracts.length]]</p>
             <template is="dom-repeat" items="[[patient.medicalHouseContracts]]" as="contract">
-                <p>[[contract.mmNihii]]</p>
+                <p>Nihii = [[contract.mmNihii]]</p>
             </template>
-            <paper-button on-tap="_runTest">Test</paper-button>
+            <paper-button on-tap="_getGeninsHistory">Test</paper-button>
+            <paper-input label="[[localize('inv_month','Invoiced month',language)]]" value="{{invoicedMonth}}"></paper-input>
+            <paper-button on-tap="_runForfaitCheck">Check</paper-button>
 
-            <paper-button on-tap="_generateInvoiceTest">Generate Invoice Test</paper-button>
+<!--            <paper-button on-tap="_generateInvoiceTest">Generate Invoice Test</paper-button>-->
+            </div>
         </div>
     </template>
     <script>
@@ -233,6 +221,14 @@
                     isLoading:{
                         type: Boolean,
                         value: false
+                    },
+                    insList:{
+                        type: Object,
+                        value: null
+                    },
+                    invoicedMonth:{
+                        type: Number,
+                        value: 201901
                     }
                 };
             }
@@ -249,6 +245,56 @@
 
             _dateFormat(date) {
                 return date ? this.api.moment(date).format('DD/MM/YYYY') : '';
+            }
+
+            _timeFormat(date) {
+                return date ? this.api.moment(date).format(date > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
+            }
+
+            _ageFormat(date) {
+                return date ? this.api.getCurrentAgeFromBirthDate(date,( e , s ) => this.localize(e, s, this.language)) : '';
+            }
+
+            _dateFormat2(date, fFrom, fTo){
+                return date ? this.api.moment(date, fFrom).format(fTo) : '';
+            }
+
+            _shortDateFormat(date, altDate) {
+                return (date || altDate) && "'"+this.api.moment((date || altDate)).format('YY') || '';
+            }
+
+            _isElevated(CT){
+                return CT && CT.substring(2) !== '0' ? this._yesOrNo(true) : this._yesOrNo(false);
+            }
+
+            _trueOrUnknown(b){
+                return b ? this.localize('yes','yes',this.language) : '?'
+            }
+
+            _yesOrNo(b){
+                return b ? this.localize('yes','yes',this.language) : this.localize('no','no',this.language)
+            }
+
+            _formatHospitalizedInfo(hi){
+                let info = '';
+                info += hi && hi.hospital ? this.localize('hosp', 'Hospital', this.language)+ ':' + hi.hospital + ' ' : ''
+                info += hi && hi.admissionDate ? this.localize('adm_dat', 'AdmissionDate', this.language) + ':' + this._dateFormat2(hi.admissionDate, 'YYYYMMDD', 'DD/MM/YYYY') + ' ' : ''
+                info += hi && hi.admissionService ? this.localize('adm_svc', 'AdmissionService', this.language)+ ':' + hi.admissionService + ' ' : ''
+                return info;
+            }
+
+            _hasErrors(errs){
+                return errs && errs.length > 0;
+                //return true;
+            }
+
+            _formatError(error){
+                return "[" + (this.language === 'nl' ? error.locNl : error.locFr) +  '] ' + (error.value?error.value + ' : ':"") + (this.language === 'nl' ? error.msgNl : error.msgFr);
+            }
+
+            _hasTransfers(genins){
+                return genins && genins.transfers && genins.transfers.length > 0;
+                //return true;
             }
 
             onWidthChange() {
@@ -273,6 +319,199 @@
                 this.async(this.notifyResize, 1);
             }
 
+            _runForfaitCheck(){
+                this.checkFlatrateData(this.patient, Number(this.invoicedMonth)).then(res => {
+                    console.log("res", res)
+                    return res;
+                });
+            }
+
+            checkFlatrateData(pat, invoicedMonth){
+                //TODO: if multiple MHcontracts exist, check for overlap/validity of all
+                //TODO: if multiple insurabilities extist, check for overlap/validity of all
+                //Check if hcp or hcpParrent is flatrateInvoicing
+                return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then( hcp =>
+                    hcp.parentId ? this.api.hcparty().getHealthcareParty(hcp.parentId) : hcp).then(hcp2 => {
+                    let res = {};
+                    res.hcp = hcp2;
+                    console.log("hcp flatrate ?", hcp2);
+                    if(hcp2.billingType && hcp2.billingType.toLowerCase() === "flatrate") {
+                        //PatientData:
+                        //  NISS
+                        res.nissCheck = this.checkNissValid(pat);
+                        //  Gender
+                        res.genderCheck = this.checkGender(pat);
+                        //  DeathDate
+                        res.aliveCheck = this.checkAlive(pat, invoicedMonth);
+                        //Insurability:
+                        res.insurabilityCheck = this.checkInsurability(pat, invoicedMonth);
+                        //  MUT
+                        res.mutCheck = this.checkMut(res.insurabilityCheck);
+                        //  CT12
+                        res.ct12Check = this.checkCT12(res.insurabilityCheck);
+                        //MH Contract:
+                        res.mhContractCheck = this.checkMHContract(pat, invoicedMonth);
+                        //  MM NIHII
+                        res.mhCheck = this.checkMH(res.mhContractCheck);
+                        //  No Suspension
+                        res.mhSuspensionCheck = this.checkSuspension(res.mhContractCheck, invoicedMonth);
+                        //  Disciplines
+                        res.mhDisciplineCheck = this.checkMHDiscipline(res.mhContractCheck);
+                        // oveview
+                        res.flatrateStatus = this.checkMHStatus(res);
+                        //console.log("res", res, JSON.stringify(res));
+                    } else {
+                        // non flatrate
+                        res.flatrateStatus = {status: "ok-no-flatrate-mh", errors: []}
+                    }
+                    return res;
+                })
+            }
+
+            checkMHStatus(res){
+                return res.mhContractCheck.valid ? (
+                    res.mutCheck.valid && res.ct12Check.valid && res.mhCheck.valid && res.mhSuspensionCheck.valid && res.mhDisciplineCheck.valid && res.nissCheck.valid && res.genderCheck.valid && res.aliveCheck.valid
+                    ? {status: "ok-flatrate-patient", errors: []} : {status: "nok-flatrate-patient", errors: this.mhStatusErrors(res)}
+                ) : {status: "ok-no-flatrate-patient", errors: []};
+            }
+
+            mhStatusErrors(res){
+                let err = [];
+                if(!res.mutCheck.valid) err.push(res.mutCheck.error);
+                if(!res.ct12Check.valid) err.push(res.ct12Check.error);
+                if(!res.mhCheck.valid) err.push(res.mhCheck.error);
+                if(!res.mhSuspensionCheck.valid) err.push(res.mhSuspensionCheck.error);
+                if(!res.mhDisciplineCheck.valid) err.push(res.mhDisciplineCheck.error);
+                if(!res.nissCheck.valid) err.push(res.nissCheck.error);
+                if(!res.genderCheck.valid)  err.push(res.genderCheck.error);
+                if(!res.aliveCheck.valid) err.push(res.aliveCheck.error);
+                return err;
+            }
+
+            checkMHDiscipline(mhcCheck){
+                return mhcCheck.valid ?
+                    ((mhcCheck.medicalHouseContract.kine || mhcCheck.medicalHouseContract.gp || mhcCheck.medicalHouseContract.nurse ) ?
+                            {valid: true, discipline: (mhcCheck.medicalHouseContract.gp ? "1" : "0")+(mhcCheck.medicalHouseContract.kine ? "1" : "0")+(mhcCheck.medicalHouseContract.nurse ? "1" : "0"), error: ''}
+                            : {valid: false, discipline: "000", error: 'no-discipline'}
+                    )
+                    : {valid: false, discipline:"", error: 'no-contract-for-period'}
+            }
+
+            checkSuspension(mhcCheck, invoicedMonth){
+                const month = (invoicedMonth * 100) + 1;
+                return mhcCheck.valid ?
+                    (mhcCheck.medicalHouseContract.startOfSuspension && mhcCheck.medicalHouseContract.startOfSuspension <= month
+                            && (!mhcCheck.medicalHouseContract.endOfSuspension || (mhcCheck.medicalHouseContract.endOfSuspension >= month)) ?
+                            {valid: false, suspension: mhcCheck.medicalHouseContract, error: 'suspended'}
+                            : {valid: true, suspension:{}, error: ''}
+                    )
+                    : {valid: false, suspension:{}, error: 'no-contract-for-period'}
+            }
+
+            checkMH(mhcCheck){
+                return mhcCheck.valid ?
+                    (mhcCheck.medicalHouseContract.hcpId && mhcCheck.medicalHouseContract.hcpId !== '' ?
+                            {valid: true, hcpId: mhcCheck.medicalHouseContract.hcpId, error: ''}
+                            : {valid: false, hcpId:'', error: 'mh-hcpId-absent-or-invalid'}
+                    )
+                    : {valid: false, hcpId:'', error: 'no-contract-for-period'}
+            }
+
+            checkMHContract(pat, invoicedMonth){
+                //invoicedmonth => yyyyMM => 201909 => (201909 * 100) + 1 = 20190901
+                const month = (invoicedMonth * 100) + 1;
+                if(pat.medicalHouseContracts && pat.medicalHouseContracts.length > 0){
+                    const mhcList = pat.medicalHouseContracts.filter(mhc =>
+                        mhc.startOfCoverage && mhc.startOfCoverage <= month && (!mhc.endOfCoverage || (mhc.endOfCoverage >=month)));
+                    if(mhcList && mhcList.length > 0){
+                        return {valid: true, medicalHouseContract: mhcList[0], error: ''};
+                    }else{
+                        return {valid: false, medicalHouseContract: null, error: 'no-contract-for-period'};
+                    }
+                }
+                else {
+                    return {valid: false, medicalHouseContract: null, error: 'no-contracts'};
+                }
+            }
+
+            checkMut(insCheck){
+                return insCheck.valid ?
+                    (insCheck.insurability.insuranceId && insCheck.insurability.insuranceId !== '' ?
+                            {valid: true, insuranceId: insCheck.insurability.insuranceId, error: ''}
+                            : {valid: false, insuranceId:'', error: 'insuranceId-absent-or-invalid'}
+                    )
+                    : {valid: false, ct12:'', error: 'no-ins-for-period'}
+            }
+
+            checkCT12(insCheck){
+                return insCheck.valid ?
+                    (insCheck.insurability.parameters && insCheck.insurability.parameters.tc1
+                        && insCheck.insurability.parameters.tc1.length === 3  && insCheck.insurability.parameters.tc2 && insCheck.insurability.parameters.tc2.length === 3 ?
+                            {valid: true, ct12:insCheck.insurability.parameters.tc1 + insCheck.insurability.parameters.tc2, error: ''}
+                            : {valid: false, ct12:'', error: 'tc1-tc2-absent-or-invalid'}
+                    )
+                    : {valid: false, ct12:'', error: 'no-ins-for-period'}
+            }
+
+            checkInsurability(pat, invoicedMonth){
+                //invoicedmonth => yyyyMM => 201909 => (201909 * 100) + 1 = 20190901
+                const month = (invoicedMonth * 100) + 1;
+                if(pat.insurabilities && pat.insurabilities.length > 0){
+                    const insList = pat.insurabilities.filter(ins =>
+                        ins.startDate && ins.startDate <= month && (!ins.endDate || (ins.endDate >=month)));
+                    if(insList && insList.length > 0){
+                        return {valid: true, insurability: insList[0], error: ''};
+                    }else{
+                        return {valid: false, insurability: null, error: 'no-ins-for-period'};
+                    }
+                }
+                else {
+                    return {valid: false, insurability: null, error: 'no-insurabilities'};
+                }
+            }
+
+            checkAlive(pat, invoicedMonth){
+                const month = (invoicedMonth * 100) + 1;
+                return pat.dateOfDeath && (pat.dateOfDeath <= month) ? {valid: false, dateOfDeath : pat.dateOfDeath, error: 'patient-deceased'} : {valid: true, dateOfDeath : 0, error: ''};
+            }
+
+            checkGender(pat){
+                return pat.gender && (pat.gender === "male" || pat.gender === 'female') ? {valid:true, error: ''} : {valid: true, error: 'gender-invalid'}
+            }
+
+            checkNissValid(pat){
+                return (pat.ssin && pat.ssin !== "") ? (pat.ssin.length === 11 ? {valid: true, error: ''} : {valid: false, error: 'niss-invalid'}) : {valid: false, error: 'niss-absent'};
+            }
+
+            _getGeninsHistory(){
+                this.set("isLoading", true);
+                let aMonths  = [];
+                let i;
+                for (i = 0; i < 24; i++) {
+                    aMonths.push(moment().startOf('month').subtract(i, 'month'));
+                }
+                this.set("insList", null);
+                let insList = [];
+                Promise.all(aMonths.map(m => this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(
+                    this.cleanNiss(this.patient.ssin),
+                    this.api.tokenId ? this.api.tokenId : this.api.tokenIdMH, this.api.tokenId ? this.api.keystoreId : this.api.keystoreIdMH, this.api.tokenId ? this.api.credentials.ehpassword : this.api.credentials.ehpasswordMH,
+                    this.api.tokenId ? hcp.nihii : this.api.nihiiMH, this.api.isMH ? this.api.MHContactPersonSsin : hcp.ssin, this.api.isMH ? this.api.MHContactPersonName : hcp.lastName + ' ' + hcp.firstName, this.api.tokenId ? "doctor" : "medicalhouse", m.format('x'), null
+                    ))
+                )).then(aRes => {
+                    aRes.map(res => {
+                        insList.push(res);
+                        //console.log(res);
+                    })
+                    this.set("insList",insList);
+                    console.log("insList", JSON.stringify(insList));
+                    this.set("isLoading", false);
+                }).finally(this.set("isLoading", false))
+            }
+
+            cleanNiss(niss){
+                return niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
+            }
+
             _runTest(){
                 let mhcs = this.patient.medicalHouseContracts
                 mhcs.map(
@@ -286,75 +525,75 @@
                 const amount2 = this.getForfaitAmountOnDate(20181101);
             }
 
-            _generateInvoiceTest(){
-                // let inv;
-                // const prefix = 'invoice:'+this.user.healthcarePartyId+':'+(parentIns && parentIns.code ? parentIns.code : '000')+':'
-
-                this.api.crypto().extractDelegationsSFKs(this.patient, this.user.healthcarePartyId).then(secretForeignKeys => {
-                    const patientKeys = secretForeignKeys.extractedKeys.join(",")
-                    this.api.invoice().appendCodes(this.user.id, this.selectedInvoice.invoiceType, this.selectedMediumCodeType, (!!this.patient.insurabilities.length?this.patient.insurabilities[0].insuranceId:''), patientKeys, null, 0, [newNmcl])
-                        .then(inv => (this.patient.insurabilities && this.patient.insurabilities.length) ? this.api.insurance().getInsurance(this.patient.insurabilities[0].insuranceId).then(ins => [inv[0] || null, ins || null]) :  [inv[0] || null, null])
-                        .then(([inv, ins]) => (ins && ins != null) ? this.api.insurance().getInsurance(ins.parent).then(parentIns => [inv, parentIns]) : [inv, null])
-                        .then(([inv, parentIns]) => {
-                            let invoice = inv
-
-                            if(!invoice){return null;}
-                            if (!invoice.id) {
-                                invoice.invoiceDate = this.selectedInvoice.invoiceDate
-                                invoice.invoiceReference = this.selectedInvoice.invoiceReference
-                                invoice.thirdPartyPaymentJustification = this.selectedInvoice.thirdPartyPaymentJustification
-                                invoice.invoicePeriod = this.selectedInvoice.invoicePeriod !== "" ? this.selectedInvoice.invoicePeriod : 0
-                                invoice.longDelayJustification = this.selectedInvoice.longDelayJustification
-                                invoice.gnotionNihii = this.selectedInvoice.gnotionNihii === "" ? null : this.selectedInvoice.gnotionNihii
-                                invoice.internshipNihii = this.selectedInvoice.internshipNihii === "" ? null : this.selectedInvoice.internshipNihii
-                                invoice.creditNote = this.selectedInvoice.creditNote
-                                invoice.careProviderType = this.selectedInvoice.careProviderType
-                                invoice.encounterLocationName = this.selectedInvoice.encounterLocationName
-                                invoice.encounterLocationNihii = this.selectedInvoice.encounterLocationNihii
-                                invoice.encounterLocationNorm = this.selectedInvoice.encounterLocationNorm
-
-                                const icId = invoice.invoicingCodes[0] && invoice.invoicingCodes[0].id
-                                const prefix = 'invoice:'+this.user.healthcarePartyId+':'+(parentIns && parentIns.code ? parentIns.code : '000')+':'
-
-                                return this.api.invoice().newInstance(this.user, this.patient, invoice)
-                                    .then(invoice => this.api.invoice().createInvoice(invoice, prefix))
-                                    .then(invoice => this.api.register(invoice,'invoice'))
-                                    .then(invoice => {
-                                        this.$['nmclGrid'].clearCache()
-                                        console.log(this.selectedInvoice)
-                                        this.api.invoice().findBy(this.user.healthcarePartyId, this.patient)
-                                            .then(invoices => invoices.map(i => this.api.register(i, 'invoice')))
-                                            .then(invoices => {
-                                                this.set('invoices', _.orderBy(invoices, ['invoiceDate'], ['desc']))
-                                                this.set('selectedInvoiceIndex', _.findIndex(this.invoices, i => i.invoicingCodes.some(c => c.id.includes(icId))))
-                                                this.$['nmclGrid'].clearCache()
-
-                                                return invoice
-                                            })
-                                    })
-                            } else {
-                                this.api.tarification().getTarifications(new models.ListOfIdsDto({ids: invoice.invoicingCodes.map(tar => tar.tarificationId)})).then(nmcls =>
-                                    nmcls.map(nmcl =>{
-                                        let sns = invoice.invoicingCodes.filter(n => n.tarificationId === nmcl.id) || null
-                                        if(sns && sns.length){
-                                            sns.map(sn =>{
-                                                sn.prescriberNeeded = nmcl.needsPrescriber
-                                                sn.isRelativePrestation = nmcl.hasRelatedCode
-                                            })
-                                        }
-                                    })
-                                ).then(x =>{
-                                    const registered = this.api.register(invoice, 'invoice')
-                                    this.$['nmclGrid'].clearCache()
-                                    this.updateGui(registered)
-                                    return registered;
-                                })
-
-
-                            }
-                        })
-                })
-            }
+            // _generateInvoiceTest(){
+            //     // let inv;
+            //     // const prefix = 'invoice:'+this.user.healthcarePartyId+':'+(parentIns && parentIns.code ? parentIns.code : '000')+':'
+            //
+            //     this.api.crypto().extractDelegationsSFKs(this.patient, this.user.healthcarePartyId).then(secretForeignKeys => {
+            //         const patientKeys = secretForeignKeys.extractedKeys.join(",")
+            //         this.api.invoice().appendCodes(this.user.id, this.selectedInvoice.invoiceType, this.selectedMediumCodeType, (!!this.patient.insurabilities.length?this.patient.insurabilities[0].insuranceId:''), patientKeys, null, 0, [newNmcl])
+            //             .then(inv => (this.patient.insurabilities && this.patient.insurabilities.length) ? this.api.insurance().getInsurance(this.patient.insurabilities[0].insuranceId).then(ins => [inv[0] || null, ins || null]) :  [inv[0] || null, null])
+            //             .then(([inv, ins]) => (ins && ins != null) ? this.api.insurance().getInsurance(ins.parent).then(parentIns => [inv, parentIns]) : [inv, null])
+            //             .then(([inv, parentIns]) => {
+            //                 let invoice = inv
+            //
+            //                 if(!invoice){return null;}
+            //                 if (!invoice.id) {
+            //                     invoice.invoiceDate = this.selectedInvoice.invoiceDate
+            //                     invoice.invoiceReference = this.selectedInvoice.invoiceReference
+            //                     invoice.thirdPartyPaymentJustification = this.selectedInvoice.thirdPartyPaymentJustification
+            //                     invoice.invoicePeriod = this.selectedInvoice.invoicePeriod !== "" ? this.selectedInvoice.invoicePeriod : 0
+            //                     invoice.longDelayJustification = this.selectedInvoice.longDelayJustification
+            //                     invoice.gnotionNihii = this.selectedInvoice.gnotionNihii === "" ? null : this.selectedInvoice.gnotionNihii
+            //                     invoice.internshipNihii = this.selectedInvoice.internshipNihii === "" ? null : this.selectedInvoice.internshipNihii
+            //                     invoice.creditNote = this.selectedInvoice.creditNote
+            //                     invoice.careProviderType = this.selectedInvoice.careProviderType
+            //                     invoice.encounterLocationName = this.selectedInvoice.encounterLocationName
+            //                     invoice.encounterLocationNihii = this.selectedInvoice.encounterLocationNihii
+            //                     invoice.encounterLocationNorm = this.selectedInvoice.encounterLocationNorm
+            //
+            //                     const icId = invoice.invoicingCodes[0] && invoice.invoicingCodes[0].id
+            //                     const prefix = 'invoice:'+this.user.healthcarePartyId+':'+(parentIns && parentIns.code ? parentIns.code : '000')+':'
+            //
+            //                     return this.api.invoice().newInstance(this.user, this.patient, invoice)
+            //                         .then(invoice => this.api.invoice().createInvoice(invoice, prefix))
+            //                         .then(invoice => this.api.register(invoice,'invoice'))
+            //                         .then(invoice => {
+            //                             this.$['nmclGrid'].clearCache()
+            //                             console.log(this.selectedInvoice)
+            //                             this.api.invoice().findBy(this.user.healthcarePartyId, this.patient)
+            //                                 .then(invoices => invoices.map(i => this.api.register(i, 'invoice')))
+            //                                 .then(invoices => {
+            //                                     this.set('invoices', _.orderBy(invoices, ['invoiceDate'], ['desc']))
+            //                                     this.set('selectedInvoiceIndex', _.findIndex(this.invoices, i => i.invoicingCodes.some(c => c.id.includes(icId))))
+            //                                     this.$['nmclGrid'].clearCache()
+            //
+            //                                     return invoice
+            //                                 })
+            //                         })
+            //                 } else {
+            //                     this.api.tarification().getTarifications(new models.ListOfIdsDto({ids: invoice.invoicingCodes.map(tar => tar.tarificationId)})).then(nmcls =>
+            //                         nmcls.map(nmcl =>{
+            //                             let sns = invoice.invoicingCodes.filter(n => n.tarificationId === nmcl.id) || null
+            //                             if(sns && sns.length){
+            //                                 sns.map(sn =>{
+            //                                     sn.prescriberNeeded = nmcl.needsPrescriber
+            //                                     sn.isRelativePrestation = nmcl.hasRelatedCode
+            //                                 })
+            //                             }
+            //                         })
+            //                     ).then(x =>{
+            //                         const registered = this.api.register(invoice, 'invoice')
+            //                         this.$['nmclGrid'].clearCache()
+            //                         this.updateGui(registered)
+            //                         return registered;
+            //                     })
+            //
+            //
+            //                 }
+            //             })
+            //     })
+            // }
 
             getForfaitAmountOnDate(date){
                 const amounts = this.getForfaitAmounts();
@@ -378,21 +617,6 @@
 
             open() {
                 this.$.dialog.open();
-                // const propHub = this.user.properties.find(p => p.type && p.type.identifier === 'org.taktik.icure.user.preferredhub') ||
-                //     (this.user.properties[this.user.properties.length] = {
-                //         type: {identifier: 'org.taktik.icure.user.preferredhub'},
-                //         typedValue: {type: 'STRING', stringValue: 'rsw'}
-                //     })
-                //
-                // const propEnv = this.user.properties.find(p => p.type && p.type.identifier === 'org.taktik.icure.user.eHealthEnv') ||
-                //     (this.user.properties[this.user.properties.length] = {
-                //         type: {identifier: 'org.taktik.icure.user.eHealthEnv'},
-                //         typedValue: {type: 'STRING', stringValue: 'prd'}
-                //     })
-                // this.set("curHub", propHub.typedValue.stringValue);
-                // this.set("curEnv", propEnv.typedValue.stringValue);
-                // this.set("supportBreakTheGlass", false);
-                // this._setHub();
             }
 
             close() {

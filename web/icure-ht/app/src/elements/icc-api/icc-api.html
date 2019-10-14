@@ -635,8 +635,8 @@
                     .then(response => response && response.status===200 ? response.json() : Promise.resolve({}))
                     .then( data => {
                         const printersPrefs = electron && data && data.ok ? JSON.parse(data.data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
-                        const stickersPrefs = electron && data && data.ok ? printersPrefs.find( pref => pref.type === "sticker-mut") || {} : printersPrefs.stickers
-                        const typePreference = electron && data && options.type ? printersPrefs.find(pref => pref.type===options.type) || null : null
+                        const stickersPrefs = electron && data && data.ok ? _.find(printersPrefs, pref => pref.type === "sticker-mut") || {} : _.get(printersPrefs,"stickers")
+                        const typePreference = electron && data && options.type ? _.find(printersPrefs,pref => pref.type===options.type) || null : null
                         const paperSize = typePreference ?  typePreference.type==="sticker-mut" ? "stickers" : typePreference.format==="A4" ? "a4" : typePreference.format ==="A5" ? "a5" : typePreference.format==="DL/A5" ? "presc" : "a4"
                             :  options.paperWidth === 105 ? 'presc' : options.paperHeight === 210 ? 'a5' : (stickersPrefs && options.paperWidth === stickersPrefs.w && options.paperHeight === stickersPrefs.h) ? 'stickers' : 'a4'
                         const printerName = typePreference ? typePreference.printer : options.printer ? printersPrefs[options.printer] && printersPrefs[options.printer].bw || "" : (printersPrefs[paperSize] && (printersPrefs[paperSize].bw && printersPrefs[paperSize].bw.length ? printersPrefs[paperSize].bw : printersPrefs[paperSize].color && printersPrefs[paperSize].color.length ? printersPrefs[paperSize].color : null)) || null
@@ -787,17 +787,31 @@
 
             if(!fileRawContent || !_.trim(mimeType) || !_.trim(downloadFileName) ) return;
 
-            let aObject = document.createElement("a");
-            let urlObject = window.URL.createObjectURL( new Blob([fileRawContent],{type :mimeType}) );
+            // let aObject = document.createElement("a");
+            // let urlObject = window.URL.createObjectURL( new Blob([fileRawContent],{type :mimeType}) );
+            //
+            // (appendTarget?appendTarget:document.body).appendChild( aObject );
+            //
+            // aObject.style = "display: none";
+            // aObject.href = urlObject;
+            // aObject.download = downloadFileName;
+            // aObject.click();
+            // window.URL.revokeObjectURL(urlObject);
 
-            (appendTarget?appendTarget:document.body).appendChild( aObject );
+            const urlObject = window.URL.createObjectURL( new Blob([fileRawContent],{type :mimeType}) );
+            try {
+                const linkObject = _.merge(document.createElement("a"),{ style: "display: none", href: urlObject, download:downloadFileName });
+                (appendTarget?appendTarget:document.body).appendChild( linkObject ) && linkObject.click() && window.URL.revokeObjectURL(urlObject);
+            } catch(e) { window.open(_.trim(urlObject)) }
 
-            aObject.style = "display: none";
-            aObject.href = urlObject;
-            aObject.download = downloadFileName;
-            aObject.click();
-            window.URL.revokeObjectURL(urlObject);
+        }
 
+        triggerUrlDownload(downloadUrl, appendTarget = false ) {
+            if(!_.trim(downloadUrl)) return
+            try {
+                const linkObject = _.merge(document.createElement("a"),{ style: "display: none", href: downloadUrl })
+                (appendTarget?appendTarget:document.body).appendChild( linkObject ) && linkObject.click() && window.URL.revokeObjectURL(downloadUrl);
+            } catch(e) { window.open(_.trim(downloadUrl)) }
         }
 
         encryptDecryptFileContentByUserHcpIdAndDocumentObject( encryptOrDecryptMethod, user, documentObject, rawFileContent  ) {
@@ -880,6 +894,67 @@
 
         hrFormatNumber(inputNumber) {
             return parseFloat( _.trim(inputNumber).replace(',','.') ).toLocaleString("de-DE", {maximumFractionDigits:2, minimumFractionDigits:2})
+        }
+
+        getDocumentTypes(resources, language) {
+
+            const exclusionList = [
+                "medicaladvisoragreement",
+                "bvt-sample",
+                "clinicalpath",
+                "ecare-safe-consultation",
+                "ecare-tardis-consultation",
+                "perinatal",
+                "population-based-screening",
+                "medicationschemeelement",
+                "vaccinationschemeelement",
+                "genericregistryentry",
+                "ebirth-baby-medicalform",
+                "ebirth-mother-medicalform",
+                "intervention",
+                "applicationlink",
+                "ebirth-baby-notification",
+                "ebirth-mother-notification",
+                "child-prevention",
+                "radiationexposuremonitoring",
+                "treatmentsuspension",
+                "telemonitoring"
+            ]
+
+            return this.code().findCodes("be", "CD-TRANSACTION")
+                .then(foundCodes => _
+                    .chain(foundCodes)
+                    .filter(singleCode => exclusionList.indexOf(_.trim(_.get(singleCode,"code",""))) === -1)
+                    .map(singleCode => { const code = _.trim(_.get(singleCode,"code","")); return{code:code,name:_.upperFirst(_.trim(_.get(resources, language + ".cd-transaction-" + code, code)).toLowerCase())}})
+                    .orderBy(['name'],['asc'])
+                    .value()
+                )
+                .catch(()=>Promise.resolve())
+
+        }
+
+        _getUserConfirmationDialogAcknowledgements(currentUser=null) {
+
+            return (!!_.size(currentUser) ? Promise.resolve(currentUser) : this.user().getCurrentUser())
+                .then(user => {
+                    const confirmationDialogAcknowledgementsProperties = _.find(_.get(user,"properties",[]), p => _.trim(_.get(p,"type.identifier","")) === "org.taktik.icure.user.confirmationDialogAcknowledgements") || { type: { identifier: "org.taktik.icure.user.confirmationDialogAcknowledgements" }, typedValue: {type: "STRING", stringValue: "{}"} }
+                    return JSON.parse( _.trim(_.get(confirmationDialogAcknowledgementsProperties,"typedValue.stringValue","{}")))||{}
+                })
+
+        }
+
+        _setUserConfirmationDialogAcknowledgements(currentUser=null, newProperties=null) {
+
+            const dialogAcknowledgementsPropertyKeyName = "org.taktik.icure.user.confirmationDialogAcknowledgements"
+
+            return !_.size(newProperties) ? Promise.resolve(currentUser) : (!!_.size(currentUser) ? Promise.resolve(currentUser) : this.user().getCurrentUser())
+                .then(user => this._getUserConfirmationDialogAcknowledgements(user).then(acknowledgementProperties => ([user,acknowledgementProperties]) ))
+                .then(([user,acknowledgementProperties]) => {
+                    const otherProperties = _.filter(_.get(user,"properties",[]), p => _.trim(_.get(p,"type.identifier","")) !== dialogAcknowledgementsPropertyKeyName)
+                    const acknowledgementUpdatedProperties = {type: {identifier: dialogAcknowledgementsPropertyKeyName}, typedValue: { type: "STRING", stringValue: JSON.stringify(_.merge(acknowledgementProperties,newProperties))}}
+                    return this.user().modifyUser(_.assign(user, {properties:_.concat(otherProperties, acknowledgementUpdatedProperties)})).then(u => this.register(u, "user"))
+                })
+
         }
 
     }

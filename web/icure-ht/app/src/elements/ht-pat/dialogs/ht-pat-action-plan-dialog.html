@@ -20,11 +20,12 @@
 <link rel="import" href="../../dynamic-form/dynamic-link.html">
 <link rel="import" href="../../dynamic-form/dynamic-pills.html">
 
-<link rel="import" href="../../../dialog-style.html">
+<link rel="import" href="../../../styles/dialog-style.html">
+<link rel="import" href="../../../styles/scrollbar-style.html">
 
 <dom-module id="ht-pat-action-plan-dialog">
     <template>
-        <style include="dialog-style">
+        <style include="dialog-style scrollbar-style">
             #dialog{
                 min-height: 480px;
                 min-width: 800px;
@@ -62,25 +63,11 @@
             }
 
             .content {
-                max-height: calc(100% - 52px);
-                margin-bottom: 52px;
-                padding-bottom: 24px;
+                padding: 12px;
             }
 
             p.errmsg {
                 color: var(--app-error-color);
-            }
-
-            .buttons {
-                position: absolute;
-                bottom: 0;
-
-                box-sizing: border-box;
-                width: 100%;
-
-                /* border-top: 1px solid var(--app-background-color-dark); */
-
-                color: black;
             }
 
             paper-button[disabled] {
@@ -118,7 +105,7 @@
                     <dynamic-pills health-elements="[[linkedHes]]"></dynamic-pills>
                 </div>
             </div>
-            <h3 class="modal-title">[[localize('plan_act','Plan an action',language)]]</h3>
+            <h2 class="modal-title">[[localize('plan_act','Plan an action',language)]]</h2>
             <div class="content">
                 <vaadin-form-layout>
                     <vaadin-form-item  colspan="1">
@@ -165,15 +152,15 @@
                 <vaadin-form-layout>
                     <vaadin-form-item colspan="2">
                         <template is="dom-if" if="[[isStatusComplete]]">
-                            <vaadin-checkbox on-checked-changed="_isSurgical" readonly="[[_checkReadonlySurgical]]">Chirurgical</vaadin-checkbox>
+                            <vaadin-checkbox on-checked-changed="_isSurgical" checked="[[plannedAction.isSurgical]]" disabled="[[readonly]]">Chirurgical</vaadin-checkbox>
                         </template>
                     </vaadin-form-item>
                 </vaadin-form-layout>
             </div>
             <div class="buttons">
                 <p class="errmsg">[[errMsg]]</p>
-                <paper-button class="modal-button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                <paper-button class="modal-button modal-button--save" autofocus on-tap="planAction" disabled="[[!isValid]]">[[localize('save','Save',language)]]</paper-button>
+                <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" autofocus on-tap="planAction" disabled="[[!isValid]]"><iron-icon icon="save"></iron-icon>[[localize('save','Save',language)]]</paper-button>
             </div>
         </paper-dialog>
 
@@ -462,7 +449,7 @@
 
                 let listFiltered=[]
                 const procedureCode = this.proceduresListItem.find(p=> p.code===code)
-                if(procedureCode) {
+                if(procedureCode && procedureCode.links) {
                     procedureCode.links.filter(link => link.includes("CD-HCPARTY|")).map(link => {
                         const info = link.split('|')
                         listFiltered.push(this.hcpartyTypeList.find(type => type.code === info[1]))
@@ -546,18 +533,9 @@
             _proceduresDataProvider(){
                 return {
                     filter: function (proceduresFilterValue) {
-                        let count = 15;
-                        return Promise.all([this.api.code().findPaginatedCodesByLabel('be', 'BE-THESAURUS-PROCEDURES', 'fr', proceduresFilterValue, null, null, count)]).then(results => {
+                        return Promise.all([this.api.code().findPaginatedCodesByLabel('be', 'BE-THESAURUS-PROCEDURES', 'fr', proceduresFilterValue, null, null)]).then(results => {
                             const procedureList = results[0];
-                            const profCode = (this.selectedProfessionItem && this.selectedProfessionItem.id)
                             let filtered = procedureList.rows
-                            if(profCode) {
-                                filtered = filtered.filter(proc => {
-                                    return proc.links && proc.links.some(link => {
-                                        return link == profCode
-                                    })
-                                })
-                            }
                             filtered = _.flatten(filtered.map(procedure => ({
                                 id: procedure.id,
                                 label: procedure.label,
@@ -574,8 +552,7 @@
             _drugsDataProvider(){
                 return {
                     filter: function (drugsFilterValue) {
-                        let count = 15;
-                        return Promise.all([this.api.bedrugs().getMedecinePackages(drugsFilterValue, this.language, null, 0, count)]).then(results => {
+                        return Promise.all([this.api.bedrugs().getMedecinePackages(drugsFilterValue, this.language, null, 0)]).then(results => {
                             const drugsList = results[0];
                             const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id.id}) ));
                             return { totalSize: filtered.length, rows: filtered };
@@ -811,7 +788,7 @@
                             ProfessionId: this.professionId,
                             ReasonOfRef: codeStatus && codeStatus.code === "refused" ? codeStatus.label : "",
                             isDeadline: (date ? true : false),
-                            isSurgical: this.api.contact().preferredContent(service, this.language).booleanValue ? true : false,//creer un antecedent
+                            isSurgical: this.api.contact().preferredContent(service, "isSurgical").booleanValue ? true : false,
                             VaccineCommercialNameId: (this.isVaccineProcedure && medicationValue && medicationValue.medicinalProduct && medicationValue.medicinalProduct.intendedcds && medicationValue.medicinalProduct.intendedcds.length ? medicationValue.medicinalProduct.intendedcds.find(code => code.type === "CD-DRUG-CNK").code : ""),
                             DoseNumber: (this.isVaccineProcedure && medicationValue && medicationValue.options && medicationValue.options.doseNumber && medicationValue.options.doseNumber.stringValue ? medicationValue.options.doseNumber.stringValue : ""),
                             BatchNumber: (this.isVaccineProcedure && medicationValue && medicationValue.batch ? medicationValue.batch : ""),
@@ -911,14 +888,10 @@
                 this.set("plannedAction.ProfessionId",this.selectedProfessionItem && this.selectedProfessionItem.id || "")
             }
 
-            _checkReadonlySurgical(){
-                return this.hasSurgical && this.readonly;
-            }
-
             _checkValidity(){
                 this.set("isValid",false);
                 console.log(this.plannedAction)
-                if(this.plannedAction.Deadline && this.plannedAction.Deadline!="" && this.plannedAction.ProcedureId && this.plannedAction.ProcedureId!="" && this.plannedAction.Status!=''){
+                if(this.plannedAction.Deadline && this.plannedAction.Deadline!="" && this.plannedAction.ProcedureId && this.plannedAction.ProcedureId!="" && this.plannedAction.Status!='' && !this.readonly){
                     this.set("isValid",true);
                 }
             }
