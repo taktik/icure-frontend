@@ -647,7 +647,7 @@
                             <vaadin-date-picker id="endMoment" label="[[localize('end-date', 'End date', language)]]" value="{{selectedMedicationContentWithId.endMomentAsString}}"
                                                 class="regimen--datepicker" i18n="[[i18n]]"></vaadin-date-picker>
                             <div>ou</div>
-                            <paper-input type="number" min="0" label="[[localize('','Nombre de jours',language)]]" value=""></paper-input>
+                            <paper-input type="number" min="0" label="[[localize('','Nombre de jours',language)]]" value="{{duration}}" on-change="_changeDuration"></paper-input>
                             <vaadin-date-picker id="endMoment" label="[[localize('', 'Fin boîte', language)]]" value="{{selectedMedicationContentWithId.endMomentAsString}}"
                                                 class="regimen--datepicker" i18n="[[i18n]]"></vaadin-date-picker>
                         </div>
@@ -763,15 +763,13 @@
                         type: Number,
                         value: 0
                     },
-                    // beginMomentAsString: {
-                    //     type: String,
-                    //     value: "",
-                    //     observer: "_changeBeginMoment"
+                    // beginMoment: {
+                    //     type: Number,
+                    //     value: 0,
                     // },
-                    // endMomentAsString: {
-                    //     type: String,
-                    //     value: "",
-                    //     observer: "_changeEndMoment"
+                    // endMoment: {
+                    //     type: Number,
+                    //     value: 0,
                     // },
                     medicPriority: {
                         type: Number,
@@ -840,6 +838,10 @@
                         value: () => {}
                     },
                     substitution: {
+                        type: Number,
+                        value: 0
+                    },
+                    duration: {
                         type: Number,
                         value: 0
                     },
@@ -1083,12 +1085,12 @@
                             this.substitution = this.selectedMedicationContentWithId.medicationValue.substitutionAllowed ? 0 : 1;
                             this.$['medication-detail'].open()
 
-                            this._initRegimens();
+                            this._initialize();
                         }
                     })
             }
 
-            _initRegimens() {
+            _initialize() {
                 const getQuantity = (regs, code) => {
                     let reg = regs.find(r => r.dayPeriod && r.dayPeriod.type == 'CD-DAYPERIOD' && r.dayPeriod.code == code);
                     return reg ? reg.administratedQuantity.quantity : null;
@@ -1102,6 +1104,27 @@
                     console.log("reg:" + reg.timeOfDay);
                     this.push("extras", { code: reg.timeOfDay, quantity: parseInt(reg.administratedQuantity.quantity) });
                 });
+                this._updateDuration();
+            }
+
+            _beginMoment() {
+                return this.api.moment(this.selectedMedicationContentWithId.medicationValue.beginMoment);
+            }
+
+            _endMoment() {
+                return this.api.moment(this.selectedMedicationContentWithId.medicationValue.endMoment);
+            }
+
+            _updateDuration() {
+                if (this.selectedMedicationContentWithId.medicationValue.beginMoment &&
+                    this.selectedMedicationContentWithId.medicationValue.endMoment)
+                    this.set("duration", this._endMoment().diff(this._beginMoment(), "days"));
+            }
+
+            _changeDuration(e) {
+                const endMoment = this._beginMoment().add(parseInt(this.duration), "days");
+                this.set("selectedMedicationContentWithId.medicationValue.endMoment", parseInt(endMoment.format("YYYYMMDD")));
+                this.set("selectedMedicationContentWithId.endMomentAsString", endMoment.format("YYYY-MM-DD"));
             }
 
             _initSelectedMedicationContentWithId(){
@@ -1127,6 +1150,7 @@
                 if (this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.beginMomentAsString) { // begin moment can NOT be empty
                     const beginMoment = parseInt(this.selectedMedicationContentWithId.beginMomentAsString.replace(/(....)-(..)-(..)/, '$1$2$3'))
                     this.set("selectedMedicationContentWithId.medicationValue.beginMoment", beginMoment)
+                    this._updateDuration();
                 }
             }
 
@@ -1134,6 +1158,7 @@
                 if (this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.endMomentAsString != null) { // end moment can be empty string
                     const endMoment = parseInt(this.selectedMedicationContentWithId.endMomentAsString.replace(/(....)-(..)-(..)/, '$1$2$3'))
                     this.set("selectedMedicationContentWithId.medicationValue.endMoment", endMoment)
+                    this._updateDuration();
                 }
             }
 
