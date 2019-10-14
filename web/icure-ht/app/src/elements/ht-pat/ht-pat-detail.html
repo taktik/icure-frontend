@@ -5579,10 +5579,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     filter: function (filterValue, limit, offset, sortKey, descending) {
                         const regExp = filterValue && new RegExp(filterValue, "i");
 
+                        // FIXME: for backward compat, we use deptgeneralpractice if no codes in hcp. One may want to prevent this for clerk users
+                        const specialtyCodes = (this.api.hcParties[this.user.healthcarePartyId]||{}).specialityCodes || [ CodeStub("CD-HCPARTY", "deptgeneralpractice", "1") ]
+
                         const all = this.allTemplates || (this.allTemplates = Promise.all([
                             this.api.form().findFormTemplates(),
-                            this.api.form().findFormTemplatesBySpeciality(((this.api.hcParties[this.user.healthcarePartyId]||{}).specialityCodes||[])[0] || 'deptgeneralpractice')
-                        ]).then( res => _.chain(res[0].concat(res[1])).uniqBy(x=>x.id).sortBy(['group','name']).value()))
+                        ].concat(
+                            specialtyCodes.map(sc =>
+                                this.api.form().findFormTemplatesBySpeciality(sc.code)
+                            )
+                        )).then( res => _.chain(_.flatten(res)).uniqBy(x=>x.id).sortBy(['group','name']).value()))
 
                         return all
                                 .then(fts => {
