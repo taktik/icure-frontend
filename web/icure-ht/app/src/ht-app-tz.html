@@ -940,6 +940,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </vaadin-grid>
         </paper-dialog>
 
+
+        <div class="failedLabel" id="keystoreExpiredLabel"><iron-icon icon="clear"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</div>
+        <div class="warningLabel" id="keystoreExpiresSoonLabel"><iron-icon icon="alarm"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]</div>
+
+
     </template>
 
     <script>
@@ -1162,7 +1167,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     electronErrorMessage:{
                         type:String,
                         value:""
-                    }
+                    },
+                    keyStoreValidityLabel : {
+                        type : String,
+                        value : ""
+                    },
                 }
             }
 
@@ -1575,6 +1584,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['ht-app-account-selector'].open()
             }
 
+            _showToasterMessage(id) {
+                if(  this.shadowRoot.querySelector(id) && this.shadowRoot.querySelector(id).classList ) {
+                    this.shadowRoot.querySelector(id).classList.add('displayNotification')
+                    setTimeout(() => {this.shadowRoot.querySelector(id).classList.remove('displayNotification')}, 5000*2)
+                }
+            }
+
+            _checkKeystoreValidity() {
+                const monthLimit = 2 // number of remaining months when to start warning the user
+
+                this.api.fhc().Stscontroller().getKeystoreInfoUsingGET(this.api.keystoreId, this.credentials.ehpassword).then(info => {
+                    if(info.validity && info.validity - moment().valueOf() <= 0) {
+                        this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+                        this._showToasterMessage("#keystoreExpiredLabel")
+                    } else if(info.validity && info.validity - moment().add(monthLimit, 'months').valueOf() <= 0) {
+                        this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+                        this._showToasterMessage("#keystoreExpiresSoonLabel")
+                    }
+                })
+
+            }
+
             _getToken() {
                 return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                 {
@@ -1814,6 +1845,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     if (ehKeychain) {
                         return this.$.api.fhc().Stscontroller().uploadKeystoreUsingPOST(ehKeychain).then(res => {
                             this.$.api.keystoreId = res.uuid
+                            this._checkKeystoreValidity()
                             return this._getToken()
                         }).catch((e) => {
                             this.$.eHealthStatus.classList.remove('pending')
