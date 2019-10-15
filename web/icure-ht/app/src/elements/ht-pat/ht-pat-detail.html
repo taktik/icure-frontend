@@ -4605,7 +4605,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 // Populate / collect
                 //items = items.map(item => _.pick(item, dataColumns))
-                items = items.map(item => {
+                let newItems = items.map(item => {
                     let newitem = {}
                     dataColumns.forEach((key, idx) => {
                         newitem[hrColumns[idx]] = item[key]
@@ -4623,8 +4623,161 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     return newitem
                 })
 
-                this.generateXlsFile(items, "contact-list_" + moment().format("YYYYMMDD-HHmmss") + ".csv", "Contact List", "Topaz")
+                //this.generatePdfFile(items)
+                this.generateXlsFile(newItems, "contact-list_" + moment().format("YYYYMMDD-HHmmss") + ".csv", "Contact List", "Topaz")
+            }
 
+            // color: var(--app-primary-color);
+            // border-top: 2px solid var(--app-background-color-dark);
+            // border-radius: 2px 2px 0 0;
+            // background: var(--app-background-color-dark);
+            // font-size: 12px;
+            // margin: 0 0 8px -8px;
+            // padding: 2px 4px 2px 20px;
+            // display: flex;
+            // flex-flow: row nowrap;
+            // width: calc(100% - 8px);
+            // text-align: left;
+            // justify-content: space-between;
+            // align-items: center;
+
+            _generatePdf(body) {
+                let html = "";
+                html +="<html>";
+                html +="<head>";
+                html +="<style>";
+                html +="@page {size: A4; width: 210mm; height: 297mm; margin: 0; padding: 0}";
+                html +="body {margin: 0; padding: 0; font-family: /* 'Open Sans', */ Arial, Helvetica, sans-serif; line-height:1em;}";
+                html +=".title{height: 20px; font-size: 14px; width: 100%;}";
+                html +=".sub-title{height: 15px; font-size: 12px; width: 100%;}";
+                html +=".separator{height: 2px; width: 100%; border-bottom: 1px solid black;}";
+                html +=".page {width: 210mm; color:#000000; font-size:12px; padding:10mm; position:relative;}";
+                html +=".textaligncenter { text-align: center; } .textalignleft { text-align: left; } .textalignright { text-align: right; }";
+                html +=".b{font-weight: bold}";
+                html +=".mutuality-block{border: 1px solid black; width: 100%; height: auto;}";
+                html +=".date-signature{height: 30px; width: 100%;}";
+                html +=".border{border: 1px solid black;};"
+                html +=".s10{font-size: 10px;}";
+                html +=".s9{font-size: 9px;}";
+                html +=".condition-block{height: 150px;}";
+                html +=".stamp-date-signature-title{width: 100%}";
+                html +=".stamp-date-signature{width: 100%; height: 55px;}";
+                html +=".check{height: 10px; width: 10px; background-color; black;}";
+                html +=".uncheck{height: 10px; width: 10px;}";
+                html +="</style>";
+                html +="</head>";
+                html +="<body>";
+                html +="<div class='page'>";
+                html += body;
+                html +="</div>";
+                html +="</body>";
+                html +="</html>";
+                return html;
+            }
+
+            _generatePdfDate(date) {
+                return date ? this.api.moment(date).format("DD/MM/YYYY hh:mm") : "";
+            }
+
+            _generatePdfContact(contact) {
+                let html = "<tr>";
+                html += "<td>" + this._generatePdfDate(contact.openingDate) + "</td>";
+                html += "<td>" + (contact.userDescr || "").replace(/(\r\n|\n|\r)/gm, " ") + "</td>";
+                html += "<td>" + this.hcp(contact) + "</td>";
+                html += "<td>" + this._generatePdfDate(contact.closingDate) + "</td>";
+                html += "</tr>";
+
+                if (contact.healthElements && contact.healthElements.length > 0) {
+                    html += "<tr><td colspan='4'>Elements de santé</td><tr>";
+                    html += "<tr><td colspan='4'>";
+                    html += "<table>";
+                    contact.healthElements.forEach(healthElement => {
+                        html += this._generatePdfHealthElement(healthElement);
+                    });
+                    html += "</table>";
+                    html += "</td></tr>";
+                }
+
+                if (contact.subContacts && contact.subContacts.length > 0) {
+                    html += "<tr><td colspan='4'>Sous-contacts</td><tr>";
+                    html += "<tr><td colspan='4'>";
+                    html += "<table>";
+                    contact.subContacts.forEach(subContact => {
+                        html += this._generatePdfSubContact(subContact);
+                    });
+                    html += "</table>";
+                    html += "</td></tr>";
+                }
+
+                if (contact.services && contact.services.length > 0) {
+                    html += "<tr><td colspan='4'>Services</td><tr>";
+                    html += "<tr><td colspan='4'>";
+                    html += "<table>";
+                    contact.services.forEach(service => {
+                        html += this._generatePdfService(service);
+                    });
+                    html += "</table>";
+                    html += "</td></tr>";
+                }
+
+                return html;
+            }
+
+            _generatePdfHealthElement(healthElement) {
+                let html = "<tr>";
+                html += "<td>" + healthElement.id + "</td>";
+                html += "<td>" + healthElement.descr + "</td>";
+                html += "</tr>";
+                return html;
+            }
+
+            _generatePdfService(service) {
+                let html = "<tr>";
+                html += "<td>" + service.id + "</td>";
+                html += "<td>" + service.label + "</td>";
+                html += "</tr>";
+                return html;
+            }
+
+            _generatePdfSubContact(subContact) {
+                let html = "<tr>";
+
+                if (subContact.formId) {
+                    html += "<td colspan='2'>" + subContact.formId + "</td>";
+                }
+                else if (subContact.status == 64 && subContact.tags && subContact.tags.length > 0 && subContact.tags[0].type && subContact.tags[0].code) {
+                    html += "<td>" + subContact.tags[0].type + "</td>";
+                    html += "<td>" + subContact.tags[0].code + "</td>";
+                }
+                html += "</tr>";
+                return html;
+            }
+
+            generatePdfFile(contacts) {
+                let html = "<table>";
+                contacts.forEach(contact => {
+                    html += this._generatePdfContact(contact);
+                });
+                html += "</table>";
+
+                this.api.pdfReport(this._generatePdf(html), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
+                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", "testLDE.pdf" ))
+            }
+
+            generatePdfFile_old(contacts) {
+                let html = "<table>";
+                contacts.forEach(contact => {
+                    html += "<tr>";
+                    html += "<td>" + this._generatePdfDate(contact.openingDate) + "</td>";
+                    html += "<td>" + (contact.userDescr || "").replace(/(\r\n|\n|\r)/gm, " ") + "</td>";
+                    html += "<td>" + this.hcp(contact) + "</td>";
+                    html += "<td>" + this._generatePdfDate(contact.closingDate) + "</td>";
+                    html += "</tr>";
+                });
+                html += "</table>";
+
+                this.api.pdfReport(this._generatePdf(html), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
+                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", "testLDE.pdf" ))
             }
 
             generateXlsFile(data, filename, title, author) {
