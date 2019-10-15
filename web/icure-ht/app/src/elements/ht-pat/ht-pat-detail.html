@@ -88,6 +88,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../styles/buttons-style.html">
 <link rel="import" href="../../styles/dropdown-style.html">
 <link rel="import" href="../../styles/paper-tabs-style.html">
+<link rel="import" href="dialogs/therlink/ht-pat-therlink-info-dialog.html">
 
 
 <dom-module id="ht-pat-detail">
@@ -937,7 +938,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 display: block;
             }
 
-            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending {
+            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending {
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
@@ -2954,6 +2955,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     allHealthElements:{
                         type: Object,
                         value: {}
+                    },
+                    therLinkList:{
+                        type: Object,
+                        value: () => {}
                     }
                 };
             }
@@ -3183,14 +3188,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 e.stopPropagation();
                 if(this._checkForEhealthSession() === true){
                     this.selectedTherLink = null;
-                    this._getTherLinks();
-
-                    if(Object.keys(this.cardData).length && this.patient.ssin===this.cardData.nationalNumber) {
-                        this.set("eidCardNumber",this.cardData.logicalNumber)
-                    }
-
+                    this._getTherLinks().then(therlink => {
+                        Object.keys(this.cardData).length && _.get(this.patient, 'ssin', null) === _.get(this.cardData, 'nationalNumber', '') ? this.set("eidCardNumber", _.get(this.cardData, 'logicalNumber', null)) : null
+                        this.set('therLinkList', _.concat(_.get(therlink, 'hubResp.therapeuticLinks', []).map(link => _.assign(link, {tlType: 'hub'})), _.get(therlink, 'nationalResp.therapeuticLinks', []).map(link => _.assign(link, {tlType: 'national'}))))
+                        this.$['therLinkDialog'].open()
+                    })
                     //this.root.querySelector('#legaltext').innerHTML = this.localize('cons_legal', 'Informed consent legal text ...', this.language)
-                    this.$.therLinkDialog.open();
+
                 }else{
                     this._ehealthErrorNotification()
                 }
@@ -3483,35 +3487,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _getTherLinks(){
                 if (this.patient.ssin && this.api.tokenId) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
+                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
                         .then(hcp => Promise.all([
                             this.api.fhc().Therlinkcontroller().getAllTherapeuticLinksUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName, this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber, null, null,null,null),
-                            this.api.fhc().Hubcontroller().getTherapeuticLinksUsingGET(hub, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, zip, this.cleanNiss(this.patient.ssin))
+                            this.api.fhc().Hubcontroller().getTherapeuticLinksUsingGET(this.hubEndPoint, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip, this.cleanNiss(this.patient.ssin))
                         ]))
-                        .then(([nationalTl, hubTl]) => {
-                            console.log(nationalTl)
-                            console.log(hubTl)
+                        .then(([nationalTlResp, hubTlResp]) => {
+                            console.log(nationalTlResp)
+                            console.log(hubTlResp)
+                            this.set('currentTherLinks', {nationalResp: nationalTlResp, hubResp: hubTlResp})
+                            return {nationalResp: nationalTlResp, hubResp: hubTlResp}
                         })
-
-                    /*
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                        .then(hcp =>
-                            this.api.fhc().Therlinkcontroller().getAllTherapeuticLinksUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                                this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber,
-                                null, null,null,null ) //returns Array of therapeuticLink
-                        ).then(therLinkResp => {
-                                if (therLinkResp) {
-                                    this.set('currentTherLinks', therLinkResp);
-                                    return therLinkResp;
-                                } else {
-                                    return null;
-                                }
-                            }
-                        )
-                        */
                 } else {
-                    return Promise.resolve(null)
+                    return Promise.resolve({nationalResp: null, hubResp: null})
                 }
             }
 
@@ -4397,6 +4385,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.$.hubStatus.classList.remove('accessOk')
                     this.$.tlStatus.classList.remove('noTl');
                     this.$.tlStatus.classList.remove('tlOk');
+                    this.$.tlStatus.classList.remove('tlPending');
                     this.$.edmgStatus.classList.remove('edmgPending');
                     this.$.edmgStatus.classList.remove('edmgOk');
                     this.$.edmgStatus.classList.remove('edmgNOk');
@@ -4405,15 +4394,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             showPatientTherLinkState(){
                 this._getTherLinks().then(therLinks => {
-                        var tlOk = false;
-                        this.$.tlStatus.classList.remove('noTl');
-                        this.$.tlStatus.classList.remove('tlOk');
 
-                        if(therLinks && therLinks.therapeuticLinks && therLinks.therapeuticLinks[0]) {
-                            tlOk = true;
-                        }
-                        this.$.tlStatus.classList.add(tlOk ? 'tlOk' : 'noTl');
-                        Polymer.updateStyles(this.$.tlStatus)
+                    this.$['tlStatus'].classList.remove('noTl');
+                    this.$['tlStatus'].classList.remove('tlOk');
+                    this.$['tlStatus'].classList.remove('tlPending')
+
+                    _.get(therLinks, 'nationalResp.therapeuticLinks', []).length && _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? this.$['tlStatus'].classList.add('tlOk') :
+                        _.get(therLinks, 'nationalResp.therapeuticLinks', []).length || _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? this.$['tlStatus'].classList.add('tlPending') :
+                            this.$['tlStatus'].classList.add('noTl')
                     }
                 )
             }
