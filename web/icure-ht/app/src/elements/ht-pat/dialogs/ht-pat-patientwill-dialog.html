@@ -1,0 +1,289 @@
+<link rel="import" href="../../../../bower_components/polymer/polymer.html">
+
+<link rel="import" href="../../../../bower_components/vaadin-icons/vaadin-icons.html">
+
+<link rel="import" href="../../../../bower_components/vaadin-material-theme/vaadin-date-picker.html">
+<link rel="import" href="../../../../bower_components/vaadin-material-theme/vaadin-text-field.html">
+<link rel="import" href="../../../../bower_components/vaadin-material-theme/vaadin-checkbox.html">
+
+<link rel="import" href="../../../../bower_components/vaadin-date-picker/vaadin-date-picker.html">
+<link rel="import" href="../../../../bower_components/vaadin-form-layout/vaadin-form-layout.html">
+<link rel="import" href="../../../../bower_components/vaadin-combo-box/vaadin-combo-box.html">
+<link rel="import" href="../../../../bower_components/vaadin-text-field/vaadin-text-area.html">
+<link rel="import" href="../../../../bower_components/vaadin-checkbox/vaadin-checkbox.html">
+
+
+<link rel="import" href="../../../../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../../../../bower_components/paper-button/paper-button.html">
+
+<link rel="import" href="../../../../bower_components/iron-resizable-behavior/iron-resizable-behavior.html">
+<link rel="import" href="../../dynamic-form/dynamic-link.html">
+<link rel="import" href="../../dynamic-form/dynamic-pills.html">
+<link rel="import" href="../../../styles/dialog-style.html">
+<link rel="import" href="../../../styles/paper-tabs-style.html">
+<link rel="import" href="../../ht-spinner/ht-spinner.html">
+
+<dom-module id="ht-pat-patientwill-dialog">
+    <template>
+        <style include="dialog-style paper-tabs-style">
+            #dialog .ch4-cons{
+                /*display: flex;*/
+                /*flex-flow: row wrap;*/
+                /*align-items: center;*/
+                /*justify-content: flex-start;*/
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            paper-tabs{
+                width: 50%;
+                max-width: 400px;
+            }
+
+            .dialog-content{
+                padding: 0 12px;
+            }
+
+            .dialog-content > div {
+                /*display: flex;*/
+                /*flex-flow: row nowrap;*/
+                /*justify-content: flex-start;*/
+                /*align-items: center;*/
+            }
+
+            #dialog .dialog-content vaadin-date-picker {
+                margin-right: 8px;
+            }
+
+            #dialog a {
+                text-decoration: none;
+                color:	var(--app-secondary-color);
+            }
+
+            #dialog{
+                min-height: 600px;
+                min-width: 800px;
+            }
+
+            .links {
+                position: absolute;
+                right: 0;
+            }
+
+            .pills {
+                float: right;
+            }
+
+            dynamic-link {
+                float: right;
+                top:4px;
+            }
+
+            vaadin-combo-box {
+                width: 100%;
+            }
+
+            vaadin-text-area {
+                width: 100%;
+            }
+
+            #dialog .info{
+                margin-top:0;
+                /*display:flex;*/
+                /*flex-flow: row nowrap;*/
+                /*justify-content: flex-start;*/
+                /*align-items: flex-start;*/
+            }
+
+            #dialog .info div{
+                margin-right: 24px;
+            }
+
+            #dialog .info div p{
+                margin: 8px 0;
+            }
+
+            #dialog .info div b{
+                margin-right: 8px;
+            }
+            ht-spinner {
+                position: relative;
+                height: 42px;
+                width: 42px;
+            }
+
+            .content {
+                height: 496px;
+            }
+        </style>
+
+        <paper-dialog id="dialog" opened="{{opened}}">
+            <h2 class="modal-title">
+                [[localize('pat-will','Patient will',language)]]
+            </h2>
+            <div class="content">
+                <div class="dialog-content">
+                    <div class="info">
+                        euthanasiarequest:[[euthanasiaRequest]]
+                        <template is="dom-repeat" items="[[patientWillFormItems]]">
+                            <div>[[item.patientwilltype]]
+                                <template is="dom-repeat" items="[[item.responsetype]]" as="responsetype">
+                                    [[responsetype.response]]
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <div class="buttons">
+                <ht-spinner active="[[isLoading]]"></ht-spinner>
+                <paper-button class="button" on-tap="getResultingPatientWill">[[localize('test','test',language)]]</paper-button>
+                <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+    </template>
+    <script>
+
+        import moment from 'moment/src/moment'
+
+        class HtPatPatientWillDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+            static get is() {
+                return 'ht-pat-patientwill-dialog';
+            }
+
+            static get properties() {
+                return {
+                    api: {
+                        type: Object,
+                        value: null
+                    },
+                    user: {
+                        type: Object,
+                        value: null
+                    },
+                    userHcp: {
+                        type:Object,
+                        value: {"supervisorId" : null}
+                    },
+                    language: {
+                        type: String
+                    },
+                    opened: {
+                        type: Boolean,
+                        value: false
+                    },
+                    tabs: {
+                        type:  Number,
+                        value: 0
+                    },
+                    isLoading:{
+                        type: Boolean,
+                        value: false
+                    },
+                    patientWillServices:{
+                        type: Array,
+                        value: () => []
+                    },
+                    euthanasiaRequest:{
+                        type: String,
+                        value: ""
+                    },
+                    patientWillFormItems:{
+                        type: Array,
+                        value: () => []
+                    }
+                };
+            }
+
+            static get observers() {
+                return ['apiReady(api,user,opened)'];
+            }
+
+            ready() {
+                super.ready();
+                this.addEventListener('iron-resize', () => this.onWidthChange());
+            }
+
+            _dateFormat(date) {
+                return date ? this.api.moment(date).format('DD/MM/YYYY') : '';
+            }
+
+            onWidthChange() {
+                const offsetWidth = this.$.dialog.offsetWidth;
+                const offsetHeight = this.$.dialog.offsetHeight;
+                if (!offsetWidth || !offsetHeight) {
+                    return;
+                }
+            }
+                        
+            apiReady() {
+                if (!this.api || !this.user || !this.user.id || !this.opened) return;
+
+                try {
+                } catch (e) {
+                    console.log(e);
+                }
+            }
+
+            attached() {
+                super.attached();
+                this.async(this.notifyResize, 1);
+            }
+
+
+            open(patientWillServices) {
+                this.set("patientWillServices", patientWillServices);
+                this.$.dialog.open();
+                this.getResultingPatientWill();
+
+                this.set("patientWillFormItems",
+                    [
+                        {patientwilltype : "bloodtransfusionrefusal", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "clinicaltrialparticipationconsent", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "datareuseforclinicalresearchconsent", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "datareuseforclinicaltrialsconsent", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "euthanasiarequest", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "intubationrefusal", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "omissionofmedicaldata", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "organdonationconsent", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "vaccinationrefusal", order : 0, responsetype: [{response : "consent"},{response: "noconsent"},{response: "notasked"}]},
+                        {patientwilltype : "resuscitation", order : 0, responsetype: [{response : "dnr0"},{response: "dnr1"},{response: "dnr2"},{response: "dnr3"},{response: "notasked"}]},
+                        {patientwilltype : "hospitalisation", order : 0, responsetype: [{response : "hos0"},{response: "hos1"},{response: "hos2"},{response: "notasked"}]}
+                    ]
+                );
+            }
+
+            getResultingPatientWill(){
+                //euthanasiarequest:
+                //s.tags.find(c => c.type === 'CD-ITEM' && ['patientwill'].includes(c.code))
+                const er = _.orderBy(this.patientWillServices.filter(svc => svc.codes.find(c => c.code === "euthanasiarequest")), 'modified', 'asc');
+                if(er.length && er.length > 1){
+                    const erToEol = er[0];
+                    const today = parseInt(moment().subtract(1, 'days').format("YYYYMMDD"))
+                    erToEol.endOfLife = today;
+                    this._sendServiceChanged(erToEol);
+                }
+                //keep the last set rest to endOfLife
+                // const today = parseInt(moment().subtract(1, 'days').format("YYYYMMDD"))
+                // this.set("medicationDetail.newMedication.endOfLife", today)
+                //this.dispatchEvent(new CustomEvent('value-changed', {detail: {medication: this.medicationDetail, medications:this.medications}, bubbles: true, composed: true}))
+                console.log("er", er);
+            }
+
+            _sendServiceChanged(svc) {
+                this.dispatchEvent(new CustomEvent('service-changed', {
+                    detail: {service: svc},
+                    bubbles: true,
+                    composed: true
+                }))
+            }
+
+            close() {
+                this.$.dialog.close();
+            }
+
+
+        }
+        customElements.define(HtPatPatientWillDialog.is, HtPatPatientWillDialog);
+    </script>
+</dom-module>

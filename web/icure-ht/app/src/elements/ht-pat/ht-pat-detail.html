@@ -78,6 +78,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="dialogs/hubs/ht-pat-hub-detail.html">
 <link rel="import" href="dialogs/hubs/ht-pat-hub-upload.html">
 <link rel="import" href="dialogs/hubs/ht-pat-hub-diary-note.html">
+<link rel="import" href="dialogs/ht-pat-patientwill-dialog.html">
 <link rel="import" href="dialogs/hubs/ht-pat-hub-sumehr-preview.html">
 <link rel="import" href="../../ht-upload-dialog.html">
 <link rel="import" href="./dialogs/medicalhouse/ht-pat-flatrate-utils.html">
@@ -1706,7 +1707,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     </div>
                                 </div>
                             </paper-item>
-                            <paper-item class="menu-item" id="_complete_file" on-tap="_expandColumn">[[localize('com_fil','Complete file',language)]]<div><paper-icon-button class="menu-item-icon menu-item-icon--add" icon="icons:add" on-tap="_addHealthElement"></paper-icon-button><iron-icon class="menu-item-icon" icon="icons:arrow-forward"></iron-icon></div></paper-item>
+                            <paper-item class="menu-item" id="_complete_file" on-tap="_expandColumn">[[localize('com_fil','Complete file',language)]]<div><paper-icon-button class="menu-item-icon menu-item-icon--add" icon="icons:add" on-tap="_addHealthElement"></paper-icon-button><paper-icon-button class="menu-item-icon menu-item-icon--add" icon="icons:add" on-tap="_openPatientWillDialog"></paper-icon-button><iron-icon class="menu-item-icon" icon="icons:arrow-forward"></iron-icon></div></paper-item>
                         </paper-listbox>
                         <div class="submenus-container">
                             <collapse-button id="cb_ahelb">
@@ -2487,6 +2488,13 @@ on-trigger-export-sumehr="_exportSumehrDialog"
         <medication-plan-dialog id="medication-plan" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" medications="[[medications]]" user="[[user]]" patient="[[patient]]"></medication-plan-dialog>
         <!--<ht-pat-mcn-chapteriv-agreement id="chapterivdialog" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" medications="[[medications]]" on-create-service="_createService" on-update-services="_updateServices"></ht-pat-mcn-chapteriv-agreement>-->
         <ht-pat-edmg-dialog id="edmgDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-edmg-dialog>
+        <ht-pat-patientwill-dialog
+                id="patientWillDialog"
+                api="[[api]]"
+                user="[[user]]"
+                language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"
+                on-service-changed="_serviceChanged"
+                ></ht-pat-patientwill-dialog>
         <!--<ht-pat-hub-transaction-view id="transactionViewDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-hub-transaction-view>-->
         <ht-pat-hub-detail id="patHubDetail" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload" on-close-hub-dialog="_closeOverlay" on-service-changed="_serviceChanged" on-healthelement-changed="_healthElementChanged" on-import-hub-sumehr-item="_importHubSumehrItem"></ht-pat-hub-detail>
         <!-- ht-pat-detail-ctc-detail-panel dialogs -->
@@ -2970,6 +2978,10 @@ on-trigger-export-sumehr="_exportSumehrDialog"
                     allHealthElements:{
                         type: Object,
                         value: {}
+                    },
+                    patientWillServices:{
+                        type: Array,
+                        value: () => []
                     }
                 };
             }
@@ -3233,6 +3245,11 @@ on-trigger-export-sumehr="_exportSumehrDialog"
                 }else{
                     this._ehealthErrorNotification()
                 }
+            }
+
+            _openPatientWillDialog(e){
+                e.stopPropagation();
+                this.$.patientWillDialog.open(this.patientWillServices);
             }
 
             _trueOrUnknown(b){
@@ -4039,6 +4056,14 @@ on-trigger-export-sumehr="_exportSumehrDialog"
                     ]
                     const idServicesInHes = _.compact(hes.map(he => he.idService))
                     //console.log("Before filter service "+(+new Date() - now))
+
+                    //get patientwill services
+                    //s.endOfLife === null &&
+                    this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['patientwill'].includes(c.code))).then(patientWillServices => {
+                        console.log("eols", patientWillServices.map(svc => svc.endOfLife));
+                        console.log("patientwillservices", patientWillServices);
+                        this.set("patientWillServices",patientWillServices);
+                    });
                     this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id)).then(hesAsServices => {
                         const svcHes = hesAsServices.filter(s => !s.tags.some(t => t.type === 'CD-ITEM' && t.code === 'medication')).map(svc => this._makeHeFromSvc(svc))
 
