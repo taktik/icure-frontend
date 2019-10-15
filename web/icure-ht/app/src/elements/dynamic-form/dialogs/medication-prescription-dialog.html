@@ -1057,7 +1057,7 @@
                                 <template>
                                     <template is="dom-if" if="[[item.id]]">
                                         <paper-icon-button id="[[item.id]]" class="list-item-icon--add" icon="icons:add"
-                                                           on-tap="_addChron"></paper-icon-button>
+                                                           on-tap="_addMedicinePackage"></paper-icon-button>
                                     </template>
                                 </template>
                             </vaadin-grid-column>
@@ -2164,7 +2164,8 @@
                             "chap4Status": this._chap4Status(ampp),
                             "deliveryStatus": this._deliveryStatus(ampp),
                             "startDate": '',
-                            "endDate": ''
+                            "endDate": '',
+                            "amp": ampp.amp
                         };
                     }));
             }
@@ -2404,6 +2405,56 @@
 
             _columnWidth(column) {
                 return column.size || "100px";
+            }
+
+            _addMedicinePackage(e) {
+                const grid = this.$['medicine-package-list'];
+                const med = grid.latestResults.find(res => res.id === e.target.id);
+                this._addMedication(med);
+            }
+
+            _addMedication(med) {
+                const unit = this.localize('generic_unit', 'unit', this.language);
+                const newMedicationContent = {
+                    medicationValue: {},
+                    medicationUnit: unit,
+                    regimen: [{administratedQuantity: {time: '', quantity: 1, unit: unit}}]
+                };
+                this.set("newMedication.content." + this.language, newMedicationContent);
+                const currentMedIdx = _.findIndex(this.medicationAccumulator, m => m.id === med.id);
+                if (currentMedIdx >= 0) {
+                    this.set(`medicationAccumulator.${currentMedIdx}.boxes`, (this.medicationAccumulator[currentMedIdx].boxes || 1) + 1)
+                } else {
+                    newMedicationContent.medicationValue.medicinalProduct = {
+                        "intendedname": med.label,
+                        "intendedcds": [{type: "CD-DRUG-CNK", code: med.id}],
+                        "priority": "low"
+                    };
+                    const unit = _.get(med, "amp.components[0].pharmaceuticalForms[0].name[" + this.language + "]", "");
+                    newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = unit;
+
+                    const newMed = this.newMedication;
+                    ((newMed.codes || (newMed.codes = [])).find(code => code.type === "CD-DRUG-CNK") || (newMed.codes[newMed.codes.length] = {
+                        type: "CD-DRUG-CNK",
+                        version: "1"
+                    })).code = med.id;
+
+                    ((newMed.codes || (newMed.codes = [])).find(code => code.type === "CD-ATC") || (newMed.codes[newMed.codes.length] = {
+                        type: "CD-ATC",
+                        version: "1"
+                    })).code = med.atc;
+
+                    const newMedClone = _.cloneDeep(newMed);
+                    const desc = this._serviceDescription(newMedClone);
+                    if (desc) {
+                        this.push('medicationAccumulator', {
+                            boxes: 1,
+                            newMedication: newMedClone,
+                            id: newMedClone.id,
+                            options: {isPrescription: this.isPrescription}
+                        })
+                    }
+                }
             }
 
             selectMedicationFromList(med) {
