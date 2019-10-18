@@ -445,6 +445,23 @@
                 text-transform: capitalize;
             }
 
+            .w100{
+                width: 99%;
+            }
+
+            .lt-error-container{
+                height: auto;
+                width: auto;
+                color: var(--app-status-color-nok);
+                font-weight: bold;
+            }
+            .lt-success-container{
+                height: auto;
+                width: auto;
+                color: var(--app-status-color-ok);
+                font-weight: bold;
+            }
+
         </style>
 
         <paper-dialog id="therlinkDetailDialog">
@@ -461,12 +478,11 @@
                         <ht-spinner active="[[isLoading]]"></ht-spinner>
                         <template is="dom-if" if="[[_isTherapeuticLink(therlinkList, therlinkList.*)]]">
                             <template is="dom-repeat" items="[[_getTherlinkMasterType(therlinkList, therlinkList.*)]]" as="tlType">
-                                <collapse-button id="[[tlType]]">
+                                <collapse-button id="[[tlType]]" opened>
                                     <paper-item id="account" slot="sublist-collapse-item" class="menu-trigger menu-item bold" on-tap="toggleMenu" elevation="">
                                         <div class="one-line-menu list-title account-line">
                                             <div>
                                                 <span class="force-left force-ellipsis box-txt bold capitalize">[[tlType]]</span>
-                                                <div class="items-number">[[_getNumberOfTherlink(therlinkList, tlType, therlinkList.*)]]</div>
                                             </div>
                                         </div>
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
@@ -575,9 +591,38 @@
                             <div id="legaltextTL"></div>
                             <div class="m5">
                                 <paper-icon-button icon="vaadin:health-card" id="read-eid" class="eid" on-tap="_readEid"></paper-icon-button>
+                                <vaadin-combo-box id="therlinkType" class="w100" label="[[localize('tl-type', 'Therapeutic link type', language)]]" filter="{{therlinkFilter}}" selected-item="{{selectedTherlinkType}}"  filtered-items="[[availableTherlinkType]]" item-label-path="label.fr" >
+                                    <template>[[_getLabel(item.label)]]</template>
+                                </vaadin-combo-box>
                                 <paper-input id="idCardNo" always-float-label label="[[localize('eid_no','eID Card Number',language)]]" value="{{eidCardNumber}}"></paper-input>
                                 <paper-input id="isiCardNo" always-float-label label="[[localize('isi_no','ISI+ Card Number',language)]]" value="{{isiCardNumber}}"></paper-input>
                             </div>
+                            <template is="dom-if" if="[[_isReturnErrorStatus(therlinkResponse.acknowledge.iscomplete, therlinkResponse.*)]]">
+                                <div class="lt-error-container m5">
+                                    <div>[[localize('lt-error-code', 'Error code', language)]]: </div>
+                                    <template is="dom-repeat" items="[[therlinkResponse.acknowledge.errors]]">
+                                        <div>[[_getError(item)]]</div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template is="dom-if" if="[[_isReturnErrorStatus(therlinkResponse.acknowledge.iscomplete, therlinkResponse.*)]]">
+                                <div class="lt-error-container m5">
+                                    <div>[[localize('lt-error-code', 'Error code', language)]]: </div>
+                                    <template is="dom-repeat" items="[[therlinkResponse.acknowledge.errors]]">
+                                        <div>[[_getError(item)]]</div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template is="dom-if" if="[[_isErrorList(errorList, errorList.*)]]">
+                                <div class="lt-error-container m5">
+                                    <div>[[localize('lt-error-code', 'Error code', language)]]: </div>
+                                    <template is="dom-repeat" items="[[errorList]]">
+                                        <div>[[_localizeError(item)]]</div>
+                                    </template>
+                                </div>
+                            </template>
                         </page>
                     </iron-pages>
                 </div>
@@ -666,6 +711,33 @@
                     hubPackageId:{
                         type: String,
                         value: null
+                    },
+                    therlinkType:{
+                        type: Array,
+                        value: () => [
+                            {type: "national", label: {fr: "Lien thérapeutique national", en: "National therapeutic link", nl: ""}},
+                            {type: "hub", label: {fr: "Lien thérapeutique hub", en: "Hub therapeutic link", nl: ""}}
+                        ]
+                    },
+                    availableTherlinkType:{
+                        type: Array,
+                        value: () => []
+                    },
+                    selectedTherlinkType:{
+                        type: Object,
+                        value: () => {}
+                    },
+                    isNotificationSuccess:{
+                        type: Boolean,
+                        value: false
+                    },
+                    therlinkResponse:{
+                        type: Object,
+                        value: () => {}
+                    },
+                    errorList:{
+                        type: Array,
+                        value: []
                     }
                 };
             }
@@ -682,15 +754,23 @@
                 this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
                     .then(hcp => this.set('hcp', hcp))
                     .finally(() => {
-                        this.set('hcpZip', _.get(this.hcp, 'addresses', []).find(adr => _.get(_.get(adr, 'addressType', null) === "work"), "postalCode", null))
+                        this.set('hcpZip', _.get(_.get(this.hcp, 'addresses', []).find(adr => _.get(adr, 'addressType', null) === "work"), "postalCode", null))
+                        this.set('isNotificationSuccess', false)
                         this.set('selectedTherlink', {})
+                        this.set('therlinkResponse', {})
+                        this.set('errorList', [])
+                        this.set('availableTherlinkType', _.get(this, 'therlinkType').filter(tlType => !this.therlinkList.find(tll => tll.tlType === tlType.type)))
+                        this.set('selectedTherlinkType', _.head(_.get(this, 'availableTherlinkType', [])))
                         this.$['therlinkDetailDialog'].open();
                     })
             }
 
             _closeDialogs(){
+                this.set('errorList', [])
+                this.set('isNotificationSuccess', false)
                 this.set('selectedTherlink', {})
                 this.set('therlinkList', [])
+                this.set('therlinkResponse', {})
                 this.$['therlinkDetailDialog'].close();
             }
 
@@ -724,15 +804,16 @@
             }
 
             _therlinkAccessIcon(endDate){
-                return moment().isBetween(this.api.moment(endDate).subtract(2, 'months'), this.api.moment(endDate)) ? "no" :
+                return endDate ? moment().isBetween(this.api.moment(endDate).subtract(2, 'months'), this.api.moment(endDate)) ? "no" :
                     moment().isBefore(this.api.moment(endDate)) ? "yes" :
-                        "never"
+                        "never" : "never"
             }
 
             _showInformation(e){
                 if(e && e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.item){
                     const selected = JSON.parse(e.currentTarget.dataset.item)
                     this.set('selectedTherlink', selected);
+                    this.set('tabs', 0)
                 }
             }
 
@@ -745,36 +826,53 @@
             }
 
             _isRevokeAvailable(){
-                return (!_.isEmpty(_.get(this, 'selectedTherlink', {})) && (_.get(this, 'tabs', null) === 0) && (_.get(this, 'selectedTherlink.tlType', null) === "hub"))
+                return (!_.isEmpty(_.get(this, 'selectedTherlink', {})) && (_.get(this, 'tabs', null) === 0) && (_.get(this, 'selectedTherlink.tlType', null) === "national"))
             }
 
             _revoke(){
-                (_.get(this.selectedTherlink, 'tlType', null) === "hub" ? this._revokeHubTherlink() : null)
-                    .then(resp => {
-                        console.log(resp)
-                    })
+                this.set('errorList', [])
+               ;(_.get(this.selectedTherlink, 'tlType', null) === "national" ? this._revokeNationalTherlink() : this._revokeHubTherlink())
+                 .then(resp => {
+                     !_.isEmpty(resp) ? this._refresh() : null
+                 })
             }
 
             _revokeHubTherlink(){
-                return this.api.fhc().Therlinkcontroller().revokeLinkUsingPOST(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'lastName', null), this.cleanNiss(_.get(this.patient, 'ssin', null)), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null))
+
+            }
+
+            _revokeNationalTherlink(){
+                if(_.get(this.api, 'keystoreId', null) && _.get(this.api, 'tokenId', null) && _.get(this.api, 'credentials.ehpassword', null) && _.get(this.hcp, 'nihii', null) && _.get(this.hcp, 'ssin', null) && _.get(this.hcp, 'firstName', null) && _.get(this.hcp, 'lastName', null) && _.get(this.patient, 'ssin', null) && _.get(this.patient, 'firstName', null) && _.get(this.patient, 'lastName', null)){
+                     return this.api.fhc().Therlinkcontroller().revokeLinkUsingPOST(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'lastName', null), this.cleanNiss(_.get(this.patient, 'ssin', null)), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null))
+                }else{
+                    !_.get(this.api, 'keystoreId', null) ? this.push('errorList', {code: 'lt-keystoreId-ko', label: 'Keystore id is missing'}) : null
+                    !_.get(this.api, 'tokenId', null) ? this.push('errorList', {code: 'lt-token-ko', label: 'Token id is missing'}) : null
+                    !_.get(this.api, 'credentials.ehpassword', null) ? this.push('errorList', {code: 'lt-keystorePassword-ko', label: 'Keystore password is missing'}) : null
+                    !_.get(this.hcp, 'nihii', null) ? this.push('errorList', {code: 'lt-hcpNihii-ko', label: 'Hcp nihii is missing'}) : null
+                    !_.get(this.hcp, 'ssin', null) ? this.push('errorList', {code: 'lt-hcpSsin-ko', label: 'Hcp ssin is missing'}) : null
+                    !_.get(this.hcp, 'firstName', null) ? this.push('errorList', {code: 'lt-hcpFirstName-ko', label: 'Hcp first name is missing'}) : null
+                    !_.get(this.hcp, 'lastName', null) ? this.push('errorList', {code: 'lt-hcpLastName-ko', label: 'Hcp last name is missing'}) : null
+                    !_.get(this.patient, 'ssin', null) ? this.push('errorList', {code: 'lt-patientInss-ko', label: 'Patient inss is missing'}) : null
+                    !_.get(this.patient, 'firstName', null) ? this.push('errorList', {code: 'lt-patientFirstName-ko', label: 'Patient first name is missing'}) : null
+                    !_.get(this.patient, 'lastName', null) ? this.push('errorList', {code: 'lt-patientLastName-ko', label: 'Patient last name is missing'}) : null
+                    return Promise.resolve({})
+                }
             }
 
             _refresh(){
-                (this.patient.ssin && this.api.tokenId ?
+                this.set('errorList', [])
+                ;(this.patient.ssin && this.api.tokenId ?
                 Promise.all([
                     this.api.fhc().Therlinkcontroller().getAllTherapeuticLinksUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'lastName', null), this.cleanNiss(_.get(this.patient, 'ssin', null)), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null), _.get(this, 'eidCardNumber', null), _.get(this, 'isiCardNumber', null), null, null,null,null),
                     this.api.fhc().Hubcontroller().getTherapeuticLinksUsingGET(_.get(this, 'hubEndPoint', null), _.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'lastName', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this, 'hcpZip', null), this.cleanNiss(_.get(this.patient, 'ssin', null)))
                 ]) : Promise.resolve([]))
                 .then(([nationalTlResp, hubTlResp]) => {
-                    console.log(nationalTlResp)
-                    console.log(hubTlResp)
+                    this.set('tabs', 0)
                     this.set('selectedTherlink', {});
                     this.set('therlinkList', _.concat(_.get(hubTlResp, 'therapeuticLinks', []).map(link => _.assign(link, {tlType: 'hub'})), _.get(nationalTlResp, 'therapeuticLinks', []).map(link => _.assign(link, {tlType: 'national'}))))
+                    this.set('availableTherlinkType', _.get(this, 'therlinkType').filter(tlType => !this.therlinkList.find(tll => tll.tlType === tlType.type)))
+                    this.set('selectedTherlinkType', _.head(_.get(this, 'availableTherlinkType', [])))
                 })
-            }
-
-            _getNumberOfTherlink(list, type){
-                return _.size(list.filter(tl => tl.tlType === type))
             }
 
             _readEid(){
@@ -786,23 +884,59 @@
             }
 
             _registerTherLink(){
-
+                this.set('errorList', [])
+                ;(_.get(this.selectedTherlinkType, 'type', null) === "national" ? this._registerNationalTherLink() : this._registerHubTherLink()).then(resp => {
+                    if(!_.isEmpty(resp)){
+                        this.set('therlinkResponse', resp)
+                        _.get(resp, 'complete', null) === true ? this._refresh() : null
+                    }
+                })
             }
 
             _registerNationalTherLink(){
-                return this.patient.ssin && this.api.tokenId ?
-                this.api.fhc().Therlinkcontroller().registerTherapeuticLinkUsingPOST1(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'lastName', null),
-                    this.cleanNiss(_.get(this.patient, 'ssin', null)), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null), _.get(this, 'eidCardNumber', null), _.get(this, 'isiCardNumber', null), null, null, null, null, null) : Promise.resolve({})
+                if(_.get(this.api, 'keystoreId', null) &&_.get(this.api, 'tokenId', null) && _.get(this.api, 'credentials.ehpassword', null) && _.get(this.hcp, 'nihii', null) && _.get(this.hcp, 'ssin', null) && _.get(this.hcp, 'firstName', null) && _.get(this.hcp, 'lastName', null) && _.get(this.patient, 'ssin', null) && _.get(this.patient, 'firstName', null) && _.get(this.patient, 'lastName', null) && (_.get(this, 'eidCardNumber', null) || _.get(this, 'isiCardNumber', null))){
+                   return this.api.fhc().Therlinkcontroller().registerTherapeuticLinkUsingPOST1(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'lastName', null),
+                        this.cleanNiss(_.get(this.patient, 'ssin', null)), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null), _.get(this, 'eidCardNumber', null), _.get(this, 'isiCardNumber', null), null, null, null, null, null)
+                }else{
+                    !_.get(this.api, 'keystoreId', null) ? this.push('errorList', {code: 'lt-keystoreId-ko', label: 'Keystore id is missing'}) : null
+                    !_.get(this.api, 'tokenId', null) ? this.push('errorList', {code: 'lt-token-ko', label: 'Token id is missing'}) : null
+                    !_.get(this.api, 'credentials.ehpassword', null) ? this.push('errorList', {code: 'lt-keystorePassword-ko', label: 'Keystore password is missing'}) : null
+                    !_.get(this.hcp, 'nihii', null) ? this.push('errorList', {code: 'lt-hcpNihii-ko', label: 'Hcp nihii is missing'}) : null
+                    !_.get(this.hcp, 'ssin', null) ? this.push('errorList', {code: 'lt-hcpSsin-ko', label: 'Hcp ssin is missing'}) : null
+                    !_.get(this.hcp, 'firstName', null) ? this.push('errorList', {code: 'lt-hcpFirstName-ko', label: 'Hcp first name is missing'}) : null
+                    !_.get(this.hcp, 'lastName', null) ? this.push('errorList', {code: 'lt-hcpLastName-ko', label: 'Hcp last name is missing'}) : null
+                    !_.get(this.patient, 'ssin', null) ? this.push('errorList', {code: 'lt-patientInss-ko', label: 'Patient inss is missing'}) : null
+                    !_.get(this.patient, 'firstName', null) ? this.push('errorList', {code: 'lt-patientFirstName-ko', label: 'Patient first name is missing'}) : null
+                    !_.get(this.patient, 'lastName', null) ? this.push('errorList', {code: 'lt-patientLastName-ko', label: 'Patient last name is missing'}) : null
+                    !_.get(this, 'eidCardNumber', null) ? this.push('errorList', {code: 'lt-eidCardNumber-ko', label: 'Patient eid card number is missing'}) : null
+
+                    return Promise.resolve({})
+                }
             }
 
             _registerHubTherLink() {
-                return this.patient.ssin && this.api.tokenId ?
-                    this.api.fhc().Hubcontroller().registerTherapeuticLinkUsingPOST(_.get(this, 'hubEndPoint', null), _.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null),
-                        _.get(this.hcp, 'lastName', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this, 'hcpZip', null),
-                        _.get(this.patient, 'ssin', null),
-                        _.get(this, 'hubPackageId', null),
-                        _.get(this, 'eidCardNumber', null))
-                    : Promise.resolve({})
+                if(_.get(this, 'hubEndPoint', null) && _.get(this.api, 'keystoreId', null) && _.get(this.api, 'tokenId', null) && _.get(this.api, 'credentials.ehpassword', null) && _.get(this.hcp, 'lastName', null) && _.get(this.hcp, 'firstName', null) && _.get(this.hcp, 'nihii', null) && _.get(this.hcp, 'ssin', null) && _.get(this, 'hcpZip', null) && _.get(this.patient, 'ssin', null) && _.get(this, 'hubPackageId', null) && _.get(this, 'eidCardNumber', null)){
+                    return this.api.fhc().Hubcontroller().registerTherapeuticLinkUsingPOST(_.get(this, 'hubEndPoint', null), _.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null),
+                            _.get(this.hcp, 'lastName', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this, 'hcpZip', null),
+                            _.get(this.patient, 'ssin', null),
+                            _.get(this, 'hubPackageId', null),
+                            _.get(this, 'eidCardNumber', null))
+                }else{
+                    !_.get(this.api, 'keystoreId', null) ? this.push('errorList', {code: 'lt-keystoreId-ko', label: 'Keystore id is missing'}) : null
+                    !_.get(this.api, 'tokenId', null) ? this.push('errorList', {code: 'lt-token-ko', label: 'Token id is missing'}) : null
+                    !_.get(this.api, 'credentials.ehpassword', null) ? this.push('errorList', {code: 'lt-keystorePassword-ko', label: 'Keystore password is missing'}) : null
+                    !_.get(this.hcp, 'nihii', null) ? this.push('errorList', {code: 'lt-hcpNihii-ko', label: 'Hcp nihii is missing'}) : null
+                    !_.get(this.hcp, 'ssin', null) ? this.push('errorList', {code: 'lt-hcpSsin-ko', label: 'Hcp ssin is missing'}) : null
+                    !_.get(this.hcp, 'firstName', null) ? this.push('errorList', {code: 'lt-hcpFirstName-ko', label: 'Hcp first name is missing'}) : null
+                    !_.get(this.hcp, 'lastName', null) ? this.push('errorList', {code: 'lt-hcpLastName-ko', label: 'Hcp last name is missing'}) : null
+                    !_.get(this.patient, 'ssin', null) ? this.push('errorList', {code: 'lt-patientInss-ko', label: 'Patient inss is missing'}) : null
+                    !_.get(this.patient, 'firstName', null) ? this.push('errorList', {code: 'lt-patientFirstName-ko', label: 'Patient first name is missing'}) : null
+                    !_.get(this.patient, 'lastName', null) ? this.push('errorList', {code: 'lt-patientLastName-ko', label: 'Patient last name is missing'}) : null
+                    !_.get(this, 'eidCardNumber', null) ? this.push('errorList', {code: 'lt-eidCardNumber-ko', label: 'Patient eid card number is missing'}) : null
+                    !_.get(this, 'hubEndPoint', null) ? this.push('errorList', {code: 'lt-hubEndpoint-ko', label: 'Hub endpoint is missing'}) : null
+                    !_.get(this, 'hcpZip', null) ? this.push('errorList', {code: 'lt-hcpZip-ko', label: 'Hcp zip is missing'}) : null
+                    return Promise.resolve({})
+                }
             }
 
             _isRegisterAvailable(){
@@ -812,6 +946,27 @@
             cleanNiss(niss){
                 return niss && niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
             }
+
+            _getLabel(label){
+                return _.get(label, this.language, label.en)
+            }
+
+            _isReturnErrorStatus(status){
+                return status === false
+            }
+
+            _getError(error){
+                return _.get(error, 'description.value', null)
+            }
+
+            _localizeError(error){
+                return this.localize(_.get(error, 'code', null), _.get(error, 'label', null) , this.language)
+            }
+
+            _isErrorList(){
+                return _.get(this, 'errorList', []).length > 0
+            }
+
         }
         customElements.define(HtPatTherlinkDetail.is, HtPatTherlinkDetail);
     </script>
