@@ -4623,161 +4623,265 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     return newitem
                 })
 
-                //this.generatePdfFile(items)
-                this.generateXlsFile(newItems, "contact-list_" + moment().format("YYYYMMDD-HHmmss") + ".csv", "Contact List", "Topaz")
+                this.generatePdfFile(items)
+                //this.generateXlsFile(newItems, "contact-list_" + moment().format("YYYYMMDD-HHmmss") + ".csv", "Contact List", "Topaz")
             }
 
-            // color: var(--app-primary-color);
-            // border-top: 2px solid var(--app-background-color-dark);
-            // border-radius: 2px 2px 0 0;
-            // background: var(--app-background-color-dark);
-            // font-size: 12px;
-            // margin: 0 0 8px -8px;
-            // padding: 2px 4px 2px 20px;
-            // display: flex;
-            // flex-flow: row nowrap;
-            // width: calc(100% - 8px);
-            // text-align: left;
-            // justify-content: space-between;
-            // align-items: center;
+            _localize(value, defaultValue) {
+                return value ? this.localize(value.code, value.default, this.language) : defaultValue;
+            }
 
-            _generatePdf(body) {
-                let html = "";
-                html +="<html>";
-                html +="<head>";
-                html +="<style>";
-                html +="@page {size: A4; width: 210mm; height: 297mm; margin: 0; padding: 0}";
-                html +="body {margin: 0; padding: 0; font-family: /* 'Open Sans', */ Arial, Helvetica, sans-serif; line-height:1em;}";
-                html +=".title{height: 20px; font-size: 14px; width: 100%;}";
-                html +=".sub-title{height: 15px; font-size: 12px; width: 100%;}";
-                html +=".separator{height: 2px; width: 100%; border-bottom: 1px solid black;}";
-                html +=".page {width: 210mm; color:#000000; font-size:12px; padding:10mm; position:relative;}";
-                html +=".textaligncenter { text-align: center; } .textalignleft { text-align: left; } .textalignright { text-align: right; }";
-                html +=".b{font-weight: bold}";
-                html +=".mutuality-block{border: 1px solid black; width: 100%; height: auto;}";
-                html +=".date-signature{height: 30px; width: 100%;}";
-                html +=".border{border: 1px solid black;};"
-                html +=".s10{font-size: 10px;}";
-                html +=".s9{font-size: 9px;}";
-                html +=".condition-block{height: 150px;}";
-                html +=".stamp-date-signature-title{width: 100%}";
-                html +=".stamp-date-signature{width: 100%; height: 55px;}";
-                html +=".check{height: 10px; width: 10px; background-color; black;}";
-                html +=".uncheck{height: 10px; width: 10px;}";
-                html +="</style>";
-                html +="</head>";
-                html +="<body>";
-                html +="<div class='page'>";
-                html += body;
-                html +="</div>";
-                html +="</body>";
-                html +="</html>";
+            _generatePdfDate(date, format = "DD/MM/YYYY hh:mm", empty = "") {
+                return date ? this.api.moment(date).format(format) : empty;
+            }
+
+            _generatePdfShortDate(date, empty = "") {
+                return this._generatePdfDate(date, "DD/MM/YYYY", empty);
+            }
+
+            _generatePdfRow(label, value) {
+                let html = "<div class='row'>";
+                html += "<div class='label'>" + label + "</div>";
+                html += "<div class='value'>" + value + "</div>";
+                html += "</div>";
                 return html;
             }
 
-            _generatePdfDate(date) {
-                return date ? this.api.moment(date).format("DD/MM/YYYY hh:mm") : "";
-            }
+            _generatePdfContact(contact, forms, templates, healthElements) {
+                let html = "<div class='contact'>";
 
-            _generatePdfContact(contact) {
-                let html = "<tr>";
-                html += "<td>" + this._generatePdfDate(contact.openingDate) + "</td>";
-                html += "<td>" + (contact.userDescr || "").replace(/(\r\n|\n|\r)/gm, " ") + "</td>";
-                html += "<td>" + this.hcp(contact) + "</td>";
-                html += "<td>" + this._generatePdfDate(contact.closingDate) + "</td>";
-                html += "</tr>";
+                html += "<div class='contact-header'>";
+                html += "<div>" + this._generatePdfDate(contact.openingDate) + "&nbsp;</div>";
+                html += "<div>" + (contact.userDescr || "").replace(/(\r\n|\n|\r)/gm, " ") + "&nbsp;</div>";
+                html += "<div class='contact-hcp'>" + this.hcp(contact) + "</div>";
+                //html += this._generatePdfDate(contact.closingDate);
+                html += "</div>";
+
+                html += "<div class='contact-body'>";
 
                 if (contact.healthElements && contact.healthElements.length > 0) {
-                    html += "<tr><td colspan='4'>Elements de santé</td><tr>";
-                    html += "<tr><td colspan='4'>";
-                    html += "<table>";
+                    html += "<div class='b'>Elements de santé</div>";
                     contact.healthElements.forEach(healthElement => {
-                        html += this._generatePdfHealthElement(healthElement);
+                        html += this._generatePdfHealthElement(healthElement, healthElements);
                     });
-                    html += "</table>";
-                    html += "</td></tr>";
                 }
 
-                if (contact.subContacts && contact.subContacts.length > 0) {
-                    html += "<tr><td colspan='4'>Sous-contacts</td><tr>";
-                    html += "<tr><td colspan='4'>";
-                    html += "<table>";
-                    contact.subContacts.forEach(subContact => {
-                        html += this._generatePdfSubContact(subContact);
+                let subContacts = contact.subContacts.filter(s => !s.status || s.status != 64);
+
+                if (subContacts && subContacts.length > 0) {
+                    html += "<div class='b'>Sous-contacts</div>";
+                    subContacts.forEach(subContact => {
+                        html += this._generatePdfSubContact(subContact, contact.services, forms, templates);
                     });
-                    html += "</table>";
-                    html += "</td></tr>";
                 }
 
-                if (contact.services && contact.services.length > 0) {
-                    html += "<tr><td colspan='4'>Services</td><tr>";
-                    html += "<tr><td colspan='4'>";
-                    html += "<table>";
-                    contact.services.forEach(service => {
+                let services = contact.services.filter(s => s.label == "document" || s.label == "imported document");
+
+                if (services && services.length > 0) {
+                    html += "<div class='b'>Services</div>";
+                    services.forEach(service => {
                         html += this._generatePdfService(service);
                     });
-                    html += "</table>";
-                    html += "</td></tr>";
                 }
 
+                html += "</div>";
+                html += "</div>";
                 return html;
             }
 
-            _generatePdfHealthElement(healthElement) {
-                let html = "<tr>";
-                html += "<td>" + healthElement.id + "</td>";
-                html += "<td>" + healthElement.descr + "</td>";
-                html += "</tr>";
+            static getHealthElementAttributes() {
+                return {
+                    status: {
+                        label: { code: "cert", default: "Certainty" },
+                        values: [
+                            { id: "active-relevant", code: "act-rel", default: "Active relevant" },
+                            { id: "active-irrelevant", code: "act_irr", default: "Active irrelevant" },
+                            { id: "inactive", code: "ina", default: "Inactive" },
+                            { id: "archived", code: "archiv", default: "Archived" }
+                        ]
+                    },
+                    certainty: {
+                        type: "CD-CERTAINTY",
+                        label: { code: "cert", default: "Certainty" },
+                        values: [
+                            { id: "proven", code: "proven", default: "Proven" },
+                            { id: "probable", code: "probable", default: "Probable" },
+                            { id: "unprobable", code: "unprobable", default: "Improbable" },
+                            { id: "excluded", code: "excluded", default: "Excluded" }
+                        ]
+                    },
+                    severity: {
+                        type: "CD-SEVERITY",
+                        label: { code: "sev", default: "Severity" },
+                        values: [
+                            { id: "normal", code: "normal", default: "No problem" },
+                            { id: "verylow", code: "verylow", default: "Light" },
+                            { id: "low", code: "low", default: "Moderate" },
+                            { id: "high", code: "high", default: "Severe" },
+                            { id: "veryhigh", code: "veryhigh", default: "Total" }
+                        ]
+                    },
+                    temporality: {
+                        type: "CD-TEMPORALITY",
+                        label: { code: "", default: "Rémanence" },
+                        values: [
+                            { id: "chronic", code: "chronic", default: "Chronic" },
+                            { id: "subbacute", code: "subbacute", default: "Sub-acute" },
+                            { id: "acute", code: "acute", default: "Acute" }
+                        ]
+                    },
+                    extraTemporality: {
+                        type: "CD-EXTRA-TEMPORALITY",
+                        label: { code: "ext_temp", default: "Extra temporalité" },
+                        values: [
+                            { id: "remission", code: "remission", default: "Remission" },
+                            { id: "relapse", code: "relapse", default: "Relapse" }
+                        ]
+                    },
+                    openingDate: {
+                        label: { code: "st_da", default: "Start date" }
+                    },
+                    closingDate: {
+                        label: { code: "en_da", default: "End date" }
+                    }
+                }
+            }
+
+            _generatePdfHealthElementTag(healthElement, attribute) {
+                const tag = healthElement.tags.find(t => t.type == attribute.type);
+                if (!(tag && tag.code)) return;
+                const label = attribute.label;
+                const value = attribute.values.find(v => v.id == tag.code);
+                return this._generatePdfRow(this._localize(label), this._localize(value, tag.code));
+            }
+
+            _generatePdfHealthElement(healthElement, healthElements) {
+                healthElement = healthElements.find(he => he.id = healthElement.id);
+                if (!healthElement) return;
+                let code = healthElement.codes.find(c => c.type == "ICPC");
+                let html = this._generatePdfRow((code ? code.code : healthElement.id), healthElement.descr);
+
+                const attributes = HtPatDetail.getHealthElementAttributes();
+
+                const status = parseInt(healthElement.status);
+                const value = attributes.status.values[status-1];
+                html += this._generatePdfRow(this._localize(attributes.status.label), this._localize(value));
+                html += this._generatePdfHealthElementTag(healthElement, attributes.certainty);
+                html += this._generatePdfHealthElementTag(healthElement, attributes.severity);
+                html += this._generatePdfHealthElementTag(healthElement, attributes.temporality);
+                html += this._generatePdfHealthElementTag(healthElement, attributes.extraTemporality);
+
+                html += this._generatePdfRow(this._localize(attributes.openingDate.label),
+                    this._generatePdfShortDate(healthElement.openingDate));
+
+                if (healthElement.closingDate)
+                    this._generatePdfRow(this._localize(attributes.closingDate.label),
+                        this._generatePdfShortDate(healthElement.closingDate));
+
                 return html;
             }
 
             _generatePdfService(service) {
-                let html = "<tr>";
-                html += "<td>" + service.id + "</td>";
-                html += "<td>" + service.label + "</td>";
-                html += "</tr>";
+                let html = "<div class='row'>";
+                if (service.label === "document") {
+                    html += "<div>" + service.content.fr.stringValue + "</div>";
+                } else if (service.label === "imported document") {
+                    let tag = service.tags.find(t => t.type == "CD-TRANSACTION");
+                    const code = tag && tag.code ? tag.code : "unknwon";
+                    const type = this.documentTypes.find(t => t.code == code);
+                    html += "<div class='b'>" + (type ? type.name : code) + ":&nbsp;</div>";
+                    html += "<div>" + service.content.fr.stringValue + "</div>";
+                } else {
+                    html += "<div>" + service.id + "</div>";
+                    html += "<div>" + service.label + "</div>";
+                }
+                html += "</div>";
                 return html;
             }
 
-            _generatePdfSubContact(subContact) {
-                let html = "<tr>";
+            _generatePdfValue(id, services, fields) {
+                const service = services.find(s => s.id == id);
+                if (!service || service.endOfLife) return "";
+                const field = fields.find(f => f.name == service.label);
+                let label = field ? field.label : service.label;
+                let value = null;
+                if (service.label == "Prescription") {
+                    if (service.content.fr.medicationValue.medicinalProduct)
+                        value = service.content.fr.medicationValue.medicinalProduct.intendedname;
+                    else if (service.content.fr.medicationValue.substanceProduct)
+                        value = service.content.fr.medicationValue.substanceProduct.intendedname;
+                }
+                else if (service.content.fr.numberValue)
+                    value = service.content.fr.numberValue;
+                else if (service.content.fr.stringValue)
+                    value = service.content.fr.stringValue;
+                else if (service.content.fr.measureValue)
+                    value = service.content.fr.measureValue.value;
+                if (!value) return "";
+                return this._generatePdfRow(label, value);
+            }
 
+            _generatePdfSubContact(subContact, services, forms, templates) {
+                let html = "";
                 if (subContact.formId) {
-                    html += "<td colspan='2'>" + subContact.formId + "</td>";
+                    let fields = []
+                    let title = subContact.formId;
+                    let form = forms.find(f => f.id == subContact.formId);
+                    if (form) {
+                        title = form.descr;
+                        const template = templates.find(t => t.id == form.formTemplateId);
+                        if (template) {
+                            if (/^(([0-9A-F]){8}-(([0-9A-F]){4}-){3}([0-9A-F]){12})$/i.test(title))
+                                title = template.layout.name;
+                            fields = template.layout.sections.flatMap(s=>s.formColumns.flatMap(c => c.formDataList.flatMap(i => i)));
+                        }
+                    }
+                    html = "<div>" + title + "</div>";
+                    subContact.services.forEach(service => {
+                        html += this._generatePdfValue(service.serviceId, services, fields);
+                    });
                 }
-                else if (subContact.status == 64 && subContact.tags && subContact.tags.length > 0 && subContact.tags[0].type && subContact.tags[0].code) {
-                    html += "<td>" + subContact.tags[0].type + "</td>";
-                    html += "<td>" + subContact.tags[0].code + "</td>";
-                }
-                html += "</tr>";
+                else if (subContact.status == 64 && subContact.tags && subContact.tags.length > 0 && subContact.tags[0].type && subContact.tags[0].code)
+                    html += this._generatePdfRow(subContact.tags[0].type, subContact.tags[0].code);
                 return html;
+            }
+
+            getForms(contacts) {
+                let formIds = contacts.flatMap(contact => contact.subContacts.filter(s => s.formId).map(s => s.formId));
+                formIds = formIds.filter((v, i, a) => a.indexOf(v) === i);
+                return this.api.form().getForms({ids: formIds});
+            }
+
+            getFormTemplates(forms) {
+                let templateIds = forms.filter(f => f.formTemplateId).map(f => f.formTemplateId);
+                templateIds = templateIds.filter((v, i, a) => a.indexOf(v) === i);
+                return templateIds.map(id => this.api.form().getFormTemplate(id));
+            }
+
+            getHealthElements(contacts) {
+                let heIds = contacts.flatMap(contact => contact.healthElements);
+                heIds = heIds.filter((v, i, a) => a.indexOf(v) === i);
+                return heIds.filter(he => he).map(he => this.api.helement().getHealthElement(he.id));
             }
 
             generatePdfFile(contacts) {
-                let html = "<table>";
-                contacts.forEach(contact => {
-                    html += this._generatePdfContact(contact);
-                });
-                html += "</table>";
-
-                this.api.pdfReport(this._generatePdf(html), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
-                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", "testLDE.pdf" ))
-            }
-
-            generatePdfFile_old(contacts) {
-                let html = "<table>";
-                contacts.forEach(contact => {
-                    html += "<tr>";
-                    html += "<td>" + this._generatePdfDate(contact.openingDate) + "</td>";
-                    html += "<td>" + (contact.userDescr || "").replace(/(\r\n|\n|\r)/gm, " ") + "</td>";
-                    html += "<td>" + this.hcp(contact) + "</td>";
-                    html += "<td>" + this._generatePdfDate(contact.closingDate) + "</td>";
-                    html += "</tr>";
-                });
-                html += "</table>";
-
-                this.api.pdfReport(this._generatePdf(html), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
-                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", "testLDE.pdf" ))
+                this.getForms(contacts).then(forms => Promise.all(this.getFormTemplates(forms)).then(templates => [forms, templates])
+                    .then(([forms, templates]) => Promise.all(this.getHealthElements(contacts)).then(healthElements => [forms, templates, healthElements])
+                        .then(([forms, templates, healthElements]) => {
+                            let html = "";
+                            contacts = contacts.sort((a,b) => {
+                                return this.api.moment(b.openingDate).diff(this.api.moment(a.openingDate), "minutes");
+                            });
+                            contacts.forEach(contact => {
+                                html += this._generatePdfContact(contact, forms, templates, healthElements);
+                            });
+                            const printer = this.shadowRoot.querySelector("#printDocument");
+                            html = printer.print(html, this.patient);
+                            return this.api.pdfReport(html, {type:"unknown", completionEvent:"pdfDoneRenderingEvent"})
+                        }).then(printedPdf => {
+                            !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", "testLDE.pdf")
+                        })
+                    ));
             }
 
             generateXlsFile(data, filename, title, author) {
