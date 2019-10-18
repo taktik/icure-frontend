@@ -23,6 +23,7 @@
 <link rel="import" href="../../../styles/shared-styles.html">
 <link rel="import" href="../../ht-spinner/ht-spinner.html">
 <link rel="import" href="../../icons/medication-icons.html">
+<link rel="import" href="medication-details.html">
 
 
 <dom-module id="medication-prescription-dialog">
@@ -176,19 +177,6 @@
                 flex-flow: row wrap;
                 justify-content: space-around;
                 align-items: flex-start;
-            }
-
-            .left-pane {
-                width: calc(67% - 12px);
-                margin-right: 12px;
-                flex-grow: 3;
-            }
-
-            .right-pane {
-                width: calc(33% - 12px);
-                margin-left: 12px;
-                align-self: flex-end;
-                flex-grow: 1;
             }
 
             .buttons {
@@ -479,12 +467,6 @@
                 padding: 4px 0;
             }
 
-            .search-pane {
-                width: 90%;
-                display: flex;
-                flex-direction: column;
-            }
-
             .search-bar {
                 display: flex;
                 flex-direction: row;
@@ -512,12 +494,6 @@
                 align-items: stretch;
                 width: 100%;
                 height: 590px;
-            }
-
-            .prescription-pane {
-                width: 10%;
-                display: flex;
-                flex-direction: column;
             }
 
             .prescription-title {
@@ -640,7 +616,45 @@
                 color: var(--app-primary-color-dark);
             }
 
+            /*.left-pane {*/
+            /*    width: 90%;*/
+            /*    display: flex;*/
+            /*    flex-direction: column;*/
+            /*}*/
 
+            .left-pane {
+                width: calc(67% - 12px);
+                margin-right: 12px;
+                flex-grow: 3;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .right-pane {
+                width: calc(32% - 12px);
+                margin-left: 12px;
+                align-self: flex-end;
+                flex-grow: 1;
+                display: flex;
+                flex-direction: column;
+            }
+
+            /*.right-pane {*/
+            /*    width: 30%;*/
+            /*    display: flex;*/
+            /*    flex-direction: column;*/
+            /*}*/
+
+            div.pane-collapse {
+                visibility: collapse !important;
+                flex: 0 1 0px;
+                height: 0px;
+                width: 0px;
+            }
+
+            .content {
+                overflow-x: hidden;
+            }
 
         </style>
 
@@ -648,7 +662,7 @@
             <ht-spinner class="center" active="[[isLoadingEntities]]"></ht-spinner>
             <h2 class="modal-title">[[localize('sel_med','Select medication',language)]]</h2>
             <div class="content container">
-                <div class="prescription-pane">
+                <div id="prescription-pane" class="right-pane">
                     <h5 class="prescription-title">[[localize('selected_meds','Selected medication(s)',language)]]</h5>
                     <div class="prescription-list">
                         <vaadin-grid class="sub-list" id="accumulated-medications" items="[[medicationAccumulator]]"
@@ -674,7 +688,7 @@
                         </vaadin-grid>
                     </div>
                 </div>
-                <div class="search-pane">
+                <div id="search-pane" class$="left-pane [[_activePaneClass('search', paneTrigger)]]">
                     <div class="search-bar">
                         <div class="search-field">
                             <paper-input id="search" label="[[localize('sch_med','Search a medicine',language)]]"
@@ -1505,6 +1519,9 @@
                         </vaadin-grid>
                     </div>
                 </div>
+                <div id="dosage-pane" class$="left-pane [[_activePaneClass('dosage', paneTrigger)]]">
+                    <medication-details id="medication-detail" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" selected-medication-content-with-id="{{selectedMedicationContentWithId}}" on-value-changed="_medicationDetailValueChanged"></medication-details>
+                </div>
             </div>
             <div class="buttons">
                 <paper-button class="button" dialog-dismiss on-tap="skip">[[localize('can','Cancel',language)]]
@@ -1674,7 +1691,18 @@
                             allergy: "image:filter-vintage",
                             adr: "vaadin:pill"
                         })
-                    }
+                    },
+
+                    paneTrigger: {
+                        type: String,
+                        notify: true,
+                        value: ''
+                    },
+
+                    panes: {
+                        type: Object,
+                        value: []
+                    },
                 }
             }
 
@@ -1703,6 +1731,8 @@
             }
 
             open(medication, options = {}) {
+                this._togglePaneWithKey('search');
+
                 this.api.helement().findBy(this.user.healthcarePartyId, this.patient)
                     .then(hes => this.Allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && (tag.code === "allergy" || tag.code === "adr")))
                         .map(he => {
@@ -2346,6 +2376,11 @@
                     'masterly': false
                 };
 
+                this.panes = {
+                    'search': false,
+                    'dosage': false
+                };
+
                 this._init();
             }
 
@@ -2429,6 +2464,7 @@
             }
 
             _addMedication(med) {
+                this._togglePaneWithKey('dosage');
                 const unit = this.localize('generic_unit', 'unit', this.language);
                 const newMedicationContent = {
                     medicationValue: {},
@@ -2947,6 +2983,22 @@
                 this.filters[key] = !this.filters[key];
                 Object.keys(this.filters).filter(k => k !== key && this.filters[k]).map(k => this.filters[k] = false);
                 this.set('trigger', key + '_' + this.filters[key]);
+            }
+
+            _activePaneClass(key, paneTrigger) {
+                if (Object.values(this.panes).every(f => !f)) return '';
+                return this.panes[key] ? '' : 'pane-collapse';
+            }
+
+            _togglePaneWithKey(key) {
+                if (!key) return;
+                this.panes[key] = !this.panes[key];
+                Object.keys(this.panes).filter(k => k !== key && this.panes[k]).map(k => this.panes[k] = false);
+                this.set('paneTrigger', key + '_' + this.panes[key]);
+            }
+
+            _togglePane(e) {
+                this._togglePaneWithKey(e.currentTarget.id);
             }
         }
 
