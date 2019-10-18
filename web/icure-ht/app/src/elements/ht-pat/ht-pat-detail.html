@@ -4648,8 +4648,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _generatePdfContact(contact, forms, templates, healthElements) {
-                let html = "<div class='contact'>";
+                if ((!contact.services || contact.services.length < 1) &&
+                    (!contact.subContacts || contact.subContacts.length < 1) &&
+                    (!contact.healthElements || contact.healthElements.length < 1))
+                    return "";
+                if (contact.encounterType && contact.encounterType.type == "CD-TRANSACTION")
+                    return "";
 
+                let html = "<div class='contact'>";
                 html += "<div class='contact-header'>";
                 html += "<div>" + this._generatePdfDate(contact.openingDate) + "&nbsp;</div>";
                 html += "<div>" + (contact.userDescr || "").replace(/(\r\n|\n|\r)/gm, " ") + "&nbsp;</div>";
@@ -4692,7 +4698,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             static getHealthElementAttributes() {
                 return {
                     status: {
-                        label: { code: "cert", default: "Certainty" },
+                        label: { code: "sta", default: "Status" },
                         values: [
                             { id: "active-relevant", code: "act-rel", default: "Active relevant" },
                             { id: "active-irrelevant", code: "act_irr", default: "Active irrelevant" },
@@ -4749,23 +4755,25 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _generatePdfHealthElementTag(healthElement, attribute) {
                 const tag = healthElement.tags.find(t => t.type == attribute.type);
-                if (!(tag && tag.code)) return;
+                if (!(tag && tag.code)) return "";
                 const label = attribute.label;
                 const value = attribute.values.find(v => v.id == tag.code);
                 return this._generatePdfRow(this._localize(label), this._localize(value, tag.code));
             }
 
             _generatePdfHealthElement(healthElement, healthElements) {
-                healthElement = healthElements.find(he => he.id = healthElement.id);
-                if (!healthElement) return;
+                healthElement = healthElements.find(he => he.id == healthElement.id);
+                if (!healthElement) return "";
                 let code = healthElement.codes.find(c => c.type == "ICPC");
                 let html = this._generatePdfRow((code ? code.code : healthElement.id), healthElement.descr);
 
                 const attributes = HtPatDetail.getHealthElementAttributes();
 
-                const status = parseInt(healthElement.status);
-                const value = attributes.status.values[status-1];
-                html += this._generatePdfRow(this._localize(attributes.status.label), this._localize(value));
+                if (healthElement.status) {
+                    const status = parseInt(healthElement.status);
+                    const value = attributes.status.values[status - 1];
+                    html += this._generatePdfRow(this._localize(attributes.status.label), this._localize(value));
+                }
                 html += this._generatePdfHealthElementTag(healthElement, attributes.certainty);
                 html += this._generatePdfHealthElementTag(healthElement, attributes.severity);
                 html += this._generatePdfHealthElementTag(healthElement, attributes.temporality);
@@ -4877,9 +4885,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             });
                             const printer = this.shadowRoot.querySelector("#printDocument");
                             html = printer.print(html, this.patient);
-                            return this.api.pdfReport(html, {type:"unknown", completionEvent:"pdfDoneRenderingEvent"})
+                            return this.api.pdfReport(html, {type:"unknown", completionEvent:"pdfDoneRenderingEvent"});
                         }).then(printedPdf => {
-                            !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", "testLDE.pdf")
+                            const filename = this.patient.lastName + " " + this.patient.firstName + ".pdf";
+                            return !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", filename)
                         })
                     ));
             }
