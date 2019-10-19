@@ -186,9 +186,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class="external-care-team-block">
                                 <div class="external-care-team-block-title">[[localize('adm-team-ref-period', 'Referral periods', language)]]</div>
                                 <div class="external-care-team-line">
-                                    <vaadin-date-picker class="external-care-team-line-item" label="[[localize('foll-up-beg','Beginning of the follow-up',language)]]" value="{{selectedHcp.referralStartDate}}" i18n="[[i18n]]"></vaadin-date-picker>
-                                    <vaadin-date-picker class="external-care-team-line-item" label="[[localize('foll-up-end','End of the follow-up',language)]]" value="{{selectedHcp.referralEndDate}}" i18n="[[i18n]]"></vaadin-date-picker>
-                                    <paper-checkbox class="external-care-team-line-item" value="{{selectedHcp.referral}}" on-change="_chckIfReferral">[[localize('ref-hcp', 'Referral hcp', language)]]</paper-checkbox>
+                                    <vaadin-date-picker class="external-care-team-line-item" label="[[localize('foll-up-beg','Beginning of the follow-up',language)]]" value="{{referalPeriodsAsString.startDate}}" i18n="[[i18n]]"></vaadin-date-picker>
+                                    <vaadin-date-picker class="external-care-team-line-item" label="[[localize('foll-up-end','End of the follow-up',language)]]" value="{{referalPeriodsAsString.endDate}}" i18n="[[i18n]]"></vaadin-date-picker>
+                                    <paper-checkbox class="external-care-team-line-item" value="{{selectedHcp.referral}}" on-checked-changed="_chckIfReferral" checked="[[selectedHcp.referral]]">[[localize('ref-hcp', 'Referral hcp', language)]]</paper-checkbox>
                                     <!--<paper-checkbox class="external-care-team-line-item" value="{{selectedHcp.invite}}" on-change="chckInvite">[[localize('inv-hcp', 'Invite hcp', language)]]</paper-checkbox>-->
                                 </div>
                             </div>
@@ -394,6 +394,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             {code: "email", label: {fr: "Email", nl: "Email", en: "Email"}},
                             {code: "fax", label: {fr: "Fax", nl: "Fax", en: "Fax"}}
                         ]
+                    },
+                    referalPeriodsAsString:{
+                        type: Object,
+                        value: {
+                            startDate: null,
+                            endDate: null
+                        }
                     }
                 };
             }
@@ -410,27 +417,33 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set('selectedHcpSpeciality', {})
                 if(_.get(this, "selectedCareProvider.id", null)){
                     this.api.hcparty().getHealthcareParty(_.get(this, "selectedCareProvider.id", null))
-                        .then(hcp => this.set('selectedHcp', _.size(_.get(hcp, 'addresses', [])) ? _.assign(hcp, {
-                            referral: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referral" , false),
-                            referralPeriods: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referralPeriods", [])
-                        }) : _.assign(hcp, {
-                            addresses: [{
-                                addressType: "work",
-                                street: null,
-                                houseNumber: null,
-                                postalCode: null,
-                                city: null,
-                                telecoms: [{
-                                    telecomType: null,
-                                    telecomNumber: null
-                                }]
-                            }],
-                            referral: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referral" , false),
-                            referralPeriods: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referralPeriods", [])
-                        })))
+                        .then(hcp => {
+                            this.set('selectedHcp', _.size(_.get(hcp, 'addresses', [])) ? _.assign(hcp, {
+                                referral: _.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null)), "referral" , false),
+                                referralPeriods: _.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null)), "referralPeriods", [])
+                            }) : _.assign(hcp, {
+                                addresses: [{
+                                    addressType: "work",
+                                    street: null,
+                                    houseNumber: null,
+                                    postalCode: null,
+                                    city: null,
+                                    telecoms: [{
+                                        telecomType: null,
+                                        telecomNumber: null
+                                    }]
+                                }],
+                                referral: _.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null)), "referral" , false),
+                                referralPeriods: _.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null)), "referralPeriods", [])
+                            }))
+                        })
                         .then(() => this.api.code().findPaginatedCodesByLabel('be', 'CD-HCPARTY', 'fr', 'pers', null, null, 1000))
                         .then(listOfHcp => this.set('specialityList', listOfHcp.rows))
                         .finally(() => {
+                            this.set('referalPeriodsAsString', {
+                                startDate: _.get(_.head(_.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(this.selectedHcp, 'id', null)), 'referralPeriods', null)), "startDate", null) ? this.api.moment(_.get(_.head(_.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(this.selectedHcp, 'id', null)), 'referralPeriods', null)), "startDate", null)).format("YYYY-MM-DD") : null,
+                                endDate: _.get(_.head(_.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(this.selectedHcp, 'id', null)), 'referralPeriods', null)), "startDate", null) ? this.api.moment(_.get(_.head(_.get(_.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(this.selectedHcp, 'id', null)), 'referralPeriods', null)), "endDate", null)).format("YYYY-MM-DD") : null
+                            })
                             this.set('he', {activeElements: this.activeHealthElements.filter(he => _.get(he, 'responsible', "") === this.selectedHcp.id), inactiveElements: this.inactiveHealthElements.filter(he => _.get(he, 'responsible', "") === this.selectedHcp.id)})
                             this.set('selectedHcpSpeciality', this.specialityList.find(spec => spec.code === this.selectedHcp.speciality) ? this.specialityList.find(spec => spec.code === this.selectedHcp.speciality) : this.specialityList.find(spec => spec.id === this.selectedHcp.speciality))
                             this.$['hcpInfoDialog'].open()
@@ -452,19 +465,40 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
             _updateHcp(){
                 console.log(this.selectedHcp)
-                this.api.hcparty().modifyHealthcareParty(this.selectedHcp).then(hcp => {
-                    this.set('selectedHcp', hcp)
-                }).finally(() => {
-                    this.dispatchEvent(new CustomEvent('refresh-grid', {detail: {}, composed: true, bubbles: true}))
-                    this.shadowRoot.querySelector('#hcpSpeciality')._clear()
-                    this._closeDialogs()
-
-                })
-                    .catch(e => console.log("Error: "+e))
+                this.api.hcparty().modifyHealthcareParty(this.selectedHcp)
+                    .then(hcp => this.set('selectedHcp', hcp))
+                    .then(() => this.api.patient().getPatientWithUser(this.user, this.patient.id))
+                    .then(patient => {
+                        patient.patientHealthCareParties.splice(_.indexOf(_.get(this.patient, "patientHealthCareParties", []), _.get(this.patient, "patientHealthCareParties", []).find(phcp => phcp.healthcarePartyId === _.get(this.selectedHcp, 'id', null))), 1)
+                        patient.patientHealthCareParties.push({
+                            healthcarePartyId : _.get(this.selectedHcp, 'id', null),
+                            referral: _.get(this.selectedHcp, 'referral', false) === "on" ? true : false,
+                            referralPeriods: [{
+                                startDate : _.get(this.referalPeriodsAsString, 'startDate', null) != null ? parseInt(moment(_.trim(_.get(this.referalPeriodsAsString, "startDate"))).format('YYYYMMDD')) : null,
+                                endDate: _.get(this.referalPeriodsAsString, 'endDate', null) != null ? parseInt(moment(_.trim(_.get(this.referalPeriodsAsString, "endDate"))).format('YYYYMMDD')) : null
+                            }]
+                        })
+                        return patient
+                    })
+                    .then(patient => this.api.patient().modifyPatientWithUser(this.user, patient))
+                    .then(patient => this.api.register(patient, 'patient'))
+                    .finally(() => {
+                        this.dispatchEvent(new CustomEvent('refresh-grid', {detail: {}, composed: true, bubbles: true}))
+                        this.shadowRoot.querySelector('#hcpSpeciality')._clear()
+                        this._closeDialogs()
+                }).catch(e => console.log("Error: "+e))
             }
 
             _hasColor() {
                 return !!(this.he.colour)
+            }
+
+            _chckIfReferral(e){
+                if(e.target.checked){
+                    this.set("selectedHcp.referral", true)
+                }else{
+                    this.set("selectedHcp.referral", false)
+                }
             }
 
         }
