@@ -170,7 +170,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 <div class="external-care-team-line">
                                     <vaadin-text-field class="external-care-team-line-item" label="[[localize('inami','Nihii',language)]]" value="{{selectedHcp.nihii}}"></vaadin-text-field>
                                     <vaadin-combo-box id="hcpSpeciality" class="external-care-team-line-item" items="[[specialityList]]" item-label-path="label.fr" item-value-path="id" label="[[localize('speciality','Speciality',language)]]" selected-item="{{selectedHcpSpeciality}}"></vaadin-combo-box>
-                                    <vaadin-text-field class="external-care-team-line-item" label="[[localize('niss','Niss',language)]]" value="{{selectedHcp.niss}}"></vaadin-text-field>
+                                    <vaadin-text-field class="external-care-team-line-item" label="[[localize('niss','Niss',language)]]" value="{{selectedHcp.ssin}}"></vaadin-text-field>
                                 </div>
                                 <div class="external-care-team-line">
                                     <vaadin-text-field class="external-care-team-line-item" label="[[localize('cbe','Cbe',language)]]" value="{{selectedHcp.cbe}}"></vaadin-text-field>
@@ -192,6 +192,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     <!--<paper-checkbox class="external-care-team-line-item" value="{{selectedHcp.invite}}" on-change="chckInvite">[[localize('inv-hcp', 'Invite hcp', language)]]</paper-checkbox>-->
                                 </div>
                             </div>
+                            <!--
                             <div class="external-care-team-block">
                                 <div class="external-care-team-block-title">[[localize('adm-team-ctc-data', 'Contacts data', language)]]</div>
                                 <template is="dom-repeat" items="[[selectedHcp.addresses]]" as="adr">
@@ -210,6 +211,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     </template>
                                 </template>
                             </div>
+                            -->
                         </div>
                     </page>
                     <page>
@@ -373,6 +375,25 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     selectedCareProvider:{
                         type: Object,
                         value: () => {}
+                    },
+                    telecomType:{
+                        type: Array,
+                        value: () => [
+                            {code: "home", label: {fr: "Domicile", nl: "Home", en: "Home"}},
+                            {code: "work", label: {fr: "Travail", nl: "Work", en: "Work"}},
+                            {code: "hospital", label: {fr: "Hopital", nl: "Hospital", en: "Hospital"}},
+                            {code: "clinic", label: {fr: "Clinique", nl: "Clinic", en: "Clinic"}},
+                            {code: "other", label: {fr: "Autre", nl: "Other", en: "Other"}}
+                        ]
+                    },
+                    addresseType: {
+                        type: Array,
+                        value: () => [
+                            {code: "mobile", label: {fr: "Portable", nl: "Mobile", en: "Mobile"}},
+                            {code: "phone", label: {fr: "Tél", nl: "Phone", en: "Phone"}},
+                            {code: "email", label: {fr: "Email", nl: "Email", en: "Email"}},
+                            {code: "fax", label: {fr: "Fax", nl: "Fax", en: "Fax"}}
+                        ]
                     }
                 };
             }
@@ -389,7 +410,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set('selectedHcpSpeciality', {})
                 if(_.get(this, "selectedCareProvider.id", null)){
                     this.api.hcparty().getHealthcareParty(_.get(this, "selectedCareProvider.id", null))
-                        .then(hcp => this.set('selectedHcp', hcp))
+                        .then(hcp => this.set('selectedHcp', _.size(_.get(hcp, 'addresses', [])) ? _.assign(hcp, {
+                            referral: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referral" , false),
+                            referralPeriods: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referralPeriods", [])
+                        }) : _.assign(hcp, {
+                            addresses: [{
+                                addressType: "work",
+                                street: null,
+                                houseNumber: null,
+                                postalCode: null,
+                                city: null,
+                                telecoms: [{
+                                    telecomType: null,
+                                    telecomNumber: null
+                                }]
+                            }],
+                            referral: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referral" , false),
+                            referralPeriods: _.get(_.head(_.get(this.patient, "patientHealthCareParties", []).filter(phcp => phcp.healthcarePartyId === _.get(hcp, 'id', null))), "referralPeriods", [])
+                        })))
                         .then(() => this.api.code().findPaginatedCodesByLabel('be', 'CD-HCPARTY', 'fr', 'pers', null, null, 1000))
                         .then(listOfHcp => this.set('specialityList', listOfHcp.rows))
                         .finally(() => {
