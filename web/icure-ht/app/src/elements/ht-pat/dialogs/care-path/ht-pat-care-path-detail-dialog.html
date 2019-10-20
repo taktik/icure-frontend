@@ -1032,7 +1032,7 @@
                         </div>
                     </page>
                     <page id="carePathDocument">
-                        <ht-pat-care-path-detail-document id="htPatCarePathDetailDocument" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" patient="[[patient]]" hcp="[[hcp]]" selected-care-path="[[selectedCarePath]]" available-document-list="[[availableDocumentList]]"></ht-pat-care-path-detail-document>
+                        <ht-pat-care-path-detail-document id="htPatCarePathDetailDocument" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" patient="[[patient]]" hcp="[[hcp]]" selected-care-path="[[selectedCarePath]]" available-document-list="[[availableDocumentList]]" on-selected-document="_showLinkingBtn"></ht-pat-care-path-detail-document>
                     </page>
                     <!--
                     <page id="carePathPrescription">
@@ -1043,6 +1043,14 @@
             </div>
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <template is="dom-if" if="[[_isDocumentTab(tabs)]]">
+                    <template is="dom-if" if="[[linkBtnAvailable]]">
+                        <paper-button class="button button--other" on-tap="_linkDocument"><iron-icon icon="vaadin:link" class="mr5 smallIcon" ></iron-icon> [[localize('care-path-link-doc','Link',language)]]</paper-button>
+                    </template>
+                    <template is="dom-if" if="[[unlinkBtnAvailable]]">
+                        <paper-button class="button button--other" on-tap="_removeLinkedDocument"><iron-icon icon="vaadin:unlink" class="mr5 smallIcon" ></iron-icon> [[localize('care-path-unlink-doc','Unlink',language)]]</paper-button>
+                    </template>
+                </template>
                 <paper-button class="button button--save" on-tap="_saveCarePath"><iron-icon icon="save" class="mr5 smallIcon" ></iron-icon> [[localize('care-path-save','Save',language)]]</paper-button>
                 <template is="dom-if" if="[[_isSelectedHealthElement(selectedHealthElement)]]">
                     <paper-icon-button class="button--icon-btn" icon="more-vert" on-tap="_toggleAddActions"></paper-icon-button>
@@ -1229,6 +1237,18 @@
                     availableLifeCycleCodes:{
                         type: Array,
                         value: () => []
+                    },
+                    linkBtnAvailable:{
+                        type: Boolean,
+                        value: false
+                    },
+                    unlinkBtnAvailable:{
+                        type: Boolean,
+                        value: false
+                    },
+                    selectedDocumentId:{
+                        type: String,
+                        value: null
                     }
 
                 };
@@ -1253,7 +1273,6 @@
 
             open(){
                 const carePathCode = ["BE-THESAURUS|10025768|3.1.0", "BE-THESAURUS|10119104|3.1.0"]
-
                 ;(_.get(this.selectedCarePathInfo, 'linkedHeId', null) && _.get(this.selectedCarePathInfo, 'carePathId', null) ? this.api.helement().getHealthElement(_.get(this.selectedCarePathInfo, 'linkedHeId', null)) : Promise.resolve({}))
                  .then(he => Promise.all([he, this._getCurrentCareTeam()]))
                  .then(([he, careTeam]) => Promise.all([he, careTeam, this.api.code().getCodes(carePathCode.join(','))]))
@@ -1425,29 +1444,6 @@
                 return !!(a===b)
             }
 
-            _linkDocument(e) {
-                const targetButton = !!_.size(_.get(e,"target","")) && _.get(e,"target.nodeName","") === "PAPER-BUTTON" ? _.get(e,"target",{}) : _.find( _.get(e,"path",[]), p => _.get(p,"nodeName","") === "PAPER-BUTTON")
-                const documentId = _.trim(_.get(targetButton,"dataset.documentId"))
-                const targetDocument = _.head(_.remove(this.availableDocumentList, {id:documentId}))
-                this.push("selectedCarePath.linkedDocuments", targetDocument)
-                this._refreshInsuranceLinkedAndAvailableDocuments()
-            }
-
-            _removeLinkedDocument(e) {
-                const targetButton = !!_.size(_.get(e,"target","")) && _.get(e,"target.nodeName","") === "PAPER-BUTTON" ? _.get(e,"target",{}) : _.find( _.get(e,"path",[]), p => _.get(p,"nodeName","") === "PAPER-BUTTON")
-                const documentId = _.trim(_.get(targetButton,"dataset.documentId"))
-                const targetDocument = _.head(_.remove(_.get(this.selectedCarePath, 'linkedDocuments', {}), {id:documentId}))
-                this.push("availableDocumentList", targetDocument)
-                this._refreshInsuranceLinkedAndAvailableDocuments()
-            }
-
-            _refreshInsuranceLinkedAndAvailableDocuments() {
-                return setTimeout(() => {
-                    this.shadowRoot.querySelector('#linkedDocList') && this.shadowRoot.querySelector('#linkedDocList').render()
-                    this.shadowRoot.querySelector('#availableDocList') && this.shadowRoot.querySelector('#availableDocList').render()
-                }, 100)
-            }
-
             _initializeChartsDataProvider(){
                 this.set('dataForCharts', [
                     {
@@ -1572,6 +1568,9 @@
             }
 
             _closeDialogs(){
+                this.set('linkBtnAvailable', false)
+                this.set('unlinkBtnAvailable', false)
+                this.set('selectedDocumentId', null)
                 this.set('selectedCarePath', {})
                 this.set('selectedCarePathType', {})
                 this.set('selectedPackageOfProcedure', {})
@@ -2217,6 +2216,35 @@
 
             _upperFirstAll(inputValue){
                 return _.trim(_.map(_.trim(inputValue).toLowerCase().split(" "),i=>_.upperFirst(_.trim(i))).join(" "))
+            }
+
+            _isDocumentTab(tab){
+                return tab === 4
+            }
+
+            _showLinkingBtn(e){
+                this.set("unlinkBtnAvailable", false)
+                this.set("linkBtnAvailable", false)
+                if(_.get(e, 'detail', null)){
+                    _.get(e, 'detail.docOrigin', null) === "linkedDoc" ? this.set("unlinkBtnAvailable", true) : this.set("linkBtnAvailable", true)
+                    this.set("selectedDocumentId", _.get(e, 'detail.documentId', null))
+                }
+            }
+
+            _linkDocument() {
+                const targetDocument = _.head(_.remove(this.availableDocumentList, {id: _.get(this, 'selectedDocumentId', null)}))
+                this.push("selectedCarePath.linkedDocuments", targetDocument)
+                this.$["htPatCarePathDetailDocument"]._refreshInsuranceLinkedAndAvailableDocuments()
+                this.set("unlinkBtnAvailable", true)
+                this.set("linkBtnAvailable", false)
+            }
+
+            _removeLinkedDocument() {
+                const targetDocument = _.head(_.remove(_.get(this.selectedCarePath, 'linkedDocuments', []), {id: _.get(this, 'selectedDocumentId', null)}))
+                this.push("availableDocumentList", targetDocument)
+                this.$["htPatCarePathDetailDocument"]._refreshInsuranceLinkedAndAvailableDocuments()
+                this.set("unlinkBtnAvailable", false)
+                this.set("linkBtnAvailable", true)
             }
 
         }
