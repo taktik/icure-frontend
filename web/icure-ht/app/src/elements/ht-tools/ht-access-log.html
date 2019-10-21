@@ -20,8 +20,8 @@
     <template>
         <style include="dialog-style">
             paper-dialog {
-                width: 60%;
-                height: 50%;
+                width: 90%;
+                height: 90%;
                 max-height: none !important;
                 display: flex;
                 flex-direction: column;
@@ -36,8 +36,9 @@
             }
 
             div.content {
-                display: flex;
+                display: grid;
                 flex-direction: column;
+                grid-template-columns: 500px auto;
             }
 
             vadin-grid {
@@ -50,46 +51,97 @@
                 --paper-input-container-focus-color: var(--app-primary-color);
             }
 
+            .col-left {
+                height: 100%;
+                background: var(--app-background-color-dark);
+                box-shadow: var(--shadow-elevation-3dp_-_box-shadow);
+                grid-column: 1/2;
+                grid-row: 1/1;
+                z-index: 3;
+                margin-top: 0px;
+                padding-left: 5px;
+                padding-top: 5px;
+                box-sizing: border-box;
+                overflow-y: auto;
+            }
+
+            .list-box{
+                height: calc(100% - 65px);
+                overflow-y: auto;
+            }
+
+            .col-right {
+                height: calc(100% - 45px);
+                background: var(--app-background-color);
+                /*box-shadow: var(--shadow-elevation-2dp_-_box-shadow);*/
+                border-bottom: 1px solid var(--app-background-color-dark);
+                margin: 0;
+                grid-column: 2/2;
+                grid-row: 1/1;
+                z-index: 2;
+                overflow-y: auto;
+                padding: 24px;
+                box-sizing: border-box;
+            }
+
+            .log-text{
+                padding : 0px;
+                width: 100%;
+                display : flex;
+            }
+            .log-text-col{
+                max-widt: 190px;
+            }
+
+            .log-date-col{
+                width: 220px;
+            }
         </style>
         <paper-dialog id="dialog" opened="{{opened}}">
             <h2 class="modal-title">Access log</h2>
             <div class="content">
-                <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}"
-                             on-keydown="refresh"></paper-input>
-                <vaadin-grid items="[[logList]]">
-                    <vaadin-grid-column>
-                        <template class="header">
-                            Date d'accès
-                        </template>
-                        <template>
-                            [[convertDate(item.date)]]
-                        </template>
-                    </vaadin-grid-column>
-                    <vaadin-grid-column>
-                        <template class="header">
-                            Prestataires
-                        </template>
-                        <template>
-                            [[item.user]]
-                        </template>
-                    </vaadin-grid-column>
-                    <vaadin-grid-column>
-                        <template class="header">
-                            Patient
-                        </template>
-                        <template>
-                            [[item.patient]]
-                        </template>
-                    </vaadin-grid-column>
-                    <vaadin-grid-column>
-                        <template class="header">
-                            infos (lecture/ecriture/autre)
-                        </template>
-                        <template>
-
-                        </template>
-                    </vaadin-grid-column>
-                </vaadin-grid>
+                <div class="col-left">
+                    <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" on-keydown="refresh"></paper-input>
+                    <div class="list-box">
+                        <paper-listbox id="_log_listbox" focused selectable="paper-item" selected="{{selected}}">
+                            <div class="log-text">
+                                <div class="log-date-col">date</div>
+                                <div class="log-text-col">user</div>
+                                <div class="log-text-col">patient</div>
+                            </div>
+                            <template is="dom-repeat" items="[[logList]]">
+                                    <paper-item class="log-text">
+                                        <div class="log-date-col">[[convertDate(item.date)]]</div>
+                                        <div class="log-text-col">[[item.user]]</div>
+                                        <div class="log-text-col">[[item.patient]]</div>
+                                    </paper-item>
+                            </template>
+                        </paper-listbox>
+                    </div>
+                </div>
+                <div class="col-right">
+                    <template is="dom-if"if="[[selectedLog]]">
+                        <div class="header-selected">[[_getSelectedLogTitle(selectedLog,selectedLog.*)]]</div>
+                        <vaadin-grid items="[[selectedLog.details]]">
+                            <vaadin-grid-column>
+                                <template class="header">
+                                    heure
+                                </template>
+                                <template>
+                                    [[item.time]]
+                                </template>
+                            </vaadin-grid-column>
+                            <vaadin-grid-column>
+                                <template class="header">
+                                    détail
+                                </template>
+                                <template>
+                                    [[item.detail]]
+                                </template>
+                            </vaadin-grid-column>
+                        </vaadin-grid>
+                    </template>
+                </div>
             </div>
             <div class="buttons">
                 <paper-button class="button" on-tap="close">[[localize('clo','Close',language)]]</paper-button>
@@ -97,8 +149,10 @@
         </paper-dialog>
     </template>
     <script>
+        import moment from 'moment/src/moment'
+
         class HtExportKey extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
-            static get is() {
+            static get is() {/**@todo faire les translate ^^*/
                 return 'ht-access-log';
             }
 
@@ -132,6 +186,15 @@
                     latestSearchValue : {
                         type : String,
                         value : ""
+                    },
+                    selectedLog:{
+                        type : Object,
+                        value : null
+                    },
+                    selected:{
+                        type: Object,
+                        value : null,
+                        observer : 'selectedChanged'
                     }
                 };
             }
@@ -145,11 +208,14 @@
             }
 
             convertDate(date){
-                return this.api.moment(date).format("DD/MM/YYYY")
+                return date ? this.api.moment(date).format("DD/MM/YYYY") : "inconnu"
             }
 
             updateList(){
                 if (!this.user) return
+
+                this.set('selected',null)
+                const time = moment().format("HH:mm:ss")
 
                 let latestSearchValue = this.filterValue
                 this.latestSearchValue = latestSearchValue
@@ -191,7 +257,8 @@
                                         logListTemp.push({
                                             date: result.date,
                                             patient: patient.lastName + " " + patient.firstName,
-                                            user: users.rows.find(user => user.id===id).name
+                                            user: users.rows.find(user => user.id===id).name,
+                                            details : result.detail ? JSON.parse(result.detail) : [{detail : "ouverture patient => Ancien systeme de log", time : time}]
                                         })
                                 })
                             }))
@@ -224,6 +291,15 @@
                         }
                     }.bind(this), 500); //Wait for the user to stop typing
                 }.bind(this), 100);
+            }
+
+            _getSelectedLogTitle(){
+                return "Log du "+this.convertDate(this.selectedLog.date)+" par "+this.selectedLog.user+" sur le patient "+this.selectedLog.patient;
+            }
+
+            selectedChanged(){
+                if(!this.selected && this.selected!==0)return;
+                this.set("selectedLog",this.logList[this.selected])
             }
         }
         customElements.define(HtExportKey.is, HtExportKey);

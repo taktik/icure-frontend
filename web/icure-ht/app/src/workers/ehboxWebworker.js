@@ -159,7 +159,8 @@ onmessage = e => {
                                 patientId: _.trim(_.get(singleAssignResult,"patientId","")),
                                 user: _.trim(_.get(user,"id","")),
                                 date: +new Date(),
-                                accessType: 'USER_ACCESS'
+                                accessType: 'SYSTEM_ACCESS',
+                                detail : JSON.stringify([{detail: "Save Assignment in Message panel", time: moment().format("HH:mm:ss")}])
                             }).catch(e=>console.log("ERROR with createAccessLog: ", e))
                         } else {
                             unassignedList.push(singleAssignResult.protocolId)

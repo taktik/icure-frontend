@@ -94,6 +94,14 @@
                 listCurrentLog:{
                     type: Array,
                     value: []
+                },
+                accessLogPosition:{
+                    type : String,
+                    value : ""
+                },
+                promiseAccessLog:{
+                    type : Object,
+                    value : {}
                 }
             }
         }
@@ -158,8 +166,10 @@
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
 
             this._Spy(this.accesslogicc,"createAccessLog");
-            this._Spy(this.patienticc,"modifyPatientWithUser");
-            this._Spy(this.contacticc,"modifyContactWithUser");
+            ["modifyPatientWithUser","createPatientWithUser","getPatientsWithUser","mergeIntoWithUser","modifyPatientReferralWithUser","getPatientWithUser"].map(method => this._Spy(this.patienticc,method));
+            ["modifyContactWithUser","filterByWithUser","findByHCPartyFormIdsWithUser","getContactWithUser","getContactsWithUser","modifyContactsWithUser","createContactWithUser","findByHCPartyFormIdWithUser"].map(method => this._Spy(this.contacticc,method));
+            ["findBy","serviceToHealthElement"].map(method => this._Spy(this.helementicc,method));
+            ["deleteInvoice","findByAuthor","getInvoice","getInvoices","mergeTo","modifyInvoice","createInvoice"].map(method => this._Spy(this.invoiceicc,method));//tous dans patient open sauf findByAuthor
             this.dispatchEvent(new CustomEvent('refresh', {detail: {}}))
         }
 
@@ -968,10 +978,9 @@
          * Log manager by Julien Wathelet
          * 1) méthode spy
          * 2) gestion des log courrants ouvert.
-         *
-         *
+         * 3) tester multi-fenêtre
+         * 4) gestion des treats
          * todo Julien Wathelet : interpreter des variables pour resortir le patientId et le userId.
-         * utiliser toString() sur la fonction et une regex bien compliqué.^^ je vais faire ca de mon temps libre.
          * */
          _Spy(obj, method) {
             let spy = {
@@ -983,67 +992,74 @@
             const add = this._addNewCurrentLog.bind(this);
             const modify = this._currentLogManagement.bind(this);
             let original = obj[method];
+            spy.original=original
             obj[method] = function() {
                 spy.args = [].slice.apply(arguments);
-                if(spy.method==="createAccessLog")
-                    add(spy)
-                else
-                    modify(spy)
-                return original.call(obj, spy.args);
+                if(spy.method!=="createAccessLog"){ modify(spy)}
+                return spy.method!=="createAccessLog" ? original.apply(obj, spy.args) : original.apply(obj, spy.args)
+                    .then(log => {
+                        spy.args[0]=log;
+                        add(spy)
+                        return log;
+                    });
             };
          }
 
         _addNewCurrentLog(info){
             let log = {}
             if(info.method==="createAccessLog"){
-                log=info.args[0];
+                log=this.register(info.args[0],"accessLog"+info.args[0]);
+
+                if(log.detail && JSON.parse(log.detail).find(detail => detail.detail.includes("opening Patient"))){
+                    this.set("listCurrentLog",this.listCurrentLog.filter(clog => !clog.detail || !JSON.parse(log.detail).find(detail => detail.detail.includes("opening Patient"))))
+                }
+                const idx=this.listCurrentLog.findIndex(clog => log.patientId===clog.patientId && log.user===clog.user)
+                idx!==-1 ? this.set("listCurrentLog."+idx,log) : this.push("listCurrentLog",log)
+                return log;
             }else{
                 log={
                     id: this.crypto().randomUuid(),
                     patientId: _.trim(_.get(info,"patientId",null)),
                     user: _.trim(_.get(info,"userId",null)),
                     date: +new Date(),
-                    accessType: 'SYSTEM_ACCESS'
+                    accessType: 'USER_ACCESS',
+                    detail:"[]"
                 }
-                this.accesslogicc.createAccessLog(log)
+
+                return this.accesslogicc.createAccessLog(log)//récursivité
             }
-            const idx=this.listCurrentLog.findIndex(clog => log.patientId===clog.patientId && log.user===clog.user)
-            if(idx!==-1)
-                this.set("listCurrentLog."+idx,log);
-            else
-                this.push("listCurrentLog",log)
-            return log;
         }
 
         _currentLogManagement(info){
-            let log={}
-            if(info.object===this.patienticc && info.method==="modifyPatientWithUser"){
-                log = this._getCurrentLog(info.args[1].id,info.args[0].id)
-                if(!log){
-                    info.patientId=info.args[1].id
-                    info.userId=info.args[0].id
-                    log=this._addNewCurrentLog(info);
-                }
-            }
-            if(info.object===this.contacticc && info.method==="modifyContactWithUser"){
-                log = this._getCurrentLog(info.args[1],info.args[0])
-                if(!log){
-                    info.patientId=info.args[1].patientId
-                    info.userId=info.args[0]
-                    log=this._addNewCurrentLog(info);
-                }
-            }
+            const patients = this._getPatientIds(info)
+            const user = this._getUserId(info,patients)
 
-            log.detail=JSON.stringify(JSON.parse(log.detail).push(info.method+": "+moment().format("HH:mm:ss")))
-            this.accesslogicc.modifyAccessLog(log)
-                .then(accessLog => this.register(accessLog,"accessLog"))
-                .then(accessLog => {
-                    const idx=this.listCurrentLog.findIndex(clog => accessLog.id===clog.id)
-                    if(idx!==-1)
-                        this.set("listCurrentLog."+idx,log);
-                    else
-                        this.push("listCurrentLog",log)
-                })
+            if(!patients || !user)return;
+
+            patients.map(patient => {
+                this.set("promiseAccessLog", Promise.resolve(this.promiseAccessLog).then(()=>{
+                    let log = this._getCurrentLog(patient,user)
+                    let prom = Promise.resolve(log)
+                    if(!log){
+                        info.patientId=patient
+                        info.userId=user
+                        prom=this._addNewCurrentLog(info);
+                    }
+                    return prom.then( log =>{
+                        log.detail=JSON.stringify((log.detail ? JSON.parse(log.detail) : []).concat({"detail" : info.method, "time" : moment().format("HH:mm:ss")}))
+                        return this.accesslogicc.modifyAccessLog(log)
+                            .then(accessLog => this.register(accessLog,"accessLog"+accessLog.id))
+                            .then(accessLog => {
+                                const idx=this.listCurrentLog.findIndex(clog => accessLog.id===clog.id)
+                                if(idx!==-1)
+                                    this.set("listCurrentLog."+idx,accessLog);
+                                else
+                                    this.push("listCurrentLog",accessLog)
+                                return accessLog
+                            })
+                    })
+                }))
+            })
         }
 
         _getCurrentLog(patientId,userId){
@@ -1051,15 +1067,78 @@
              return this.listCurrentLog.find(log => log.patientId===patientId && log.user===userId);
         }
 
-        _getPatientId(args){
-             args.map(arg => {
-                 if(arg.constructor.name==="PatientDto"){
-                     return arg.id;
-                 }
-                 return 0;
-             })
+        _getPatientIds(info){
+            let patientIds = _.countBy(_.zip(this._getParamNames(info.original),info.args).map(([name,arg]) => {
+                if(!arg)return false
+                if(arg.constructor.name==="UserDto"){
+                    return false;
+                }else if(arg.constructor.name==="PatientDto"){
+                    return arg.id;
+                }else if(arg.constructor.name==="ListOfIdsDto"){
+                    return arg.ids.join(",");
+                }else if(name.includes("user")){
+                    return false;
+                }else if(name.includes("patient")){
+                    return arg;
+                }else if(name.includes("toId")){
+                    return arg;
+                }else if(name.includes("fromIds")){
+                    return arg;
+                }else if(info.method.includes("getPatientsWithUser")){
+                    return arg.ids.join(",");
+                }
+                return false;
+            }).filter(id => !!id));
+            let patients = ""
+            if(info.method==="mergeIntoWithUser"){
+                patients = _.values(patientIds).join(",")
+            }
+            else{
+                const biggest = _.last(_.sortBy(_.values(patientIds)))
+                patients= _.findKey(patientIds,nb => nb===biggest)
+            }
+
+            if(!patients){
+                let log = this.listCurrentLog.find(log => log.detail && JSON.parse(log.detail).find(detail => (this.accessLogPosition.includes("pat") && detail.detail==="opening Patient") || (this.accessLogPosition.includes("msg") && detail.detail==="Save Assignment in Message panel")));
+                patients = log ? log.patientId : null
+            }
+            return !patients ? null : (patients.includes(",") ? patients.split(",") : [patients]);
         }
 
+        _getUserId(info,patientIds){
+            const userIds = _.countBy(_.zip(this._getParamNames(info.original),info.args).map(([name,arg]) => {
+                if(!arg)return false
+                if(arg.constructor.name==="UserDto"){
+                    return arg.id;
+                }else if(name.includes("user")){
+                    return arg;
+                }
+                return false;
+            }).filter(id => !!id));
+            let biggest = _.last(_.sortBy(_.values(userIds)))
+
+            if(!biggest){
+                const log = this.listCurrentLog.find(log => patientIds.find(id => id===log.patientId))
+                biggest =  log ? log.user : false
+            }
+            const user = _.findKey(userIds,nb => nb===biggest)
+            return user;
+        }
+
+
+        _getParamNames(func) {
+            const STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
+            const ARGUMENT_NAMES = /([^\s,]+)/g;
+            let fnStr = func.toString().replace(STRIP_COMMENTS, '');
+            let result = fnStr.slice(fnStr.indexOf('(')+1, fnStr.indexOf(')')).match(ARGUMENT_NAMES);
+            if(result === null)
+                result = [];
+            return result;
+        }
+
+        setPosition(position){
+            this.set('accessLogPosition',position)
+        }
     }
 
     customElements.define(IccApi.is, IccApi)
