@@ -645,6 +645,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 max-height: 100%;
             }
 
+            .keystoreExpIcon{
+                color: var(--app-status-color-nok)!important;
+                height: 13px;
+                width: 13px;
+            }
+
         </style>
 
         <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
@@ -812,6 +818,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <span id="eHealthStatus" class="ehealth-connection-status pending"></span>
                         <paper-tooltip for="eHealthStatus" position="top">[[localize('ehe','eHealth status',language)]]</paper-tooltip>
                     </div>
+                    <div class="eHealth-status-container">
+                        <template is="dom-if" if="[[showKeystoreExpiredStatusIcon]]">
+                            <iron-icon id="keystoreExpiredStatusIcon" icon="vaadin:warning" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiredStatusIcon" position="top"> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</paper-tooltip>
+                        </template>
+                        <template is="dom-if" if="[[showKeystoreExpiresSoonStatusIcon]]">
+                            <iron-icon id="keystoreExpiresSoonStatusIcon" icon="alarm" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiresSoonStatusIcon" position="top"> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]] </paper-tooltip>
+                        </template>
+                    </div>
                     <template is="dom-if" if="[[hasMHCertificate]]">
                         <div class="eHealth-status-container">
                             <iron-icon icon="icure-svg-icons:ehealth"></iron-icon>
@@ -941,8 +957,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
 
-        <div class="failedLabel" id="keystoreExpiredLabel"><iron-icon icon="clear"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</div>
-        <div class="warningLabel" id="keystoreExpiresSoonLabel"><iron-icon icon="alarm"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]</div>
+        <template is="dom-if" if="[[showKeystoreExpiredLabel]]">
+            <div class="failedLabel displayNotification" id="keystoreExpiredLabel"><iron-icon icon="clear"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</div>
+        </template>
+        <template is="dom-if" if="[[showKeystoreExpiresSoonLabel]]">
+            <div class="warningLabel displayNotification" id="keystoreExpiresSoonLabel"><iron-icon icon="alarm"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]</div>
+        </template>
 
 
     </template>
@@ -1171,6 +1191,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     keyStoreValidityLabel : {
                         type : String,
                         value : ""
+                    },
+                    showKeystoreExpiresSoonLabel: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiredLabel: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiresSoonStatusIcon: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiredStatusIcon: {
+                        type : Boolean,
+                        value : false
                     },
                 }
             }
@@ -1586,22 +1622,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _showToasterMessage(id) {
-                if(  this.shadowRoot.querySelector(id) && this.shadowRoot.querySelector(id).classList ) {
-                    this.shadowRoot.querySelector(id).classList.add('displayNotification')
-                    setTimeout(() => {this.shadowRoot.querySelector(id).classList.remove('displayNotification')}, 5000*2)
-                }
+                this.set(id, true)
+                setTimeout(() => { this.set(id, false) }, 5000*2)
             }
 
             _checkKeystoreValidity() {
+                //console.log("_checkKeystoreValidity: ", this.showKeystoreExpiredLabel, this.showKeystoreExpiresSoonLabel)
                 const monthLimit = 2 // number of remaining months when to start warning the user
 
                 this.api.fhc().Stscontroller().getKeystoreInfoUsingGET(this.api.keystoreId, this.credentials.ehpassword).then(info => {
                     if(info.validity && info.validity - moment().valueOf() <= 0) {
                         this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
-                        this._showToasterMessage("#keystoreExpiredLabel")
+                        this._showToasterMessage("showKeystoreExpiredLabel")
+                        this.set("showKeystoreExpiredStatusIcon", true)
+                        this.set("showKeystoreExpiresSoonStatusIcon", false)
                     } else if(info.validity && info.validity - moment().add(monthLimit, 'months').valueOf() <= 0) {
                         this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
-                        this._showToasterMessage("#keystoreExpiresSoonLabel")
+                        this._showToasterMessage("showKeystoreExpiresSoonLabel")
+                        this.set("showKeystoreExpiresSoonStatusIcon", true)
+                        this.set("showKeystoreExpiredStatusIcon", false)
+                    } else {
+                        this.set("showKeystoreExpiredStatusIcon", false)
+                        this.set("showKeystoreExpiresSoonStatusIcon", false)
                     }
                 })
 
