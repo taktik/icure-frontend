@@ -531,6 +531,8 @@
 
         </style>
         <div class="content">
+            <paper-button on-tap="save" class="button button--save">[[localize('save','Save',language)]]</paper-button>
+
             <div class="regimen-line display-type-regimen">
                 <vaadin-checkbox checked="[[selectedMedicationContentWithId.medicationValue.substitutionAllowed]]" id="substitutionAllowed" on-checked-changed="_substitutionAllowedChanged">[[localize('', 'Chronique', language)]]</vaadin-checkbox>
                 <paper-input type="number" min="0" label="[[localize('', 'Quantité prescrite', language)]]" value=""></paper-input>
@@ -985,7 +987,7 @@
             }
 
             constructor() {
-                super()
+                super();
                 this._regimens = [
                     { id: "regimenFasted", code: "unknown" },
                     { id: "regimenBeforeBreakfast", code: "beforebreakfast", parent: "regimenBreakfast" },
@@ -994,7 +996,7 @@
                     { id: "regimenAfterBreakfast", code: "afterbreakfast", parent: "regimenBreakfast" },
                     { id: "regimenBetweenBreakfastAndLunch", code: "betweenbreakfastandlunch" },
                     { id: "regimenBeforeLunch", code: "beforelunch", parent: "regimenLunch" },
-                    { id: "regimenLunch", code: "unknown" },
+                    { id: "regimenLunch", code: "afternoon" }, // @todo: check implications
                     { id: "regimenDuringLunch", code: "duringlunch", parent: "regimenLunch" },
                     { id: "regimenAfterLunch", code: "afterlunch", parent: "regimenLunch" },
                     { id: "regimenBetweenLunchAndDinner", code: "betweenlunchanddinner" },
@@ -1019,12 +1021,13 @@
             }
 
             _medicationChanged(medication) {
-                const medContent =  this.extractContentWithIdFromMedicationService(medication.newMedication, true, medication.options.isPrescription)
+                if (!medication) return;
+                const medContent =  this.extractContentWithIdFromMedicationService(medication.newMedication, true, medication.options.isPrescription);
                 this.set('selectedMedicationContentWithId', Object.assign(medContent, {
                     beginMomentAsString : this.api.moment((medContent && medContent.medicationValue && medContent.medicationValue.beginMoment) || (medication.newMedication && medication.newMedication.valueDate) || (medication.newMedication && medication.newMedication.openingDate) || Date.now()).format('YYYY-MM-DD') || null,
                     endMomentAsString: this.api.moment((medContent && medContent.medicationValue && medContent.medicationValue.endMoment) || (medication.newMedication && medication.newMedication.closingDate)) ? this.api.moment(medContent.medicationValue.endMoment || (medication.newMedication && medication.newMedication.closingDate)).format("YYYY-MM-DD") : null
-                }))
-                this._initSelectedMedicationContentWithId()
+                }));
+                this._initSelectedMedicationContentWithId();
                 this.set('medicationDetail', Object.assign(
                     medication,
                     {
@@ -1036,7 +1039,8 @@
                         renewalDurationValue : this.isRenewal ? this.selectedMedicationContentWithId.medicationValue.renewal && this.selectedMedicationContentWithId.medicationValue.renewal.duration.value ? this.selectedMedicationContentWithId.medicationValue.renewal.duration.value : 1 : null,
                         renewalTimeUnitIdx : this.isRenewal ? this.selectedMedicationContentWithId.medicationValue.renewal ? this.timeUnit.findIndex(idx => idx.code === this.selectedMedicationContentWithId.medicationValue.renewal.duration.unit.code) : this.timeUnit.findIndex(idx => idx.code === "mo") : null
                     }
-                ))
+                ));
+                this._initialize();
             }
 
 
@@ -1158,17 +1162,20 @@
 
             _initialize() {
                 const getQuantity = (regs, code) => {
-                    let reg = regs.find(r => r.dayPeriod && r.dayPeriod.type == 'CD-DAYPERIOD' && r.dayPeriod.code == code);
+                    let reg = regs.find(r => r.dayPeriod && r.dayPeriod.type === 'CD-DAYPERIOD' && r.dayPeriod.code === code);
                     return reg ? reg.administratedQuantity.quantity : null;
-                }
+                };
                 const regs = this.selectedMedicationContentWithId.medicationValue.regimen;
-                this._regimens.filter(reg => reg.code != "unknown").forEach(reg => {
+                this._regimens.filter(reg => reg.code !== "unknown").forEach(reg => {
                     this.set(reg.id, getQuantity(regs, reg.code));
                 });
                 this.extras = [];
                 regs.filter(reg => !reg.dayPeriod).forEach(reg => {
                     console.log("reg:" + reg.timeOfDay);
-                    this.push("extras", { code: reg.timeOfDay, quantity: parseInt(reg.administratedQuantity.quantity) });
+                    this.push("extras", {
+                        code: reg.timeOfDay,
+                        quantity: parseInt(reg.administratedQuantity.quantity)
+                    });
                 });
                 this._updateDuration();
             }
@@ -1204,26 +1211,26 @@
                 list && list.length > 0 ? this.set('medications', _.clone(list)) : this.set('medications', [])
                 if (this.medications.length) {
                     this.open(this.medications[0], this.extractContentWithIdFromMedicationService(this.medications[0].newMedication, true, this.medications[0].options.isPrescription), this.medications[0].boxes);
-                    this.set('selectedMedication',0)
+                    this.set('selectedMedication',0);
                 }
             }
 
             _localize(s) {
-                return this.api.contact().medication().localize(s, this.language)
+                return this.api.contact().medication().localize(s, this.language);
             }
 
             _changeBeginMoment() {
                 if (this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.beginMomentAsString) { // begin moment can NOT be empty
-                    const beginMoment = parseInt(this.selectedMedicationContentWithId.beginMomentAsString.replace(/(....)-(..)-(..)/, '$1$2$3'))
-                    this.set("selectedMedicationContentWithId.medicationValue.beginMoment", beginMoment)
+                    const beginMoment = parseInt(this.selectedMedicationContentWithId.beginMomentAsString.replace(/(....)-(..)-(..)/, '$1$2$3'));
+                    this.set("selectedMedicationContentWithId.medicationValue.beginMoment", beginMoment);
                     this._updateDuration();
                 }
             }
 
             _changeEndMoment() {
                 if (this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.endMomentAsString != null) { // end moment can be empty string
-                    const endMoment = parseInt(this.selectedMedicationContentWithId.endMomentAsString.replace(/(....)-(..)-(..)/, '$1$2$3'))
-                    this.set("selectedMedicationContentWithId.medicationValue.endMoment", endMoment)
+                    const endMoment = parseInt(this.selectedMedicationContentWithId.endMomentAsString.replace(/(....)-(..)-(..)/, '$1$2$3'));
+                    this.set("selectedMedicationContentWithId.medicationValue.endMoment", endMoment);
                     this._updateDuration();
                 }
             }
@@ -1234,29 +1241,65 @@
                     const priority = this.selectedMedicationContentWithId.medicationValue.priority?
                         this.selectedMedicationContentWithId.medicationValue.priority=== 2 ? 'high' :
                             this.selectedMedicationContentWithId.medicationValue.priority=== 1 ? 'middle' : 'low' :
-                        'low'
-                    this.set("selectedMedicationContentWithId.medicationValue.priority", priority)
+                        'low';
+                    this.set("selectedMedicationContentWithId.medicationValue.priority", priority);
                 }
             }
 
             _setQuantity(id, quantity = 0) {
-                console.log("_setQuantity:" + id)
+                console.log("_setQuantity:" + id);
                 this.set(id, quantity);
-                this.shadowRoot.querySelector("#" + id).setQuantity(quantity);
             }
 
             _getQuantity(id) {
-                console.log("_getQuantity:" + id)
-                return this.shadowRoot.querySelector("#" + id).quantity;
+                console.log("_getQuantity:" + id);
+                return this.get(id);
+            }
+
+            _regimenUpdate(id, quantity = 0) {
+                const regimen = this.selectedMedicationContentWithId.medicationValue.regimen;
+                const code = (this._regimens.find(reg => reg.id === id) || {code: ""}).code;
+                if (!code) return;
+                const index = regimen.findIndex(reg => reg.dayPeriod && reg.dayPeriod.code === code);
+                if (quantity > 0) {
+                    const updated = {
+                        administratedQuantity: {
+                            quantity: quantity
+                        },
+                        dayPeriod: {
+                            code: code,
+                            type: "CD-DAYPERIOD"
+                        },
+                        frequency: "daily"
+                    };
+                    if (index > -1) {
+                        this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1, updated);
+                    } else {
+                        this.push("selectedMedicationContentWithId.medicationValue.regimen", updated);
+                    }
+                } else {
+                    if (index > -1) {
+                        this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1);
+                    }
+                }
             }
 
             _quantityChanged(e) {
-                if (!e.currentTarget.quantity) return;
+                // if (!e.currentTarget.quantity) return;
                 const id = e.currentTarget.id;
-                this._regimens.filter(reg => reg.parent === id).forEach(reg => this._setQuantity(reg.id));
+                const quantity = e.currentTarget.quantity;
+                this._regimenUpdate(id, quantity);
+
+                // @todo: looks like event handlers can't trigger event themselve...
+                this._regimens.filter(reg => reg.parent === id).forEach(reg => {
+                    this._setQuantity(reg.id);
+                    this._regimenUpdate(reg.id);
+                });
                 const reg = this._regimens.find(reg => reg.id === id);
-                if (reg && reg.parent)
+                if (reg && reg.parent) {
                     this._setQuantity(reg.parent);
+                    this._regimenUpdate(reg.parent);
+                }
             }
 
             _resetAll(e) {
@@ -1306,19 +1349,44 @@
             _addExtra() {
                 const time = moment(this.time,['HH:mm','HHmm']);
                 const code = parseInt(time.format("HHmmss"));
-                const extra = this.extras.find(e => e.code == code);
+                const extra = this.extras.find(e => e.code === code);
                 if (extra) {
                     extra.quantity += parseInt(this.quantity);
                     this.shadowRoot.querySelector("#extra" + code).refresh();
                     return;
                 }
-                this.push("extras", { code: code, quantity: parseInt(this.quantity) });
+                const quantity = parseInt(this.quantity);
+                this.push("extras", {code: code, quantity: quantity});
                 this.extras.sort((a, b) => a.code - b.code);
                 this.notifyPath("extras");
+
+                const extraUpdated = {
+                    administratedQuantity: {
+                        quantity: quantity,
+                        time: null,
+                        unit: "unit"
+                    },
+                    frequency: "daily",
+                    timeOfDay: code
+                };
+
+                const regimen = this.selectedMedicationContentWithId.medicationValue.regimen;
+                const index = regimen.findIndex(reg => reg.timeOfDay && reg.timeOfDay === extra.code);
+                if (index > -1) {
+                    this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, extraUpdated);
+                } else {
+                    this.push("selectedMedicationContentWithId.medicationValue.regimen", extraUpdated);
+                }
             }
 
             _deleteExtra(e) {
                 this.splice('extras', this.extras.indexOf(e.extra), 1);
+
+                const regimen = this.selectedMedicationContentWithId.medicationValue.regimen;
+                const index = regimen.findIndex(reg => reg.timeOfDay && reg.timeOfDay === e.extra.code);
+                if (index > -1) {
+                    this.splice("selectedMedicationContentWithId.medicationValue.regimen", index);
+                }
             }
 
             _valueChanged() {
@@ -1328,7 +1396,7 @@
 
             _register() {
                 let regs = [];
-                this._regimens.filter(reg => reg.code != "unknown").forEach(reg => {
+                this._regimens.filter(reg => reg.code !== "unknown").forEach(reg => {
                     this._registerDayPeriod(regs, reg.id, reg.code);
                 });
                 this.extras.forEach(extra => this._registerExtra(regs, extra));
@@ -1353,7 +1421,8 @@
             _registerExtra(regs, extra) {
                 regs.push ({
                     administratedQuantity: {
-                        quantity: extra.quantity.toString(),
+                        // quantity: extra.quantity.toString(),
+                        quantity: extra.quantity,
                         time: null,
                         unit: "unit"
                     },
@@ -1363,7 +1432,7 @@
             }
 
             selectRegimen(scores, rg, start, end) {
-                const s = rg.timeOfDay || rg.dayPeriod && rg.dayPeriod.code && scores[rg.dayPeriod.code] ||  0
+                const s = rg.timeOfDay || rg.dayPeriod && rg.dayPeriod.code && scores[rg.dayPeriod.code] || 0;
                 return s >= start && s <= end
             }
 
@@ -1375,7 +1444,7 @@
             }
 
             _substitutionChanged(e) {
-                this.set('selectedMedicationContentWithId.medicationValue.substitutionAllowed', e.detail.value == 0);
+                this.set('selectedMedicationContentWithId.medicationValue.substitutionAllowed', e.detail.value === 0);
             }
 
             _substitutionAllowedChanged(e) {
@@ -1383,7 +1452,7 @@
             }
 
             _renewalChanged(e) {
-                this._setRenewal(e.detail.value == 0);
+                this._setRenewal(e.detail.value === 0);
             }
 
             _renewalValueChanged(e){
