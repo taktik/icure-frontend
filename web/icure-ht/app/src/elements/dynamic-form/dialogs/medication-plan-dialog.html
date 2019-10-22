@@ -789,7 +789,7 @@
                             </div>
                             <!-- END HEADER -->
                             <!-- START BODY -->
-                            <template is="dom-repeat" items="[[medicationClassesWithPosology]]" as="medicationsWithPosology">
+                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*,needDisplayPresc,needDisplayMedication)]]" as="medicationsWithPosology">
                                 <div class="tr category">
                                     <div class="td"></div>
                                     <div class="td td--category" style="flex-grow: 5;">
@@ -995,6 +995,10 @@
 
 
             <div class="buttons">
+                <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                    <paper-checkbox checked="{{needDisplayPresc}}" id="" label="[[localize('need_display_presc','need Display Presc',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_presc','need Display Presc',language)]]</paper-checkbox>
+                    <paper-checkbox checked="{{needDisplayMedication}}" id="" label="[[localize('need_display_medication','need display medication',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_medication','need display medication',language)]]</paper-checkbox>
+                </template>
                 <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('close','Close',language)]]</paper-button>
 
                 <!--<paper-button dialog-confirm autofocus on-tap="" class="button button--save">[[localize('add_medication','Add Medication',language)]]</paper-button>-->
@@ -1005,6 +1009,7 @@
     <script>
 
         import _ from 'lodash/lodash'
+        import moment from 'moment/src/moment'
 
         class MedicationPlanDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1156,12 +1161,24 @@
                     patient : {
                         type : Object,
                         value : {}
+                    },
+                    prescriptions:{
+                        type: Array,
+                        value: []
+                    },
+                    needDisplayPresc:{
+                      type: Boolean,
+                      value: false
+                    },
+                    needDisplayMedication:{
+                        type: Boolean,
+                        value : true
                     }
                 }
             }
 
             static get observers() {
-                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medications.*)']
+                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medications.*)','_prescriptionsChanged(prescriptions.*)']
             }
 
             constructor() {
@@ -1368,6 +1385,45 @@
                 return regsTable
             }
 
+            _getPrescrMed(){
+                const prescTab =this.medicationClassesWithPosology.map(val => this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
+                const medTab =this.prescriptionsClassesWithPosology.map(val => this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
+                return _.zipWith(medTab, prescTab,(med,presc) =>{
+                    return {
+                        "letter" : med.letter,
+                        "meds" : _.uniq(_.concat(this.needDisplayMedication ? med.meds : [],this.needDisplayPresc? presc.meds :[]))
+                    };
+                });
+            }
+
+            _prescriptionsChanged(){
+                const scores = this.api.contact().medication().regimenScores()
+                this.prescriptionsClassesWithPosology =  _.sortBy(Object.values(this.prescriptions.filter(prescr => {
+                    const medValue = this.api.contact().medicationValue(prescr)
+                    return (medValue && medValue.endMoment || prescr.closingDate) ? this.api.moment(medValue && medValue.endMoment || prescr.closingDate).isSameOrAfter(moment()) : true
+                }).map( p => ({
+                    medication:p, regimenTable: this.extractRegimenSlices(((this.api.contact().preferredContent(p, this.language) || {}).medicationValue || {}).regimen, 'daily', [
+                        x => x < scores.beforebreakfast,
+                        x => x === scores.beforebreakfast,
+                        x => x === scores.duringbreakfast,
+                        x => x === scores.afterbreakfast,
+                        x => x < scores.beforelunch,
+                        x => x === scores.beforelunch,
+                        x => x === scores.duringlunch,
+                        x => x === scores.afterlunch,
+                        x => x < scores.beforedinner,
+                        x => x === scores.beforedinner,
+                        x => x === scores.duringdinner,
+                        x => x === scores.afterdinner,
+                        x => x > scores.afterdinner
+                    ])
+                })).reduce((acc,p) => {
+                    const letter = ((p.medication && p.medication.codes && p.medication.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0,1)
+                    ;(acc[letter] || (acc[letter] = {letter:letter, meds:[]})).meds.push(p)
+                    return acc
+                }, {})), 'letter')
+            }
+
             _medicationsChanged() {
                 const scores = this.api.contact().medication().regimenScores()
                 this.medicationClassesWithPosology =  _.sortBy(Object.values(this.medications.map( m => ({
@@ -1430,7 +1486,7 @@
             }
 
             _medicationClass(m) {
-                return m.colour && (m.colour + '-back') || ''
+                return (m.colour && (m.colour + '-back'))|| "ATC--"+_.get(m.codes.find(c=> c.type==="CD-ATC"), 'code', ' ').charAt(0)+"-back"
             }
 
             _localizedTitle(medicationsWithPosology) {
