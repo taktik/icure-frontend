@@ -177,6 +177,8 @@
                 flex-flow: row wrap;
                 justify-content: space-around;
                 align-items: flex-start;
+                overflow-x: hidden;
+                overflow-y: hidden;
             }
 
             .buttons {
@@ -375,7 +377,7 @@
                 flex: 0 0 40px;
             }
 
-            vaadin-grid.sub-list {
+            vaadin-grid.medication-list {
                 flex: 1 1 auto;
 
                 --vaadin-grid-cell: {
@@ -616,13 +618,7 @@
                 color: var(--app-primary-color-dark);
             }
 
-            /*.left-pane {*/
-            /*    width: 90%;*/
-            /*    display: flex;*/
-            /*    flex-direction: column;*/
-            /*}*/
-
-            .left-pane {
+            .right-pane {
                 width: calc(67% - 12px);
                 margin-right: 12px;
                 flex-grow: 3;
@@ -630,9 +626,10 @@
                 flex-direction: column;
                 align-self: flex-start;
                 height: inherit;
+                overflow-y: scroll;
             }
 
-            .right-pane {
+            .left-pane {
                 width: calc(32% - 12px);
                 margin-left: 12px;
                 flex-grow: 1;
@@ -642,34 +639,21 @@
                 height: inherit;
             }
 
-            /*.right-pane {*/
-            /*    width: 30%;*/
-            /*    display: flex;*/
-            /*    flex-direction: column;*/
-            /*}*/
-
             div.pane-collapse {
                 visibility: collapse !important;
                 flex: 0 1 0px;
                 height: 0px;
                 width: 0px;
             }
-
-            .content {
-                overflow-x: hidden;
-            }
-
         </style>
 
         <paper-dialog id="medication-prescription" always-on-top="true">
             <ht-spinner class="center" active="[[isLoadingEntities]]"></ht-spinner>
             <h2 class="modal-title">[[localize('sel_med','Select medication',language)]]</h2>
             <div class="content container">
-                <div id="prescription-pane" class="right-pane">
-                    <h5 class="prescription-title">[[localize('selected_meds','Selected medication(s)',language)]]</h5>
+                <div id="prescription-pane" class="left-pane">
                     <div class="prescription-list">
-                        <vaadin-grid class="sub-list" id="accumulated-medications" items="[[medicationAccumulator]]"
-                                     active-item="{{selectedMedicationFromAccumulator}}">
+                        <vaadin-grid class="medication-list" overflow="bottom" id="accumulated-medications" items="[[medicationAccumulator]]" active-item="{{selectedMedicationFromAccumulator}}" selected="{{selected}}">
                             <vaadin-grid-column width="72px">
                                 <template class="header">
                                     <div>Boxes</div>
@@ -691,7 +675,7 @@
                         </vaadin-grid>
                     </div>
                 </div>
-                <div id="search-pane" class$="left-pane [[_activePaneClass('search', paneTrigger)]]">
+                <div id="search-pane" class$="right-pane [[_activePaneClass('search', paneTrigger)]]">
                     <div class="search-bar">
                         <div class="search-field">
                             <paper-input id="search" label="[[localize('sch_med','Search a medicine',language)]]"
@@ -1522,9 +1506,11 @@
                         </vaadin-grid>
                     </div>
                 </div>
-                <div id="dosage-pane" class$="left-pane [[_activePaneClass('dosage', paneTrigger)]]">
+                <div id="dosage-pane" class$="right-pane [[_activePaneClass('dosage', paneTrigger)]]">
                     <medication-details id="medication-details" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
-                                        selected-medication-content-with-id="{{selectedMedicationContentWithId}}" medication="[[selectedMedicationFromAccumulator]]" on-value-changed="_medicationDetailValueChanged">
+                                        selected-medication-content-with-id="{{selectedMedicationContentWithId}}"
+                                        medication="[[selectedMedicationFromAccumulator]]"
+                                        on-value-changed="_medicationDetailValueChanged">
                     </medication-details>
                 </div>
             </div>
@@ -1717,11 +1703,7 @@
                     selectedMedicationFromAccumulator: {
                         type: Object,
                         value: null,
-                    },
-
-                    medicationIsChanging: {
-                        type: Boolean,
-                        value: false
+                        notify: true
                     },
 
                     medication: {
@@ -1734,8 +1716,8 @@
             static get observers() {
                 return [
                     // 'medicationTypeChanged(medicationType)',
-                    '_selectedMedicationFromAccumulatorChanged(selectedMedicationFromAccumulator)'
-                    // '_selectedMedicationContentWithIdChanged(selectedMedicationContentWithId)'
+                    // '_selectMedication(medicationAccumulator.*)'
+                    '_medicationChanged(selectedMedicationFromAccumulator)'
                 ];
             }
 
@@ -1743,18 +1725,20 @@
                 super()
             }
 
-            _selectedMedicationFromAccumulatorChanged() {
-                if (this.medicationIsChanging) return;
-                this.medicationIsChanging = true;
-                this.set('medication', this.selectedMedicationFromAccumulator);
-                this.medicationIsChanging = false;
+            _medicationChanged() {
+                const selected = this.selectedMedicationFromAccumulator;
+                this.$["accumulated-medications"].selectedItems = selected && [selected] || [];
+                if (selected) {
+                    this._showPane('dosage');
+                } else {
+                    this._showPane('search');
+                }
             }
 
-            _selectedMedicationContentWithIdChanged() {
-                if (this.medicationIsChanging) return;
-                this.medicationIsChanging = true;
-                this.set('selectedMedicationFromAccumulator', this.selectedMedicationContentWithId);
-                this.medicationIsChanging = false;
+            _selectMedication() {
+                const acc = _.last(this.medicationAccumulator);
+                this.$["accumulated-medications"].selectItem(acc);
+                this.set("selectedMedicationFromAccumulator", acc);
             }
 
             _isMedicinalProduct(medicationType) {
@@ -1777,7 +1761,7 @@
             }
 
             open(medication, options = {}) {
-                this._togglePaneWithKey('search');
+                this._showPane('search');
 
                 this.api.helement().findBy(this.user.healthcarePartyId, this.patient)
                     .then(hes => this.Allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && (tag.code === "allergy" || tag.code === "adr")))
@@ -2521,7 +2505,7 @@
 
 
             _addMedication(med) {
-                this._togglePaneWithKey('dosage');
+                // this._showPane('dosage');
                 const unit = this.localize('generic_unit', 'unit', this.language);
                 const newMedicationContent = {
                     medicationValue: {},
@@ -3043,19 +3027,19 @@
             }
 
             _activePaneClass(key, paneTrigger) {
-                if (Object.values(this.panes).every(f => !f)) return '';
+                if (Object.values(this.panes).every(f => !f)) {
+                    if (Object.keys(this.panes)[0] === key) {
+                        this.panes[key] = true;
+                    }
+                }
                 return this.panes[key] ? '' : 'pane-collapse';
             }
 
-            _togglePaneWithKey(key) {
+            _showPane(key) {
                 if (!key) return;
-                this.panes[key] = !this.panes[key];
+                this.panes[key] = true;
                 Object.keys(this.panes).filter(k => k !== key && this.panes[k]).map(k => this.panes[k] = false);
                 this.set('paneTrigger', key + '_' + this.panes[key]);
-            }
-
-            _togglePane(e) {
-                this._togglePaneWithKey(e.currentTarget.id);
             }
         }
 
