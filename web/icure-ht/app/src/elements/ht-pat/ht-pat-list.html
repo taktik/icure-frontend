@@ -1846,7 +1846,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             } catch (ignored) {}
                         }
 
-                        const filter = svcFilter ? null : {
+                        let filter = svcFilter ? null : {
                             '$type': 'IntersectionFilter',
                             'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                             'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word => /^[0-9]{11}$/.test(word) ? {
@@ -1881,21 +1881,51 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 '$type': 'PatientByHcPartyAndSsinFilter',
                                 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                 'ssin': word
-                            } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
-                                '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
-                                'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
-                                'searchString': word
+                            // } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
+                            //     '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            //     'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                            //     'searchString': word
                             } : null))
                         }
+
+                        if (filter.filters.length < 1)
+                            filter = {
+                                '$type': 'UnionFilter',
+                                'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map(word =>
+                                    word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g, '').length >= 2 ? {
+                                        '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        'searchString': word
+                                    } : null))
+                            }
 
                         const predicates = svcFilter ? [] : latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word =>
                             /^[0-9]{11}$/.test(word) ? (() => true) :
                                 /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? (() => true) :
                                     /^[0-9]{3}[0-9]+$/.test(word) ? ((p) => (p.dateOfBirth && (`${p.dateOfBirth}`.includes(word))) || (p.externalId && p.externalId.includes(word))) :
                                         (p => {
+
+                                            let addresses = "";
+                                            p.addresses.forEach(a => {
+                                                const address = _.compact([
+                                                    _.trim(_.get(a,"street","")),
+                                                    _.trim(_.get(a,"houseNumber","")) + (!!_.trim(_.get(a,"postboxNumber","")) ? "/" + _.trim(_.get(a,"postboxNumber","")) : ""),
+                                                    ( !!_.trim(_.get(a,"postalCode","")) || !!_.trim(_.get(a,"city",""))) ? "-" : "",
+                                                    _.trim(_.get(a,"postalCode","")),
+                                                    _.trim(_.get(a,"city",""))
+                                                ]).join(" ");
+                                                if (addresses.length > 0)
+                                                    addresses += " ";
+                                                addresses += address;
+                                            })
+
+                                            console.log("search predicate on addresses: " + addresses)
+
                                             const w = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'')
                                             return w.length<2 ? true : (p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
-                                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
+                                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                                (addresses && addresses.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
                                         })
                         )
 
