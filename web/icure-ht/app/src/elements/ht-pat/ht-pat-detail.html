@@ -901,7 +901,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 overflow: hidden;
             }
 
-            #insuranceStatus, #hubStatus, #tlStatus, #consentStatus, #edmgStatus, #ebmPracticeNet, #cbipLink, #rnConsult  {
+            #insuranceStatus, #hubStatus, #tlStatus, #consentStatus, #edmgStatus, #ebmPracticeNet, #cbipLink, #rnConsult, #sumehrStatus  {
                 --paper-fab-background: var(--app-background-color-dark);
                 --paper-fab-keyboard-focus-background: var(--app-background-color);
                 color: var(--app-primary-color-dark);
@@ -944,15 +944,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 display: block;
             }
 
-            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending{
+            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending, #sumehrStatus.sumehrChange{
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
-            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk{
+            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr{
                 --paper-fab-background: var(--app-status-color-nok);
             }
 
-            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk {
+            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr {
                 --paper-fab-background: var(--app-status-color-ok);
             }
 
@@ -1718,6 +1718,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <paper-tooltip for="tlStatus">[[localize('tl','therapeutic link',language)]]</paper-tooltip>
                                         <paper-fab id="hubStatus" mini icon="hardware:device-hub" on-tap="_openHubDialog"></paper-fab>
                                         <paper-tooltip for="hubStatus">Hub</paper-tooltip>
+                                        <paper-fab id="sumehrStatus" mini icon="editor:format-list-bulleted" on-tap="_openHubDialog"></paper-fab>
+                                        <paper-tooltip for="sumehrStatus">[[sumehrStatusDesc]]</paper-tooltip>
                                         <paper-fab id="edmgStatus" mini icon="vaadin:clipboard-pulse" on-tap="_openEdmgDialog"></paper-fab>
                                         <paper-tooltip for="edmgStatus">[[localize('edmg','e-DMG',language)]]
                                             <template is="dom-if" if="[[refPeriods.length]]">
@@ -3021,6 +3023,26 @@ on-upload-document="_hubUpload"
                     rnHistoryResult:{
                         type: Object,
                         value: () => {}
+                    },
+                    sumehrOnHubChecked:{
+                        type: Boolean,
+                        value: false
+                    },
+                    sumehrPresentOnHub:{
+                        type: Boolean,
+                        value: false
+                    },
+                    sumehrContentOnPatientLoad:{
+                        type: Object,
+                        value: null
+                    },
+                    sumehrContentOnPatientRefresh:{
+                        type: Object,
+                        value: null
+                    },
+                    sumehrStatusDesc:{
+                        type: String,
+                        value: "Sumehr"
                     }
                 };
             }
@@ -3036,7 +3058,8 @@ on-upload-document="_hubUpload"
                     '_filesChanged(files.*)',
                     '_isConnectedToEhbox(api.tokenId)',
                     'selectedMedicationsChanged(selectedMedications)',
-                    'hcpChanged(user)'
+                    'hcpChanged(user)',
+                    'showPatientSumehrState(sumehrOnHubChecked, sumehrPresentOnHub, sumehrContentOnPatientLoad, sumehrContentOnPatientRefresh)'
                 ];
             }
 
@@ -3953,6 +3976,12 @@ on-upload-document="_hubUpload"
                 this.set('eidCardNumber', '')
                 this.set('isiCardNumber', '')
 
+                //sumehr state
+                this.set('sumehrOnHubChecked', false);
+                this.set('sumehrPresentOnHub', false);
+                this.set('sumehrContentOnPatientLoad', null);
+                this.set('sumehrContentOnPatientRefresh', null);
+
                 this.root.querySelector('#cb_ahelb').opened = false
                 this.root.querySelector('#cb_ihelb').opened = false
                 this.root.querySelector('#cb_alhelb').opened = false
@@ -4457,10 +4486,16 @@ on-upload-document="_hubUpload"
                         }
 
                     }).catch(e => {console.log("genins failed "+e.message); this.set('isLoading', false); return null}))
-                    this.selectedTherLink = null
-                    this.showPatientConsentState()
-                    this.showPatientTherLinkState()
-                    this.updateEdmgStatus()
+                    this.selectedTherLink = null;
+                    this.showPatientConsentState();
+                    this.showPatientTherLinkState();
+                    this.checkSumehrPresentOnHub();
+                    //this.showPatientSumehrState();
+                    if(!this.sumehrContentOnPatientLoad){
+                        this.getSumehrContent().then(res => this.set('sumehrContentOnPatientLoad', res));
+                    }
+                    this.getSumehrContent().then(res => this.set('sumehrContentOnPatientRefresh', res));
+                    this.updateEdmgStatus();
                     this._consultRnHistory(patient)
                 }else{
                     this.$["insuranceStatus"].classList.remove('medicalHouse')
@@ -4470,6 +4505,9 @@ on-upload-document="_hubUpload"
                     this.$["consentStatus"].classList.remove('consentOk')
                     this.$["hubStatus"].classList.remove('noAccess')
                     this.$["hubStatus"].classList.remove('accessOk')
+                    this.$["sumehrStatus"].classList.remove('noSumehr')
+                    this.$["sumehrStatus"].classList.remove('sumehr')
+                    this.$["sumehrStatus"].classList.remove('sumehrChange')
                     this.$["tlStatus"].classList.remove('noTl');
                     this.$["tlStatus"].classList.remove('tlOk');
                     this.$["tlStatus"].classList.remove('tlPending');
@@ -4498,6 +4536,101 @@ on-upload-document="_hubUpload"
                     !this.hubSupportsConsent ? this.$["hubStatus"].classList.add('accessOk') : !!_.size(_.get(this.currentTherLinks, 'nationalResp.therapeuticLinks', [])) && !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) ? this.$["hubStatus"].classList.add('accessOk') : this.$["hubStatus"].classList.add('noAccess')
 
                 })
+            }
+
+            checkSumehrPresentOnHub(){
+                //todo implement
+                if(!this.sumehrOnHubChecked) {
+                    this.$.patHubDetail._getMostRecentSumehr().then(res =>{
+                        console.log("checkSumehrPresentOnHub.res",res);
+                        this.set('sumehrPresentOnHub', res ? true : false);
+                    });
+                    this.set('sumehrOnHubChecked', true);
+                }
+            }
+
+            getSumehrContent(){
+                //todo implement
+
+                if (this.patient) {
+                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.patient().getPatientWithUser(this.user,this.patient.id)
+                            .then(patientDto =>
+                                this.api.crypto()
+                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                                    .then(secretForeignKeys =>
+                                        this.api.bekmehricc.getSumehrV2Content(patientDto.id, {
+                                            secretForeignKeys: secretForeignKeys.extractedKeys,
+                                            recipient: hcp
+                                        }).then(resp =>
+                                            this.api.contacticc.decryptServices(hcp.id, resp.services).then(
+                                                svcs => {
+                                                    resp = this.removeTreatedServices(resp);
+                                                    resp = this.removeNotExportedPatientWill(resp);
+                                                    return resp;
+                                                }
+                                            )
+                                        )
+                                    ))
+                    )
+                } else {
+                    return Promise.resolve(null);
+                }
+            }
+
+            removeTreatedServices(newSumehr){
+                const treatedServiceIds = newSumehr.healthElements.filter(he => he.idService).map(he => he.idService);
+                console.log("treatedServiceIds", treatedServiceIds);
+                newSumehr.services = newSumehr.services.filter(svc => !treatedServiceIds.includes(svc.id));
+                return newSumehr;
+            }
+
+            removeNotExportedPatientWill(newSumehr){
+                newSumehr.services = newSumehr.services.filter(svc => !this.api.contact().preferredContent(svc, this.language)
+                    || !this.api.contact().preferredContent(svc, this.language).stringValue
+                    || (!this.api.contact().preferredContent(svc, this.language).stringValue.includes('|noconsent')
+                        && !this.api.contact().preferredContent(svc, this.language).stringValue.includes('|notasked')));
+                return newSumehr;
+            }
+
+            compareSumehrContent(content1, content2){
+                //todo implement
+                var changed = false;
+                if(content1 && content2){
+                    //TODO this is a very lame compare, make it better !
+                    changed = !(content1.services.length === content2.services.length
+                        && content1.healthElements.length === content2.healthElements.length
+                        && content1.patientHealthcareParties.length === content2.patientHealthcareParties.length
+                        && content1.partnerships.length === content2.partnerships.length)
+                }else if (content1 || content2) {
+                    changed = true;
+                }
+                return changed;
+            }
+
+            showPatientSumehrState(){
+                const changed = this.compareSumehrContent(this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
+                console.log('showPatientSumehrState triggered', this.sumehrPresentOnHub, changed, this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
+                //todo implement
+                 //1. check if sumehr present
+                 //2. check if local sumehrcontent changed
+                 //   local sumehr data is charged at patient changed
+                 //   local sumehr compare data is charged at patient refresh
+                this.$['sumehrStatus'].classList.remove('noSumehr');
+                this.$['sumehrStatus'].classList.remove('sumehr');
+                this.$['sumehrStatus'].classList.remove('sumehrChange');
+                if(this.sumehrPresentOnHub) {
+                    if(changed){
+                        this.$['sumehrStatus'].classList.add('sumehrChange')
+                        this.set('sumehrStatusDesc', this.localize('sumehr_data_changed' , 'Patient data for sumehr changed', this.language));
+                    } else {
+                        this.$['sumehrStatus'].classList.add('sumehr');
+                        this.set('sumehrStatusDesc', this.localize('sumehr_present' , 'Sumehr present on hub', this.language));
+                    }
+                }else{
+                    this.$['sumehrStatus'].classList.add('noSumehr');
+                    this.set('sumehrStatusDesc', this.localize('sumehr_not_present' , 'Sumehr not present on hub', this.language));
+                }
             }
 
             cleanNiss(niss){
