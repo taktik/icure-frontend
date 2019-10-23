@@ -461,7 +461,7 @@
                 <!--                    <paper-button class="modal-button" on-tap="getSumehrUpdateServices"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('getSumehrUpdateServices','getSumehrUpdateServices',language)]]</paper-button>-->
                 <!--                    <paper-button class="modal-button" on-tap="_runPreviewSumehr"><iron-icon icon="icons:build" class="mr5 smallIcon" ></iron-icon> [[localize('_previewSumehrV2','_previewSumehrV2',language)]]</paper-button>-->
                 <paper-button class="button button--other" on-tap="_openCommentDialogTest" disabled="[[isLoading]]"><iron-icon icon="icons:build"></iron-icon> [[localize('_generateSumehr','_generateSumehr',language)]] V2</paper-button>
-                <template is="dom-if" if="[[hubSumehr]]">
+                <template is="dom-if" if="[[hubSumehrReady]]">
                     <paper-button class="button button--save" on-tap="_openCommentDialog" disabled="[[isLoading]]"><iron-icon icon="icons:backup"></iron-icon> [[localize('upload_sumehr','Upload sumehr',language)]]</paper-button>
                 </template>
             </div>
@@ -616,6 +616,10 @@
                         type: Object,
                         value: null
                     },
+                    hubSumehrReady:{
+                        type: Boolean,
+                        value: false
+                    },
                     hubSumehrXml:{
                         type: String,
                         value: null
@@ -695,6 +699,7 @@
             }
 
             open(hubSumehrPromise, parentDialog, hubSumehrXmlPromise) {
+                this.set('hubSumehrReady', false);
                 this.set('isLoading',true);
                 this.set('parentDialog', parentDialog);
                 this.$['sumehrPreviewDialog'].open();
@@ -713,6 +718,7 @@
                         this._refresh();
                         this._runPreviewSumehr();
                         this.set('isLoading',false);
+                        this.set('hubSumehrReady', true);
                     }).catch( error=> {
                         this.set('message', null);
                         console.log('getTransaction failed : ' + error);
@@ -721,6 +727,7 @@
                 }
                 else{
                     this._refresh();
+                    this.set('hubSumehrReady', true);
                     this.set('hubSumehr', null);
                     this._runPreviewSumehr();
                     this.set('isLoading',false);
@@ -864,21 +871,29 @@
                             console.log("new transaction on hub", getResp);
                             const updateReference = this.api.crypto().randomUuid();
                             this._logUpdateMessage(JSON.stringify(getResp), "new", updateReference, "text/xml").then(() => this._logUpdateMessage(JSON.stringify(this.hubSumehr), "old", updateReference, "text/xml")).then(() =>{
-                                if(this.hubSumehr.folders[0].transactions[0].ids && this.hubSumehr.folders[0].transactions[0].ids.find(id => id.value === putResp.id[0].value)) {
-                                    console.log("putNRevoke: id to revoke is same as new id, don't revoke", this.hubSumehr.folders[0].transactions[0].ids);
-                                    this.parentDialog._runGetTransactionList();
-                                    this.set("uploading", false);
-                                    if(this.$['commentDialog']) this.$['commentDialog'].close();
-                                    this.$["sumehrPreviewDialog"].close();
-                                } else{
-                                    console.log("putNRevoke: id to revoke", this.hubSumehr.folders[0].transactions[0].ids);
-                                    if(this.hubSumehr && this.hubSumehr.folders)this.parentDialog._revokeHubTransaction(this.hubSumehr.folders[0].transactions[0]).then(r => {
-                                        console.log(r)
+                                if(this.hubSumehr){
+                                    if(this.hubSumehr.folders[0].transactions[0].ids && this.hubSumehr.folders[0].transactions[0].ids.find(id => id.value === putResp.id[0].value)) {
+                                        console.log("putNRevoke: id to revoke is same as new id, don't revoke", this.hubSumehr.folders[0].transactions[0].ids);
                                         this.parentDialog._runGetTransactionList();
                                         this.set("uploading", false);
                                         if(this.$['commentDialog']) this.$['commentDialog'].close();
                                         this.$["sumehrPreviewDialog"].close();
-                                    });
+                                    } else{
+                                        console.log("putNRevoke: id to revoke", this.hubSumehr.folders[0].transactions[0].ids);
+                                        if(this.hubSumehr && this.hubSumehr.folders)this.parentDialog._revokeHubTransaction(this.hubSumehr.folders[0].transactions[0]).then(r => {
+                                            console.log(r)
+                                            this.parentDialog._runGetTransactionList();
+                                            this.set("uploading", false);
+                                            if(this.$['commentDialog']) this.$['commentDialog'].close();
+                                            this.$["sumehrPreviewDialog"].close();
+                                        });
+                                    }
+                                } else {
+                                    console.log("there was nu sumehr on the hub yet");
+                                    this.parentDialog._runGetTransactionList();
+                                    this.set("uploading", false);
+                                    if(this.$['commentDialog']) this.$['commentDialog'].close();
+                                    this.$["sumehrPreviewDialog"].close();
                                 }
                             });
                         });
