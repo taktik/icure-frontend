@@ -346,10 +346,8 @@
 
             }
 
-            _getDocument(user, documentId) {
-
+            getDocument(user, documentId) {
                 const promResolve = Promise.resolve()
-
                 return !_.trim(documentId) ? promResolve : this.api.document().getDocument(documentId)
                     .then(document => !_.size(_.get(document,"encryptionKeys",[])) && !_.size(_.get(document,"delegations",[])) ?
                         Promise.resolve([document,null]) :
@@ -378,7 +376,6 @@
                             .catch(()=>Promise.resolve(document))
                     )
                     .catch(()=>promResolve)
-
             }
 
             _isServiceOutOfRange(svc) {
@@ -492,12 +489,16 @@
 
             }
 
-            _isImage(input) {
+            isPdf(input) {
+                return _.trim(_.get(input,"fileExtension","")) === "pdf" || _.trim(_.get(input,"mimeType","")) === "application/pdf"
+            }
+
+            isImage(input) {
                 return ["jpg","jpeg","gif","png"].indexOf(_.trim(_.get(input,"fileExtension",""))) > -1 || _.trim(_.get(input,"mimeType","")).substring(0,6) === "image/"
             }
 
-            _isPdf(input) {
-                return _.trim(_.get(input,"fileExtension","")) === "pdf" || _.trim(_.get(input,"mimeType","")) === "application/pdf"
+            getImage(mimeType, content) {
+                return '<div class="imageContainer p10 textaligncenter borderSolid borderW1px borderColorBlack"><img src="data:' + _.trim(mimeType) + ';base64,' + btoa(this.api.crypto().utils.ua2text(content)) + '"/></div>'
             }
 
             _getPdfStyle() {
@@ -678,7 +679,7 @@
                         typeof _.get(this,"_data.content.body") === "string" ? "<pre>" + _.get(this,"_data.content.body") + "</pre>" :
 
                         // Images
-                        _.get(this,"_data.content.body") instanceof ArrayBuffer && this._isImage(_.get(this,"_data.content")) ? '<div class="imageContainer p10 textaligncenter borderSolid borderW1px borderColorBlack"><img src="data:' + _.trim(_.get(this,"_data.content.mimeType")) + ';base64,' + btoa(this.api.crypto().utils.ua2text(_.get(this,"_data.content.body"))) + '" /></div>' :
+                        _.get(this,"_data.content.body") instanceof ArrayBuffer && this.isImage(_.get(this,"_data.content")) ? this.getImage(_.get(this,"_data.content.mimeType"), _.get(this,"_data.content.body")) :
 
                         // Array of services
                         Array.isArray(_.get(this,"_data.content.body")) && !!_.size(_.get(this,"_data.content.body")) ? '' +
@@ -744,7 +745,7 @@
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
                     .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
                     .then(() => this._getContact(_.get(this,"user",{}), contactId, _.get(this,"_data.currentPatient")).then(contact => _.assign(this._data,{contact:contact})))
-                    .then(() => this._getDocument(_.get(this,"user",{}), documentId).then(document => _.assign(this._data,{document:document})))
+                    .then(() => this.getDocument(_.get(this,"user",{}), documentId).then(document => _.assign(this._data,{document:document})))
                     .then(() => ((!_.size(_.get(this,"_data.document")) && !_.size(_.get(this,"_data.contact"))) ? promResolve : !!_.size(_.get(this,"_data.contact")) ? this._getContentFromContact() : this._getContentFromDocument()).then(content => _.assign(this._data,{content:content})))
                     .then(() => _.assign(this._data,{pdfHtmlContent:this._getPdfContent()}))
                     .then(() => this.api.pdfReport(this._data.pdfHtmlContent, {type:"rapp-mail",completionEvent:"pdfDoneRenderingEvent"}))

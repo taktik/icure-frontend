@@ -4631,6 +4631,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return value ? this.localize(value.code, value.default, this.language) : defaultValue;
             }
 
+            _isDocument(service) {
+                return service.label === "document" || service.label === "imported document";
+            }
+
             _generatePdfDate(date, format = "DD/MM/YYYY hh:mm", empty = "") {
                 return date ? this.api.moment(date).format(format) : empty;
             }
@@ -4649,7 +4653,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return html;
             }
 
-            _generatePdfContact(contact, codes, forms, templates, healthElements) {
+            _generatePdfContact(contact, codes, forms, templates, healthElements, documents) {
                 if ((!contact.services || contact.services.length < 1) &&
                     (!contact.subContacts || contact.subContacts.length < 1) &&
                     (!contact.healthElements || contact.healthElements.length < 1))
@@ -4683,12 +4687,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     });
                 }
 
-                let services = contact.services.filter(s => s.label == "document" || s.label == "imported document");
+                let services = contact.services.filter(s => this._isDocument(s));
 
                 if (services && services.length > 0) {
                     html += "<div class='b'>Services</div>";
                     services.forEach(service => {
-                        html += this._generatePdfService(service);
+                        html += this._generatePdfService(service, documents);
                     });
                 }
 
@@ -4796,7 +4800,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return type ? type.name : this.localize('cd-transaction-' + code, code, this.language);
             }
 
-            _generatePdfService(service) {
+            _generatePdfService(service, documents) {
                 let html = "<div class='row'>";
                 if (service.label === "document") {
                     let tag = service.tags.find(t => t.type == "CD-TRANSACTION");
@@ -4814,6 +4818,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     html += "<div>" + service.label + "</div>";
                 }
                 html += "</div>";
+                if (service.content && service.content.fr && service.content.fr.documentId) {
+                    const printer = this.shadowRoot.querySelector("#printDocument");
+                    const document = documents.find(d => d.id == service.content.fr.documentId);
+                    if (document && document.attachment && printer.isImage(document.attachment))
+                        html += printer.getImage(document.attachment.mimeType, document.attachment.content);
+                }
                 return html;
             }
 
@@ -4872,13 +4882,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 let services = contacts.flatMap(c => this.getServices(c.services));
                 let codeIds = services.map(s => s.content.fr.stringValue);
                 codeIds = codeIds.filter((v, i, a) => a.indexOf(v) === i);
-                return this.api.code().getCodes(codeIds);
+                return codeIds.length > 0 ? this.api.code().getCodes(codeIds) : Promise.resolve([]);
             }
 
             getForms(contacts) {
-                let formIds = contacts.flatMap(contact => contact.subContacts.filter(s => s.formId).map(s => s.formId));
+                let formIds = contacts.flatMap(c => c.subContacts.filter(s => s.formId).map(s => s.formId));
                 formIds = formIds.filter((v, i, a) => a.indexOf(v) === i);
-                return this.api.form().getForms({ids: formIds});
+                return formIds.length > 0 ? this.api.form().getForms({ids: formIds}) : Promise.resolve([]);
             }
 
             getFormTemplates(forms) {
@@ -4888,22 +4898,32 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             getHealthElements(contacts) {
-                let heIds = contacts.flatMap(contact => contact.healthElements);
+                let heIds = contacts.flatMap(c => c.healthElements);
                 heIds = heIds.filter((v, i, a) => a.indexOf(v) === i);
                 return heIds.filter(he => he).map(he => this.api.helement().getHealthElement(he.id));
             }
 
+            getDocuments(contacts) {
+                const docIds = contacts.flatMap(c => c.services
+                    .filter(s => this._isDocument(s) && s.content && s.content.fr && s.content.fr.documentId)
+                    .map(s => s.content.fr.documentId));
+                const printer = this.shadowRoot.querySelector("#printDocument");
+                return docIds.map(id => printer.getDocument(this.user, id));
+            }
+
             generatePdfFile(contacts) {
+                this.set('SpinnerActive', true)
                 this.getCodes(contacts).then(codes => this.getForms(contacts).then(forms => [codes, forms]))
                     .then(([codes, forms]) => Promise.all(this.getFormTemplates(forms)).then(templates => [codes, forms, templates])
                     .then(([codes, forms, templates]) => Promise.all(this.getHealthElements(contacts)).then(healthElements => [codes, forms, templates, healthElements])
-                        .then(([codes, forms, templates, healthElements]) => {
+                    .then(([codes, forms, templates, healthElements]) => Promise.all(this.getDocuments(contacts)).then(documents => [codes, forms, templates, healthElements, documents])
+                        .then(([codes, forms, templates, healthElements, documents]) => {
                             let html = "";
                             contacts = contacts.sort((a,b) => {
                                 return this.api.moment(b.openingDate).diff(this.api.moment(a.openingDate), "minutes");
                             });
                             contacts.forEach(contact => {
-                                html += this._generatePdfContact(contact, codes, forms, templates, healthElements);
+                                html += this._generatePdfContact(contact, codes, forms, templates, healthElements, documents);
                             });
                             const printer = this.shadowRoot.querySelector("#printDocument");
                             html = printer.print(html, this.patient);
@@ -4912,7 +4932,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             const filename = this.patient.lastName + " " + this.patient.firstName + ".pdf";
                             return !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", filename)
                         })
-                    ));
+                    )))
+                    .finally(() =>  {
+                        this.set('SpinnerActive', false);
+                    });
             }
 
             generateXlsFile(data, filename, title, author) {
