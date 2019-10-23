@@ -92,6 +92,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../styles/dropdown-style.html">
 <link rel="import" href="../../styles/paper-tabs-style.html">
 <link rel="import" href="./dialogs/therlink/ht-pat-therlink-detail.html">
+<link rel="import" href="./dialogs/consent/ht-pat-consent-detail.html">
 
 
 <dom-module id="ht-pat-detail">
@@ -2531,6 +2532,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
         <ht-pat-therlink-detail id="htPatTherlinkDetail" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" therlink-list="[[therLinkList]]" hub-end-point="[[hubEndPoint]]" hub-supports-consent="[[hubSupportsConsent]]" eid-card-number="[[eidCardNumber]]" isi-card-number="[[isiCardNumber]]" hub-package-id="[[hubPackageId]]" on-read-eid="_readEid" on-refresh-therlink="showPatientTherLinkState"></ht-pat-therlink-detail>
+        <ht-pat-consent-detail id="htPatConsentDetail" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" hub-end-point="[[hubEndPoint]]" hub-supports-consent="[[hubSupportsConsent]]" eid-card-number="[[eidCardNumber]]" isi-card-number="[[isiCardNumber]]" hub-package-id="[[hubPackageId]]" on-read-eid="_readEid"></ht-pat-consent-detail>
     </template>
     <script>
         import moment from 'moment/src/moment';
@@ -3166,6 +3168,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
+            __openConsentDialog(e){
+                e.stopPropagation();
+                if(this._checkForEhealthSession() === true){
+                    this.$['htPatConsentDetail']._open()
+                }else{
+                    this._ehealthErrorNotification()
+                }
+            }
+
             _openTherLinkDialog(e) {
                 e.stopPropagation();
                 if(this._checkForEhealthSession() === true){
@@ -3554,22 +3565,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                         this._getConsent().then(patientConsent => {
                                 if(patientConsent){
-                                    this.api.fhc().Consentcontroller().revokePatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                        hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                                        patientConsent, this.eidCardNumber, this.isiCardNumber).then(consentResp => {
-                                            this.showPatientConsentState()
-                                            return consentResp
-                                        }
-                                    )
-                                }
-                                else {
-                                    return Promise.resolve(null)
+                                    Promise.all([
+                                        this.api.fhc().Consentcontroller().revokePatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName, patientConsent, this.eidCardNumber, this.isiCardNumber),
+                                        this.api.fhc().Hubcontroller().revokePatientConsentUsingDELETE(this.hubEndPoint, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip, this.cleanNiss(this.patient.ssin))
+                                    ]).then(([nationalRevoke, HubRevoke]) => {
+                                        console.log(nationalRevoke)
+                                        console.log(HubRevoke)
+                                        this.showPatientConsentState()
+                                        this.showPatientTherLinkState()
+                                    })
                                 }
                             }
                         )
                     )
-                } else{
-                    return Promise.resolve(null)
                 }
             }
 
