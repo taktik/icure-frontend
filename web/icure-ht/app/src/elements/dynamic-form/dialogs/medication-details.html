@@ -22,8 +22,10 @@
 <dom-module id="medication-details">
     <template>
         <style include="scrollbar-style dropdown-style dialog-style vaadin-icure-theme">
-            .content{
-                flex-grow: 1
+            .container {
+                max-height: calc(100% - 64px);
+                height: 100%;
+                padding: 12px 0;
             }
 
             #medication-detail .save-line {
@@ -530,10 +532,10 @@
             }
 
         </style>
-        <div class="content">
+        <div class="content container">
             <div class="regimen-line display-type-regimen">
                 <vaadin-checkbox checked="[[selectedMedicationContentWithId.medicationValue.substitutionAllowed]]" id="substitutionAllowed" on-checked-changed="_substitutionAllowedChanged">[[localize('', 'Chronique', language)]]</vaadin-checkbox>
-                <paper-input type="number" min="0" label="[[localize('', 'Quantité prescrite', language)]]" value=""></paper-input>
+                <paper-input type="number" min="0" label="[[localize('', 'Quantité prescrite', language)]]" value="{{medicationDetail.boxes}}"></paper-input>
                 <paper-dropdown-menu id="medicReimbursement" label="[[localize('presc_reimb', 'Reimbursement', language)]]" class="regimen--reimbursement">
                     <paper-listbox slot="dropdown-content" class="dropdown-reimbursement" selected={{selectedMedicationContentWithId.medicationValue.reimbursementItemIdx}} selected-item="{{reimbursementItem}}">
                         <template is="dom-repeat" items="[[reimbursementCodeRecipe]]" as="code">
@@ -542,12 +544,12 @@
                     </paper-listbox>
                 </paper-dropdown-menu>
             </div>
-            <div class="regimen-line display-type-regimen">
-                <paper-input-container always-float-label="true" class="comment">
-                    <label slot="label" class="color-status">[[localize('','Posologie CBIP',language)]]</label>
-                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedMedicationContentWithId.medicationValue.commentForDelivery}}"></iron-autogrow-textarea>
-                </paper-input-container>
-            </div>
+<!--            <div class="regimen-line display-type-regimen">-->
+<!--                <paper-input-container always-float-label="true" class="comment">-->
+<!--                    <label slot="label" class="color-status">[[localize('','Posologie CBIP',language)]]</label>-->
+<!--                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedMedicationContentWithId.medicationValue.commentForDelivery}}"></iron-autogrow-textarea>-->
+<!--                </paper-input-container>-->
+<!--            </div>-->
             <div class="regimen-line display-type-regimen">
                 <paper-input type="number" min="0" label="[[localize('', 'Quantité', language)]]" value="{{selectedMedicationContentWithId.medicationValue.renewalDecimalValue}}"></paper-input>
                 <paper-dropdown-menu id="medicRenewalTimeUnit" label="[[localize('','Nature',language)]]" class="regimen--renewalTimeUnit">
@@ -978,11 +980,22 @@
             }
 
             ready() {
-                super.ready()
+                // @todo prevent race condition
+                super.ready();
+                if (!this.reimbursementCodeRecipe || this.reimbursementCodeRecipe.length === 0 || !this.timeUnit || this.timeUnit.length === 0) {
+                    this.api.code().findPaginatedCodes('be', 'CD-REIMBURSEMENT-RECIPE', '')
+                        .then(reimb => this.set("reimbursementCodeRecipe", _.orderBy(reimb.rows, ['label.fr'], ['asc'])))
+                        .then(() => this.api.code().findPaginatedCodes('be', 'CD-TIMEUNIT', ''))
+                        .then(timeUnit => this.set("timeUnit", _.orderBy(_.filter(_.get(timeUnit, "rows", []), i => ["ns", "us", "ms", "s", "min"].indexOf(_.trim(_.get(i, "code"))) === -1), ['label.fr'], 'asc')))
+                }
             }
 
             _any(a,b,c,d,e) {
                 return a||b||c||d||e
+            }
+
+            _getCodeLabel(code){
+                return code && code[this.language]
             }
 
             _regimenChanged() {
