@@ -375,6 +375,15 @@
                 overflow: auto;
             }
 
+            .doc-preview-description {
+                text-align: center;
+                margin: 10px 1% 1% 1%;
+                height: auto;
+                border: 2px dashed #ddd;
+                padding: 10px;
+                text-transform: uppercase;
+            }
+
             .doc-container{
                 height: 100%;
             }
@@ -415,17 +424,15 @@
                             <div class="doc-container">
                                 <div class="doc-container-list">
 
-
-
                                     <vaadin-grid id="vaadinGrid" class="material" width="100%" items="[[_vaadinGridDataToShow]]" active-item="{{_vaadinGridActiveItem}}">
 
-                                        <vaadin-grid-column width="100px">
+                                        <vaadin-grid-column width="100px" flex-grow="0">
                                             <template class="header"><vaadin-grid-sorter path="date">[[localize('date','Date',language)]]</vaadin-grid-sorter></template>
                                             <template>[[item.dateHr]]</template>
                                         </vaadin-grid-column>
 
-                                        <vaadin-grid-column width="100px">
-                                            <template class="header"><vaadin-grid-sorter path="inComingOutGoingHr">[[localize('inComingOutGoing','Incoming / Outgoing',language)]]</vaadin-grid-sorter></template>
+                                        <vaadin-grid-column width="90px" flex-grow="0">
+                                            <template class="header"><vaadin-grid-sorter path="inComingOutGoingHr">[[localize('document','Document',language)]]</vaadin-grid-sorter></template>
                                             <template>[[item.inComingOutGoingHr]]</template>
                                         </vaadin-grid-column>
 
@@ -452,13 +459,11 @@
                                         -->
 
                                         <vaadin-grid-column>
-                                            <template class="header"><vaadin-grid-sorter path="filename">[[localize('filename','Filename',language)]]</vaadin-grid-sorter></template>
-                                            <template>[[item.documentName]]</template>
+                                            <template class="header"><vaadin-grid-sorter path="description">[[localize('des','Description',language)]]</vaadin-grid-sorter></template>
+                                            <template>[[item.description]]</template>
                                         </vaadin-grid-column>
 
                                     </vaadin-grid>
-
-
 
                                 </div>
                             </div>
@@ -466,8 +471,12 @@
                     </div>
 
                     <div class="doc-menu-view">
+                        <template is="dom-if" if="[[!_hasSelectedDocument]]">
+                            <div class="doc-preview-description">
+                                <iron-icon icon="image:remove-red-eye" class="mw20 mh20"></iron-icon> [[localize('documentsDirectory_annotation1','Select a document to preview it',language)]]
+                            </div>
+                        </template>
                         <template is="dom-if" if="[[_hasSelectedDocument]]">
-
                             <div class="doc-preview">
                                 <dynamic-doc
                                         id="document-preview-[[_selectedDocument.documentId]]"
@@ -602,7 +611,7 @@
                                 type: Object,
                                 value: ()=>{}
                             },
-                            messages: {
+                            documentsAndMessages: {
                                 type: Array,
                                 value: ()=>[]
                             },
@@ -800,18 +809,18 @@
 
             }
 
-            _getMessagesWithMetaPatientId(patientId) {
+            _getDocumentsAndMessagesWithMetaPatientId(patientId) {
 
                 // transportGuid of messages
                 //
                 // WITH encrypted PAT IDS:
                 //     "DOC:SCAN:IN",
                 //     "DOC:IMPORT:IN"
-                //     "HUB:IN:IMPORTED-DOCUMENT",
-                //     "PRESCRIPTION:ITT:ARCHIVE",
-                //     "PRESCRIPTION:KINE:ARCHIVE",
-                //     "PRESCRIPTION:NURSE:ARCHIVE",
-                //     "LINKING-LETTER:PATIENT:ARCHIVE",
+                //     "HUB:IN:IMPORTED-DOCUMENT",              (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                //     "PRESCRIPTION:ITT:ARCHIVE",              (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                //     "PRESCRIPTION:KINE:ARCHIVE",             (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                //     "PRESCRIPTION:NURSE:ARCHIVE",            (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                //     "LINKING-LETTER:PATIENT:ARCHIVE",        (*) ==> We already have everything we need here, from contact data ==> do NOT get message
                 //     "PRESCRIPTION:IMAGING:ARCHIVE",
                 //
                 // WITHOUT encrypted PAT IDS -> get from contact / services
@@ -825,12 +834,12 @@
                 return Promise.all(_.map([
                         "DOC:SCAN:IN",
                         "DOC:IMPORT:IN",
-                        "HUB:IN:IMPORTED-DOCUMENT",
-                        "PRESCRIPTION:ITT:ARCHIVE",
-                        "PRESCRIPTION:KINE:ARCHIVE",
-                        "PRESCRIPTION:NURSE:ARCHIVE",
-                        "LINKING-LETTER:PATIENT:ARCHIVE",
-                        "PRESCRIPTION:IMAGING:ARCHIVE"
+                        // "HUB:IN:IMPORTED-DOCUMENT",          (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                        // "PRESCRIPTION:ITT:ARCHIVE",          (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                        // "PRESCRIPTION:KINE:ARCHIVE",         (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                        // "PRESCRIPTION:NURSE:ARCHIVE",        (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                        // "LINKING-LETTER:PATIENT:ARCHIVE",    (*) ==> We already have everything we need here, from contact data ==> do NOT get message
+                        // "PRESCRIPTION:IMAGING:ARCHIVE"       (*) ==> We already have everything we need here, from contact data ==> do NOT get message
                     ], singleTransportGuid => this.api.message().findMessagesByTransportGuid(_.trim(singleTransportGuid), null, null, null, 10000).then(messages=>messages.rows).catch(()=>Promise.resolve())))
                     .then(promisesResults => _
                         .chain(promisesResults)
@@ -849,10 +858,11 @@
 
                         return !dataToDecrypt ? msg : this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, msg, dataToDecrypt)
                             .then(uaDecryptedContent => JSON.parse(this.api.crypto().utils.ua2text(uaDecryptedContent)))
-                            .then(decryptedContent => _.merge(msg,{metas:{decryptedInfo: !!Array.isArray(decryptedContent) ? _.head(decryptedContent) : decryptedContent}}))
+                            .then(decryptedContent => _.merge(msg,{metas:{decryptedInfo: !!Array.isArray(decryptedContent) ? _.head(decryptedContent) : decryptedContent}, isScanned:(((msg.status & (1 << 24)) !== 0)||msg.transportGuid === "DOC:SCAN:IN"), isImported:((msg.status & (1 << 25)) !== 0)}))
                             .catch(e=>{ console.log("ERROR with decrypt", e, msg); return msg;})
                     })))
                     .then(messagesWithDecryptedInfos => _.filter(messagesWithDecryptedInfos, msg => _.trim(_.get(msg,"metas.decryptedInfo.patientId","")) === patientId || _.trim(_.get(msg,"metas.patientId","")) === patientId ))
+                    .then(messages => Promise.all(_.map(messages, msg => this.api.document().findByMessage(_.get(this,"user.healthcarePartyId",""), msg).then(foundDocuments => _.map(foundDocuments, doc => _.merge(doc, {message:msg}))).catch(e=>{console.log("ERROR with findByMessage: ", msg, e); return promResolve;}))).then(documentsAndMessages => _.flatMap(documentsAndMessages)))
                     .catch(e=>{ console.log("ERROR _getMessages", e); return promResolve; })
 
             }
@@ -867,27 +877,50 @@
                         service: singleService,
                         serviceTitle: _.trim(_.get(singleService,"content." + this.language + ".stringValue")),
                         formId: _.trim(_.get(singleService,"formId")),
-                        date: parseInt(_.get(singleService,"valueDate")),
-                        dateAndTimeHr: moment(parseInt(_.trim(_.get(singleService,"valueDate")).substring(0,8)),"YYYYMMDD").format('DD/MM/YYYY') + " - " + _.trim(_.get(singleService,"valueDate")).substring(8,10) + ":" + _.trim(_.get(singleService,"valueDate")).substring(10,12),
+                        // date: parseInt(_.get(singleService,"valueDate")),
+                        // dateAndTimeHr: moment(parseInt(_.trim(_.get(singleService,"valueDate")).substring(0,8)),"YYYYMMDD").format('DD/MM/YYYY') + " - " + _.trim(_.get(singleService,"valueDate")).substring(8,10) + ":" + _.trim(_.get(singleService,"valueDate")).substring(10,12),
+                        date: parseInt(_.get(singleService,"created"))||+new Date(),
+                        dateHr: this._msTstampToDDMMYYYY(parseInt(_.get(singleService,"created",""))||+new Date()),
                         documentId: _.trim(_.get(singleService,"content." + this.language + ".documentId")),
                         cdTransactionCode: _.get(_.find(_.get(singleService,"tags",[]), {type:"CD-TRANSACTION"}),"code",""),
                     })))))
-                    .then(foundServicesWithDocumentId => !_.size(foundServicesWithDocumentId) ? false : this.api.document().getDocuments({ids:_.map(foundServicesWithDocumentId,s=>s.documentId)}).then(foundDocuments=>[foundServicesWithDocumentId,foundDocuments]))
+                    .then(foundServicesWithDocumentId => {
+
+                        const documentIdsFromMessages = _.compact(_.map(_.get(this,"_data.documentsAndMessages",[]), i => _.trim(_.get(i,"id",))))
+                        const documentIdsFromContacts = _.compact(_.map(foundServicesWithDocumentId,s=>_.trim(_.get(s,"documentId",""))))
+
+                        console.log("documentsAndMessages", _.get(this,"_data.documentsAndMessages",[]));
+                        console.log("documentIdsFromMessages", documentIdsFromMessages);
+                        console.log("foundServicesWithDocumentId", foundServicesWithDocumentId);
+                        console.log("documentIdsFromContacts", documentIdsFromContacts);
+
+                        // Only resolve documents we don't have yet
+                        return ([foundServicesWithDocumentId, _.difference(documentIdsFromMessages, documentIdsFromContacts)])
+                    })
+
+                    // Si résoud sur base unresolvedDocumentIds ==> fuck
+                    // Si résoud sur base _.map(foundServicesWithDocumentId,s=>_.trim(_.get(s,"documentId",""))) ==> goal
+
+                    .then(([foundServicesWithDocumentId,unresolvedDocumentIds]) => !_.size(foundServicesWithDocumentId) ? false : this.api.document().getDocuments({ids:unresolvedDocumentIds}).then(foundDocuments=>[foundServicesWithDocumentId,foundDocuments]))
                     .then(([foundServicesWithDocumentId,foundDocuments]) => _.compact(_.map(foundServicesWithDocumentId, fswd => {
-                        const serviceDocument = _.find(foundDocuments, {id: _.trim(_.get(fswd, "documentId"))})
+
+                        const serviceDocument = _.find(foundDocuments, {id: _.trim(_.get(fswd, "documentId"))}) /* Si pas trouvé -> prendre depuis _.get(this,"_data.documentsAndMessages",[])) */
+
+                        console.log("serviceDocument", serviceDocument);
+
                         return (
                             !_.trim(_.get(serviceDocument,"id","")) ||
                             !_.trim(_.get(serviceDocument,"attachmentId","")) ||
                             !_.trim(_.get(serviceDocument,"secretForeignKeys",""))
                         ) ? false : _.merge({}, fswd, {document: serviceDocument})
                     })))
-                    .then(servicesAndDocuments => Promise.all(servicesAndDocuments.map(sad => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this, "user.healthcarePartyId", null), _.trim(_.get(sad.document, "id", "")), _.size(_.get(sad.document, "encryptionKeys", [])) ? _.get(sad.document, "encryptionKeys", []) : _.get(sad.document, "delegations", []))
-                            .then(({extractedKeys: enckeys}) => !!_.trim(_.get(sad.document,"id","")) && _.trim(_.get(sad.document,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(sad.document,"id","")), _.trim(_.get(sad.document,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>(_.merge(sad, {document:{decryptedContent:decryptedContent}}))).catch(e=>{console.log("ERROR with getAttachment: ",e); }) : sad)
-                        )).then(servicesAndDocuments => servicesAndDocuments)
-                    )
+                    // .then(servicesAndDocuments => Promise.all(servicesAndDocuments.map(sad => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this, "user.healthcarePartyId", null), _.trim(_.get(sad.document, "id", "")), _.size(_.get(sad.document, "encryptionKeys", [])) ? _.get(sad.document, "encryptionKeys", []) : _.get(sad.document, "delegations", []))
+                    //         .then(({extractedKeys: enckeys}) => !!_.trim(_.get(sad.document,"id","")) && _.trim(_.get(sad.document,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(sad.document,"id","")), _.trim(_.get(sad.document,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>(_.merge(sad, {document:{decryptedContent:decryptedContent}}))).catch(e=>{console.log("ERROR with getAttachment: ",e); }) : sad)
+                    //     )).then(servicesAndDocuments => servicesAndDocuments)
+                    // )
                     .then(servicesAndDocuments => _
                         .chain(servicesAndDocuments)
-                        .filter(i => !!_.trim(_.get(i,"document.id")) && !!parseInt(_.get(i,"document.decryptedContent.byteLength")) )
+                        .filter(i => !!_.trim(_.get(i,"document.id")) /* && !!parseInt(_.get(i,"document.decryptedContent.byteLength")) */ )
                         .orderBy(['date'], ['desc'])
                         .value()
                     )
@@ -919,15 +952,14 @@
 
                         const transactionCodeLabelHr = _.trim(_.get(_.find(_.get(this,"_data.codes['CD-TRANSACTION']",[]), {code:_.trim(_.get(ctc,"cdTransactionCode",""))}), "labelHr",""));
 
-                        const inComingOrOutGoing = _.trim(_.get(ctc,"cdTransactionCode","")).toLowerCase() === "diarynote" && _.trim(_.get(ctc, "serviceTitle")).toLowerCase().indexOf("documentdownloadfromhub") > -1 ? 'inComing' :
-                            _.trim(_.get(ctc,"cdTransactionCode","")).toLowerCase() === "diarynote" && _.trim(_.get(ctc, "serviceTitle")).toLowerCase().indexOf("documentUploadToHub") > -1 ? 'outGoing' :
+                        const inComingOrOutGoing = !!_.size(_.find(_.get(ctc,"service.tags",[]),{type:"HUB-TRANSACTION"})) && _.trim(_.get(_.find(_.get(ctc,"service.tags",[]),{type:"HUB-TRANSACTION"}),"code","")).toLowerCase() === "download" ? 'inComing' :
+                            !!_.size(_.find(_.get(ctc,"service.tags",[]),{type:"HUB-TRANSACTION"})) && _.trim(_.get(_.find(_.get(ctc,"service.tags",[]),{type:"HUB-TRANSACTION"}),"code","")).toLowerCase() === "upload" ? 'outGoing' :
                             _.trim(_.get(ctc, "service.label")).toLowerCase().indexOf("imported document") > -1 ? 'inComing' :
                             !!_.size(_.find(_.get(ctc,"service.tags",[]), {type:"originalEhBoxMessageId"})) ? 'inComing' :
                             !!_.size(_.find(_.get(ctc,"service.tags",[]), {type:"outgoingDocument"})) ? 'outGoing' :
                             'outGoing'
 
-                        const documentOrigin = _.trim(_.get(ctc,"cdTransactionCode","")).toLowerCase() === "diarynote" && _.trim(_.get(ctc, "serviceTitle")).toLowerCase().indexOf("documentdownloadfromhub") > -1 ? 'hub' :
-                            _.trim(_.get(ctc,"cdTransactionCode","")).toLowerCase() === "diarynote" && _.trim(_.get(ctc, "serviceTitle")).toLowerCase().indexOf("documentUploadToHub") > -1 ? 'hub' :
+                        const documentOrigin = !!_.size(_.find(_.get(ctc,"service.tags",[]),{type:"HUB-TRANSACTION"})) ? 'hub' :
                             _.trim(_.get(ctc, "service.label")).toLowerCase().indexOf("imported document") > -1 ? 'importedDoc' :
 
                             // Todo: evaluer le fait que le doc ait été scanné via msg
@@ -940,9 +972,9 @@
                         return _.merge({},{
                             contact: _.get(ctc,"contact",""),
                             documentId: _.trim(_.get(ctc,"document.id","")),
-                            documentName: !!_.trim(_.get(ctc,"document.name","")) ? _.trim(_.get(ctc,"document.name","")) : _.trim(_.get(ctc,"document.id","")),
-                            date: parseInt(_.get(ctc,"document.created",""))||+new Date(),
-                            dateHr: this._msTstampToDDMMYYYY(parseInt(_.get(ctc,"document.created",""))||+new Date()),
+                            description: !!_.trim(_.get(ctc,"document.name","")) ? _.trim(_.get(ctc,"document.name","")) : _.trim(_.get(ctc,"document.id","")),
+                            date: _.get(ctc,"date",""),
+                            dateHr: _.get(ctc,"dateHr",""),
                             typeHr: !!_.trim(transactionCodeLabelHr) ? _.trim(transactionCodeLabelHr) : _.trim(_.get(ctc, "serviceTitle")),
                             authorHr: _.get(_.find(_.get(this,"_data.hcps",[]), {id:_.trim(_.get(ctc,"contact.responsible",""))}),"lastName","") + " " + _.get(_.find(_.get(this,"_data.hcps",[]), {id:_.trim(_.get(ctc,"contact.responsible",""))}),"firstName",""),
                             // recipientHr: "Dr. Maxime Mennechet", /* Only available in eHealthbox while sent item is not deleted yet */
@@ -964,7 +996,7 @@
                     .then(() => this._getPrettifiedHcps().then(hcps => this.set("_data.currentHcp",_.head(hcps))))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), _.trim(_.get(this,"patient.id",""))).then(pat => this.set("_data.currentPatient", pat)))
                     .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
-                    .then(() => this._getMessagesWithMetaPatientId(_.trim(_.get(this,"_data.currentPatient.id",""))).then(messages => this.set("_data.messages", messages)))
+                    .then(() => this._getDocumentsAndMessagesWithMetaPatientId(_.trim(_.get(this,"_data.currentPatient.id",""))).then(messages => this.set("_data.documentsAndMessages", messages)))
                     .then(() => this._getContactsWithFile(_.get(this,"_data.currentPatient",{})).then(contacts => this.set("_data.contacts", contacts)))
                     .then(() => this._getPrettifiedHcps(_.uniq(_.compact(_.map(_.get(this,"_data.contacts",[]), ctc => _.trim(_.get(ctc,"contact.responsible","")))))).then(hcps=>this.set("_data.hcps", hcps)))
                     .then(() => this._getPrettifiedDataForGrid().then(prettifiedDataForGrid => this.set("_vaadinGridDataToShow", prettifiedDataForGrid)))
