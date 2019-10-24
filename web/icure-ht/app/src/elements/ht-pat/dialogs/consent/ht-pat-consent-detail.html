@@ -446,6 +446,32 @@
                 font-weight: bold;
             }
 
+            #readEidInfoDialog{
+                height: 300px;
+                width: 400px;
+            }
+
+            .content-line{
+                height: 20px;
+            }
+
+            .eid-content-dialog{
+                height: 100%;
+                position: relative;
+                margin: 0px;
+                background: white;
+            }
+
+            .eid-title{
+                heigth: 20px;
+                width: auto;
+                padding: 4px;
+                background-color: var(--app-background-color-dark);
+            }
+
+            .legaltextCS{
+                padding: 10px;
+            }
 
         </style>
 
@@ -572,7 +598,9 @@
                         </page>
                         <page>
                             <ht-spinner active="[[isLoading]]"></ht-spinner>
-                            <div id="legaltextCS">[[localize('cons_legal', 'Informed consent legal text ...', language)]]</div>
+                            <div class="legaltextCS">
+                                Merci de donner à votre patient les informations suivantes : <ul><li>Je consens à faciliter l'échange de mes données médicales par voie électronique, dans le cadre de la prise en charge de ma santé. </li><li>Vous avez donné votre accord pour l'échange (par voie électronique et dans le cadre de la prise en charge de votre santé) de données relatives à votre santé entre les prestataires de soins autorisés (un lien thérapeutique avéré existe entre votre personne et ce prestataire et vous n'avez enregistré aucune exclusion envers ce prestataire). </li><li>Afin de permettre cet échange électronique, vous êtes également d'accord pour que ces données de santé soient référencées au sein d'un répertoire indiquant où ces données sont disponibles (par exemple au sein de quel hôpital). </li><li>Pour rappel, cette disposition respecte les droits des patients, la loi relative à la vie privée et la déontologie médicale. </li></ul>
+                            </div>
                             <div class="m5">
                                 <paper-icon-button icon="vaadin:health-card" id="read-eid" class="eid" on-tap="_readEid"></paper-icon-button>
                                 <vaadin-combo-box id="consentType" class="w100" label="[[localize('cs-type', 'Therapeutic link type', language)]]" filter="{{consentFilter}}" selected-item="{{selectedConsentType}}"  filtered-items="[[availableConsentType]]" item-label-path="label.fr" >
@@ -605,17 +633,33 @@
                 <div class="buttons">
                     <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
                     <template is="dom-if" if="[[_isRevokeAvailable(selectedConsent, tabs)]]">
-                        <paper-button class="button button--other" on-tap=""><iron-icon icon="vaadin:close-circle-o" class="mr5 smallIcon" ></iron-icon> [[localize('cs-revoke','Revoke',language)]]</paper-button>
+                        <paper-button class="button button--other" on-tap="_revokeEidDialog"><iron-icon icon="vaadin:close-circle-o" class="mr5 smallIcon" ></iron-icon> [[localize('cs-revoke','Revoke',language)]]</paper-button>
                     </template>
                     <template is="dom-if" if="[[_isRegisterTab(tabs)]]">
-                        <paper-button class="button button--other" on-tap=""><iron-icon icon="vaadin:plus-circle-o" class="mr5 smallIcon" ></iron-icon> [[localize('cs-add','Add',language)]]</paper-button>
+                        <paper-button class="button button--other" on-tap="_registerConsent"><iron-icon icon="vaadin:plus-circle-o" class="mr5 smallIcon" ></iron-icon> [[localize('cs-add','Add',language)]]</paper-button>
                     </template>
                     <template is="dom-if" if="[[!_isRegisterTab(tabs)]]">
-                        <paper-button class="button button--other" on-tap="_refresh"><iron-icon icon="icons:refresh" class="mr5 smallIcon" ></iron-icon> [[localize('refresh','Refresh',language)]]</paper-button>
+                        <paper-button class="button button--other" on-tap="_refreshConsentList"><iron-icon icon="icons:refresh" class="mr5 smallIcon" ></iron-icon> [[localize('refresh','Refresh',language)]]</paper-button>
                     </template>
                 </div>
             </div>
 
+        </paper-dialog>
+
+        <paper-dialog id="readEidInfoDialog">
+            <div class="eid-content-dialog">
+                <div class="eid-title">
+                    Introduction des données EID / ISI +
+                </div>
+                <div class="content-dialog">
+                    <paper-input id="idCardNo" always-float-label label="[[localize('eid_no','eID Card Number',language)]]" value="{{eidCardNumber}}"></paper-input>
+                    <paper-input id="isiCardNo" always-float-label label="[[localize('isi_no','ISI+ Card Number',language)]]" value="{{isiCardNumber}}"></paper-input>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button" on-tap="_closeEidDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                    <paper-button class="button button--save" on-tap="_revoke"><iron-icon icon="vaadin:close-circle-o" class="mr5 smallIcon" ></iron-icon> [[localize('cs-revoke','Revoke',language)]]</paper-button>
+                </div>
+            </div>
         </paper-dialog>
 
     </template>
@@ -744,7 +788,7 @@
                         console.log(nationalResp)
                         console.log(hubResp)
                         this.set('currentConsent', {nationalResp: nationalResp, hubResp: hubResp})
-                        this.set('consentList', _.concat(_.assign(_.get(this, 'currentConsent.hubResp', {}), {csType: "hub"}), _.assign(_.get(this, 'currentConsent.nationalResp.consent'), {csType: "national"})))
+                        this.set('consentList', _.compact(_.concat(!_.isEmpty(_.get(this, 'currentConsent.hubResp', {})) ? _.assign(_.get(this, 'currentConsent.hubResp', {}), {csType: "hub"}) : null, !_.isEmpty(_.get(this, 'currentConsent.nationalResp.consent', {})) ? _.assign(_.get(this, 'currentConsent.nationalResp.consent'), {csType: "national"}) : null)))
                     })
                     .finally(() => {
                         if(this.hubSupportsConsent){
@@ -762,10 +806,28 @@
                         this.set('isiCardNumber', null)
                         this.set('isNotificationSuccess', false)
                         this.set('errorList', [])
-                        this.set('availableConsentType', _.get(this, 'consentType').filter(csType => !this.consentList.find(csl => csl.csType === csType.type)))
+                        this.set('availableConsentType', _.get(this, 'consentType', []).filter(csType => !this.consentList.find(csl => csl.csType === csType.type)))
                         this.set('selectedConsentType', _.head(_.get(this, 'availableConsentType', [])))
                         this.$['consentDetailDialog'].open();
                     })
+            }
+
+            _refreshConsentList(){
+                Promise.all([
+                    this.api.fhc().Consentcontroller().getPatientConsentUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'firstName', null), _.get(this.hcp, 'lastName', null), _.get(this.patient, 'ssin', null), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null)),
+                    this.api.fhc().Hubcontroller().getPatientConsentUsingGET1(this.hubEndPoint, _.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(this.hcp, "lastName", null), _.get(this.hcp, "firstName", null), _.get(this.hcp, "nihii", null), _.get(this.hcp, "ssin", null), _.get(this, 'hcpZip', null), _.get(this.patient, "ssin", null))
+                ])
+                .then(([nationalResp, hubResp]) => {
+                    console.log(nationalResp)
+                    console.log(hubResp)
+                    this.set('currentConsent', {nationalResp: nationalResp, hubResp: hubResp})
+                    this.set('consentList', _.compact(_.concat(!_.isEmpty(_.get(this, 'currentConsent.hubResp', {})) ? _.assign(_.get(this, 'currentConsent.hubResp', {}), {csType: "hub"}) : null, !_.isEmpty(_.get(this, 'currentConsent.nationalResp.consent', {})) ? _.assign(_.get(this, 'currentConsent.nationalResp.consent'), {csType: "national"}) : null)))
+                    this.set('selectedConsentType', _.head(_.get(this, 'availableConsentType', [])))
+                    this.set('availableConsentType', _.get(this, 'consentType').filter(csType => !this.consentList.find(csl => csl.csType === csType.type)))
+                    this.set('tabs', 0)
+                }).finally(() => {
+                    this.set("isLoading",false)
+                })
             }
 
             _closeDialogs(){
@@ -885,6 +947,18 @@
                 return _.get(_.get(item, 'patient.ids', []).find(id => _.get(id, "s", null) === "INSS"), 'value', null) ? this.formatNissNumber(_.get(_.get(item, 'patient.ids', []).find(id => _.get(id, "s", null) === "INSS"), 'value', null)) : null
             }
 
+            _revokeEidDialog(){
+                this.set('eidCardNumber', null)
+                this.set('isiCardNumber', null)
+                this.$['readEidInfoDialog'].open()
+            }
+
+            _closeEidDialog(){
+                this.set('eidCardNumber', null)
+                this.set('isiCardNumber', null)
+                this.$['readEidInfoDialog'].close()
+            }
+
             _revoke(){
                 this.set('errorList', [])
                 this.set("isLoading",true)
@@ -892,9 +966,21 @@
             }
 
             _revokeHubConsent(){
-                this.api.fhc().Hubcontroller().revokePatientConsentUsingDELETE(_.get(this, "hubEndPoint", null), _.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(this.hcp, "lastName", null), _.get(this.hcp, "firstName", null), _.get(this.hcp, "nihii", null), _.get(this.hcp, "ssin", null), this.hcpZip, this.cleanNiss(_.get(this.patient, "ssin", null)))
+                this.set("isLoading",true)
+                this.api.fhc().Hubcontroller().revokePatientConsentUsingDELETE(_.get(this, "hubEndPoint", null), _.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(this.hcp, "lastName", null), _.get(this.hcp, "firstName", null), _.get(this.hcp, "nihii", null), _.get(this.hcp, "ssin", null), this.hcpZip, this.cleanNumberSequence(_.get(this.patient, "ssin", null)))
                     .then(revokeResp => {
                         console.log(revokeResp)
+                        if(!_.isEmpty(revokeResp) && (_.get(revokeResp, "acknowledge.isComplete", false) === true)){
+                            this._closeEidDialog()
+                            this.set("isLoading",false)
+                            this._refreshConsentList()
+                            this.set('tabs', 0)
+                            this.dispatchEvent(new CustomEvent('refresh-consent',{detail: {}, bubbles:true, composed:true}))
+                        }
+                    })
+                    .finally(() => {
+                        this.$['readEidInfoDialog'].close()
+                        this.set("isLoading",false)
                     })
             }
 
@@ -902,25 +988,49 @@
                 this.api.fhc().Consentcontroller().getPatientConsentUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.nihii, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName, this.patient.ssin, this.patient.firstName, this.patient.lastName)
                     .then(consent => !_.isEmpty(consent) ? this.api.fhc().Consentcontroller().revokePatientConsentUsingPOST(_.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(this.hcp, "nihii", null), _.get(this.hcp, "ssin", null), _.get(this.hcp, "firstName", null), _.get(this.hcp, "lastName", null), _.get(consent, 'consent', {}), _.get(this, "eidCardNumber", null), _.get(this, "isiCardNumber", null)): Promise.resolve({}))
                     .then(revokeResp => {
-                            console.log(revokeResp)
+                        console.log(revokeResp)
+                        this._refreshConsentList()
+                        this.set('tabs', 0)
+                        this.dispatchEvent(new CustomEvent('refresh-consent',{detail: {}, bubbles:true, composed:true}))
                     })
                     .finally(() =>{
+                        this.$['readEidInfoDialog'].close()
                         this.set("isLoading",false)
                     })
+            }
+
+            _registerConsent(){
+                this.set('errorList', [])
+                this.set("isLoading",true)
+                _.get(this.selectedConsentType, 'type', null) === "national" ? this._registerNationalConsent() : this._registerHubConsent()
             }
 
             _registerHubConsent(){
                 this.api.fhc().Hubcontroller().putPatientUsingPOST(this.hubEndPoint, _.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(this.hcp, "lastName", null), _.get(this.hcp, "firstName", null), _.get(this.hcp, "nihii", null), _.get(this.hcp, "ssin", null), this.hcpZip, _.get(this.patient, "ssin", null), _.get(this.patient, "firstName", null), _.get(this.patient, "lastName", null), _.get(this.patient, "gender", null), _.get(this.patient, "dateOfBirth", null))
                     .then(consentResp => {
                         console.log(consentResp)
+                        if(!_.isEmpty(consentResp)){
+                            this._refreshConsentList()
+                            this.set('tabs', 0)
+                            this.dispatchEvent(new CustomEvent('refresh-consent',{detail: {}, bubbles:true, composed:true}))
+                        }
                     })
             }
 
             _registerNationalConsent(){
-                this.api.fhc().Consentcontroller().registerPatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.nihii, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName, this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber)
+                this.api.fhc().Consentcontroller().registerPatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.nihii, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName, this.cleanNumberSequence(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber)
                     .then(consentResp => {
                         console.log(consentResp)
+                        if(!_.isEmpty(consentResp)){
+                            this._refreshConsentList()
+                            this.set('tabs', 0)
+                            this.dispatchEvent(new CustomEvent('refresh-consent',{detail: {}, bubbles:true, composed:true}))
+                        }
                     })
+            }
+
+            cleanNumberSequence(niss){
+                return niss && niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
             }
 
 
