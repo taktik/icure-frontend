@@ -1,6 +1,7 @@
 <link rel="import" href="../../../../bower_components/polymer/polymer.html">
 <link rel="import" href="../../../../bower_components/vaadin-material-theme/vaadin-grid.html">
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid.html">
+<link rel="import" href="../../../../bower_components/vaadin-icons/vaadin-icons.html">
 <link rel="import" href="../../../../bower_components/paper-dialog/paper-dialog.html">
 <link rel="import" href="../../../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../../../bower_components/toggle-icon/toggle-icon.html">
@@ -200,8 +201,7 @@
             .boxes-qty {
                 display: inline-block;
                 text-align: right;
-                horiz-align: right;
-                /*width: 18px;*/
+                width: 100%;
             }
 
             .names-mobile-only {
@@ -661,6 +661,13 @@
                 height: 0px;
                 width: 0px;
             }
+
+            .list-icon {
+                padding: 0;
+                height: 16px;
+                width: 16px;
+            }
+
         </style>
 
         <paper-dialog id="medication-prescription" always-on-top no-cancel-on-outside-click no-cancel-on-esc-key>
@@ -678,12 +685,26 @@
                                     <paper-icon-button id="remove-[[_id(item)]]" class="list-item-icon--add" role="button" icon="icons:remove" on-tap="_removeFromAcc"></paper-icon-button>
                                 </template>
                             </vaadin-grid-column>
-                            <vaadin-grid-column width="64px" flex-grow="0">
+                            <vaadin-grid-column width="40" flex-grow="0">
                                 <template class="header">
-                                    <div>[[localize('boxes','Boîtes',language)]]</div>
+                                    <div>[[localize('qua_abr','Qté',language)]]</div>
                                 </template>
                                 <template>
                                     <span class="boxes-qty">{{item.boxes}}</span>
+                                </template>
+                            </vaadin-grid-column>
+                            <vaadin-grid-column width="40px" flex-grow="0">
+                                <template class="header">
+                                    <div>[[localize('type','Type',language)]]</div>
+                                </template>
+                                <template>
+                                    <template is="dom-if" if="[[_isMedicinePackage(item)]]">
+                                        <iron-icon icon="vaadin:package" class="list-icon"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[_isIngredient(item)]]">
+                                        <iron-icon icon="vaadin:pill" class="list-icon"></iron-icon>
+                                    </template>
+
                                 </template>
                             </vaadin-grid-column>
                             <vaadin-grid-column flex-grow="1">
@@ -1533,8 +1554,8 @@
                 </div>
                 <div id="dosage-pane" class$="right-pane [[_activePaneClass('dosage', trigger)]]">
                     <medication-details id="medication-details" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
-                                        selected-medication-content-with-id="{{selectedMedicationContentWithId}}"
-                                        medication="[[selectedMedicationFromAccumulator]]"
+                                        allergies="[[allergies]]" reimbursementCodeRecipe="[[reimbursementCodeRecipe]]" timeUnit="[[timeUnit]]"
+                                        selected-medication-content-with-id="{{selectedMedicationContentWithId}}" medication="[[selectedMedicationFromAccumulator]]"
                                         on-value-changed="_medicationDetailValueChanged">
                     </medication-details>
                 </div>
@@ -1636,7 +1657,6 @@
                         value: false,
                         observer: "_searchOnIngredientsChanged"
                     },
-
                     ingredients: {
                         type: Array,
                         value: () => []
@@ -1645,32 +1665,26 @@
                         type: Array,
                         value: () => []
                     },
-
                     medicinalProduct: {
                         type: Object,
                         value: null
                     },
-
                     ingredient: {
                         type: Object,
                         value: null
                     },
-
                     chronic: {
                         type: Object,
                         value: null
                     },
-
                     history: {
                         type: Object,
                         value: null
                     },
-
                     masterly: {
                         type: Object,
                         value: null
                     },
-
                     filterValue: {
                         type: String,
                         value: ""
@@ -1689,18 +1703,6 @@
                         type: Boolean,
                         value: true
                     },
-
-                    trigger: {
-                        type: String,
-                        notify: true,
-                        value: ''
-                    },
-
-                    Allergies: {
-                        type: Array,
-                        value: () => []
-                    },
-
                     iconsMapping: {
                         type: Object,
                         value: () => ({
@@ -1708,37 +1710,43 @@
                             adr: "vaadin:pill"
                         })
                     },
-
-                    trigger: {
-                        type: String,
-                        notify: true,
-                        value: ''
-                    },
-
                     panes: {
                         type: Object,
                         value: []
                     },
-
                     selectedMedicationContentWithId: {
                         type: Object,
                         value: null,
                     },
-
                     selectedMedicationFromAccumulator: {
                         type: Object,
                         value: null,
                         notify: true
                     },
-
                     medication: {
                         type: Object,
                         value: null
                     },
-
                     searchList: {
                         type: Array,
                         value: []
+                    },
+                    trigger: {
+                        type: String,
+                        notify: true,
+                        value: ''
+                    },
+                    allergies: {
+                        type: Array,
+                        value: () => []
+                    },
+                    reimbursementCodeRecipe: {
+                        type: Array,
+                        value: () => []
+                    },
+                    timeUnit: {
+                        type: Array,
+                        value: () => []
                     }
                 }
             }
@@ -1795,44 +1803,60 @@
             }
 
             open(medication, options = {}) {
-                this._showPane('search');
-
-                // @todo: prevent race condition
+                // @todo: spinner
                 this.api.helement().findBy(this.user.healthcarePartyId, this.patient)
-                    .then(hes => this.Allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && (tag.code === "allergy" || tag.code === "adr")))
-                        .map(he => {
-                            return {
-                                atc: (he.codes.find(code => code.type === "CD-ATC") || {code: ""}).code,
-                                cnk: (he.codes.find(code => code.type === "CD-DRUG-CNK") || {code: ""}).code,
-                                type: (he.tags.find(tag => tag.code === "allergy" || tag.code === "adr") || {code: ""}).code
-                            }
-                        })
-                        .filter(allergy => allergy.atc && allergy.type)
-                    );
+                    .then(hes => {
+                        const allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && (tag.code === "allergy" || tag.code === "adr")))
+                            .map(he => {
+                                const atcCode = he.codes.find(code => code.type === "CD-ATC");
+                                return {
+                                    atcCode: atcCode && atcCode.code || "",
+                                    atcLabel: atcCode && atcCode.label && atcCode.label[this.language] || "",
+                                    cnk: (he.codes.find(code => code.type === "CD-DRUG-CNK") || {code: ""}).code,
+                                    type: (he.tags.find(tag => tag.code === "allergy" || tag.code === "adr") || {code: ""}).code,
+                                    descr: he.descr
+                                }
+                            })
+                            .filter(allergy => allergy.atcCode && allergy.atcLabel && allergy.type);
+                        this.set("allergies", allergies);
+                    })
+                    .then (() => {
+                        if (this.reimbursementCodeRecipe && this.reimbursementCodeRecipe.length) return Promise.resolve();
+                        return this.api.code().findPaginatedCodes('be', 'CD-REIMBURSEMENT-RECIPE', '');
+                    })
+                    .then(reimb => this.set("reimbursementCodeRecipe", _.orderBy(reimb.rows, ['label.fr'], ['asc'])))
+                    .then(() => {
+                        if (this.timeUnit && this.timeUnit.length) return Promise.resolve();
+                        return this.api.code().findPaginatedCodes('be', 'CD-TIMEUNIT', '')
+                    })
+                    .then(timeUnit => this.set("timeUnit", _.orderBy(_.filter(_.get(timeUnit, "rows", []), i => ["ns", "us", "ms", "s", "min"].indexOf(_.trim(_.get(i, "code"))) === -1), ['label.fr'], 'asc')))
+                    .catch(err => console.log(err))
+                    .finally(() => {
+                        this.set('newMedication', medication || {content: {}});
+                        this.set('medicationAccumulator', []);
 
-                this.set('newMedication', medication || {content: {}});
-                this.set('medicationAccumulator', []);
+                        this.set('isPrescription', options.isPrescription);
 
-                this.set('isPrescription', options.isPrescription);
+                        this.set('compoundFilterString', '');
+                        this.set('compound', '');
+                        this.set('compoundPrescriptionText', '');
 
-                this.set('compoundFilterString', '');
-                this.set('compound', '');
-                this.set('compoundPrescriptionText', '');
+                        this.$['medication-prescription'].open();
 
-                this.$['medication-prescription'].open();
+                        const insurability = ((this.patient || {}).insurabilities || []).find(a => !a.endDate && a.insuranceId && a.insuranceId !== "") || null;
+                        if (insurability && insurability.parameters) {
+                            this.set('patientBim', (parseInt(insurability.parameters.tc1) % 2) === 1);
+                        }
 
-                const insurability = ((this.patient || {}).insurabilities || []).find(a => !a.endDate && a.insuranceId && a.insuranceId !== "") || null;
-                if (insurability && insurability.parameters) {
-                    this.set('patientBim', (parseInt(insurability.parameters.tc1) % 2) === 1);
-                }
+                        this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
 
-                this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
-
-                this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), '_servicesSearch_medications', this._serviceAdapter.bind(this));
-                this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), '_servicesSearch_prescriptions', this._serviceAdapter.bind(this));
-                this._initList('medicine-package-list', this._medicinePackageHierarchicalSearchSamV2.bind(this), '_medicinePackageHierarchicalSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
-                this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), '_ingredientSearchSamV2', this._ingredientAdapterSamV2.bind(this));
-                this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), '_compoundPrescriptionsSearch', this._serviceAdapter.bind(this));
+                        this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), '_servicesSearch_medications', this._serviceAdapter.bind(this));
+                        this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), '_servicesSearch_prescriptions', this._serviceAdapter.bind(this));
+                        this._initList('medicine-package-list', this._medicinePackageHierarchicalSearchSamV2.bind(this), '_medicinePackageHierarchicalSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
+                        this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), '_ingredientSearchSamV2', this._ingredientAdapterSamV2.bind(this));
+                        this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), '_compoundPrescriptionsSearch', this._serviceAdapter.bind(this));
+                        this._showPane('search');
+                    });
             }
 
             _init() {
@@ -1958,15 +1982,21 @@
             }
 
             _getAllergyType(item) {
-                if (!item || !item.atcs || !item.atcs.length) return "";
-                const allergies = this.Allergies.filter(allergy => (allergy.cnk && (item.id === allergy.cnk)) || (item.atcs.some(atc => atc.code === allergy.atc)));
-                if (allergies.some(allergy => allergy.type === "allergy")) {
+                // if (!item || !item.atcs || !item.atcs.length) return "";
+                // const allergies = this.allergies.filter(allergy => (allergy.cnk && (item.id === allergy.cnk)) || (item.atcs.some(atc => atc.code === allergy.atcCode)));
+                if (!item || !item.allergies) return "";
+                if (item.allergies.some(allergy => allergy.type === "allergy")) {
                     return "allergy";
-                } else if (allergies.some(allergy => allergy.type === "adr")) {
+                } else if (item.allergies.some(allergy => allergy.type === "adr")) {
                     return "adr";
                 } else {
                     return "";
                 }
+            }
+
+            _getAllergies(item) {
+                if (!item || !item.atcs || !item.atcs.length) return "";
+                return this.allergies.filter(allergy => (allergy.cnk && (item.id === allergy.cnk)) || (item.atcs.some(atc => atc.code === allergy.atcCode)));
             }
 
             _deliveryStatus(info) {
@@ -2110,14 +2140,18 @@
                         return this.api.besamv2().findPaginatedAmpsByGroupCode(vmpGroup.code, null, null, 1)
                             .then(results => (results && results.rows || []))
                             .then(amps => {
+                                const id = vmpGroup.code;
                                 const amp = _.head(amps);
                                 const ampp = _.get(amp, "ampps", []).find(ampp => !ampp.to && ampp.atcs && ampp.atcs.length && ampp.dmpps && ampp.dmpps.length &&
                                     ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P' && dmpp.codeType === 'CNK' && !dmpp.to));
+                                const atcCodes = ampp && ampp.atcs && ampp.atcs.map(atc => atc.code) || [];
+                                const allergies = this.allergies.filter(allergy => (allergy.cnk && (id === allergy.cnk)) || (atcCodes && atcCodes.some(atcCode => atcCode === allergy.atcCode) || ""));
                                 return Object.assign(vmpGroup, {
-                                        id: vmpGroup.code,
+                                        id: id,
                                         label: _.get(vmpGroup, "name[" + this.language + "]", ""),
                                         unit: _.get(amp, "components[0].pharmaceuticalForms[0].name[" + this.language + "]", ""),
-                                        atcs: _.get(ampp, "atcs", [])
+                                        atcCodes: atcCodes,
+                                        allergies: allergies
                                     });
                             })
                         })
@@ -2131,8 +2165,8 @@
                         const item = {
                             "id": vmpGroup.id,
                             "label": vmpGroup.label,
-                            "atc": _.get(vmpGroup, "atcs[0].code", ""),
-                            "atcCat": _.get(vmpGroup, "atcs[0].code[0]", ""),
+                            "atcCodes": vmpGroup.atcCodes,
+                            "atcCat": _.get(vmpGroup, "atcCodes[0][0]", ""),
                             "unit": vmpGroup.unit,
                             "allergyType": this._getAllergyType(vmpGroup),
                             "noSwitchReason": vmpGroup.noSwitchReason,
@@ -2179,6 +2213,8 @@
                                         const hasChildren = (level === 0) && !!groupId;
                                         const id = publicDmpp && publicDmpp.codeType === 'CNK' && publicDmpp.code;
                                         const unit = _.get(row, "components[0].pharmaceuticalForms[0].name[" + this.language + "]", "");
+                                        const atcCodes = row.atcs && row.atcs.map(atc => atc.code) || [];
+                                        const allergies = this.allergies.filter(allergy => (allergy.cnk && (id === allergy.cnk)) || (atcCodes && atcCodes.some(atcCode => atcCode === allergy.atcCode) || ""));
 
                                         return Object.assign(ampp, {
                                             id: id,
@@ -2190,6 +2226,8 @@
                                             currentReimbursement: currentReimbursement,
                                             prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
                                             unit: unit,
+                                            atcs: atcCodes,
+                                            allergies: allergies,
                                             amp: row
                                         })
                                     }));
@@ -2252,8 +2290,8 @@
                             "parentUuid": ampp.parentUuid,
                             "ctiExtended": ampp.ctiExtended,
                             "label": ampp.prescriptionName,
-                            "atc": _.get(ampp, "atcs[0].code", ""),
-                            "atcCat": _.get(ampp, "atcs[0].code[0]", ""),
+                            "atcCodes": ampp.atcCodes,
+                            "atcCat": _.get(ampp, "atcCodes[0][0]", ""),
                             "allergyType": this._getAllergyType(ampp),
                             "patientPrice": ampp.id && ampp.patientPrice.toFixed(2) + "€",
                             "publicPrice": ampp.id && ampp.publicPrice.toFixed(2) + "€",
@@ -2557,6 +2595,14 @@
 
             }
 
+            _isIngredient(med) {
+                return med && med.drugType === "CD-INNCLUSTER";
+            }
+
+            _isMedicinePackage(med) {
+                return med && med.drugType === "CD-DRUG-CNK";
+            }
+
 
             _addMedication(med) {
                 // this._showPane('dosage');
@@ -2599,7 +2645,11 @@
                             boxes: 1,
                             newMedication: newMedClone,
                             id: med.id,
-                            options: {isPrescription: this.isPrescription}
+                            options: {isPrescription: this.isPrescription},
+                            intendedName: med.label,
+                            atcCat: med.atcCat,
+                            allergyType: med.allergyType,
+                            drugType: drugType
                         })
                     }
                 }

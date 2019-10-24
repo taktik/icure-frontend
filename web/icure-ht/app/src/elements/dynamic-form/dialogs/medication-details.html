@@ -14,6 +14,7 @@
 <link rel="import" href="../../../styles/dialog-style.html">
 <link rel="import" href="../../../styles/paper-input-style.html">
 <link rel="import" href="../../../styles/dropdown-style.html">
+<link rel="import" href="../../../styles/atc-styles.html">
 <link rel="import" href="../../../../bower_components/iron-autogrow-textarea/iron-autogrow-textarea.html">
 
 <link rel="import" href="../ht-regimen.html">
@@ -21,7 +22,7 @@
 
 <dom-module id="medication-details">
     <template>
-        <style include="scrollbar-style dropdown-style dialog-style vaadin-icure-theme">
+        <style include="scrollbar-style dropdown-style dialog-style atc-styles vaadin-icure-theme">
             .container {
                 max-height: calc(100% - 64px);
                 height: 100%;
@@ -531,25 +532,50 @@
                 padding: 2px;
             }
 
+            .colour-code span{
+                content: '';
+                display: inline-block;
+                height: 24px;
+                width: 24px;
+                border-radius: 50%;
+                vertical-align: middle;
+                background-color: transparent;
+                margin-right: 12px;
+            }
+            .icon-code {
+                width: 24px;
+                height: 24px;
+                color: var(--app-primary-color-dark);
+                margin-right: 12px;
+            }
+            .title {
+                display: flex;
+                align-items: center;
+                flex-direction: row;
+                padding: 12px;
+            }
+
         </style>
         <div class="content container">
+            <h2>[[medicationDetail.intendedName]]</h2>
+            <template is="dom-if" if="[[_hasAllergies(medicationDetail)]]">
+                <div class="allergy-alert">
+                    <iron-icon class="alert-icon" icon="icons:warning"></iron-icon>
+                    <h5>[[_getAllergyInfo(medicationDetail)]]</h5>
+                </div>
+            </template>
+<!--            <div class="title">-->
+<!--                <template is="dom-if" if="[[_hasIcon(medicationDetail)]]">-->
+<!--                    <iron-icon class$="icon-code [[_getStyle('ATC', medicationDetail.atcCat)]]" icon="[[_getIcon(medicationDetail)]]"></iron-icon>-->
+<!--                </template>-->
+<!--                <template is="dom-if" if="[[_hasColor(medicationDetail)]]">-->
+<!--                    <label class$="colour-code [[_getAtcStyle(medicationDetail.atcCat)]]"><span></span></label>-->
+<!--                </template>-->
+<!--            </div>-->
             <div class="regimen-line display-type-regimen">
                 <vaadin-checkbox checked="[[selectedMedicationContentWithId.medicationValue.substitutionAllowed]]" id="substitutionAllowed" on-checked-changed="_substitutionAllowedChanged">[[localize('', 'Chronique', language)]]</vaadin-checkbox>
                 <paper-input type="number" min="0" label="[[localize('', 'Quantité prescrite', language)]]" value="{{medicationDetail.boxes}}"></paper-input>
-                <paper-dropdown-menu id="medicReimbursement" label="[[localize('presc_reimb', 'Reimbursement', language)]]" class="regimen--reimbursement">
-                    <paper-listbox slot="dropdown-content" class="dropdown-reimbursement" selected={{selectedMedicationContentWithId.medicationValue.reimbursementItemIdx}} selected-item="{{reimbursementItem}}">
-                        <template is="dom-repeat" items="[[reimbursementCodeRecipe]]" as="code">
-                            <paper-item id="[[code.id]]">[[_getCodeLabel(code.label)]]</paper-item>
-                        </template>
-                    </paper-listbox>
-                </paper-dropdown-menu>
             </div>
-<!--            <div class="regimen-line display-type-regimen">-->
-<!--                <paper-input-container always-float-label="true" class="comment">-->
-<!--                    <label slot="label" class="color-status">[[localize('','Posologie CBIP',language)]]</label>-->
-<!--                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedMedicationContentWithId.medicationValue.commentForDelivery}}"></iron-autogrow-textarea>-->
-<!--                </paper-input-container>-->
-<!--            </div>-->
             <div class="regimen-line display-type-regimen">
                 <paper-input type="number" min="0" label="[[localize('', 'Quantité', language)]]" value="{{selectedMedicationContentWithId.medicationValue.renewalDecimalValue}}"></paper-input>
                 <paper-dropdown-menu id="medicRenewalTimeUnit" label="[[localize('','Nature',language)]]" class="regimen--renewalTimeUnit">
@@ -941,6 +967,11 @@
                     medication: {
                         type: Object,
                         value: null
+                    },
+
+                    allergies: {
+                        type: Array,
+                        value: () => []
                     }
                 }
             }
@@ -980,14 +1011,23 @@
             }
 
             ready() {
-                // @todo prevent race condition
                 super.ready();
-                if (!this.reimbursementCodeRecipe || this.reimbursementCodeRecipe.length === 0 || !this.timeUnit || this.timeUnit.length === 0) {
-                    this.api.code().findPaginatedCodes('be', 'CD-REIMBURSEMENT-RECIPE', '')
-                        .then(reimb => this.set("reimbursementCodeRecipe", _.orderBy(reimb.rows, ['label.fr'], ['asc'])))
-                        .then(() => this.api.code().findPaginatedCodes('be', 'CD-TIMEUNIT', ''))
-                        .then(timeUnit => this.set("timeUnit", _.orderBy(_.filter(_.get(timeUnit, "rows", []), i => ["ns", "us", "ms", "s", "min"].indexOf(_.trim(_.get(i, "code"))) === -1), ['label.fr'], 'asc')))
+            }
+
+            _hasAllergies(item) {
+                return item && item.allergies && item.allergies.length;
+            }
+
+            _getAllergyInfo(item) {
+                if (!this._hasAllergy(item)) return "";
+                if (item.allergies.some(allergy => allergy.type === "allergy")) {
+                    return "allergy";
+                } else if (item.allergies.some(allergy => allergy.type === "adr")) {
+                    return "adr";
+                } else {
+                    return "";
                 }
+
             }
 
             _any(a,b,c,d,e) {
