@@ -401,7 +401,8 @@
                     <div class="hub-submenu-container">
                         <ht-spinner active="[[isLoading]]"></ht-spinner>
                         <template is="dom-if" if="[[_enableTransactionList(patientHubConsent, hubSupportsConsent)]]">
-                            <template is="dom-repeat" items="[[_getHcPartyTypes(hubTransactionList, 'hub')]]" as="hcptype" >
+                            <paper-input label="[[localize('filter','Filter',language)]]" value="{{filter}}" ></paper-input>
+                            <template is="dom-repeat" items="[[_getHcPartyTypes(hubTransactionListFiltered, 'hub')]]" as="hcptype" >
                                 <collapse-button opened="true" id="[[hcptype]]">
                                     <paper-item id="account" slot="sublist-collapse-item" class="menu-trigger menu-item bold" on-tap="toggleMenu" elevation="">
                                         <div class="one-line-menu list-title account-line">
@@ -418,7 +419,7 @@
                                             <div class="authTit">[[localize('aut','Author',language)]]</div>
                                             <div class="patTit"></div>
                                         </div>
-                                        <template is="dom-repeat" items="[[_filterList(hubTransactionList, hcptype)]]">
+                                        <template is="dom-repeat" items="[[_filterList(hubTransactionListFiltered, hcptype)]]">
                                             <collapse-button>
                                                 <paper-item slot="sublist-collapse-item" id$="[[item]]" data-item$="[[item]]" aria-selected="[[selected]]" class$="menu-trigger menu-item [[isIronSelected(selected)]]" on-tap="transactionItemClick">
                                                     <div id="subMenu" class="table-line-menu">
@@ -561,6 +562,12 @@
                             return [];
                         }
                     },
+                    hubTransactionListFiltered:{
+                        type: Array,
+                        value: function(){
+                            return [];
+                        }
+                    },
                     selectedTransaction:{
                         type: Object
                     },
@@ -575,12 +582,16 @@
                     breakTheGlassReason:{
                         type: String,
                         value: null
+                    },
+                    filter:{
+                        type: String,
+                        value: ""
                     }
                 };
             }
 
             static get observers() {
-                return ['apiReady(api,user,opened)'];
+                return ['apiReady(api,user,opened)', 'filterChanged(filter)'];
             }
 
             ready() {
@@ -684,7 +695,7 @@
                         this.hubEndPoint = this.curEnv === 'acc' ? 'https://servicestest.cozo.be/IntrahubServiceTest/servicev3.asmx' : '';
                         this.set("hubSupportsConsent", false);
                         this.hubPackageId = null;
-                        this.hubApplication = "COZO";
+                        this.hubApplication = "TST2017";
                         this.set("supportBreakTheGlass", false);
                         break;
                     case 'vitalink':
@@ -708,6 +719,8 @@
                 });
                 this._getHubTransactionList().then(tranResp => {
                     this.set('hubTransactionList', tranResp);
+                    this.addSearchField();
+                    this.filterChanged();
                     this.set('isLoading', false);
                 }).catch(error => {
                     this.set('isLoading', false);
@@ -719,6 +732,19 @@
                         this.getHubPatient().then(hubPat => this.set('patientHubInfo', hubPat)).catch(error => {console.log(error);})
                     }).catch(error => {console.log(error);})
                 }
+            }
+
+            addSearchField(){
+                this.hubTransactionList.forEach(tr => tr.searchField = this._transactionType(tr).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")
+                + "|" + this._transactionCDHcParties(tr, 'hub').map(hcp => this._localizeHcpType(hcp)).join("|").toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ""))
+
+                //_localizeHcpType
+            }
+
+            filterChanged(){
+                console.log("filterchanged", this.filter);
+                //this.set('hubTransactionListFiltered', this.hubTransactionList && this.hubTransactionList.length ? this.hubTransactionList.filter(tr => this._transactionType(tr).toLowerCase().includes(this.filter)) : [] );
+                this.set('hubTransactionListFiltered', this.hubTransactionList && this.hubTransactionList.length ? this.hubTransactionList.filter(tr => tr.searchField.includes(this.filter.normalize('NFD').replace(/[\u0300-\u036f]/g, ""))) : [] );
             }
 
             close() {
