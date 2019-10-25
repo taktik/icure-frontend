@@ -510,7 +510,7 @@
                 position: relative;
                 box-sizing: border-box;
                 float: left;
-                padding: 24px 12px 12px 24px;
+                padding: 24px 12px 24px 24px;
                 display: flex;
                 flex-flow: column nowrap;
                 justify-content: flex-start;
@@ -672,14 +672,13 @@
 
         <paper-dialog id="medication-prescription" always-on-top no-cancel-on-outside-click no-cancel-on-esc-key>
             <ht-spinner class="center" active="[[isLoadingEntities]]"></ht-spinner>
-            <h2 class="modal-title">[[localize('sel_med','Select medication',language)]]</h2>
+            <h2 class="modal-title">[[localize('prescription','Prescription',language)]]</h2>
             <div class="content container">
                 <div id="prescription-pane" class="left-pane">
                     <div class="prescription-list">
                         <vaadin-grid class="medication-list" overflow="bottom" id="accumulated-medications" items="[[medicationAccumulator]]" active-item="{{selectedMedicationFromAccumulator}}" selected="{{selected}}">
                             <vaadin-grid-column width="36px" flex-grow="0">
                                 <template class="header">
-<!--                                    <paper-icon-button class$="list-item-icon&#45;&#45;add [[_activePaneClass('dosage', trigger)]]" role="button" icon="icons:add" on-tap="_showSearchPane"></paper-icon-button>-->
                                 </template>
                                 <template>
                                     <paper-icon-button id="remove-[[_id(item)]]" class="list-item-icon--add" role="button" icon="icons:remove" on-tap="_removeFromAcc"></paper-icon-button>
@@ -1796,8 +1795,13 @@
             }
 
             _medicationDetailValueChanged(e) {
-                this.set("selectedMedicationFromAccumulator", e.detail.medication);
-                console.log(e, "******* changed ********");
+                if (!_.hasIn(e, "detail.id") || !_.hasIn(e, "detail.boxes")) return;
+                const idx = _.findIndex(this.medicationAccumulator, d => d.id === e.detail.id)
+                const boxes = parseInt(e.detail.boxes, 10);
+                if (idx >= 0 && !isNaN(boxes) && boxes > 0) {
+                    this.set(`medicationAccumulator.${idx}.boxes`, parseInt(e.detail.boxes, 10))
+                    console.log(e, "******* changed ********");
+                }
             }
 
             open(medication, options = {}) {
@@ -2161,8 +2165,9 @@
                             "label": vmpGroup.label,
                             "atcCodes": vmpGroup.atcCodes,
                             "atcCat": _.get(vmpGroup, "atcCodes[0][0]", ""),
-                            "unit": vmpGroup.unit,
+                            "allergies": vmpGroup.allergies,
                             "allergyType": this._getAllergyType(vmpGroup),
+                            "unit": vmpGroup.unit,
                             "noSwitchReason": vmpGroup.noSwitchReason,
                             "type": "vmpGroup"
                         };
@@ -2280,6 +2285,7 @@
                             "label": ampp.prescriptionName,
                             "atcCodes": ampp.atcCodes,
                             "atcCat": _.get(ampp, "atcCodes[0][0]", ""),
+                            "allergies": ampp.allergies,
                             "allergyType": this._getAllergyType(ampp),
                             "patientPrice": ampp.id && ampp.patientPrice.toFixed(2) + "€",
                             "publicPrice": ampp.id && ampp.publicPrice.toFixed(2) + "€",
@@ -2485,9 +2491,11 @@
             }
 
             _removeFromAcc(e) {
+                if(!_.hasIn(e, "target.id")) return;
                 const idx = _.findIndex(this.medicationAccumulator, d => `remove-${this._id(d)}` === e.target.id)
                 if (idx >= 0) {
-                    this.set(`medicationAccumulator.${idx}.boxes`, (this.medicationAccumulator[idx].boxes || 1) - 1)
+                    this.set(`medicationAccumulator.${idx}.boxes`, (this.medicationAccumulator[idx].boxes || 1) - 1);
+                    this.notifyPath("selectedMedicationFromAccumulator.boxes", "changed");
                     if (!this.medicationAccumulator[idx].boxes) {
                         if (this.medicationAccumulator[idx] === this.selectedMedicationFromAccumulator) {
                             if (this.medicationAccumulator.length > idx + 1) {
@@ -2585,6 +2593,7 @@
                             options: {isPrescription: this.isPrescription},
                             intendedName: med.label,
                             atcCat: med.atcCat,
+                            allergies: med.allergies,
                             allergyType: med.allergyType,
                             drugType: drugType
                         })
