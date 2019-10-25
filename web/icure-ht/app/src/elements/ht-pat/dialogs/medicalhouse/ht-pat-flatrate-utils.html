@@ -248,11 +248,50 @@
                     // oveview
                     res.flatrateStatus = this.checkMHStatus(res);
                     //console.log("res", res, JSON.stringify(res));
+                    res.flatrateInfo = this.getFlatrateInfo(res);
                 } else {
                     // non flatrate
                     res.flatrateStatus = {status: "ok-no-flatrate-mh", errors: []}
                 }
                 return res;
+            }
+
+            getFlatrateInfo(res){
+                var inf = {};
+                inf.invoicedMonth = res.invoicedMonth;
+                inf.LName = res.pat.lastName;
+                inf.FName = res.pat.firstName;
+                inf.ssin = res.pat.ssin;
+                inf.MUT = "---";
+                inf.CT12 = res.ct12Check.valid ? res.ct12Check.ct12 : "---/---";
+                if(this.getLastMHContract(res.pat)) {
+                    const contract = this.getLastMHContract(res.pat);
+                    inf.DINS = contract.startOfContract ? contract.startOfContract : "--/--/----";
+                    inf.DFAC = contract.startOfCoverage ? contract.startOfCoverage : "--/--/----";
+                    inf.DDES = contract.endOfContract ? contract.endOfContract : "--/--/----";
+                    inf.DFIN = contract.endOfCoverage ? contract.endOfCoverage : "--/--/----";
+                    inf.ABON = (contract.gp ? "M" : "N") + (contract.kine ? "K" : "N") + (contract.nurse ? "I" : "N");
+                } else {
+                    inf.ABON = "NNN";
+                    inf.DINS = "--/--/----";
+                    inf.DFAC = "--/--/----";
+                    inf.DDES = "--/--/----";
+                    inf.DFIN = "--/--/----";
+                }
+                return inf;
+            }
+
+            getInsurancesDataByIds(insurancesIds) {
+                return new Promise(resolve => {
+                    this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : insurancesIds}))
+                        .then(insurancesData => resolve(
+                            _
+                                .chain(insurancesData)
+                                .map((i)=>{ i.finalName = (i && i.name && i.name[this.language]) ? i.name[this.language] : i.name[(this.language==='fr' ? 'nl' : 'fr')]; return i; })
+                                .sortBy((i)=>{ return i.code; })
+                                .value()
+                        ))
+                })
             }
 
             checkMHStatus(res){
@@ -351,6 +390,16 @@
                 }
                 else {
                     return {valid: false, medicalHouseContract: null, error: 'no-contracts'};
+                }
+            }
+
+            getLastMHContract(pat){
+                if(pat.medicalHouseContracts && pat.medicalHouseContracts.length > 0){
+                    const mhcList = _.orderBy(pat.medicalHouseContracts, ['startOfCoverage'], ['desc'])
+                    return mhcList[0]
+                }
+                else {
+                    return null;
                 }
             }
 
