@@ -485,6 +485,7 @@
                 const self = {
                     subFormsMap: {},
                     servicesMap: {},
+					parentForm: form.parent ? this._getFormParent(this.dataProvider,form.parent) : {},
 					sortedItems: () => {
                         const layoutItems = form.template && form.template.layout && _.flatten(_.flatten((form||this.form).template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
                         return _.sortBy(_.compact(
@@ -539,7 +540,18 @@
                                     x: _.keys(this.servicesMap).reduce((x, label) => {
                                         x[label] = self.getRawValue(label)
                                         return x
-                                    }, {})
+                                    }, {}),
+									parent: self.form().parent ? _.keys(this.servicesMap).reduce((x, label) => {
+										x[label] = self.parentForm.getRawValue(label)
+										return x
+									}, {}): {},
+									children: self.hasSubForms() ? self.subFormsMap.reduce((x,child) =>{
+										x[child.template.name] = _.keys(this.servicesMap).reduce((y, label) => {
+											y[label] =	child.dataProvider.getRawValue(label)
+											return y
+										}, {})
+										return x;
+									},{}) : {}
                                 });
                                 return Promise.all(orderedComputables.map(comp => {
 
@@ -851,7 +863,7 @@
 							}
 
 							return self.subFormsMap[[subForm.id, subForm.descr, idx]] || ((self.subFormsMap[[subForm.id, key, idx]] = {
-							dataMap: _.fromPairs(_.flatten(_.flatten(subForm.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList)).map(f => [f.name, 1])),
+								dataMap: _.fromPairs(_.flatten(_.flatten(subForm.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList)).map(f => [f.name, 1])),
                                 dataProvider: subDataProvider,
                                 template: subForm.template.layout,
 								reportsPromises: Promise.all((this.form && this.form.template && this.form.template.reports || [])
@@ -1140,6 +1152,18 @@
 			currentContactChanged(){
 				this.set('incapacityFirstResearch',true);
 				this.set('incapacityReasonFirstResearch',true);
+			}
+
+			_getFormParent(dataProvider,formId){
+            	if(dataProvider.getId()===formId){
+            		return dataProvider;
+				}
+            	else if(dataProvider.hasSubForms()){
+					const table = _.compact(dataProvider.getSubForms().map(child => this._getFormParent(child.dataProvider,formId)));
+            		return table.length ? _.first(table) : false;
+				}else{
+            		return false;
+				}
 			}
 
         }
