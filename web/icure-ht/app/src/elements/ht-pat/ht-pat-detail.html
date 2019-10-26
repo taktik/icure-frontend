@@ -942,7 +942,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 display: block;
             }
 
-            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending{
+            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending #consentStatus.pendingConsent{
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
@@ -952,6 +952,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk {
                 --paper-fab-background: var(--app-status-color-ok);
+            }
+
+            .pendingConsent{
+                --paper-fab-background: var(--app-status-color-pending)!important;
             }
 
             #ebmPracticeNet{
@@ -2358,28 +2362,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
-        <paper-dialog id="consentDialog">
-            <h2 class="modal-title">[[localize('cons_req','Patient informed consent',language)]]</h2>
-            <div class="content">
-                <template is="dom-if" if="{{!patientConsent.consent}}">
-                    <div id="legaltext"></div>
-                </template>
-                <paper-input id="idCardNo" always-float-label label="[[localize('eid_no','eID Card Number',language)]]" value="{{eidCardNumber}}"></paper-input>
-                <paper-input id="isiCardNo" always-float-label label="[[localize('isi_no','ISI+ Card Number',language)]]" value="{{isiCardNumber}}"></paper-input>
-                <!--<paper-button on-tap="_getConsent">[[localize('get_cons','Get consent',language)]]</paper-button>-->
-            </div>
-            <div class="buttons">
-                <paper-button class="button" dialog-confirm autofocus >[[localize('can','Cancel',language)]]</paper-button>
-                <template is="dom-if" if="{{patientConsent.consent}}">
-                    <paper-button class="button button--save" on-tap="_revokeConsent" dialog-confirm>[[localize('revoke_cons','Revoke consent',language)]]</paper-button>
-                </template>
-                <template is="dom-if" if="{{!patientConsent.consent}}">
-                    <paper-button class="button button--save" on-tap="_registerNationalAndHubConsent" dialog-confirm>[[localize('register_cons','Register consent',language)]]</paper-button>
-                </template>
-            </div>
-        </paper-dialog>
-
-
         <paper-dialog id="select-more-options-dialog">
             <h2 class="modal-title">
                 [[localize("slctBtw2Date","Select between 2 dates",language)]]
@@ -2722,10 +2704,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     currentTherLinks: {
                         type: Array,
-                        observer: 'currentTherLinksChanged',
-                        value: function () {
-                            return [];
-                        }
+                        value: () => []
                     },
                     haveTherLinks:{
                         type: Boolean,
@@ -2938,6 +2917,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     rnHistoryResult:{
                         type: Object,
                         value: () => {}
+                    },
+                    currentConsents:{
+                        type: Array,
+                        value: () => []
                     }
                 };
             }
@@ -2953,7 +2936,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     '_filesChanged(files.*)',
                     '_isConnectedToEhbox(api.tokenId)',
                     'selectedMedicationsChanged(selectedMedications)',
-                    'hcpChanged(user)'
+                    'hcpChanged(user)',
+                    'showPatientHubState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*)'
                 ];
             }
 
@@ -3149,20 +3133,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            __openConsentDialog(e) {
-                e.stopPropagation();
-                if(this._checkForEhealthSession() === true){
-                    var legaltext = this.root.querySelector('#legaltext')
-                    if(legaltext != null) {
-                        legaltext.innerHTML = this.localize('cons_legal', 'Informed consent legal text ...', this.language)
-                    }
-                    this.$.consentDialog.open();
-                }else{
-                    this._ehealthErrorNotification()
-                }
-
-            }
-
             _openConsentDialog(e){
                 e.stopPropagation();
                 if(this._checkForEhealthSession() === true){
@@ -3181,8 +3151,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this.set('therLinkList', _.concat(_.get(therlink, 'hubResp.therapeuticLinks', []).map(link => _.assign(link, {tlType: 'hub'})), _.get(therlink, 'nationalResp.therapeuticLinks', []).map(link => _.assign(link, {tlType: 'national'}))))
                         this.$['htPatTherlinkDetail']._open()
                     })
-                    //this.root.querySelector('#legaltext').innerHTML = this.localize('cons_legal', 'Informed consent legal text ...', this.language)
-
                 }else{
                     this._ehealthErrorNotification()
                 }
@@ -3190,13 +3158,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _openHubDialog(e){
                 e.stopPropagation();
-                if(this._checkForEhealthSession() === true && this._checkForConsent() === true){//&& !!_.size(_.get(this.currentTherLinks, 'nationalResp.therapeuticLinks', [])) && (!!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) || !this.hubSupportsConsent)){
-                    //this.$.patHubDialog.open();
-                    this.$.patHubDetail.open();
+                if(this._checkForEhealthSession() === true && ((!!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {}))) || !this.hubSupportsConsent)){
+                    this.$['patHubDetail'].open();
                 }else{
                     this._checkForEhealthSession() === false ? this._ehealthErrorNotification() : null
-                    this._checkForConsent() === false ? this._consentErrorNotification(): null
-                    !(!!_.size(_.get(this.currentTherLinks, 'nationalResp.therapeuticLinks', [])) && !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', []))) ? this._therLinkErrorNotification() : null
+                    !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) ? this._therLinkErrorNotification() : null
+                    _.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this._consentErrorNotification() : null
                 }
 
             }
@@ -3444,34 +3411,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 // }
             }
 
-            _getHubHcpConsent(){
-                //getHcpConsentUsingGET(
-                // endpoint: string,
-                // xFHCKeystoreId: string, xFHCTokenId: string, xFHCPassPhrase: string,
-                // hcpNihii: string, hcpLastName: string, hcpFirstName: string, hcpSsin: string, hcpZip: string,
-                // hubPackageId?: string): Promise<models.HcPartyConsent | any>;
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                        .then(hcp =>
-                            this.api.fhc().Hubcontroller().getHcpConsentUsingGET(this.hubEndPoint,
-                                this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                hcp.nihii, hcp.lastName, hcp.firstName, hcp.ssin, this.hcpZip)
-                        ).then(consentResp => {
-                                if (consentResp) {
-                                    return consentResp;
-                                } else {
-                                    return null;
-                                }
-                            }
-                        )
-                } else {
-                    return Promise.resolve(null)
-                }
-            }
-
-            currentTherLinksChanged(){
-                this.set('haveTherLinks', this.currentTherLinks && this.currentTherLinks.therapeuticLinks && this.currentTherLinks.therapeuticLinks.length > 0)
-            }
 
             _getTherLinks(){
                 if (this.patient.ssin && this.api.tokenId) {
@@ -3491,115 +3430,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            _registerNationalAndHubTherLink(){
-                this._registerTherLink().then(resp => this.showPatientTherLinkState()).catch(error=> console.log(error));
-                this.$.patHubDetail._registerHubPatientTherapeuticLink().then().catch(error=> console.log(error));
-            }
-
-            _registerTherLink(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.fhc().Therlinkcontroller().registerTherapeuticLinkUsingPOST1(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                            hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                            this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber, null, null, null, null, null)
-                    ).then(therLinkResp => {
-                            if(therLinkResp.therapeuticLink) {
-                                this.showPatientTherLinkState()
-                                return(therLinkResp.therapeuticLink)
-                            }
-                            else{
-                                return Promise.resolve(null)
-                            }
-                        }
-                    )
-                }
-                else
-                {
-                    return Promise.resolve(null)
-                }
-            }
-
-            _revokeTherLink(){
-                if (this.patient.ssin && this.api.tokenId && this.selectedTherLink) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
-                        this.api.fhc().Therlinkcontroller().revokeLinkUsingPOST1(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                            this.selectedTherLink, null)
-                    }).then(consentResp => {
-                            this.showPatientTherLinkState()
-                            return consentResp
-                        }
-                    )
-                } else{
-                    return Promise.resolve(null)
-                }
-            }
-
-            _getConsent(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                        .then(hcp =>
-                            this.api.fhc().Consentcontroller().getPatientConsentUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                                this.patient.ssin, this.patient.firstName, this.patient.lastName)
-                        ).then(consentResp => {
-                                this.set('patientConsent', consentResp);
-                                if (consentResp.consent) {
-                                    return consentResp.consent;
-                                } else {
-                                    return null;
-                                }
-                            }
-                        )
-                } else {
-                    return Promise.resolve(null)
-                }
-            }
-
-            _revokeConsent(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this._getConsent().then(patientConsent => {
-                                if(patientConsent){
-                                    Promise.all([
-                                        this.api.fhc().Consentcontroller().revokePatientConsentUsingPOST(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(hcp, 'nihii', null), _.get(hcp, 'ssin', null), _.get(hcp, 'firstName', null), _.get(hcp, 'lastName', null), patientConsent, _.get(this, 'eidCardNumber', null), _.get(this, 'isiCardNumber', null)),
-                                        this.api.fhc().Hubcontroller().revokePatientConsentUsingDELETE(_.get(this, 'hubEndPoint', null), _.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(hcp, 'lastName', null), _.get(hcp, 'firstName', null), _.get(hcp, 'nihii', null), _.get(hcp, 'ssin', null), _.get(this, 'hcpZip', null), this.cleanNiss(_.get(this.patient, 'ssin', null)), _.get(this, 'hubPackageId', null) , _.get(this, 'eidCardNumber', null), _.get(this, 'isiCardNumber', null))
-                                    ]).then(([nationalRevoke, HubRevoke]) => {
-                                        console.log(nationalRevoke)
-                                        console.log(HubRevoke)
-                                        this.showPatientConsentState()
-                                        this.showPatientTherLinkState()
-                                    })
-                                }
-                            }
-                        )
-                    )
-                }
-            }
-
-            _registerNationalAndHubConsent(){
-                this._registerConsent().then(resp => this.showPatientConsentState()).catch(error=> console.log(error));
-            }
-
-            _registerConsent(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.fhc().Consentcontroller().registerPatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                            hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                            this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber)
-                    ).then(consentResp => {
-                            if(consentResp.consent) {
-                                return(consentResp.consent)
-                            }
-                            else{
-                                return Promise.resolve(null)
-                            }
-                        }
-                    )
-                }
-                else
-                {
-                    return Promise.resolve(null)
-                }
+            _getConsents(){
+                    return (this.patient.ssin && this.api.tokenId) ? this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        Promise.all([
+                            this.api.fhc().Consentcontroller().getPatientConsentUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(hcp, 'nihii', null), _.get(hcp, 'ssin', null), _.get(hcp, 'firstName', null), _.get(hcp, 'lastName', null), _.get(this.patient, 'ssin', null), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null)),
+                            this.api.fhc().Hubcontroller().getPatientConsentUsingGET1(this.hubEndPoint, _.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(hcp, "lastName", null), _.get(hcp, "firstName", null), _.get(hcp, "nihii", null), _.get(hcp, "ssin", null), _.get(this, 'hcpZip', null), _.get(this.patient, "ssin", null))
+                        ])
+                        .then(([nationalResp, hubResp]) => {
+                            console.log("nationalTlResp", nationalResp)
+                            console.log("hubTlResp", hubResp)
+                            this.set('currentConsents', {nationalResp: nationalResp, hubResp: hubResp})
+                            return {nationalResp: nationalResp, hubResp: hubResp}
+                        })) : Promise.resolve({nationalResp: null, hubResp: null})
             }
 
             _toggleActionButton(e) {
@@ -4354,7 +4196,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         }
 
                     }).catch(e => {console.log("genins failed "+e.message); this.set('isLoading', false); return null}))
-                    this.selectedTherLink = null
                     this.showPatientConsentState()
                     this.showPatientTherLinkState()
                     this.updateEdmgStatus()
@@ -4365,6 +4206,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.$["insuranceStatus"].classList.remove('insuranceOk')
                     this.$["consentStatus"].classList.remove('noConsent')
                     this.$["consentStatus"].classList.remove('consentOk')
+                    this.$["consentStatus"].classList.remove('pendingConsent')
                     this.$["hubStatus"].classList.remove('noAccess')
                     this.$["hubStatus"].classList.remove('accessOk')
                     this.$["tlStatus"].classList.remove('noTl');
@@ -4392,8 +4234,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         _.get(therLinks, 'nationalResp.therapeuticLinks', []).length || _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? (this.hubSupportsConsent ? this.$['tlStatus'].classList.add('tlPending') : this.$['tlStatus'].classList.add('tlOk')) :
                             this.$['tlStatus'].classList.add('noTl')
 
-                    !this.hubSupportsConsent ? this.$["hubStatus"].classList.add('accessOk') : !!_.size(_.get(this.currentTherLinks, 'nationalResp.therapeuticLinks', [])) && !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) ? this.$["hubStatus"].classList.add('accessOk') : this.$["hubStatus"].classList.add('noAccess')
-
                 })
             }
 
@@ -4402,40 +4242,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             showPatientConsentState(){
-                this._getConsent().then(patientConsent => {
-                        var consentOk = false;
-                        this.$.consentStatus.classList.remove('noConsent');
-                        this.$.consentStatus.classList.remove('consentOk');
+                this._getConsents().then(patientConsent => {
+                        this.$["consentStatus"].classList.remove('noConsent');
+                        this.$["consentStatus"].classList.remove('consentOk');
+                        this.$["consentStatus"].classList.remove('pendingConsent');
 
-                        if(patientConsent) {
-                            consentOk = !patientConsent.error;
-                        }
-                        this.$.consentStatus.classList.add(consentOk ? 'consentOk' : 'noConsent');
-                        Polymer.updateStyles(this.$.consentStatus)
+                        !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) && !_.isEmpty(_.get(patientConsent, "hubResp", {})) ? this.$['consentStatus'].classList.add("consentOk") :
+                            !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) || !_.isEmpty(_.get(patientConsent, "hubResp", {})) ? this.$['consentStatus'].classList.add("pendingConsent") :
+                                this.$['consentStatus'].classList.add("noConsent")
+
                     }
                 )
             }
 
-            showHubState(){
-                this.$.hubStatus.classList.remove('noAccess');
-                this.$.hubStatus.classList.remove('accessOk');
+            showPatientHubState(){
+                this.$["hubStatus"].classList.remove('accessOk');
+                this.$["hubStatus"].classList.remove('noAccess');
 
-                var hcpHubCons = false;
-                if(!this.hubSupportsConsent){
-                    this.$["hubStatus"].classList.add('accessOk');
-                } else {
-                    this.$["patHubDetail"].putHubPatient().then(hubPat => this.set('putPatientResult', hubPat)).catch(error=> console.log(error)).then(() => {
-                        this._getHubHcpConsent().then(consentResp => {
-                                if (consentResp) {
-                                    this.set('hcpHubConsent', consentResp)
-                                    hcpHubCons = (consentResp.author && consentResp.author.hcparties[0])
-                                    this.$.hubStatus.classList.add(hcpHubCons ? 'accessOk' : 'noAccess');
-                                    Polymer.updateStyles(this.$.hubStatus)
-                                }
-                            }
-                        )
-                    })
-                }
+                !this.hubSupportsConsent ? this.$["hubStatus"].classList.add('accessOk') :
+                    !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this.$["hubStatus"].classList.add('accessOk') :
+                        this.$["hubStatus"].classList.add('noAccess')
             }
 
             unselectAdminFile() {
@@ -5842,10 +5668,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _checkForEhealthSession(){
                return !!(_.get(this, 'api.tokenId', null) || _.get(this, 'api.tokenIdMH', null))
-            }
-
-            _checkForConsent(){
-                return !_.isEmpty(_.get(this, 'patientConsent.consent', {}))
             }
 
             _checkForTherLink(){
