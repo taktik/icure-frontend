@@ -142,7 +142,9 @@
                                     api="[[api]]"
                                     i18n="[[i18n]]"
                                     period="[[period]]"
-                                    on-date-changed="_dateChanged"></ht-pat-vaccine-period>
+                                    procedure="[[item.procedure]]"
+                                    on-date-changed="_dateChanged"
+                                    on-select-product="_onSelectProduct"></ht-pat-vaccine-period>
                             </div>
                         </template>
                     </div>
@@ -257,24 +259,58 @@
                                 }))
                             }));
                             console.log(newProc);
+                            //this._oldServices.forEach(s => s.tags = s.tags.filter(t => t.type != "CD-ITEM"));
                             this.set("procedures", newProc);
                         })
                     })
             }
 
+            _getSelector(procedure, period) {
+                return '#' + procedure.code.split(".").join("\\.") + "-" + period.code;
+            }
+
+            _setProduct(service, product) {
+                service.comment = product.name;
+                if (product.code) {
+                    const tag = service.tags.find(t => t.type == "CD-DRUG-CNK");
+                    if (tag)
+                        tag.code = product.code;
+                    else
+                        service.tags.push({
+                            type: "CD-DRUG-CNK",
+                            code: product.code
+                        });
+                    return;
+                }
+                service.tags = service.tags.filter(t => t.type != "CD-DRUG-CNK");
+            }
+
+            selectProduct(detail) {
+                this._setProduct(detail.period.service, detail.period.product);
+                this.shadowRoot.querySelector(this._getSelector(detail.procedure, detail.period)).refresh();
+            }
+
+            _onSelectProduct(e) {
+                console.log("onSelectProduct1");
+                this.dispatchEvent(new CustomEvent('select-product', {
+                    detail: e.detail,
+                    bubbles: true
+                }));
+            }
+
             _dateChanged(e) {
-                const service = e.detail.period.service;
-                const procedure = this.procedures.find(pr => pr.periods.some(p => p.service == service));
-                let found = false;
-                procedure.periods.forEach(period => {
-                    if (found && period.service) {
-                        const date = this.api.moment(period.service.valueDate);
-                        period.service.valueDate = date.add(e.detail.days, 'days').format("YYYYMMDD");
-                        const selector = '#' + procedure.procedure.code.split(".").join("\\.") + "-" + period.code;
-                        this.shadowRoot.querySelector(selector).refresh();
-                    }
-                    found |= period.service == service;
-                });
+                // const service = e.detail.period.service;
+                // const procedure = this.procedures.find(pr => pr.periods.some(p => p.service == service));
+                // let found = false;
+                // procedure.periods.forEach(period => {
+                //     if (found && period.service) {
+                //         const date = this.api.moment(period.service.valueDate);
+                //         period.service.valueDate = date.add(e.detail.days, 'days').format("YYYYMMDD");
+                //         const selector = this._getSelector(procedure.procedure.code, period.code);
+                //         this.shadowRoot.querySelector(selector).refresh();
+                //     }
+                //     found |= period.service == service;
+                // });
             }
 
             _matchPeriod(service, code) {
@@ -298,7 +334,6 @@
                         "nl" : _.get(procedure, 'label.nl', null),
                     },
                     label: "Actes",
-                    comment: "Test LDE",
                     valueDate: this.api.moment(this.patient.dateOfBirth).add(period.months, 'M').format("YYYYMMDD"),
                     codes: [
                         {
@@ -372,6 +407,47 @@
                     });
                     return Promise.all(promises);
                 }).then(() => console.log("Contacts updated"));
+            }
+
+
+            print() {
+                let html = '';
+                html += '<div class="schema">';
+
+                html += '<div class="schemaLine header">';
+                html += '<div class="schemaColumn w00 no-border"></div>';
+                html += '<div class="schemaColumn w55 group1"><div class="pad">Nourrissons</div></div>';
+                html += '<div class="schemaColumn w44 group2"><div class="pad">Enfants et adolescents</div></div>';
+                html += '</div>';
+
+                html += '<div class="schemaLine header">';
+                html += '<div class="schemaColumn w00 no-border"></div>';
+                this.periods.forEach(period => {
+                    html += '<div class="schemaColumn w11"><div class="pad">' + period.name.fr + '</div></div>';
+                });
+                html += '</div>';
+
+                this.procedures.forEach(procedure => {
+                    html += '<div class="schemaLine row">';
+                    html += '<div class="schemaColumn w00">';
+                    html += '<div class="product">' + procedure.procedure.label.fr + '</div>';
+                    html += '</div>';
+                    procedure.periods.forEach(period => {
+                        html += '<div class="schemaColumn w11">';
+                        html += '<div class="period">';
+                        if (period.service) {
+                            html += "<div>" + this.api.moment(period.service.valueDate).format('DD/MM/YYYY') + "</div>";
+                            html += "<div>" + period.service.tags.find(t => t.type == "CD-LIFECYCLE").code + "</div>";
+                            html += "<div>" + period.service.comment + "</div>";
+                        }
+                        html += '</div>';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                })
+
+                html += '</div>';
+                return html;
             }
         }
 
