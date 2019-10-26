@@ -645,6 +645,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 max-height: 100%;
             }
 
+            .keystoreExpIcon{
+                color: var(--app-status-color-nok)!important;
+                height: 13px;
+                width: 13px;
+            }
+
         </style>
 
         <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
@@ -812,6 +818,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <span id="eHealthStatus" class="ehealth-connection-status pending"></span>
                         <paper-tooltip for="eHealthStatus" position="top">[[localize('ehe','eHealth status',language)]]</paper-tooltip>
                     </div>
+                    <div class="eHealth-status-container">
+                        <template is="dom-if" if="[[showKeystoreExpiredStatusIcon]]">
+                            <iron-icon id="keystoreExpiredStatusIcon" icon="vaadin:warning" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiredStatusIcon" position="top"> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</paper-tooltip>
+                        </template>
+                        <template is="dom-if" if="[[showKeystoreExpiresSoonStatusIcon]]">
+                            <iron-icon id="keystoreExpiresSoonStatusIcon" icon="alarm" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiresSoonStatusIcon" position="top"> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]] </paper-tooltip>
+                        </template>
+                    </div>
                     <template is="dom-if" if="[[hasMHCertificate]]">
                         <div class="eHealth-status-container">
                             <iron-icon icon="icure-svg-icons:ehealth"></iron-icon>
@@ -939,6 +955,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </vaadin-grid-column>
             </vaadin-grid>
         </paper-dialog>
+
+
+        <template is="dom-if" if="[[showKeystoreExpiredLabel]]">
+            <div class="failedLabel displayNotification" id="keystoreExpiredLabel"><iron-icon icon="clear"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</div>
+        </template>
+        <template is="dom-if" if="[[showKeystoreExpiresSoonLabel]]">
+            <div class="warningLabel displayNotification" id="keystoreExpiresSoonLabel"><iron-icon icon="alarm"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]</div>
+        </template>
+
 
     </template>
 
@@ -1162,7 +1187,27 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     electronErrorMessage:{
                         type:String,
                         value:""
-                    }
+                    },
+                    keyStoreValidityLabel : {
+                        type : String,
+                        value : ""
+                    },
+                    showKeystoreExpiresSoonLabel: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiredLabel: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiresSoonStatusIcon: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiredStatusIcon: {
+                        type : Boolean,
+                        value : false
+                    },
                 }
             }
 
@@ -1288,10 +1333,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         })
 
                         this.socket.on("auto-read-card-eid", cards =>{
+                            if(typeof cards==="string" && cards.includes("Error"))return;
                             if(this.route.path.includes("/pat")){
-                                this.$["ht-pat"].autoReadCardEid(cards)
-                            }else if(this.route.path.includes("/main")){
-                                this.$["htmain"].autoReadCardEid(cards)
+                                this.$["ht-pat"] && typeof this.$["ht-pat"].autoReadCardEid ==="function" && this.$["ht-pat"].autoReadCardEid(cards)
+                            }else if(this.route.path.includes("/main") && !this.route.path.includes("/auth")){
+                                this.$["htmain"] && typeof this.$["htmain"].autoReadCardEid ==="function" && this.$["htmain"].autoReadCardEid(cards)
                             }
                         })
 
@@ -1486,7 +1532,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                     this.worker && this.worker.terminate()
 
-                    this.reset()
+                    if(this.view!=="auth")this.reset()
                     this.set('routeData.page', '/')
                     //setTimeout(() => window.location.reload(), 100) // don't reload at logout
                 } else {
@@ -1575,6 +1621,34 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['ht-app-account-selector'].open()
             }
 
+            _showToasterMessage(id) {
+                this.set(id, true)
+                setTimeout(() => { this.set(id, false) }, 5000*2)
+            }
+
+            _checkKeystoreValidity() {
+                //console.log("_checkKeystoreValidity: ", this.showKeystoreExpiredLabel, this.showKeystoreExpiresSoonLabel)
+                const monthLimit = 2 // number of remaining months when to start warning the user
+
+                this.api.fhc().Stscontroller().getKeystoreInfoUsingGET(this.api.keystoreId, this.credentials.ehpassword).then(info => {
+                    if(info.validity && info.validity - moment().valueOf() <= 0) {
+                        this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+                        this._showToasterMessage("showKeystoreExpiredLabel")
+                        this.set("showKeystoreExpiredStatusIcon", true)
+                        this.set("showKeystoreExpiresSoonStatusIcon", false)
+                    } else if(info.validity && info.validity - moment().add(monthLimit, 'months').valueOf() <= 0) {
+                        this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+                        this._showToasterMessage("showKeystoreExpiresSoonLabel")
+                        this.set("showKeystoreExpiresSoonStatusIcon", true)
+                        this.set("showKeystoreExpiredStatusIcon", false)
+                    } else {
+                        this.set("showKeystoreExpiredStatusIcon", false)
+                        this.set("showKeystoreExpiresSoonStatusIcon", false)
+                    }
+                })
+
+            }
+
             _getToken() {
                 return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                 {
@@ -1582,7 +1656,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpassword, isMH ? hcp.nihii.substr(0,8): hcp.ssin, this.api.keystoreId, isMH).then(res => {
                         this.$.eHealthStatus.classList.remove('pending')
                         this.$.eHealthStatus.classList.remove('disconnected')
-                        this.$.eHealthStatus.classList.add('connected')
+
+                        !_.isEmpty(res) ? this.$.eHealthStatus.classList.add('connected') : this.$.eHealthStatus.classList.add('disconnected')
 
                         this.set('api.isMH', isMH)
                         if(isMH){
@@ -1646,7 +1721,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpasswordMH, hcpMH.nihii.substr(0, 8), this.api.keystoreIdMH, true).then(res => {
                             if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('pending')
                             if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('disconnected')
-                            if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.add('connected')
+                            !_.isEmpty(res) ? this.root.getElementById('eHealthMHStatus') ? this.root.getElementById('eHealthMHStatus').classList.add('connected') : null : this.root.getElementById('eHealthMHStatus').classList.add('disconnected')
 
                             this.set('api.tokenIdMH', res.tokenId)
                             this.set('api.tokenMH', res.token)
@@ -1813,6 +1888,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     if (ehKeychain) {
                         return this.$.api.fhc().Stscontroller().uploadKeystoreUsingPOST(ehKeychain).then(res => {
                             this.$.api.keystoreId = res.uuid
+                            this._checkKeystoreValidity()
                             return this._getToken()
                         }).catch((e) => {
                             this.$.eHealthStatus.classList.remove('pending')

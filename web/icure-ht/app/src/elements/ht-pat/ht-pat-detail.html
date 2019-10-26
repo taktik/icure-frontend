@@ -77,8 +77,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="dialogs/hubs/ht-pat-hub-transaction-view.html">
 <link rel="import" href="dialogs/hubs/ht-pat-hub-detail.html">
 <link rel="import" href="dialogs/hubs/ht-pat-hub-upload.html">
+<link rel="import" href="./dialogs/ht-pat-fusion-dialog.html">
 <link rel="import" href="../../ht-upload-dialog.html">
 <link rel="import" href="./dialogs/medicalhouse/ht-pat-flatrate-utils.html">
+<link rel="import" href="./dialogs/rn-consult/ht-pat-rn-consult-dialog.html">
+<link rel="import" href="./dialogs/rn-consult/ht-pat-rn-consult-history-dialog.html">
 
 
 <link rel="import" href="../../styles/shared-styles.html">
@@ -88,6 +91,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../styles/buttons-style.html">
 <link rel="import" href="../../styles/dropdown-style.html">
 <link rel="import" href="../../styles/paper-tabs-style.html">
+<link rel="import" href="./dialogs/therlink/ht-pat-therlink-detail.html">
+<link rel="import" href="./dialogs/consent/ht-pat-consent-detail.html">
 
 
 <dom-module id="ht-pat-detail">
@@ -894,7 +899,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 overflow: hidden;
             }
 
-            #insuranceStatus, #hubStatus, #tlStatus, #consentStatus, #edmgStatus, #ebmPracticeNet, #cbipLink  {
+            #insuranceStatus, #hubStatus, #tlStatus, #consentStatus, #edmgStatus, #ebmPracticeNet, #cbipLink, #rnConsult  {
                 --paper-fab-background: var(--app-background-color-dark);
                 --paper-fab-keyboard-focus-background: var(--app-background-color);
                 color: var(--app-primary-color-dark);
@@ -937,16 +942,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 display: block;
             }
 
-            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending {
+            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending #consentStatus.pendingConsent{
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
-            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk {
+            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk{
                 --paper-fab-background: var(--app-status-color-nok);
             }
 
-            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk {
+            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk {
                 --paper-fab-background: var(--app-status-color-ok);
+            }
+
+            .pendingConsent{
+                --paper-fab-background: var(--app-status-color-pending)!important;
             }
 
             #ebmPracticeNet{
@@ -1580,11 +1589,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 background: #fff;
                 position: relative;
             }
+
+            #ssinHistory{
+
+            }
+
         </style>
 
         <template is="dom-if" if="[[_bodyOverlay]]">
 <!--            <div class="loadingContainer"></div>-->
         </template>
+
+        <ht-pat-fusion-dialog id="fusion-dialog" api="[[api]]" language="[[language]]" user="[[user]]" i18n="[[i18n]]" resources="[[resources]]" on-patient-merged="_patientMerged"></ht-pat-fusion-dialog>
 
         <div class$="[[wideClass(user.rev)]]">
         <div class="container">
@@ -1701,6 +1717,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <paper-tooltip for="ebmPracticeNet">[[localize('adm_ebm','ebmPracticeNet',language)]]</paper-tooltip>
                                         <paper-fab id="cbipLink" mini on-tap="_linkToCBIP" src="[[_cbipPicture()]]"></paper-fab>
                                         <paper-tooltip for="cbipLink">[[localize('cbip','CBIP',language)]]</paper-tooltip>
+                                        <paper-fab id="rnConsultStatus" mini on-tap="_openRnConsultDialog" src="[[_rnConsultPicture()]]"></paper-fab>
+                                        <paper-tooltip for="rnConsult">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
                                     </div>
                                 </div>
                             </paper-item>
@@ -2021,10 +2039,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                                     </div>
                                                     <div class="contact-text-row grey">
                                                         <h4>[[getTypeContact(contact,refreshServicesDescription)]]</h4>
-                                                        <template is="dom-repeat" items="[[getDocumentDetails(contact)]]" as="document">
+                                                        <template is="dom-repeat" items="[[getDocumentDetails(contact, refreshServicesDescription)]]" as="document">
                                                             <p>
                                                             <div class="document">
-                                                                <div class="document-title"><b>[[document.type]]</b>: [[document.name]]</div>
+                                                            <div class="document-title"><template is="dom-if" if="[[document.type]]"><b>[[document.type]]</b>:</template> [[document.name]]</div>
                                                                 <template is="dom-if" if="[[document.created]]"><div class="document-data">[[localize('doc_date','Document date',language)]] : [[document.created]]</div></template>
                                                             </div>
                                                             </p>
@@ -2092,14 +2110,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </template>
                         </div>
                         <ht-pat-detail-ctc-detail-panel id="ctcDetailPanel" contacts="[[selectedContacts]]" all-contacts="[[contacts]]" health-elements="[[healthElements]]" main-health-elements="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]"
-                                                        api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" medications="[[medications]]" hidden-sub-contacts-id="[[hiddenSubContactsId]]"
-                                                        services-refresher="[[servicesRefresher]]"
-                                                        on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medication-selection="_selectMedication"
-                                                        on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe"
-                                                        credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]"></ht-pat-detail-ctc-detail-panel>
+                            api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" medications="[[medications]]" hidden-sub-contacts-id="[[hiddenSubContactsId]]"
+                            services-refresher="[[servicesRefresher]]"
+                            on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medication-selection="_selectMedication"
+                            on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe"
+                            credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]" all-health-elements="[[allHealthElements]]"
+                            on-trigger-out-going-doc="_newReport_v2"
+                        ></ht-pat-detail-ctc-detail-panel>
                 </template>
                 <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]">
-                    <ht-pat-admin-card id="pat-admin-card" api="[[api]]" user="[[user]]" patient="{{patient}}" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" tab-index="[[adminTabIndex]]" cardData="[[cardData]]" on-card-changed="_cardChanged" on-patient-saved="_patientSaved"></ht-pat-admin-card>
+                    <ht-pat-admin-card id="pat-admin-card" api="[[api]]" user="[[user]]" patient="{{patient}}" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" tab-index="[[adminTabIndex]]" cardData="[[cardData]]" on-card-changed="_cardChanged" on-patient-saved="_patientSaved" on-fusion-dialog-called="fusionDialogCalled" active-health-elements="[[activeHealthElements]]" inactive-health-elements="[[inactiveHealthElements]]"></ht-pat-admin-card>
                 </template>
             </vaadin-split-layout>
         </div>
@@ -2123,6 +2143,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </div>
                 <template is="dom-repeat" items="[[historyElement]]" as="he">
                     <h4>[[he.modifiedDateAsString]] [[he.descr]]</h4>
+                    <div>
+                        <b>[[localize('aut','Author',language)]]:</b> [[he.responsibleHcp.firstName]] [[he.responsibleHcp.lastName]]
+                    </div>
                     <div>
                         <b>[[localize('st_da','Start Date',language)]]:</b> [[he.openingDateAsString]]
                         <template is="dom-if" if="[[_checkClosingDate(he.closingDate)]]">
@@ -2344,87 +2367,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
-        <paper-dialog id="consentDialog">
-            <h2 class="modal-title">[[localize('cons_req','Patient informed consent',language)]]</h2>
-            <div class="content">
-                <template is="dom-if" if="{{!patientConsent.consent}}">
-                    <div id="legaltext"></div>
-                </template>
-                <paper-input id="idCardNo" always-float-label label="[[localize('eid_no','eID Card Number',language)]]" value="{{eidCardNumber}}"></paper-input>
-                <paper-input id="isiCardNo" always-float-label label="[[localize('isi_no','ISI+ Card Number',language)]]" value="{{isiCardNumber}}"></paper-input>
-                <!--<paper-button on-tap="_getConsent">[[localize('get_cons','Get consent',language)]]</paper-button>-->
-            </div>
-            <div class="buttons">
-                <paper-button class="button" dialog-confirm autofocus >[[localize('can','Cancel',language)]]</paper-button>
-                <template is="dom-if" if="{{patientConsent.consent}}">
-                    <paper-button class="button button--save" on-tap="_revokeConsent" dialog-confirm>[[localize('revoke_cons','Revoke consent',language)]]</paper-button>
-                </template>
-                <template is="dom-if" if="{{!patientConsent.consent}}">
-                    <paper-button class="button button--save" on-tap="_registerNationalAndHubConsent" dialog-confirm>[[localize('register_cons','Register consent',language)]]</paper-button>
-                </template>
-            </div>
-        </paper-dialog>
-
-        <paper-dialog id="therLinkDialog">
-            <h2 class="modal-title">[[localize('tl_req','Therapeutic Link',language)]]</h2>
-            <div class="content">
-                <div id="legaltextTL"></div>
-                <div class="ther-container">
-                    <template is="dom-if" if="[[!haveTherLinks]]">
-                        <paper-icon-button icon="vaadin:health-card" id="read-eid" class="eid" on-tap="_readEid"></paper-icon-button>
-                        <paper-input id="idCardNo" always-float-label label="[[localize('eid_no','eID Card Number',language)]]" value="{{eidCardNumber}}"></paper-input>
-                        <paper-input id="isiCardNo" always-float-label label="[[localize('isi_no','ISI+ Card Number',language)]]" value="{{isiCardNumber}}"></paper-input>
-                    </template>
-                    <vaadin-grid id="ther-link-list" class="material" overflow="bottom" items=[[currentTherLinks.therapeuticLinks]] active-item="{{selectedTherLink}}">
-                        <vaadin-grid-column width="120px">
-                            <template class="header">
-                                <vaadin-grid-sorter path="description">[[localize('hcp_ident','Hcp',language)]]</vaadin-grid-sorter>
-                            </template>
-                            <template>
-                                <div class="cell frozen">[[_hcpIdent(item)]]</div>
-                            </template>
-                        </vaadin-grid-column>
-                        <vaadin-grid-column width="120px">
-                            <template class="header">[[localize('pat_ident','Patient',language)]]</template>
-                            <template>
-                                <div class="cell frozen">[[_patIdent(item)]]</div>
-                            </template>
-                        </vaadin-grid-column>
-                        <vaadin-grid-column width="80px">
-                            <template class="header">[[localize('sta_dat','Start Date',language)]]</template>
-                            <template>
-                                <div class="cell frozen">[[_startDate(item)]]</div>
-                            </template>
-                        </vaadin-grid-column>
-                        <vaadin-grid-column width="80px">
-                            <template class="header">[[localize('end_dat','End Date',language)]]</template>
-                            <template>
-                                <div class="cell frozen">[[_endDate(item)]]</div>
-                            </template>
-                        </vaadin-grid-column>
-                        <vaadin-grid-column width="80px">
-                            <template class="header">[[localize('tl_type','Type',language)]]</template>
-                            <template>
-                                <div class="cell frozen">[[_tlType(item)]]</div>
-                            </template>
-                        </vaadin-grid-column>
-                        <vaadin-grid-column width="80px">
-                            <template class="header">[[localize('status','Status',language)]]</template>
-                            <template>
-                                <div class="cell frozen">[[_tlStatus(item)]]</div>
-                            </template>
-                        </vaadin-grid-column>
-                    </vaadin-grid>
-                </div>
-            </div>
-            <!--<paper-button on-tap="_getTherLinks">[[localize('get_TL','Get Therapeutic link',language)]]</paper-button>-->
-            <div class="buttons">
-                <paper-button class="button" dialog-confirm autofocus >[[localize('can','Cancel',language)]]</paper-button>
-                <paper-button class="button button--save" on-tap="_revokeTherLink" hidden="[[!haveTherLinks]]" dialog-confirm>[[localize('revoke_tl','Revoke Therapeutic Link',language)]]</paper-button>
-                <paper-button class="button button--save" enabled="false" on-tap="_registerNationalAndHubTherLink" hidden="[[haveTherLinks]]" dialog-confirm>[[localize('reg_tl','Register Therapeutic Link',language)]]</paper-button>
-            </div>
-        </paper-dialog>
-
         <paper-dialog id="select-more-options-dialog">
             <h2 class="modal-title">
                 [[localize("slctBtw2Date","Select between 2 dates",language)]]
@@ -2495,17 +2437,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
         <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"
             global-hcp="[[globalHcp]]"></ht-pat-prescription-dialog>
-        <paper-dialog id="prose-editor-dialog-linking-letter" no-cancel-on-outside-click no-cancel-on-esc-key>
-            <h2 class="modal-title">[[localize('linkingLetter','Lettre de liaison',language)]]</h2>
-            <prose-editor class="content"  id="prose-editor-linking-letter" on-refresh-context="_refreshContextLinkingLetter"></prose-editor>
-            <div class="buttons">
-                <paper-button class="button" on-tap="_closeLinkingLetterDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
-                <paper-button class="button button--other" on-tap="_printLinkingLetter"><iron-icon icon="icons:print" class="mr5 smallIcon" ></iron-icon> [[localize('print','Print',language)]]</paper-button>
-                <paper-button class="button button--save" autofocus on-tap="_saveLinkingLetter"><iron-icon icon="icons:save" class="mr5 smallIcon" ></iron-icon> [[localize('saveToPatFile','Save to patient file',language)]]</paper-button>
-            </div>
-        </paper-dialog>
-        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"></ht-msg-new>
 
+        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"></ht-msg-new>
 
         <paper-dialog id="notConnctedToeHealthBox" class="modalDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
@@ -2518,6 +2451,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
 
+        <ht-pat-rn-consult-dialog id="htPatRnConsultDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-rn-consult-dialog>
+        <ht-pat-rn-consult-history-dialog id="htPatRnConsultHistoryDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]" history-result="[[rnHistoryResult]]"></ht-pat-rn-consult-history-dialog>
 
         <print-document
             id="printDocument"
@@ -2529,7 +2464,57 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             resources="[[resources]]"
         ></print-document>
 
+        <paper-item id="rnConsult-error-notification" class="notification-container error">
+            <iron-icon class="notification-icn" src="[[_rnConsultPicture()]]"></iron-icon>
+            <div class="notification-msg">
+                <h4>[[localize('rn-consult-not-err', 'Rn consult error', language)]]</h4>
+                <p>[[rnHistoryResult.status.code]] :
+                    <template is="dom-repeat" items="[[rnHistoryResult.status.messages]]" as="msg">
+                        [[msg.value]]
+                    </template>
+                </p>
+            </div>
+        </paper-item>
 
+        <paper-item id="rnConsult-changed-notification" class="notification-container dark">
+            <iron-icon class="notification-icn" src="[[_rnConsultPicture()]]"></iron-icon>
+            <div class="notification-msg">
+                <h4>[[localize('rn-consult-not', 'Rn consult changed', language)]]</h4>
+                <p>[[localize('rn-consult-niss-changed', "Niss number changed", language)]]</p>
+            </div>
+            <paper-button name="closePostit" class="notification-btn" on-tap="_closeRnConsultChangedNotification">
+                [[localize('clo','Close',language)]]
+            </paper-button>
+            <paper-button name="editPostit" class="notification-btn" on-tap="_showRnConsultDiff">
+                [[localize('rn-consult-show','Show',language)]]
+            </paper-button>
+        </paper-item>
+
+
+        <ht-pat-outgoing-document
+            id="outgoingDocument"
+            api="[[api]]"
+            i18n="[[i18n]]"
+            user="[[user]]"
+            patient="[[patient]]"
+            language="[[language]]"
+            resources="[[resources]]"
+            on-refresh-templates-menu="_triggerRefreshOutGoingDocumentTemplates"
+            on-refresh-patient="refreshPatientAndServices"
+        ></ht-pat-outgoing-document>
+
+        <paper-dialog id="prose-editor-dialog-linking-letter" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title">[[localize('linkingLetter','Lettre de liaison',language)]]</h2>
+            <prose-editor class="content"  id="prose-editor-linking-letter" on-refresh-context="_refreshContextLinkingLetter"></prose-editor>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeLinkingLetterDialog"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_printLinkingLetter"><iron-icon icon="icons:print" class="mr5 smallIcon" ></iron-icon> [[localize('print','Print',language)]]</paper-button>
+                <paper-button class="button button--save" autofocus on-tap="_saveLinkingLetter"><iron-icon icon="icons:save" class="mr5 smallIcon" ></iron-icon> [[localize('saveToPatFile','Save to patient file',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
+        <ht-pat-therlink-detail id="htPatTherlinkDetail" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" therlink-list="[[therLinkList]]" hub-end-point="[[hubEndPoint]]" hub-supports-consent="[[hubSupportsConsent]]" eid-card-number="[[eidCardNumber]]" isi-card-number="[[isiCardNumber]]" hub-package-id="[[hubPackageId]]" on-read-eid="_readEid" on-refresh-therlink="showPatientTherLinkState"></ht-pat-therlink-detail>
+        <ht-pat-consent-detail id="htPatConsentDetail" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" hub-end-point="[[hubEndPoint]]" hub-supports-consent="[[hubSupportsConsent]]" eid-card-number="[[eidCardNumber]]" isi-card-number="[[isiCardNumber]]" hub-package-id="[[hubPackageId]]" on-read-eid="_readEid" on-refresh-consent="showPatientConsentState"></ht-pat-consent-detail>
     </template>
     <script>
         import moment from 'moment/src/moment';
@@ -2726,10 +2711,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     currentTherLinks: {
                         type: Array,
-                        observer: 'currentTherLinksChanged',
-                        value: function () {
-                            return [];
-                        }
+                        value: () => []
                     },
                     haveTherLinks:{
                         type: Boolean,
@@ -2930,6 +2912,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     documentType: {
                         type: String,
                         value: ""
+                    },
+                    allHealthElements:{
+                        type: Object,
+                        value: {}
+                    },
+                    therLinkList:{
+                        type: Object,
+                        value: () => {}
+                    },
+                    rnHistoryResult:{
+                        type: Object,
+                        value: () => {}
+                    },
+                    currentConsents:{
+                        type: Array,
+                        value: () => []
                     }
                 };
             }
@@ -2945,7 +2943,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     '_filesChanged(files.*)',
                     '_isConnectedToEhbox(api.tokenId)',
                     'selectedMedicationsChanged(selectedMedications)',
-                    'hcpChanged(user)'
+                    'hcpChanged(user)',
+                    'showPatientHubState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*)'
                 ];
             }
 
@@ -3141,32 +3140,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
-            _openConsentDialog(e) {
+            _openConsentDialog(e){
                 e.stopPropagation();
                 if(this._checkForEhealthSession() === true){
-                    var legaltext = this.root.querySelector('#legaltext')
-                    if(legaltext != null) {
-                        legaltext.innerHTML = this.localize('cons_legal', 'Informed consent legal text ...', this.language)
-                    }
-                    this.$.consentDialog.open();
+                    this.$['htPatConsentDetail']._open()
                 }else{
                     this._ehealthErrorNotification()
                 }
-
             }
 
             _openTherLinkDialog(e) {
                 e.stopPropagation();
                 if(this._checkForEhealthSession() === true){
                     this.selectedTherLink = null;
-                    this._getTherLinks();
-
-                    if(Object.keys(this.cardData).length && this.patient.ssin===this.cardData.nationalNumber) {
-                        this.set("eidCardNumber",this.cardData.logicalNumber)
-                    }
-
-                    //this.root.querySelector('#legaltext').innerHTML = this.localize('cons_legal', 'Informed consent legal text ...', this.language)
-                    this.$.therLinkDialog.open();
+                    this._getTherLinks().then(therlink => {
+                        Object.keys(this.cardData).length && _.get(this.patient, 'ssin', null) === _.get(this.cardData, 'nationalNumber', '') ? this.set("eidCardNumber", _.get(this.cardData, 'logicalNumber', null)) : null
+                        this.set('therLinkList', _.concat(_.get(therlink, 'hubResp.therapeuticLinks', []).map(link => _.assign(link, {tlType: 'hub'})), _.get(therlink, 'nationalResp.therapeuticLinks', []).map(link => _.assign(link, {tlType: 'national'}))))
+                        this.$['htPatTherlinkDetail']._open()
+                    })
                 }else{
                     this._ehealthErrorNotification()
                 }
@@ -3174,13 +3165,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _openHubDialog(e){
                 e.stopPropagation();
-                if(this._checkForEhealthSession() === true && this._checkForConsent() === true && this._checkForTherLink() === true){
-                    //this.$.patHubDialog.open();
-                    this.$.patHubDetail.open();
+                if(this._checkForEhealthSession() === true && ((!!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {}))) || !this.hubSupportsConsent)){
+                    this.$['patHubDetail'].open();
                 }else{
                     this._checkForEhealthSession() === false ? this._ehealthErrorNotification() : null
-                    this._checkForConsent() === false ? this._consentErrorNotification(): null
-                    this._checkForTherLink() === false ? this._therLinkErrorNotification() : null
+                    !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) ? this._therLinkErrorNotification() : null
+                    _.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this._consentErrorNotification() : null
                 }
 
             }
@@ -3428,170 +3418,37 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 // }
             }
 
-            _getHubHcpConsent(){
-                //getHcpConsentUsingGET(
-                // endpoint: string,
-                // xFHCKeystoreId: string, xFHCTokenId: string, xFHCPassPhrase: string,
-                // hcpNihii: string, hcpLastName: string, hcpFirstName: string, hcpSsin: string, hcpZip: string,
-                // hubPackageId?: string): Promise<models.HcPartyConsent | any>;
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                        .then(hcp =>
-                            this.api.fhc().Hubcontroller().getHcpConsentUsingGET(this.hubEndPoint,
-                                this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                hcp.nihii, hcp.lastName, hcp.firstName, hcp.ssin, this.hcpZip)
-                        ).then(consentResp => {
-                                if (consentResp) {
-                                    return consentResp;
-                                } else {
-                                    return null;
-                                }
-                            }
-                        )
-                } else {
-                    return Promise.resolve(null)
-                }
-            }
-
-            currentTherLinksChanged(){
-                this.set('haveTherLinks', this.currentTherLinks && this.currentTherLinks.therapeuticLinks && this.currentTherLinks.therapeuticLinks.length > 0)
-            }
 
             _getTherLinks(){
                 if (this.patient.ssin && this.api.tokenId) {
                     return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                        .then(hcp =>
-                            this.api.fhc().Therlinkcontroller().getAllTherapeuticLinksUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                                this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber,
-                                null, null,null,null ) //returns Array of therapeuticLink
-                        ).then(therLinkResp => {
-                                if (therLinkResp) {
-                                    this.set('currentTherLinks', therLinkResp);
-                                    return therLinkResp;
-                                } else {
-                                    return null;
-                                }
-                            }
-                        )
+                        .then(hcp => Promise.all([
+                            this.api.fhc().Therlinkcontroller().getAllTherapeuticLinksUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName, this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber, null, null,null,null),
+                            this.hubSupportsConsent ? this.api.fhc().Hubcontroller().getTherapeuticLinksUsingGET(this.hubEndPoint, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip, this.cleanNiss(this.patient.ssin)) : null
+                        ]))
+                        .then(([nationalTlResp, hubTlResp]) => {
+                            console.log("nationalTlResp", nationalTlResp)
+                            console.log("hubTlResp", hubTlResp)
+                            this.set('currentTherLinks', {nationalResp: nationalTlResp, hubResp: hubTlResp})
+                            return {nationalResp: nationalTlResp, hubResp: hubTlResp}
+                        })
                 } else {
-                    return Promise.resolve(null)
+                    return Promise.resolve({nationalResp: null, hubResp: null})
                 }
             }
 
-            _registerNationalAndHubTherLink(){
-                this._registerTherLink().then(resp => this.showPatientTherLinkState()).catch(error=> console.log(error));
-                this.$.patHubDetail._registerHubPatientTherapeuticLink().then().catch(error=> console.log(error));
-            }
-
-            _registerTherLink(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.fhc().Therlinkcontroller().registerTherapeuticLinkUsingPOST1(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                            hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                            this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber, null, null, null, null, null)
-                    ).then(therLinkResp => {
-                            if(therLinkResp.therapeuticLink) {
-                                this.showPatientTherLinkState()
-                                return(therLinkResp.therapeuticLink)
-                            }
-                            else{
-                                return Promise.resolve(null)
-                            }
-                        }
-                    )
-                }
-                else
-                {
-                    return Promise.resolve(null)
-                }
-            }
-
-            _revokeTherLink(){
-                if (this.patient.ssin && this.api.tokenId && this.selectedTherLink) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
-                        this.api.fhc().Therlinkcontroller().revokeLinkUsingPOST1(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                            this.selectedTherLink, null)
-                    }).then(consentResp => {
-                            this.showPatientTherLinkState()
-                            return consentResp
-                        }
-                    )
-                } else{
-                    return Promise.resolve(null)
-                }
-            }
-
-            _getConsent(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                        .then(hcp =>
-                            this.api.fhc().Consentcontroller().getPatientConsentUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                                this.patient.ssin, this.patient.firstName, this.patient.lastName)
-                        ).then(consentResp => {
-                                this.set('patientConsent', consentResp);
-                                if (consentResp.consent) {
-                                    return consentResp.consent;
-                                } else {
-                                    return null;
-                                }
-                            }
-                        )
-                } else {
-                    return Promise.resolve(null)
-                }
-            }
-
-            _revokeConsent(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this._getConsent().then(patientConsent => {
-                                if(patientConsent){
-                                    this.api.fhc().Consentcontroller().revokePatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                                        hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                                        patientConsent, this.eidCardNumber, this.isiCardNumber).then(consentResp => {
-                                            this.showPatientConsentState()
-                                            return consentResp
-                                        }
-                                    )
-                                }
-                                else {
-                                    return Promise.resolve(null)
-                                }
-                            }
-                        )
-                    )
-                } else{
-                    return Promise.resolve(null)
-                }
-            }
-
-            _registerNationalAndHubConsent(){
-                this._registerConsent().then(resp => this.showPatientConsentState()).catch(error=> console.log(error));
-                this.$.patHubDetail._registerHubPatientConsent().then().catch(error=> console.log(error));
-            }
-
-            _registerConsent(){
-                if (this.patient.ssin && this.api.tokenId) {
-                    return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.fhc().Consentcontroller().registerPatientConsentUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword,
-                            hcp.nihii, hcp.ssin, hcp.firstName, hcp.lastName,
-                            this.cleanNiss(this.patient.ssin), this.patient.firstName, this.patient.lastName, this.eidCardNumber, this.isiCardNumber)
-                    ).then(consentResp => {
-                            if(consentResp.consent) {
-                                return(consentResp.consent)
-                            }
-                            else{
-                                return Promise.resolve(null)
-                            }
-                        }
-                    )
-                }
-                else
-                {
-                    return Promise.resolve(null)
-                }
+            _getConsents(){
+                    return (this.patient.ssin && this.api.tokenId) ? this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        Promise.all([
+                            this.api.fhc().Consentcontroller().getPatientConsentUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(hcp, 'nihii', null), _.get(hcp, 'ssin', null), _.get(hcp, 'firstName', null), _.get(hcp, 'lastName', null), _.get(this.patient, 'ssin', null), _.get(this.patient, 'firstName', null), _.get(this.patient, 'lastName', null)),
+                            this.api.fhc().Hubcontroller().getPatientConsentUsingGET1(this.hubEndPoint, _.get(this.api, "keystoreId", null), _.get(this.api, "tokenId", null), _.get(this.api, "credentials.ehpassword", null), _.get(hcp, "lastName", null), _.get(hcp, "firstName", null), _.get(hcp, "nihii", null), _.get(hcp, "ssin", null), _.get(this, 'hcpZip', null), _.get(this.patient, "ssin", null))
+                        ])
+                        .then(([nationalResp, hubResp]) => {
+                            console.log("nationalTlResp", nationalResp)
+                            console.log("hubTlResp", hubResp)
+                            this.set('currentConsents', {nationalResp: nationalResp, hubResp: hubResp})
+                            return {nationalResp: nationalResp, hubResp: hubResp}
+                        })) : Promise.resolve({nationalResp: null, hubResp: null})
             }
 
             _toggleActionButton(e) {
@@ -3840,6 +3697,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 this.set('healthElements', [])
 
+                this.set('allHealthElements', {})
                 this.set('activeHealthElements', [])
                 this.set('inactiveHealthElements', [])
                 this.set('archivedHealthElements', [])
@@ -3932,6 +3790,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this.set('risks', (this.risks || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'risk' || c.code === 'socialrisk'))))
                         this.set('familyrisks', (this.familyrisks || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'familyrisk')))
                         this.set('surgicalHealthElements', (this.surgicalHealthElements || []).concat(svcHes).filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'surgery')))
+                        this.set("allHealthElements",{
+                            activeHealthElements: this.activeHealthElements,
+                            inactiveHealthElements: this.inactiveHealthElements,
+                            archivedHealthElements: this.archivedHealthElements,
+                            allergies: this.allergies,
+                            medications: this.medications,
+                            risks: this.risks,
+                            familyrisks: this.familyrisks,
+                            surgicalHealthElements: this.surgicalHealthElements
+                        })
                         this.filterEvents()
                         this.servicesRefresher = this.servicesRefresher + 1
                     })
@@ -4028,6 +3896,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.set('risks', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && (c.code === 'risk' || c.code === 'socialrisk' || c.code === 'professionalrisk'))))
                             this.set('familyrisks', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'familyrisk')))
                             this.set('surgicalHealthElements', combinedHes.filter(it => (it.status & 2) === 0 && it.tags.find(c => c.type === 'CD-ITEM' && c.code === 'surgery')))
+
+                            this.set("allHealthElements",{
+                                activeHealthElements: this.activeHealthElements,
+                                inactiveHealthElements: this.inactiveHealthElements,
+                                archivedHealthElements: this.archivedHealthElements,
+                                allergies: this.allergies,
+                                medications: this.medications,
+                                risks: this.risks,
+                                familyrisks: this.familyrisks,
+                                surgicalHealthElements: this.surgicalHealthElements
+                            })
 
                             this.activeHealthElements.length && (this.root.querySelector('#cb_ahelb').opened = true)
                             this.inactiveHealthElements.length && (this.root.querySelector('#cb_ihelb').opened = false)
@@ -4184,7 +4063,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this.hubEndPoint = propEnv.typedValue.stringValue === 'acc' ? 'https://acchub.abrumet.be/hubservices/intrahub/v3/intrahub.asmx' : 'https://hub.abrumet.be/hubservices/intrahub/v3/intrahub.asmx';
                         this.set("hubSupportsConsent", true);
                         this.hubPackageId = null;
-                        this.hubApplication = "RSB" ;//TODO: verify value
+                        this.hubApplication = "" ;//TODO: verify value
                         this.set("supportBreakTheGlass", false);
                         break;
                     case 'rsw':
@@ -4231,11 +4110,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                         if (!dlg.opened) this.set('curGenInsResp', gi)
 
-                        this.$.insuranceStatus.classList.remove('medicalHouse')
-                        this.$.insuranceStatus.classList.remove('noInsurance')
-                        this.$.insuranceStatus.classList.remove('insuranceOk')
+                        this.$["insuranceStatus"].classList.remove('medicalHouse')
+                        this.$["insuranceStatus"].classList.remove('noInsurance')
+                        this.$["insuranceStatus"].classList.remove('insuranceOk')
 
-                        this.$.insuranceStatus.classList.add(genInsOk ? medicalHouse ? 'medicalHouse' : 'insuranceOk' : 'noInsurance')
+                        this.$["insuranceStatus"].classList.add(genInsOk ? medicalHouse ? 'medicalHouse' : 'insuranceOk' : 'noInsurance')
                         //Polymer.updateStyles(this.$.insuranceStatus)
 
                         if (genInsOk) {
@@ -4324,40 +4203,45 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         }
 
                     }).catch(e => {console.log("genins failed "+e.message); this.set('isLoading', false); return null}))
-                    this.selectedTherLink = null
                     this.showPatientConsentState()
                     this.showPatientTherLinkState()
-                    this.showHubState()
                     this.updateEdmgStatus()
+                    this._consultRnHistory(patient)
                 }else{
-                    this.$.insuranceStatus.classList.remove('medicalHouse')
-                    this.$.insuranceStatus.classList.remove('noInsurance')
-                    this.$.insuranceStatus.classList.remove('insuranceOk')
-                    this.$.consentStatus.classList.remove('noConsent')
-                    this.$.consentStatus.classList.remove('consentOk')
-                    this.$.hubStatus.classList.remove('noAccess')
-                    this.$.hubStatus.classList.remove('accessOk')
-                    this.$.tlStatus.classList.remove('noTl');
-                    this.$.tlStatus.classList.remove('tlOk');
-                    this.$.edmgStatus.classList.remove('edmgPending');
-                    this.$.edmgStatus.classList.remove('edmgOk');
-                    this.$.edmgStatus.classList.remove('edmgNOk');
+                    this.$["insuranceStatus"].classList.remove('medicalHouse')
+                    this.$["insuranceStatus"].classList.remove('noInsurance')
+                    this.$["insuranceStatus"].classList.remove('insuranceOk')
+                    this.$["consentStatus"].classList.remove('noConsent')
+                    this.$["consentStatus"].classList.remove('consentOk')
+                    this.$["consentStatus"].classList.remove('pendingConsent')
+                    this.$["hubStatus"].classList.remove('noAccess')
+                    this.$["hubStatus"].classList.remove('accessOk')
+                    this.$["tlStatus"].classList.remove('noTl');
+                    this.$["tlStatus"].classList.remove('tlOk');
+                    this.$["tlStatus"].classList.remove('tlPending');
+                    this.$["edmgStatus"].classList.remove('edmgPending');
+                    this.$["edmgStatus"].classList.remove('edmgOk');
+                    this.$["edmgStatus"].classList.remove('edmgNOk');
+                    this.$['rnConsultStatus'].classList.remove('rnConsultPending');
+                    this.$['rnConsultStatus'].classList.remove('rnConsultNOk')
+                    this.$['rnConsultStatus'].classList.remove('rnConsultOk')
                 }
+
+                this._closeRnConsultChangedNotification()
             }
 
             showPatientTherLinkState(){
                 this._getTherLinks().then(therLinks => {
-                        var tlOk = false;
-                        this.$.tlStatus.classList.remove('noTl');
-                        this.$.tlStatus.classList.remove('tlOk');
 
-                        if(therLinks && therLinks.therapeuticLinks && therLinks.therapeuticLinks[0]) {
-                            tlOk = true;
-                        }
-                        this.$.tlStatus.classList.add(tlOk ? 'tlOk' : 'noTl');
-                        Polymer.updateStyles(this.$.tlStatus)
-                    }
-                )
+                    this.$['tlStatus'].classList.remove('noTl');
+                    this.$['tlStatus'].classList.remove('tlOk');
+                    this.$['tlStatus'].classList.remove('tlPending')
+
+                    _.get(therLinks, 'nationalResp.therapeuticLinks', []).length && _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? this.$['tlStatus'].classList.add('tlOk') :
+                        _.get(therLinks, 'nationalResp.therapeuticLinks', []).length || _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? (this.hubSupportsConsent ? this.$['tlStatus'].classList.add('tlPending') : this.$['tlStatus'].classList.add('tlOk')) :
+                            this.$['tlStatus'].classList.add('noTl')
+
+                })
             }
 
             cleanNiss(niss){
@@ -4365,40 +4249,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             showPatientConsentState(){
-                this._getConsent().then(patientConsent => {
-                        var consentOk = false;
-                        this.$.consentStatus.classList.remove('noConsent');
-                        this.$.consentStatus.classList.remove('consentOk');
+                this._getConsents().then(patientConsent => {
+                        this.$["consentStatus"].classList.remove('noConsent');
+                        this.$["consentStatus"].classList.remove('consentOk');
+                        this.$["consentStatus"].classList.remove('pendingConsent');
 
-                        if(patientConsent) {
-                            consentOk = !patientConsent.error;
-                        }
-                        this.$.consentStatus.classList.add(consentOk ? 'consentOk' : 'noConsent');
-                        Polymer.updateStyles(this.$.consentStatus)
+                        !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) && !_.isEmpty(_.get(patientConsent, "hubResp", {})) ? this.$['consentStatus'].classList.add("consentOk") :
+                            !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) || !_.isEmpty(_.get(patientConsent, "hubResp", {})) ? this.$['consentStatus'].classList.add("pendingConsent") :
+                                this.$['consentStatus'].classList.add("noConsent")
+
                     }
                 )
             }
 
-            showHubState(){
-                this.$.hubStatus.classList.remove('noAccess');
-                this.$.hubStatus.classList.remove('accessOk');
+            showPatientHubState(){
+                this.$["hubStatus"].classList.remove('accessOk');
+                this.$["hubStatus"].classList.remove('noAccess');
 
-                var hcpHubCons = false;
-                if(!this.hubSupportsConsent){
-                    this.$.hubStatus.classList.add('accessOk');
-                } else {
-                    this.$.patHubDetail.putHubPatient().then(hubPat => this.set('putPatientResult', hubPat)).catch(error=> console.log(error)).then(() => {
-                        this._getHubHcpConsent().then(consentResp => {
-                                if (consentResp) {
-                                    this.set('hcpHubConsent', consentResp)
-                                    hcpHubCons = (consentResp.author && consentResp.author.hcparties[0])
-                                    this.$.hubStatus.classList.add(hcpHubCons ? 'accessOk' : 'noAccess');
-                                    Polymer.updateStyles(this.$.hubStatus)
-                                }
-                            }
-                        )
-                    })
-                }
+                !this.hubSupportsConsent ? this.$["hubStatus"].classList.add('accessOk') :
+                    !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this.$["hubStatus"].classList.add('accessOk') :
+                        this.$["hubStatus"].classList.add('noAccess')
             }
 
             unselectAdminFile() {
@@ -5278,13 +5148,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _composeHistory(e){
-                this.set('historyElement',_.sortBy(_.get(this, 'healthElements', []).filter(eh => eh.healthElementId === _.get(e, 'detail.entity.healthElementId', null)).map(eh =>
-                    _.assign(eh, {
-                        modifiedDateAsString: _.get(eh, 'modified', null) ? this.api.moment(_.get(eh, 'modified', null)).format('DD/MM/YYYY') : null,
-                        openingDateAsString: _.get(eh, 'openingDate', null) ? this.api.moment(_.get(eh, 'openingDate', null)).format('DD/MM/YYYY') : null,
-                        closingDateAsString: _.get(eh, 'closingDate', null) ? this.api.moment(_.get(eh, 'closingDate', null)).format('DD/MM/YYYY') : null
-                    })
-                ), ['modified'], ['desc']))
+                this.set("historyElement", [])
+                ;(_.size(_.get(this, 'healthElements', []).filter(eh => eh.healthElementId === _.get(e, 'detail.entity.healthElementId', null))) ? this.api.hcparty().getHealthcareParties(_.compact(_.uniq(_.get(this, 'healthElements', []).filter(eh => eh.healthElementId === _.get(e, 'detail.entity.healthElementId', null)).map(he => he.responsible))).join(',')) : Promise.resolve([]))
+                    .then(hcps => this.set('historyElement',_.sortBy(_.get(this, 'healthElements', []).filter(eh => eh.healthElementId === _.get(e, 'detail.entity.healthElementId', null)).map(eh =>
+                        _.assign(eh, {
+                            modifiedDateAsString: _.get(eh, 'modified', null) ? this.api.moment(_.get(eh, 'modified', null)).format('DD/MM/YYYY') : null,
+                            openingDateAsString: _.get(eh, 'openingDate', null) ? this.api.moment(_.get(eh, 'openingDate', null)).format('DD/MM/YYYY') : null,
+                            closingDateAsString: _.get(eh, 'closingDate', null) ? this.api.moment(_.get(eh, 'closingDate', null)).format('DD/MM/YYYY') : null,
+                            responsibleHcp : hcps.find(hcp => hcp.id === eh.responsible)
+                        })
+                    ), ['modified'], ['desc'])))
+
             }
 
             _checkClosingDate(date){
@@ -5379,6 +5253,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
             _cbipPicture(){
                 return require('../../../images/cbip-logo.png')
+            }
+
+            _rnConsultPicture(){
+                return require('../../../images/bcss.png')
             }
 
             showListPlanOfAction(e){
@@ -5492,9 +5370,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             cardDataChanged(){
-                if(this.$.therLinkDialog.opened){
-                    if(Object.keys(this.cardData).length && this.patient.ssin===this.cardData.nationalNumber) {
-                        this.set("eidCardNumber",this.cardData.logicalNumber)
+                if(this.$['htPatTherlinkDetail'].opened){
+                    if(Object.keys(this.cardData).length && _.get(this.patient, 'ssin', "") === _.get(this.cardData, "nationalNumber", null)) {
+                        this.set("eidCardNumber", _.get(this.cardData, "logicalNumber", null))
                     }
                 }
             }
@@ -5567,9 +5445,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 const fileName = _.trim(_.get(svc,"content." + this.language + ".stringValue",""))
                                 const cdTransactionCode = _.trim(_.get(_.find(_.get(svc,"tags",[]), {type:"CD-TRANSACTION"}), "code",""))
                                 const docType = !!_.trim(cdTransactionCode) ? _.trim(cdTransactionCode) : "unknown"
+
                                 return !fileName || !!parseInt(_.get(svc,"endOfLife",0)) ? false : {
                                     name: fileName,
-                                    type: this.localize('cd-transaction-' + docType, docType, this.language),
+                                    type: !!_.size(_.find(_.get(svc, "tags",[]), {type:"outgoingDocument"})) ? "" : this.localize('cd-transaction-' + docType, docType, this.language),
                                     created: this._dateFormat(_.get(ctc,"created",undefined)),
                                     modified: this._dateFormat(_.get(ctc,"modified",undefined))
                                 }
@@ -5642,10 +5521,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     filter: function (filterValue, limit, offset, sortKey, descending) {
                         const regExp = filterValue && new RegExp(filterValue, "i");
 
+                        // FIXME: for backward compat, we use deptgeneralpractice if no codes in hcp. One may want to prevent this for clerk users
+                        const specialtyCodes = _.get(_.get(this.api, 'hcParties['+_.get(this.user, 'healthcarePartyId', null)+']', {}), 'specialityCodes', [{version: 1, code: "deptgeneralpractice", type: "CD-HCPARTY", id:"CD-HCPARTY|deptgeneralpractice|1"}])
                         const all = this.allTemplates || (this.allTemplates = Promise.all([
                             this.api.form().findFormTemplates(),
-                            this.api.form().findFormTemplatesBySpeciality(((this.api.hcParties[this.user.healthcarePartyId]||{}).specialityCodes||[])[0] || 'deptgeneralpractice')
-                        ]).then( res => _.chain(res[0].concat(res[1])).uniqBy(x=>x.id).sortBy(['group','name']).value()))
+                        ].concat(
+                            specialtyCodes.map(sc =>
+                                this.api.form().findFormTemplatesBySpeciality(sc.code)
+                            )
+                        )).then( res => _.chain(_.flatten(res)).uniqBy(x=>x.id).sortBy(['group','name']).value()))
 
                         return all
                                 .then(fts => {
@@ -5812,7 +5696,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const currCtc = e && e.detail && e.detail.currentContact || null
                 if (currCtc) {
                     this.set('currentContact', currCtc)
-                    this.shadowRoot.querySelector("#upload-dialog").open()
+                    this.shadowRoot.querySelector("#upload-dialog").open(currCtc)
                 }
             }
 
@@ -5822,7 +5706,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _postProcess(e) {
                 this.shadowRoot.querySelector("#upload-dialog").close();
-                this.saveCurrentContact().then(c => this.refreshPatient());
+                e && e.detail && e.detail.contact && this.set('currentContact', e.detail.contact);
+                this.saveCurrentContact().then(c => this.refreshPatient()).finally(() => this.contactChanged());
             }
 
             _handleError(e) {
@@ -5852,12 +5737,54 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return printDocumentComponent && typeof _.get(printDocumentComponent,"printDocument", false) === "function"  && printDocumentComponent.printDocument(_.get(e,"detail",{}))
             }
 
-            _checkForEhealthSession(){
-               return !!(_.get(this, 'api.tokenId', null) || _.get(this, 'api.tokenIdMH', null))
+            fusionDialogCalled(e){
+                if(e.detail.open){
+                    this.$["fusion-dialog"].open(e.detail.patients).then(()=> {
+                        e.detail.select && e.detail.select.length && this.$["fusion-dialog"].select(e.detail.select)
+                    })
+                }
             }
 
-            _checkForConsent(){
-                return !_.isEmpty(_.get(this, 'patientConsent.consent', {}))
+            _openRnConsultDialog(e){
+                e.stopPropagation()
+                this.$['htPatRnConsultDialog'].open()
+            }
+
+            _consultRnHistory(patient){
+                this.set('rnHistoryResult', {})
+                if (this.api.tokenId){
+                    this.api.fhc().RnConsultController().historyUsingGET(_.get(this, 'api.keystoreId', null), _.get(this, 'api.tokenId', null), _.get(this, 'api.credentials.ehpassword', null), _.get(patient, 'ssin', null)).then(resp => {
+                        this.set('rnHistoryResult', resp)
+                        if(!_.isEmpty(resp)){
+                           if(_.get(resp, 'ssin.value', null) && !_.get(resp, 'ssin.replaces', null)){
+                               this.$['rnConsultStatus'].classList.add('rnConsultOk')
+                           }else if(_.get(resp, 'ssin.replaces', null)){
+                               this.$['rnConsultStatus'].classList.add('rnConsultPending')
+                               this._rnConsultChangedNotification()
+                           }else if(_.get(resp, 'ssin.canceled', null)){
+                               this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                               this._rnConsultErrorNotification()
+                           }else{
+                               this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                               this._rnConsultErrorNotification()
+                           }
+                        }else{
+                            this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                            this._rnConsultErrorNotification()
+                        }
+                    })
+                }
+            }
+
+            _patientMerged(e) {
+                this.shadowRoot.querySelector("#pat-admin-card").patientMerged(e)
+                if (e.detail.ok && e.detail.patientId !== this.patient.id) {
+                    location.replace(location.href.replace(/(.+?)#.*/, `$1#/pat/${e.detail.patientId}`));
+                }
+            }
+
+            _checkForEhealthSession(){
+               return !!(_.get(this, 'api.tokenId', null) || _.get(this, 'api.tokenIdMH', null))
             }
 
             _checkForTherLink(){
@@ -5895,6 +5822,47 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _closeEhealthErrorNotification(){
                 this.$["ehealth-notification"].classList.remove('notification')
+            }
+
+            _newReport_v2(e) {
+                const outgoingDocumentComponent = this.shadowRoot.querySelector("#outgoingDocument")
+                return outgoingDocumentComponent && typeof _.get(outgoingDocumentComponent,"open", false) === "function"  && outgoingDocumentComponent.open(_.get(e,"detail"))
+            }
+
+            _triggerRefreshOutGoingDocumentTemplates(e) {
+                const ctcDetailPanel = this.shadowRoot.querySelector("#ctcDetailPanel")
+                return ctcDetailPanel && typeof _.get(ctcDetailPanel,"_getOutGoingDocumentTemplates", false) === "function"  && ctcDetailPanel._getOutGoingDocumentTemplates()
+            }
+
+            refreshPatientAndServices() {
+                this.refreshPatient()
+                this._refreshFromServices()
+            }
+            _rnConsultErrorNotification(){
+                this.$["rnConsult-error-notification"].classList.add('notification')
+                setTimeout(() => {
+                    this._closeRnConsultErrorNotification()
+                }, 10000);
+            }
+
+            _rnConsultChangedNotification(){
+                this.$["rnConsult-changed-notification"].classList.add('notification')
+                setTimeout(() => {
+                    this._closeRnConsultChangedNotification()
+                }, 600000);
+            }
+
+            _closeRnConsultErrorNotification(){
+                this.$["rnConsult-error-notification"].classList.remove('notification')
+            }
+
+            _closeRnConsultChangedNotification(){
+                this.$["rnConsult-changed-notification"] ? this.$["rnConsult-changed-notification"].classList.remove('notification') : null
+            }
+
+            _showRnConsultDiff(){
+                this._closeRnConsultChangedNotification()
+                this.$["htPatRnConsultHistoryDialog"]._openDialog()
             }
 
         }
