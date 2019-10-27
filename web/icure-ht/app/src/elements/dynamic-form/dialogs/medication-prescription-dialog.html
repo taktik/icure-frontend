@@ -829,9 +829,9 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.label]]</div>
-                                    <template is="dom-if" if="[[item.pos]]">
-                                        <div>[[item.pos]]</div>
+                                    <div>[[item.intendedName]]</div>
+                                    <template is="dom-if" if="[[item.posology]]">
+                                        <div>[[item.posology]]</div>
                                     </template>
                                 </template>
                             </vaadin-grid-column>
@@ -979,9 +979,9 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.label]]</div>
-                                    <template is="dom-if" if="[[item.pos]]">
-                                        <div>[[item.pos]]</div>
+                                    <div>[[item.intendedName]]</div>
+                                    <template is="dom-if" if="[[item.posology]]">
+                                        <div>[[item.posology]]</div>
                                     </template>
                                 </template>
                             </vaadin-grid-column>
@@ -1133,7 +1133,7 @@
                             <vaadin-grid-column flex-grow="1">
                                 <template>
                                     <vaadin-grid-tree-toggle leaf="[[!item.hasChildren]]" expanded="{{expanded}}" level="[[level]]">
-                                        <div class$="[[_getNoEntryStyle(item.id)]]">[[item.label]]</div>
+                                        <div class$="[[_getNoEntryStyle(item.id)]]">[[item.intendedName]]</div>
                                     </vaadin-grid-tree-toggle>
                                 </template>
                             </vaadin-grid-column>
@@ -1289,7 +1289,7 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.label]]</div>
+                                    <div>[[item.intendedName]]</div>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1444,8 +1444,8 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.label]]</div>
-                                    <div>[[item.pos]]</div>
+                                    <div>[[item.intendedName]]</div>
+                                    <div>[[item.posology]]</div>
                                 </template>
                             </vaadin-grid-column>
 
@@ -2047,9 +2047,10 @@
                 return this.allergies.filter(allergy => (allergy.cnk && (item.id === allergy.cnk)) || (item.atcs.some(atc => atc.code === allergy.atcCode)));
             }
 
-            _deliveryStatus(info) {
-
+            _deliveryStatus(item) {
+                return item && item.tags && item.tags.some(t => (t.type === 'CD-ITEM' && t.code === 'treatment') || (t.type === 'ICURE' && t.code === 'PRESC')) && !item.endOfLife && item.tags.find(t => t.type === 'CD-LIFECYCLE') || "";
             }
+
 
             _isDrugAlreadyDelivered(s) {
                 return s && s.tags && s.tags.find(t => (t.type === 'CD-ITEM' && t.code === 'treatment') || (t.type === 'ICURE' && t.code === 'PRESC')) && !s.endOfLife && s.tags.find(t => t.type === 'CD-LIFECYCLE' && t.code === 'delivered') && this.api.contact().medicationValue(s, this.language);
@@ -2144,29 +2145,103 @@
                 }));
             }
 
+        // .then(codes => codes.filter((e, i, a) => a.findIndex(x => x.code === e.code) === i))
+        // .then(codes => this.api.code().getCodes(codes.map(c => this.api.code().normalize(c).id).join(',')))
+        // .then(codes => {
+        //     this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
+        //     console.log("entity-codes", this.entity.codes);
+        // })
+
+
+        _getCnkCodes(dmpps) {
+                return dmpps.reduce((codes, dmpp) => {
+                    codes.push({
+                        type: "CD-DRUG-CNK",
+                        version: "0.0.1",
+                        code: dmpp.code
+                    });
+                    return codes;
+                }, []);
+            }
+
+            _servicesSearch(source, searchValue, language, type, first, count) {
+                // todo: this must be done only once per search!
+                const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                return new Promise(resolve => {
+                    // let results = [];
+                    resolve(source.reduce((results, m) => {
+                        const medicationValue = this.api.contact().medicationValue(m, this.language) || {};
+                        const intendedName = _.get(medicationValue, "medicinalProduct.intendedname", _.get(medicationValue, "substanceProduct.intendedname", ""));
+                        if (!intendedName) return results;
+                        const normIntendedName = intendedName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                        if (!searchValue || searchValue.length < 2 || normIntendedName.includes(normSearchValue)) {
+                            const type = m.codes.some(c => c.type === "CD-INNCLUSTER") && "substance" || "medicine";
+                            const id = (m.codes.find(c => c.type === "CD-INNCLUSTER") || m.codes.find(c => c.type === "CD-DRUG-CNK") || {code: ""}).code;
+                            const atcCodes = m.codes.filter(c => c.type === "CD-ATC").map(code => code.code) || [];
+                            const allergies = this.allergies.filter(allergy => (allergy.cnk && (id === allergy.cnk)) || (atcCodes && atcCodes.some(atcCode => atcCode === allergy.atcCode) || ""));
+                            Object.assign(m, {
+                                id: id,
+                                intendedName: intendedName,
+                                posology: this.api.contact().medication().frequencyToString(medicationValue, this.language),
+                                type: type,
+                                atcCodes: atcCodes,
+                                allergies: allergies,
+                                startDate: medicationValue.beginMoment && this.api.moment(medicationValue.beginMoment).format('DD/MM/YYYY') || "",
+                                endDate: medicationValue.endMoment && this.api.moment(medicationValue.endMoment).format('DD/MM/YYYY') || ""
+                            });
+                            results.push(m);
+                        }
+                        return results;
+                    }, []));
+                });
+            }
+
             _serviceAdapter(results) {
-                let data = [];
                 if (results && results.length) {
-                    let data = [];
                     return Promise.all(results.map(result => {
-                        let id = ((result.codes || (result.codes = [])).find(c => c.type === 'CD-DRUG-CNK') || {code: ''}).code;
-                        if (id && !id.includes(':')) {
-                            return this.api.bedrugs().getMppInfos(id, this.language === 'en' ? 'fr' : this.language || 'fr')
-                                .then(mppInfos => this._buildListItem(mppInfos, result));
-                        } else {
-                            return {
-                                "id": result.id,
-                                "label": result.label,
-                                "pos": this.api.contact().medication().frequencyToString((this.api.contact().preferredContent(result, this.language) || {}).medicationValue, this.language)
-                            };
-                        }}))
-                        .catch(err => {
-                            console.log("error:", err);
-                            return [];
-                        });
+                        const item = {
+                            "id": result.id,
+                            "intendedName": result.intendedName,
+                            "posology": result.posology,
+                            "atcCodes": result.atcCodes,
+                            "atcCat": _.get(result, "atcCodes[0][0]", ""),
+                            "allergies": result.allergies,
+                            "allergyType": this._getAllergyType(result),
+                            "noSwitchReason": result.noSwitchReason,
+                            "deliveryStatus": this._deliveryStatus(result),
+                            "service": result,
+                            "type": result.type
+                        };
+                        console.log("service item: ", item);
+                        return item;
+                    }));
                 } else {
                     return Promise.resolve([]);
                 }
+
+
+                // let data = [];
+                // if (results && results.length) {
+                //     let data = [];
+                //     return Promise.all(results.map(result => {
+                //         let id = ((result.codes || (result.codes = [])).find(c => c.type === 'CD-DRUG-CNK') || {code: ''}).code;
+                //         if (id && !id.includes(':')) {
+                //             return this.api.bedrugs().getMppInfos(id, this.language === 'en' ? 'fr' : this.language || 'fr')
+                //                 .then(mppInfos => this._buildListItem(mppInfos, result));
+                //         } else {
+                //             return {
+                //                 "id": result.id,
+                //                 "intendedName": result.name,
+                //                 "pos": this.api.contact().medication().frequencyToString((this.api.contact().preferredContent(result, this.language) || {}).medicationValue, this.language)
+                //             };
+                //         }}))
+                //         .catch(err => {
+                //             console.log("error:", err);
+                //             return [];
+                //         });
+                // } else {
+                //     return Promise.resolve([]);
+                // }
             }
 
             _ingredientSearch(searchValue, language, type, first, count) {
@@ -2194,7 +2269,7 @@
                                 const allergies = this.allergies.filter(allergy => (allergy.cnk && (id === allergy.cnk)) || (atcCodes && atcCodes.some(atcCode => atcCode === allergy.atcCode) || ""));
                                 return Object.assign(vmpGroup, {
                                         id: id,
-                                        label: _.get(vmpGroup, "name[" + this.language + "]", ""),
+                                        intendedName: _.get(vmpGroup, "name[" + this.language + "]", ""),
                                         unit: _.get(amp, "components[0].pharmaceuticalForms[0].name[" + this.language + "]", ""),
                                         atcCodes: atcCodes,
                                         allergies: allergies
@@ -2202,7 +2277,7 @@
                             })
                         })
                     ))
-                    .then(rows => rows.filter(row => row.label && row.id))
+                    .then(rows => rows.filter(row => row.intendedName && row.id))
             }
 
             _ingredientAdapterSamV2(results) {
@@ -2210,14 +2285,14 @@
                     return Promise.all(results.map(vmpGroup => {
                         const item = {
                             "id": vmpGroup.id,
-                            "label": vmpGroup.label,
+                            "intendedName": vmpGroup.intendedName,
                             "atcCodes": vmpGroup.atcCodes,
                             "atcCat": _.get(vmpGroup, "atcCodes[0][0]", ""),
                             "allergies": vmpGroup.allergies,
                             "allergyType": this._getAllergyType(vmpGroup),
                             "unit": vmpGroup.unit,
                             "noSwitchReason": vmpGroup.noSwitchReason,
-                            "type": "vmpGroup"
+                            "type": "substance"
                         };
                         console.log("ingredient item: ", item);
                         return item;
@@ -2265,7 +2340,7 @@
                                             parentUuid: parentUuid,
                                             publicDmpp: publicDmpp,
                                             currentReimbursement: currentReimbursement,
-                                            prescriptionName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
+                                            intendedName: (ampp.prescriptionName && ampp.prescriptionName[this.language]) || (publicDmpp && publicDmpp.prescriptionName && publicDmpp.prescriptionName[this.language]) || (ampp.abbreviatedName && ampp.abbreviatedName[this.language]) || '',
                                             unit: unit,
                                             atcCodes: atcCodes,
                                             allergies: allergies,
@@ -2275,7 +2350,7 @@
                                 }
                                 return ampps;
                             }, [])
-                            .filter(e => e.amp.status === "AUTHORIZED" && e.publicDmpp && e.id && e.prescriptionName && (level === 0 || level === 1 && e.uuid !== parentUuid))
+                            .filter(e => e.amp.status === "AUTHORIZED" && e.publicDmpp && e.id && e.intendedName && (level === 0 || level === 1 && e.uuid !== parentUuid))
                             .filter((e, i, a) => a.findIndex(x => x.id === e.id) === i);
 
                             let filteredAmpps = [];
@@ -2307,7 +2382,7 @@
 
                             if (finalList.length === 0 && level > 0) {
                                 finalList.push({
-                                    prescriptionName: this.localize("no_alt", "Pas d'alternative", this.language)
+                                    intendedName: this.localize("no_alt", "Pas d'alternative", this.language)
                                 });
                             }
 
@@ -2330,7 +2405,7 @@
                             "hasChildren": ampp.hasChildren,
                             "parentUuid": ampp.parentUuid,
                             "ctiExtended": ampp.ctiExtended,
-                            "label": ampp.prescriptionName,
+                            "intendedName": ampp.intendedName,
                             "atcCodes": ampp.atcCodes,
                             "atcCat": _.get(ampp, "atcCodes[0][0]", ""),
                             "allergies": ampp.allergies,
@@ -2338,43 +2413,14 @@
                             "patientPrice": ampp.id && ampp.patientPrice.toFixed(2) + "€",
                             "publicPrice": ampp.id && ampp.publicPrice.toFixed(2) + "€",
                             "priceIndex": ampp.id && ampp.priceIndex || 3,
-                            "compProhibIcon": this._compProhibIconSamV2(ampp.vmp && ampp.vmp.vmpGroup),
-                            "moderateRenalInsufIcon": this._moderateRenalInsufIcon(ampp),
-                            "severeRenalInsufIcon": this._servereRenalInsufIcon(ampp),
-                            "rmaPharmaVigiIcon": this._rmaPharmaVigiIcon(ampp),
-                            "reinfPharmaVigiIcon": this._reinfPharmaVigiIconSamV2(ampp.amp),
-                            "narcoticIcon": this._narcoticIcon(ampp),
                             "catIcon": this._catIconSamV2(ampp),
-                            "chap4Status": this._chap4Status(ampp),
-                            "deliveryStatus": this._deliveryStatus(ampp),
-                            "startDate": '',
-                            "endDate": '',
                             "unit": ampp.unit,
                             "amp": ampp.amp,
+                            "posologyNote": ampp.posologyNote,
                             "samCode": _.get(ampp, "amp.code", ""),
-                            "type": "ampp"
+                            "type": "medicine"
                         };
                     }));
-            }
-
-            _servicesSearch(source, searchValue, language, type, first, count) {
-                // todo: this must be done only once per search!
-                const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                return new Promise(resolve => {
-                    // let results = [];
-                    resolve(source.reduce((results, m) => {
-                        const contentValue = m.content.fr.medicationValue || '';
-                        const intendedName = contentValue.medicinalProduct ? contentValue.medicinalProduct.intendedname :
-                            contentValue.substanceProduct ? contentValue.substanceProduct.intendedname : '';
-                        if (!intendedName) return results;
-                        const normIntendedName = intendedName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                        if (!searchValue || searchValue.length < 2 || normIntendedName.includes(normSearchValue)) {
-                            m.label = intendedName;
-                            results.push(m);
-                        }
-                        return results;
-                    }, []));
-                });
             }
 
             _compoundPrescriptionsSearch(searchValue, language, type, first, count) {
@@ -2387,7 +2433,7 @@
                         if (!intendedName) return results;
                         const normIntendedName = intendedName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                         if (!searchValue || searchValue.length < 2 || normIntendedName.includes(normSearchValue)) {
-                            m.label = intendedName;
+                            m.intendedName = intendedName;
                             results.push(m);
                         }
                         return results;
@@ -2453,8 +2499,15 @@
                                 grid.latestResults = results;
                                 const validResults = results && results.filter(result => result.id) || [];
                                 if (validResults.length) {
-                                    (grid.drugsCache || (grid.drugsCache = []))[startIndex] = null;
-                                    grid.drugsCache.splice(startIndex, validResults.length, ...validResults);
+                                    const toReplace = validResults.filter(result => !result.parentUuid) || [];
+                                    if (toReplace.length) {
+                                        (grid.drugsCache || (grid.drugsCache = []))[startIndex] = null;
+                                        grid.drugsCache.splice(startIndex, toReplace.length, ...toReplace);
+                                    }
+                                    const toAdd = validResults.filter(result => !!result.parentUuid) || [];
+                                    if (toAdd.length) {
+                                        (grid.drugsCache || (grid.drugsCache = [])).push(...toAdd);
+                                    }
                                 }
                                 callback(results, results.length);
                             })
@@ -2596,16 +2649,16 @@
                     this.set(`medicationAccumulator.${currentMedIdx}.boxes`, (this.medicationAccumulator[currentMedIdx].boxes || 1) + 1)
                 } else {
                     console.log(med.type);
-                    const drugType = med.type === "vmpGroup" ? "CD-INNCLUSTER" : "CD-DRUG-CNK";
-
-                    newMedicationContent.medicationValue.medicinalProduct = {
-                        "intendedname": med.label,
+                    const drugType = med.type === "medicine" ? "CD-DRUG-CNK" : "CD-INNCLUSTER";
+                    const product = {
+                        "intendedname": med.intendedName,
                         "intendedcds": [{type: drugType, code: med.id}],
                         "priority": "low"
                     };
+
+                    Object.assign(newMedicationContent.medicationValue, drugType === "CD-INNCLUSTER" ? {substanceProduct: product} : {medicinalProduct: product});
                     newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = med.unit;
 
-                    // const newMed = this.newMedication;
                     ((newMed.codes || (newMed.codes = [])).find(code => code.type === drugType) || (newMed.codes[newMed.codes.length] = {
                         type: drugType,
                         version: "1"
@@ -2627,7 +2680,7 @@
                             newMedication: newMedClone,
                             id: med.id,
                             options: {isPrescription: this.isPrescription},
-                            intendedName: med.label,
+                            intendedName: med.intendedName,
                             atcCat: med.atcCat,
                             allergies: med.allergies,
                             allergyType: med.allergyType,
