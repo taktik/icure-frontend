@@ -2425,10 +2425,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 api="[[api]]"  user="[[user]]" patient="[[patient]]"
                 i18n="[[i18n]]" language="[[language]]"
                 medications="[[medications]]" prescriptions="[[prescriptions]]" resources="[[resources]]"
-                selected-medication-content-with-id="{{selectedMedicationContentWithId}}"
-                on-value-changed="_medicationValueChanged"
-                on-display-medication-details="_displayMedicationDetails"
-                on-new-medications="_medicationsCreated">
+                on-save-medications="_saveMedications">
+<!--                selected-medication-content-with-id="{{selectedMedicationContentWithId}}"-->
+<!--                on-value-changed="_medicationDetailValueChanged"-->
+<!--                on-display-medication-details="_displayMedicationDetails"-->
         </medication-prescription-dialog>
         <medication-details-dialog id="medication-detail" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" selected-medication-content-with-id="{{selectedMedicationContentWithId}}" on-value-changed="_medicationDetailValueChanged"></medication-details-dialog>
         <medication-details-dialog-old id="medication-detail-old" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" selected-medication-content-with-id="{{selectedMedicationContentWithId}}" on-value-changed="_medicationDetailValueChanged"></medication-details-dialog-old>
@@ -4927,6 +4927,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (this.currentSelectMedicationEventDetail && this.currentSelectMedicationEventDetail.onValueChanged) {
                     this.currentSelectMedicationEventDetail.onValueChanged(e)
                 }
+            }
+
+            _saveMedications(e) {
+                const medicationArray = e.detail.medications && e.detail.medications.length > 1 ? e.detail.medications : [e.detail.medication];
+                Promise.all( medicationArray.map( m => {
+                    if( m.options && (m.options.createMedication || !m.options.isPrescription)) {
+                        const newMedication = _.cloneDeep(m.newMedication)
+                        const medicationTag = 'CD-ITEM|medication|1.0'
+                        newMedication.tags = [{ id: medicationTag, type: medicationTag.split('|')[0], code: medicationTag.split('|')[1], version: medicationTag.split('|')[2] }]
+                        newMedication.label = this.localize('medication','medication',this.language)
+                        newMedication.id = this.api.crypto().randomUuid()
+                        return this.saveNewService(this.api.contact().service().newInstance(this.user, newMedication));
+                    }
+                    return null
+                }) )
+                    .then((results) => results.find(r => r) && this.refreshPatient())
             }
 
             _medicationDetailValueChanged(e) {
