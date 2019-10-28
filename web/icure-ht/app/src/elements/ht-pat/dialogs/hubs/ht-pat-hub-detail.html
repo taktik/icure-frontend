@@ -438,9 +438,10 @@
                             </template>
                         </template>
                     </div>
+                    <ht-spinner active="[[isLoading]]"></ht-spinner>
                 </div>
                 <div class="hub-menu-view">
-                    <ht-pat-hub-transaction-view id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
+                    <ht-pat-hub-transaction-view id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" diary-note="[[diaryNote]]" transaction-of-diary-note="[[transactionOfDiaryNote]]"  resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
                 </div>
             </div>
             <div class="buttons">
@@ -586,6 +587,14 @@
                     filter:{
                         type: String,
                         value: ""
+                    },
+                    diaryNote:{
+                        type: Array,
+                        value: () => []
+                    },
+                    transactionOfDiaryNote:{
+                        type: Array,
+                        value: () => []
                     }
                 };
             }
@@ -721,6 +730,8 @@
                     this.set('hubTransactionList', tranResp);
                     this.addSearchField();
                     this.filterChanged();
+                    this.set('diaryNote', tranResp.filter(tr => tr.desc === "diarynote"));
+                    this._getDiaryNote();
                     this.set('isLoading', false);
                 }).catch(error => {
                     this.set('isLoading', false);
@@ -745,6 +756,25 @@
                 console.log("filterchanged", this.filter);
                 //this.set('hubTransactionListFiltered', this.hubTransactionList && this.hubTransactionList.length ? this.hubTransactionList.filter(tr => this._transactionType(tr).toLowerCase().includes(this.filter)) : [] );
                 this.set('hubTransactionListFiltered', this.hubTransactionList && this.hubTransactionList.length ? this.hubTransactionList.filter(tr => tr.searchField.includes(this.filter.normalize('NFD').replace(/[\u0300-\u036f]/g, ""))) : [] );
+            }
+
+            _getDiaryNote(){
+                if(_.size(this.diaryNote)){
+                    let prom = Promise.resolve()
+
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                        this.diaryNote.map(dn => {
+                            prom = prom.then(listOfTransaction =>
+                                this.api.fhc().Hubcontroller().getTransactionMessageUsingGET(this.hubEndPoint, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip, this.patient.ssin, dn.ids.find(id => id.s === 'LOCAL').sv, dn.ids.find(id => id.s === 'LOCAL').sl, dn.ids.find(id => id.s === 'LOCAL').value, this.hubPackageId, this.breakTheGlassReason)
+                                    .then(tr => _.concat(listOfTransaction, _.assign(tr, {transaction: dn})))
+                            )
+                        })
+
+                        prom = prom.then(listOfTransaction => {
+                            this.set("transactionOfDiaryNote", _.compact(listOfTransaction))
+                        })
+                    })
+                }
             }
 
             close() {
