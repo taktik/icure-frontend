@@ -592,6 +592,54 @@
                 background: transparent !important;
             }
 
+            .DELIVERY--ORDERED {
+                color: var(--paper-amber-a700) !important;
+            }
+
+            .DELIVERY--ORDERED-back::after {
+                background: var(--paper-amber-a700) !important;
+            }
+
+            .DELIVERY--ORDERED span {
+                background: var(--paper-amber-a700) !important;
+            }
+
+            .DELIVERY--COMPLETED {
+                color: var(--paper-red-a200) !important;
+            }
+
+            .DELIVERY--COMPLETED-back::after {
+                background: var(--paper-red-a200) !important;
+            }
+
+            .DELIVERY--COMPLETED span {
+                background: var(--paper-red-a200) !important;
+            }
+
+            .DELIVERY--DELIVERED {
+                color: var(--paper-green-a700) !important;
+            }
+
+            .DELIVERY--DELIVERED-back::after {
+                background: var(--paper-green-a700) !important;
+            }
+
+            .DELIVERY--DELIVERED span {
+                background: var(--paper-green-a700) !important;
+            }
+
+            .DELIVERY--HIDDEN {
+                color: transparent !important;
+            }
+
+            .DELIVERY--HIDDEN-back::after {
+                background: transparent !important;
+            }
+
+            .DELIVERY--HIDDEN span {
+                background: transparent !important;
+            }
+
             .PRICE_INDEX--CHEAP div {
                 background: var(--paper-light-green-100) !important;
             }
@@ -2048,7 +2096,7 @@
             }
 
             _deliveryStatus(item) {
-                return item && item.tags && item.tags.some(t => (t.type === 'CD-ITEM' && t.code === 'treatment') || (t.type === 'ICURE' && t.code === 'PRESC')) && !item.endOfLife && item.tags.find(t => t.type === 'CD-LIFECYCLE') || "";
+                return (item && item.tags && item.tags.some(t => (t.type === 'CD-ITEM' && t.code === 'treatment') || (t.type === 'ICURE' && t.code === 'PRESC')) && !item.endOfLife && item.tags.find(t => t.type === 'CD-LIFECYCLE') || {code: ""}).code;
             }
 
 
@@ -2072,7 +2120,7 @@
                 return "";
             }
 
-            _getStyle(prefix, cat, el) {
+            _getStyle(prefix, cat, el = "span") {
                 if (!cat) return '';
                 return prefix + '--' + cat.toUpperCase() + (el ? (' ' + el) : '');
             }
@@ -2208,7 +2256,9 @@
                             "allergies": result.allergies,
                             "allergyType": this._getAllergyType(result),
                             "noSwitchReason": result.noSwitchReason,
-                            "deliveryStatus": this._deliveryStatus(result),
+                            "deliveryStatus": this._deliveryStatus(result) || "hidden",
+                            "startDate": result.startDate,
+                            "endDate": result.endDate,
                             "service": result,
                             "type": result.type
                         };
@@ -2618,7 +2668,9 @@
             }
 
             _addFromHistory(e) {
-
+                const grid = this.$['history-list'];
+                const med = grid.drugsCache.find(res => res.id === e.target.id);
+                this._addMedication(med);
             }
 
             _isIngredient(med) {
@@ -2631,47 +2683,50 @@
 
 
             _addMedication(med) {
-                // this._showPane('dosage');
-                const unit = this.localize('generic_unit', 'unit', this.language);
-                const newMedicationContent = {
-                    medicationValue: {},
-                    medicationUnit: unit,
-                    regimen: [{administratedQuantity: {time: '', quantity: 1, unit: unit}}]
-                };
-
-                const newMed = {
-                    content: _.fromPairs([[this.language, newMedicationContent]]),
-                    codes: []
-                };
-
                 const currentMedIdx = _.findIndex(this.medicationAccumulator, m => m.id === med.id);
                 if (currentMedIdx >= 0) {
                     this.set(`medicationAccumulator.${currentMedIdx}.boxes`, (this.medicationAccumulator[currentMedIdx].boxes || 1) + 1)
                 } else {
                     console.log(med.type);
                     const drugType = med.type === "medicine" ? "CD-DRUG-CNK" : "CD-INNCLUSTER";
-                    const product = {
-                        "intendedname": med.intendedName,
-                        "intendedcds": [{type: drugType, code: med.id}],
-                        "priority": "low"
-                    };
 
-                    Object.assign(newMedicationContent.medicationValue, drugType === "CD-INNCLUSTER" ? {substanceProduct: product} : {medicinalProduct: product});
-                    newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = med.unit;
+                    let newMed = med.service;
+                    const hasMedication = !!(newMed && this.api.contact().medicationValue(newMed, this.language));
 
-                    ((newMed.codes || (newMed.codes = [])).find(code => code.type === drugType) || (newMed.codes[newMed.codes.length] = {
-                        type: drugType,
-                        version: "1"
-                    })).code = med.id;
+                    if (!hasMedication) {
+                        const unit = this.localize('generic_unit', 'unit', this.language);
+                        const newMedicationContent = {
+                            medicationValue: {},
+                            medicationUnit: unit,
+                            regimen: [{administratedQuantity: {time: '', quantity: 1, unit: unit}}]
+                        };
 
-                    // @ todo: check usage
-                    if (med.atcCodes && med.atcCodes[0]) {
-                        ((newMed.codes || (newMed.codes = [])).find(code => code.type === "CD-ATC") || (newMed.codes[newMed.codes.length] = {
-                            type: "CD-ATC",
+                        newMed = {
+                            content: _.fromPairs([[this.language, newMedicationContent]]),
+                            codes: []
+                        };
+                        const product = {
+                            "intendedname": med.intendedName,
+                            "intendedcds": [{type: drugType, code: med.id}],
+                            "priority": "low"
+                        };
+
+                        Object.assign(newMedicationContent.medicationValue, drugType === "CD-INNCLUSTER" ? {substanceProduct: product} : {medicinalProduct: product});
+                        newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = med.unit;
+
+                        ((newMed.codes || (newMed.codes = [])).find(code => code.type === drugType) || (newMed.codes[newMed.codes.length] = {
+                            type: drugType,
                             version: "1"
-                        })).code = med.atcCodes[0];
-                    }
+                        })).code = med.id;
 
+                        // @ todo: check usage
+                        if (med.atcCodes && med.atcCodes[0]) {
+                            ((newMed.codes || (newMed.codes = [])).find(code => code.type === "CD-ATC") || (newMed.codes[newMed.codes.length] = {
+                                type: "CD-ATC",
+                                version: "1"
+                            })).code = med.atcCodes[0];
+                        }
+                    }
                     const newMedClone = _.cloneDeep(newMed);
                     const desc = this._serviceDescription(newMedClone);
                     if (desc) {
@@ -2679,7 +2734,7 @@
                             boxes: 1,
                             newMedication: newMedClone,
                             id: med.id,
-                            options: {isPrescription: this.isPrescription},
+                            options: {isPrescription: this.isPrescription, isNew: !hasMedication},
                             intendedName: med.intendedName,
                             atcCat: med.atcCat,
                             allergies: med.allergies,
@@ -2687,6 +2742,10 @@
                             drugType: drugType,
                             samCode: med.samCode || ""
                         })
+                    }
+
+                    if (!hasMedication) {
+                        this._showPane('dosage');
                     }
                 }
             }
