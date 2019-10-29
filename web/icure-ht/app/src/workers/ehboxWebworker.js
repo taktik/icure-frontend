@@ -279,7 +279,7 @@ onmessage = e => {
                             user: _.trim(_.get(user,"id","")),
                             date: +new Date(),
                             accessType: 'SYSTEM_ACCESS',
-                            detail : JSON.stringify([{detail: "Save Assignment in Message panel", time: moment().format("HH:mm:ss")}])
+                            detail : "Save Assignment in Message panel"
                         }).catch(e=>console.log("ERROR with createAccessLog: ", e))
                     }
 

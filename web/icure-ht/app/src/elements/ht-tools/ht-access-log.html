@@ -112,27 +112,27 @@
                             </div>
                             <template is="dom-repeat" items="[[logList]]">
                                     <paper-item class="log-text">
-                                        <div class="log-date-col">[[convertDate(item.date)]]</div>
+                                        <div class="log-date-col">[[item.date]]</div>
                                         <div class="log-text-col">[[item.user]]</div>
                                         <div class="log-text-col">[[item.patient]]</div>
                                     </paper-item>
                             </template>
-                            <paper-item on-tap="getMoreAccess">
+                            <!--<paper-item on-tap="getMoreAccess">
                                 <div>[[localize('more','More',language)]]</div>
-                            </paper-item>
+                            </paper-item>-->
                         </paper-listbox>
                     </div>
                 </div>
                 <div class="col-right">
                     <template is="dom-if"if="[[selectedLog]]">
                         <div class="header-selected">[[_getSelectedLogTitle(selectedLog,selectedLog.*)]]</div>
-                        <vaadin-grid items="[[selectedLog.details]]">
+                        <vaadin-grid items="[[selectedLog.logs]]">
                             <vaadin-grid-column>
                                 <template class="header">
                                     heure
                                 </template>
                                 <template>
-                                    [[item.time]]
+                                    [[convertDate(item.date)]]
                                 </template>
                             </vaadin-grid-column>
                             <vaadin-grid-column>
@@ -140,7 +140,7 @@
                                     détail
                                 </template>
                                 <template>
-                                    [[item.detail]]
+                                    [[_getDetail(item)]]
                                 </template>
                             </vaadin-grid-column>
                         </vaadin-grid>
@@ -154,8 +154,9 @@
         </paper-dialog>
     </template>
     <script>
-        import moment from 'moment/src/moment'
+        import moment from 'moment/src/moment';
         const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+        import _ from 'lodash/lodash';
 
         class HtExportKey extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
             static get is() {/**@todo faire les translate ^^*/
@@ -201,6 +202,10 @@
                         type: Object,
                         value : null,
                         observer : 'selectedChanged'
+                    },
+                    exportMode:{
+                        type: Boolean,
+                        value: false
                     }
                 };
             }
@@ -214,14 +219,13 @@
             }
 
             convertDate(date){
-                return date ? this.api.moment(date).format("DD/MM/YYYY") : "inconnu"
+                return date ? this.api.moment(date).format("DD/MM/YYYY HH:mm:ss") : "inconnu"
             }
 
             updateList(){
                 if (!this.user) return
 
                 this.set('selected',null)
-                const time = moment().format("HH:mm:ss")
 
                 let latestSearchValue = this.filterValue
                 this.latestSearchValue = latestSearchValue
@@ -264,7 +268,9 @@
                                             date: result.date,
                                             patient: patient.lastName + " " + patient.firstName,
                                             user: users.rows.find(user => user.id===id).name,
-                                            details : result.detail ? JSON.parse(result.detail) : [{detail : "ouverture patient => Ancien systeme de log", time : time}]
+                                            detail : result.detail,
+                                            userId : result.user,
+                                            patientId : result.patientId
                                         })
                                 })
                             }))
@@ -274,7 +280,23 @@
                         logListTemp.sort( (a,b) =>{
                             return b.date -a.date;
                         })
-                        this.set("logList",logListTemp)
+                        const logByUser=_.groupBy(logListTemp,log=> log.userId)
+                        this.set("logList",_.flatMapDeep(Object.keys(logByUser).map(userId =>{
+                            const logByPatient=_.groupBy(logByUser[userId],log=> log.patientId)
+                            return Object.keys(logByPatient).map(patient =>{
+                                const logByDate = _.groupBy(logByPatient[patient],log => this.api.moment(log.date).format("DD/MM/YYYY"))
+                                return Object.keys(logByDate).map(date =>{
+                                    return{
+                                        logs : logByDate[date],
+                                        date : date,
+                                        userId : userId,
+                                        patientId : patient,
+                                        patient : _.first(logByDate[date]).patient,
+                                        user :_.first(logByDate[date]).user
+                                    }
+                                })
+                            })
+                        })))
                     })
                 })
             }
@@ -308,8 +330,58 @@
                 this.set("selectedLog",this.logList[this.selected])
             }
 
+            _getDetail(item){
+                return item.detail || "ancien systeme de log => ouverture du patient"
+            }
+
+
             getMore(){
 
+            }
+
+            export(){
+                this.set("exportMode",!this.exportMode)
+            }
+
+            generateXlsFile(data) {
+
+                // Create xls work book and assign properties
+                const xlsWorkBook = {SheetNames: [], Sheets: {}}
+                xlsWorkBook.Props = {Title: "AccessLog List", Author: "Topaz"}
+
+                // Create sheet based on json data collection
+                var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
+
+                // Link sheet to workbook
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, 'AccessLog List')
+
+                // Virtual data output
+                var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
+
+                // Put output to virtual "file"
+                var fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+
+                // Create download link and append to page's body
+                var downloadLink = document.createElement("a")
+                document.body.appendChild(downloadLink)
+                downloadLink.style = "display: none"
+
+                // Create url
+                var urlObject = window.URL.createObjectURL(fileBlob)
+
+                // Link to url
+                downloadLink.href = urlObject
+                downloadLink.download = "attest-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
+
+                // Trigger download and drop object
+                downloadLink.click()
+                window.URL.revokeObjectURL(urlObject)
+
+                // Free mem
+                fileBlob = false
+                xlsWorkBookOutput = false
+
+                return
             }
         }
         customElements.define(HtExportKey.is, HtExportKey);
