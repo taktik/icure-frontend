@@ -91,28 +91,29 @@
                 display : flex;
             }
             .log-text-col{
-                max-widt: 190px;
-            }
-
-            .log-date-col{
-                width: 220px;
+                max-widt: 250px;
             }
         </style>
         <paper-dialog id="dialog" opened="{{opened}}">
             <h2 class="modal-title">Access log</h2>
             <div class="content">
                 <div class="col-left">
-                    <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" on-keydown="refresh"></paper-input>
+                    <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" on-keydown="refresh" disabled="[[exportMode]]"></paper-input>
                     <div class="list-box">
                         <paper-listbox id="_log_listbox" focused selectable="paper-item" selected="{{selected}}">
                             <div class="log-text">
-                                <div class="log-date-col">date</div>
+                                <div class="log-text-col">date</div>
                                 <div class="log-text-col">user</div>
                                 <div class="log-text-col">patient</div>
                             </div>
                             <template is="dom-repeat" items="[[logList]]">
                                     <paper-item class="log-text">
-                                        <div class="log-date-col">[[item.date]]</div>
+                                        <div class="log-text-col">
+                                            <template is="dom-if" if="[[exportMode]]">
+                                                <paper-checkBox role="check" index="[[getIndex(item,logList.*)]]" on-checked-changed="setListExport"></paper-checkBox>
+                                            </template>
+                                            [[item.date]]
+                                        </div>
                                         <div class="log-text-col">[[item.user]]</div>
                                         <div class="log-text-col">[[item.patient]]</div>
                                     </paper-item>
@@ -148,7 +149,13 @@
                 </div>
             </div>
             <div class="buttons">
-                <paper-button class="button button--other" on-tap="export">[[localize('export','Export',language)]]</paper-button>
+                <template is="dom-if" if="[[exportMode]]">
+                    <paper-button class="button button--other" on-tap="export">[[localize('can','Cancel',language)]]</paper-button>
+                    <paper-button class="button button--other" on-tap="launchExport">[[localize('valid','Valid',language)]]</paper-button>
+                </template>
+                <template is="dom-if" if="[[!exportMode]]">
+                    <paper-button class="button button--other" on-tap="export">[[localize('export','Export',language)]]</paper-button>
+                </template>
                 <paper-button class="button" on-tap="close">[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
@@ -206,6 +213,10 @@
                     exportMode:{
                         type: Boolean,
                         value: false
+                    },
+                    exportLogList:{
+                        type:Array,
+                        value: []
                     }
                 };
             }
@@ -322,7 +333,7 @@
             }
 
             _getSelectedLogTitle(){
-                return "Log du "+this.convertDate(this.selectedLog.date)+" par "+this.selectedLog.user+" sur le patient "+this.selectedLog.patient;
+                return "Log du "+this.selectedLog.date+" par "+this.selectedLog.user+" sur le patient "+this.selectedLog.patient;
             }
 
             selectedChanged(){
@@ -340,7 +351,22 @@
             }
 
             export(){
+                this.set("exportLogList",[])
                 this.set("exportMode",!this.exportMode)
+            }
+
+            launchExport(){
+                const data =_.flatMapDeep(this.exportLogList.map(idxToExport => this.logList[idxToExport].logs.map(log =>{
+                    return {
+                        date : this.convertDate(log.date),
+                        user : this.logList[idxToExport].user,
+                        patient : this.logList[idxToExport].patient,
+                        detail : this._getDetail(log),
+                    }
+                })))
+                this.set("exportLogList",[])
+                this.set("exportMode",false)
+                this.generateXlsFile(data);
             }
 
             generateXlsFile(data) {
@@ -371,7 +397,7 @@
 
                 // Link to url
                 downloadLink.href = urlObject
-                downloadLink.download = "attest-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
+                downloadLink.download = "accessLog_list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
 
                 // Trigger download and drop object
                 downloadLink.click()
@@ -382,6 +408,21 @@
                 xlsWorkBookOutput = false
 
                 return
+            }
+
+            getIndex(item){
+                return this.logList.findIndex(log => log===item)
+            }
+
+            setListExport(e){
+                e.stopPropagation()
+                const idx=this.exportLogList.find(it => it===e.target.index)
+                if(idx>-1 && !e.detail.value){
+                    this.exportLogList.splice(idx, 1);
+                }
+                else if(e.detail.value){
+                    this.push("exportLogList",e.target.index)
+                }
             }
         }
         customElements.define(HtExportKey.is, HtExportKey);
