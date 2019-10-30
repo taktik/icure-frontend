@@ -65,9 +65,9 @@
             }
 
             .regimen-line paper-icon-button {
-                margin: 12px;
-                height: 24px;
-                width: 24px;
+                margin: 10px;
+                height: 28px;
+                width: 28px;
                 padding: 2px;
             }
             .regimen-line vaadin-checkbox {
@@ -80,9 +80,13 @@
                 width: auto;
             }
             .regimen-line paper-input[type=number] {
-                margin: 0 8px 0;
-                width: 144px;
+                margin: 0 8px;
+                width: 128px;
             }
+            .regimen-line paper-input[type=text] {
+                margin: 0 8px;
+            }
+
             .regimen-line.block .renewal-input{
                 max-height: 42px;
                 min-height: 0;
@@ -576,7 +580,11 @@
             .title h5 {
                 margin: 0;
                 position: absolute;
-                bottom: 0;
+                bottom: -4px;
+            }
+
+            .text-area {
+                width: 100%;
             }
 
         </style>
@@ -614,14 +622,23 @@
                 <paper-input type="number" min="0" label="[[localize('', 'Quantité prescrite', language)]]" value="{{medicationDetail.boxes}}"></paper-input>
             </div>
             <div class="regimen-line display-type-regimen">
-                <paper-input type="number" min="0" label="[[localize('', 'Quantité', language)]]" value="{{selectedMedicationContentWithId.medicationValue.renewalDecimalValue}}"></paper-input>
-                <paper-dropdown-menu id="medicRenewalTimeUnit" label="[[localize('','Nature',language)]]" class="regimen--renewalTimeUnit">
-                    <paper-listbox slot="dropdown-content" class="dropdown-renewalTimeUnit" selected={{selectedMedicationContentWithId.medicationValue.renewalTimeUnitIdx}} selected-item="{{selectedMedicationContentWithId.medicationValue.renewalDurationUnitItem}}">
-                        <template is="dom-repeat" items="[[timeUnit]]" as="tu">
-                            <paper-item id="[[tu.id]]">[[_getCodeLabel(tu.label)]]</paper-item>
+                <paper-input-container always-float-label="true" class="comment">
+                    <label slot="label" class="color-status">[[localize('proposed_posology','Posologie proposée',language)]]</label>
+                    <iron-autogrow-textarea class="paper-input-input" slot="input" disabled value="[[medicationDetail.posologyNote]]"></iron-autogrow-textarea>
+                </paper-input-container>
+                <paper-icon-button class="button--icon-btn" icon="content-copy" role="button" on-tap="_copyPosologyNote" disabled="[[!medicationDetail.posologyNote]]"></paper-icon-button>
+            </div>
+            <div class="regimen-line display-type-regimen">
+                <paper-dropdown-menu id="unit" label="[[localize('unit', 'Unité', language)]]">
+                    <paper-listbox slot="dropdown-content" selected={{selectedMedicationContentWithId.medicationQuantity}}>
+                        <template is="dom-repeat" items="[[_units]]">
+                            <paper-item id="[[item.id]]">[[item.label]]</paper-item>
                         </template>
                     </paper-listbox>
                 </paper-dropdown-menu>
+
+<!--                <span>[[selectedMedicationContentWithId.medicationValue.unit]]</span>-->
+                <paper-input type="text" readonly label="[[localize('nat','Nature', language)]]" value="{{selectedMedicationContentWithId.medicationUnit}}"></paper-input>
                 <paper-input type="number" min="0" label="[[localize('', 'Nb de fois', language)]]" value="{{selectedMedicationContentWithId.medicationValue.renewalDurationValue}}"></paper-input>
                 <div>&nbsp;x&nbsp;</div>
                 <paper-dropdown-menu id="medicReimbursement" label="[[localize('', 'par', language)]]" class="regimen--reimbursement">
@@ -724,7 +741,7 @@
             <div class="regimen-line display-type-regimen">
                 <paper-input-container always-float-label="true" class="comment">
                     <label slot="label" class="color-status">[[localize('pos','Posology',language)]]</label>
-                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{posologyString}}"></iron-autogrow-textarea>
+                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedMedicationContentWithId.medicationValue.instructionForPatient}}"></iron-autogrow-textarea>
                 </paper-input-container>
             </div>
             <div class="regimen-line display-type-regimen">
@@ -901,11 +918,11 @@
                         type: Boolean,
                         value: false
                     },
-                    posologyString: {
-                        type: String,
-                        value: '',
-                        observer: '_posologyChanged'
-                    },
+                    // posologyString: {
+                    //     type: String,
+                    //     value: '',
+                    //     observer: '_posologyChanged'
+                    // },
                     medicationDetail: {
                         type: Object,
                         value: () => {}
@@ -1041,6 +1058,13 @@
                     {id: "regimenAfterDinner", parentId: "regimenDinner", dayPeriod: {code: "afterdinner", type: "CD-DAYPERIOD"}},
                     {id: "regimenSleep", dayPeriod: {code: "thehourofsleep", type: "CD-DAYPERIOD"}}
                 ];
+
+                this._units = [
+                    {id: "one", label: "1", value: 1},
+                    {id: "half", label: "1/2", value: 1/2},
+                    {id: "third", label: "1/3", value: 1/3},
+                    {id: "quarter", label: "1/4", value: 1/4}
+                ];
             }
 
             ready() {
@@ -1083,7 +1107,8 @@
             }
 
             _regimenChanged() {
-                this.set('posologyString',this.api.contact().medication().posologyToString(this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.medicationValue || {}, this.language))
+                this.set("selectedMedicationContentWithId.medicationValue.instructionForPatient", "");
+                this.set("selectedMedicationContentWithId.medicationValue.instructionForPatient",this.api.contact().medication().posologyToString(this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.medicationValue || {}, this.language))
             }
 
             _medicationChanged(medication) {
@@ -1113,15 +1138,15 @@
                 this._initRegimen();
             }
 
-            _posologyChanged(newValue, oldValue) {
-                if(!this.selectedMedicationContentWithId || !this.selectedMedicationContentWithId.medicationValue) {
-                    return;
-                }
-                const fetchedValue = this.api.contact().medication().posologyToString(this.selectedMedicationContentWithId.medicationValue, this.language)
-                if(newValue !== fetchedValue) {
-                    this.set('selectedMedicationContentWithId.medicationValue.instructionForPatient', newValue)
-                }
-            }
+            // _posologyChanged(newValue, oldValue) {
+            //     if(!this.selectedMedicationContentWithId || !this.selectedMedicationContentWithId.medicationValue) {
+            //         return;
+            //     }
+            //     const fetchedValue = this.api.contact().medication().posologyToString(this.selectedMedicationContentWithId.medicationValue, this.language)
+            //     if(newValue !== fetchedValue) {
+            //         this.set('selectedMedicationContentWithId.medicationValue.instructionForPatient', newValue)
+            //     }
+            // }
 
             _all(a,b) { return a && b }
 
@@ -1130,10 +1155,15 @@
             }
 
             extractContentWithIdFromMedicationService(m, isNew, isPres) {
+                const content = this.api.contact().preferredContent(m, this.language)  || (m.content[this.language] = {
+                    medicationValue: {regimen: []},
+                    medicationUnit: this.localize("generic_unit", "unit")
+                });
                 return {
                     id: m.id,
                     codes: m.codes,
-                    medicationValue: (this.api.contact().preferredContent(m, this.language)  || (m.content[this.language] = {medicationValue: {regimen: []}})).medicationValue,
+                    medicationValue: content.medicationValue,
+                    medicationUnit: content.medicationUnit,
                     isNew: isNew || false,
                     isPrescription: m.isPrescription || isPres || false,
                 };
@@ -1288,6 +1318,11 @@
 
             _resetAll(e) {
                 this._regimens.map(regimen => this._setQuantity(regimen.id));
+            }
+
+            _copyPosologyNote() {
+                this._resetAll();
+                this.set("selectedMedicationContentWithId.medicationValue.instructionForPatient", this.medicationDetail.posologyNote);
             }
 
             _beginMoment() {
