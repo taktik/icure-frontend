@@ -15,6 +15,7 @@
                 justify-content: center;
                 align-items: center;
                 align-self: center;
+                height: 90px;
             }
             .period-item {
                 display: flex;
@@ -30,6 +31,9 @@
                 height: 16px;
                 width: 16px;
             }
+            .late {
+                background-color: #FF000030;
+            }
             #menuButton {
                 padding: 0px;
                 margin: 0px;
@@ -42,15 +46,12 @@
             }
         </style>
 
-        <div class="period">
+        <div id="period" class="period">
             <template is="dom-if" if="[[period.service]]">
                 <div class="period-date">
                     <template is="dom-if" if="[[checked]]">
                         <vaadin-date-picker-light id="date-picker" i18n="[[i18n]]" value="[[date]]" on-value-changed="_dateChanged" disabled="[[!checked]]">
                             <div class="my-input2">
-                                <!--
-                                <iron-icon icon="event"></iron-icon>
-                                -->
                                 <iron-input>
                                     <input size="10"/>
                                 </iron-input>
@@ -66,8 +67,8 @@
                     <paper-menu-button id="menuButton" disabled="[[!checked]]">
                         <paper-icon-button class="small-icon" icon="paper-dropdown-menu:arrow-drop-down" slot="dropdown-trigger"></paper-icon-button>
                         <paper-listbox slot="dropdown-content">
-                            <template is="dom-repeat" items="[[_getAllStatus()]]" as="item">
-                                <paper-item id="[[item.code]]" on-tap="_toggleStatus">[[_getStatus(item.code)]]</paper-item>
+                            <template is="dom-repeat" items="[[statuses]]" as="item">
+                                <paper-item id="[[item.code]]" on-tap="_toggleStatus">[[item.value]]</paper-item>
                             </template>
                         </paper-listbox>
                     </paper-menu-button>
@@ -100,6 +101,10 @@
                         type: Object,
                         value: null
                     },
+                    late: {
+                        type: Boolean,
+                        value: false,
+                    },
                     date: {
                         type: String
                     },
@@ -123,6 +128,10 @@
                         type: Object,
                         value: null
                     },
+                    statuses: {
+                        type: Array,
+                        value: () => []
+                    },
                     language: {
                         type: String
                     },
@@ -144,36 +153,24 @@
             }
 
             _dateChanged(e) {
-                console.log("date changed");
                 const datePicker = this.shadowRoot.querySelector('#date-picker');
-                if (datePicker) {
-                    console.log(datePicker.value);
-                    let newDate = this.api.moment(datePicker.value);
-                    let oldDate = this.api.moment(this.period.service.valueDate);
-                    const days = newDate.diff(oldDate, 'days')
-                    this.period.service.valueDate = newDate.format("YYYYMMDD");
-                    this.dispatchEvent(new CustomEvent('date-changed', {
-                        detail: {
-                            period: this.period,
-                            procedure: this.procedure,
-                            days: days
-                        }
-                    }));
-                }
-            }
-
-            _getAllStatus() {
-                return [
-                    //{ code: "pending", value: "pending", default: "pending" },
-                    { code: "planned", value: "vacc_planned", default: "planned" },
-                    { code: "cancelled", value: "vacc_cancelled", default: "cancelled" },
-                    { code: "completed", value: "vacc_completed", default: "completed" }
-                ]
+                if (!datePicker) return;
+                let newDate = this.api.moment(datePicker.value);
+                let oldDate = this.api.moment(this.period.service.valueDate);
+                const days = newDate.diff(oldDate, 'days')
+                this.period.service.valueDate = newDate.format("YYYYMMDD");
+                this.dispatchEvent(new CustomEvent('date-changed', {
+                    detail: {
+                        period: this.period,
+                        procedure: this.procedure,
+                        days: days
+                    }
+                }));
+                this.refresh();
             }
 
             _getStatus(code) {
-                const status = this._getAllStatus().find(s => s.code == code);
-                return status ? this.localize(status.code, status.default, this.language) : null;
+                return _.get(this.statuses.find(s => s.code == code), "value", "unknown");
             }
 
             _setStatus(code) {
@@ -181,6 +178,7 @@
                 this.period.service.tags.find(t => t.type == 'CD-LIFECYCLE').code = code;
                 this.set("status", this._getStatus(code));
                 this.set("checked", code != "cancelled");
+                this.refresh();
                 this._sendEvent("update-service");
             }
 
@@ -198,7 +196,6 @@
             }
 
             _periodChanged() {
-                console.log("period changed");
                 this.refresh();
             }
 
@@ -213,10 +210,17 @@
             }
 
             refresh() {
-                console.log("refresh");
                 if (this.period && this.period.service) {
-                    this.set("date", this.api.moment(this.period.service.valueDate).format('YYYY-MM-DD'));
-                    this.set("status", this._getStatus(this.period.service.tags.find(t => t.type == "CD-LIFECYCLE").code));
+                    const date = this.api.moment(this.period.service.valueDate);
+                    const code = this.period.service.tags.find(t => t.type == 'CD-LIFECYCLE').code;
+                    const late = ((code == "pending" || code == "planned") && this.api.moment(new Date()).isAfter(date));
+                    if (late)
+                        this.$["period"].classList.add("late");
+                    else
+                        this.$["period"].classList.remove("late");
+                    this.set("late", late);
+                    this.set("date", date.format('YYYY-MM-DD'));
+                    this.set("status", this._getStatus(code));
                     this.set("checked", this.period.service.tags.some(t => t.type == 'CD-LIFECYCLE' && t.code != 'cancelled'));
                     this.set("product", this.period.service.comment);
                 }

@@ -57,7 +57,7 @@
             .status {
                 border-radius: 20px;
                 padding: 1px 12px 1px 8px;
-                font-size: 14px;
+                font-size: x-small;
                 display: block;
                 width: auto;
                 max-width: fit-content;
@@ -122,14 +122,14 @@
                 <iron-icon icon="warning"></iron-icon> [[localize('no_hist','No history',language)]] !
             </template>
 
-            <vaadin-grid id="vaccines" class="material" items="[[getVaccines(servicesRefresher)]]" active-item="{{vaccine}}">
+            <vaadin-grid id="vaccines" class="material" items="[[getVaccines(refresher)]]" active-item="{{vaccine}}">
                 <vaadin-grid-column flex-grow="0" width="100px">
                     <template class="header">
-                        <vaadin-grid-sorter path="date">[[localize('cod','Date',language)]]
+                        <vaadin-grid-sorter path="date">[[localize('dat','Date',language)]]
                         </vaadin-grid-sorter>
                     </template>
                     <template>
-                        <div class="cell frozen">[[getValue(item.dateAsString, servicesRefresher)]]</div>
+                        <div class="cell frozen">[[getValue(item.dateAsString, refresher)]]</div>
                     </template>
                 </vaadin-grid-column>
                 <vaadin-grid-column flex-grow="0" width="100px">
@@ -156,7 +156,7 @@
                         </vaadin-grid-sorter>
                     </template>
                     <template>
-                        <div class="cell">[[getValue(item.product, servicesRefresher)]]</div>
+                        <div class="cell">[[getValue(item.product, refresher)]]</div>
                     </template>
                 </vaadin-grid-column>
                 <vaadin-grid-column flex-grow="0" width="150px">
@@ -165,7 +165,7 @@
                         </vaadin-grid-sorter>
                     </template>
                     <template>
-                        <div class="cell frozen"><span class$="status status--[[getValue(item.color, servicesRefresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon--[[getValue(item.color, servicesRefresher)]]"></iron-icon>&nbsp[[getValue(item.status, servicesRefresher)]]</span></div>
+                        <div class="cell frozen"><span class$="status status--[[getValue(item.color, refresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon--[[getValue(item.color, refresher)]]"></iron-icon>&nbsp[[_formatStatus(item.status, refresher)]]</span></div>
                     </template>
                 </vaadin-grid-column>
             </vaadin-grid>
@@ -180,7 +180,7 @@
                         <div class="col1" data-item$="[[item.id]]">[[item.date]]</div>
                         <div class="col2" data-item$="[[item.id]]">[[item.name]] ([[item.code]])</div>
                         <div class="col3" data-item$="[[item.id]]">[[item.product]]</div>
-                        <div class="col4" data-item$="[[item.id]]"><span class$="status status--[[getValue(item.color, servicesRefresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon--[[getValue(item.color, servicesRefresher)]]"></iron-icon>&nbsp[[getValue(item.status, servicesRefresher)]]</span></div>
+                        <div class="col4" data-item$="[[item.id]]"><span class$="status status--[[getValue(item.color, refresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon--[[getValue(item.color, refresher)]]"></iron-icon>&nbsp[[getValue(item.status, refresher)]]</span></div>
                     </paper-item>
                 </template>
             </paper-listbox>
@@ -214,7 +214,7 @@
                         type: Array,
                         value: []
                     },
-                    servicesRefresher: {
+                    refresher: {
                         type: Number,
                         value: 0
                     },
@@ -250,18 +250,19 @@
                     }
                 });
                 this.set("vaccines", _.orderBy(vaccines, ['date', 'date'], ['code','code']))
-                this.set("servicesRefresher", this.servicesRefresher + 1);
+                this.set("refresher", this.refresher + 1);
             }
 
             updateService(detail) {
                 console.log(detail.toString());
                 const vaccine = this.vaccines.find(v => v.id == detail.period.service.id);
+                if (!vaccine) return;
                 vaccine.date = detail.period.service.valueDate;
                 vaccine.color = this._getColor(detail.period.service);
                 vaccine.status = this._getStatus(detail.period.service);
                 vaccine.product = this._getProduct(detail.period.service);
                 vaccine.dateAsString = this._getDate(detail.period.service);
-                this.set("servicesRefresher", this.servicesRefresher + 1);
+                this.set("refresher", this.refresher + 1);
                 //this.shadowRoot.querySelector('#products').render();
             }
 
@@ -321,6 +322,36 @@
 
             _getContent(svc) {
                 return svc && this.api.contact().preferredContent(svc, this.language) || svc.content[this.language]
+            }
+
+            _formatStatus(code) {
+                return this.localize("vacc_" + code, code, this.language)
+            }
+
+            print() {
+                let html = '';
+                html += '<div class="history">';
+
+                html += '<div class="history-line">';
+                html += '<div class="history-header w100"><div class="pad">' + this.localize("dat", "Date") + '</div></div>';
+                html += '<div class="history-header w100"><div class="pad">' + this.localize("cod", "Code") + '</div></div>';
+                html += '<div class="history-header w400"><div class="pad">' + this.localize("nam", "Name") + '</div></div>';
+                html += '<div class="history-header w300"><div class="pad">' + this.localize("pro", "Product") + '</div></div>';
+                html += '<div class="history-header w150"><div class="pad">' + this.localize("sta", "Status") + '</div></div>';
+                html += '</div>';
+
+                this.vaccines.forEach(vaccine => {
+                    html += '<div class="history-line">';
+                    html += '<div class="history-column w100"><div class="pad">' + vaccine.dateAsString + '</div></div>';
+                    html += '<div class="history-column w100"><div class="pad">' + vaccine.code + '</div></div>';
+                    html += '<div class="history-column w400"><div class="pad">' + vaccine.name + '</div></div>';
+                    html += '<div class="history-column w300"><div class="pad">' + vaccine.product + '</div></div>';
+                    html += '<div class="history-column w150"><div class="pad">' + this._formatStatus(vaccine.status) + '</div></div>';
+                    html += '</div>';
+                })
+
+                html += '</div>';
+                return html;
             }
         }
 
