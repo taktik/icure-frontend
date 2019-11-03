@@ -734,14 +734,13 @@
                     </paper-listbox>
                 </paper-dropdown-menu>
 
-                <paper-input type="text" readonly label="[[localize('unit','Unité', language)]]" value="{{selectedMedicationContentWithId.medicationUnit}}"></paper-input>
-                <paper-input type="number" min="0" label="[[localize('', 'Nb de fois', language)]]" value="{{selectedMedicationContentWithId.medicationValue.renewalDurationValue}}"></paper-input>
-                <div class="connector-text">&nbsp;x&nbsp;</div>
-                <paper-dropdown-menu id="medicReimbursement" label="[[localize('', 'par', language)]]" class="regimen--reimbursement">
-                    <paper-listbox slot="dropdown-content" class="dropdown-reimbursement" selected={{selectedMedicationContentWithId.medicationValue.reimbursementItemIdx}} selected-item="{{selectedMedicationContentWithId.medicationValue.reimbursementItem}}">
-                        <paper-item id="daily">[[localize('','Jour',language)]]</paper-item>
-                        <paper-item id="weekly" data-item="weekly">[[localize('','Semaine',language)]]</paper-item>
-                        <paper-item id="monthly" data-item="monthly">[[localize('','Mois',language)]]</paper-item>
+                <paper-input type="text" readonly label="[[localize('uni','Unité', language)]]" value="{{selectedMedicationContentWithId.medicationUnit}}"></paper-input>
+                <paper-input type="number" min="0" label="[[localize('number', 'Nombre', language)]]" value="{{totalTimes}}"></paper-input>
+                <paper-dropdown-menu id="medicReimbursement" label="[[localize('freq', 'Fréquence', language)]]" class="regimen--reimbursement">
+                    <paper-listbox slot="dropdown-content" class="dropdown-reimbursement" selected={{frequency}} selected-item="{{selectedMedicationContentWithId.medicationValue.reimbursementItem}}">
+                        <paper-item id="daily" data-item="daily">[[localize('perDay','par jour',language)]]</paper-item>
+                        <paper-item id="weekly" data-item="weekly">[[localize('perWee','par semaine',language)]]</paper-item>
+                        <paper-item id="monthly" data-item="monthly">[[localize('perMonth','par mois',language)]]</paper-item>
                     </paper-listbox>
                 </paper-dropdown-menu>
             </div>
@@ -816,7 +815,7 @@
                 </div>
                 <div class="extra-line">
                     <template is="dom-repeat" items="[[extras]]" as="extra">
-                        <ht-regimen id="extra[[extra.code]]" extra="{{extra}}" unit="[[medicationDetail.bufferUnit]]" quantity-factor="[[quantityFactor]]" on-extra-changed="_extraChanged" on-delete-extra="_deleteExtra"></ht-regimen>
+                        <ht-regimen id="extra[[extra.code]]" extra="{{extra}}" unit="[[medicationDetail.bufferUnit]]" quantity-factor="[[quantityFactor]]" on-extra-changed="_extraChanged"></ht-regimen>
                     </template>
                 </div>
                 <div class="extra-control">
@@ -826,7 +825,7 @@
             <div class="regimen-line display-type-regimen">
                 <paper-input-container always-float-label="true" class="comment">
                     <label slot="label" class="color-status">[[localize('pos','Posology',language)]]</label>
-                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedMedicationContentWithId.medicationValue.instructionForPatient}}"></iron-autogrow-textarea>
+                    <iron-autogrow-textarea class="paper-input-input" slot="input" on-keydown="_instructionOverride" value="{{selectedMedicationContentWithId.medicationValue.instructionForPatient}}"></iron-autogrow-textarea>
                 </paper-input-container>
             </div>
             <div class="regimen-line display-type-regimen">
@@ -899,6 +898,7 @@
 
         import _ from 'lodash/lodash'
         import moment from 'moment/src/moment'
+        import {parse} from "../../../../bower_components/shadycss/src/css-parse";
 
         class MedicationDetails extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1107,6 +1107,18 @@
                     quantityFactor: {
                         type: Object,
                         value: null
+                    },
+                    totalQuantity: {
+                        type: Number,
+                        value: 0
+                    },
+                    totalTimes: {
+                        type: Number,
+                        value: 0
+                    },
+                    frequency: {
+                        type: String,
+                        value: ""
                     }
                 }
             }
@@ -1205,7 +1217,15 @@
                 return code && code[this.language]
             }
 
+            _instructionOverride() {
+                const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
+                if (regimen && regimen.length) {
+                    this._resetAll()
+                }
+            }
+
             _regimenChanged() {
+                this._updateStats();
                 this.set("selectedMedicationContentWithId.medicationValue.instructionForPatient", "");
                 this.set("selectedMedicationContentWithId.medicationValue.instructionForPatient",this.api.contact().medication().posologyToString(this.selectedMedicationContentWithId && this.selectedMedicationContentWithId.medicationValue || {}, this.language))
             }
@@ -1224,7 +1244,7 @@
                 this.set("medicationDetail", Object.assign(
                     medication,
                     {
-                        dividable: medication.dividable || true,
+                        dividable: medication.dividable === undefined ? true : medication.dividable,
                         bufferUnit: this.selectedMedicationContentWithId.medicationUnit || this.localize('generic_unit', 'unit', this.language),
                         medicPriority : this.selectedMedicationContentWithId.medicationValue.priority === "high" ? 2 : this.selectedMedicationContentWithId.medicationValue.priority === "middle" ? 1 : 0,
                         reimbursementItemIdx: this.selectedMedicationContentWithId.medicationValue.reimbursementReason ? this.reimbursementCodeRecipe.findIndex(idx => idx.code === this.selectedMedicationContentWithId.medicationValue.reimbursementReason.code) : this.reimbursementCodeRecipe.findIndex(idx => idx.code === "notreimbursable"),
@@ -1332,6 +1352,7 @@
             }
 
             init() {
+                this.frequency = this.localize("perDay", "par jour");
                 return Promise.all(this._regimens.map(reg => {
                     const dayPeriod = reg.dayPeriod;
                     return this.api.code().findCodes("be", dayPeriod.type, dayPeriod.code)
@@ -1345,6 +1366,22 @@
                         })
                     })
                 );
+            }
+
+            _updateStats() {
+                if (!this.quantityFactor) return;
+                const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
+                let totalQuantity = 0;
+                let totalTimes = 0;
+                if (regimen) {
+                    totalTimes = regimen.reduce((total, reg) => {
+                        total += (this.quantityFactor.denominator > 1) && 1 || parseInt(reg.administratedQuantity.quantity, 10) || 0;
+                        return total;
+                    }, 0);
+                    totalQuantity = Math.round(totalTimes / this.quantityFactor.denominator);
+                }
+                this.set("totalQuantity", totalQuantity);
+                this.set("totalTimes", totalTimes);
             }
 
 
@@ -1617,36 +1654,6 @@
                     }
                 }
                 this._updateView();
-            }
-
-            _deleteExtra(e) {
-                const extra = _.get(e, "currentTarget.extra", "");
-                if (!extra) return;
-                const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-                if (!regimen) return;
-                const index = regimen.findIndex(reg => reg.timeOfDay && !reg.dayPeriod && reg.timeOfDay === extra.code);
-                if (index > -1) {
-                    if (this.quantityFactor.denominator > 1) {
-                        this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1);
-                    } else {
-                        const quantity = (parseInt(regimen[index].administratedQuantity.quantity, 10) || 1) - 1;
-                        if (quantity) {
-                            const updated = {
-                                administratedQuantity: {
-                                    quantity: quantity,
-                                    unit: this.selectedMedicationContentWithId.medicationUnit
-                                },
-                                timeOfDay : extra.code,
-                                frequency: "daily"
-                            };
-                            this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1, updated);
-                        } else {
-                            this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1);
-                        }
-                    }
-                }
-                this._updateView();
-                // this.notifyPath("selectedMedicationContentWithId.medicationValue", "changed");
             }
 
             _valueChanged() {
