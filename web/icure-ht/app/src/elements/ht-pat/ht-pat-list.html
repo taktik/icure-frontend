@@ -1042,7 +1042,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class="cell numeric">[[localize('pho','Phone',language)]]</div>
                         </template>
                         <template>
-                            <div class="cell numeric">[[item.phone]]</div>
+                            <div class="cell numeric">[[_getPhone(item)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <!-- <vaadin-grid-column flex-grow="0" width="150px">
@@ -1162,8 +1162,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <iron-pages selected="[[tabs]]">
                         <page>
                             <div class="content-block horizontal">
-                                <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
-                                <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                                <template is="dom-if" if="[[onElectron]]">
+                                    <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
+                                    <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                                </template>
                                 <paper-input always-float-label label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
                                 <paper-input always-float-label label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
                                 <vaadin-date-picker-light i18n="[[i18n]]" attr-for-value="value">
@@ -1752,6 +1754,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Object,
                         value: {}
                     },
+                    newPatCardData: {
+                        type: Object,
+                        value: {}
+                    },
                     canAddPat: {
                         type: Boolean,
                         value: false
@@ -2137,10 +2143,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         if (res.cards[0]) {
                             this.set('firstName', res.cards[0].firstName)
                             this.set('lastName', res.cards[0].surname)
-                            this.set('dateAsString', this.api.moment(res.cards[0].dateOfBirth * 1000).format('YYYY-MM-DD'))
+                            this.set('dateAsString', this.api.moment(res.cards[0].dateOfBirth * 1000).format('DD/MM/YYYY'))
                             this.set('ssin', res.cards[0].nationalNumber)
                             this.set('valueGender', res.cards[0].gender === 'M' ? 'male' : 'female')
-                            this.set('cardData',res.cards[0])
+                            this.set('newPatCardData',res.cards[0])
                         }
                     })
             }
@@ -2310,17 +2316,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['import-mf-dialog'].open()
             }
 
-            generateXlsFile(data) {
+            generateXlsFile(data, filename, title, author) {
 
                 // Create xls work book and assign properties
+                filename = filename || ("patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls")
+                title = title || "Patients list"
+                author = author || "iCure"
                 const xlsWorkBook = {SheetNames: [], Sheets: {}}
-                xlsWorkBook.Props = {Title: "Patients list", Author: "iCure"}
+                xlsWorkBook.Props = {Title: title, Author: author}
 
                 // Create sheet based on json data collection
                 var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
 
                 // Link sheet to workbook
-                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, 'Patients list')
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, title)
 
                 // Virtual data output
                 var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
@@ -2338,7 +2347,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 // Link to url
                 downloadLink.href = urlObject
-                downloadLink.download = "patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
+                downloadLink.download = filename
 
                 // Trigger download and drop object
                 downloadLink.click()
@@ -2364,8 +2373,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         gender: this.valueGender,
                         medicalHouseContracts: [this.medicalHouseContractShadowObject]
                     }
-                    if (Object.keys(this.cardData).length !== 0 && this.ssin === this.cardData.nationalNumber) {
-                        let streetData = _.trim(this.cardData.street).split(" ")
+                    if (Object.keys(this.newPatCardData).length !== 0 && this.ssin === this.newPatCardData.nationalNumber) {
+                        let streetData = _.trim(this.newPatCardData.street).split(" ")
                         const number = streetData.find(str => str.match(/\d/g))
                         const boxNumber = streetData[streetData.length - 1] !== number ? streetData[streetData.length - 1] : ""
                         const street = streetData.reduce((tot, str) => {
@@ -2375,18 +2384,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             return tot;
                         })
                         _.merge(newPatient, {
-                            placeOfBirth: this.cardData.locationOfBirth,
-                            nationality: this.cardData.nationality,
-                            picture: this.cardData.picture,
+                            placeOfBirth: this.newPatCardData.locationOfBirth,
+                            nationality: this.newPatCardData.nationality,
+                            picture: this.newPatCardData.picture,
                             addresses: [
                                 {
                                     addressType: "home",
                                     street: street,
                                     houseNumber: number,
                                     postboxNumber: boxNumber,
-                                    postalCode: this.cardData.zipCode,
-                                    city: this.cardData.municipality,
-                                    country: this.cardData.country
+                                    postalCode: this.newPatCardData.zipCode,
+                                    city: this.newPatCardData.municipality,
+                                    country: this.newPatCardData.country
                                 }
                             ]
                         })
@@ -3250,6 +3259,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(e.detail.ok){
                     this.api.patient().getPatientWithUser(this.user,e.detail.patientId).then(p => this.api.register(p, 'patient')).then(p => this.set('selectedPatient', p))
                 }
+            }
+
+            _getPhone(item){
+                return ((item.addresses.find(add => add.telecoms.find(tel=> tel.telecomType==="mobile" || tel.telecomType==="phone"))|| {telecoms:[]}).telecoms.find(tel=> tel.telecomType==="mobile" || tel.telecomType==="phone")||{telecomNumber:""}).telecomNumber
             }
 
         }
