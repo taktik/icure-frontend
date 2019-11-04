@@ -83,6 +83,10 @@
                 margin: 0 8px;
             }
 
+            .regimen-line paper-dropdown-menu {
+                margin: 0 8px;
+            }
+
             .regimen-line.block .renewal-input{
                 max-height: 42px;
                 min-height: 0;
@@ -97,7 +101,7 @@
                 --paper-dropdown-menu-input: {
                     height: 42px;
                     padding: 0;
-                }
+                };
                 --paper-input-container: {
                     padding: 0;
                 };
@@ -700,27 +704,28 @@
 
                 <paper-input type="text" readonly label="[[localize('uni','Unité', language)]]" value="{{selectedMedicationContentWithId.medicationUnit}}"></paper-input>
                 <paper-input type="number" min="0" label="[[localize('number', 'Nombre', language)]]" value="{{totalTimes}}"></paper-input>
-                <paper-dropdown-menu id="medicReimbursement" label="[[localize('freq', 'Fréquence', language)]]" class="regimen--reimbursement">
-                    <paper-listbox slot="dropdown-content" class="dropdown-reimbursement" selected={{frequency}} selected-item="{{selectedMedicationContentWithId.medicationValue.reimbursementItem}}">
+                <paper-dropdown-menu id="frequency" label="[[localize('freq', 'Fréquence', language)]]">
+                    <paper-listbox slot="dropdown-content" attr-for-selected="id" selected="{{frequency}}">
                         <paper-item id="daily" data-item="daily">[[localize('perDay','par jour',language)]]</paper-item>
                         <paper-item id="weekly" data-item="weekly">[[localize('perWee','par semaine',language)]]</paper-item>
                         <paper-item id="monthly" data-item="monthly">[[localize('perMonth','par mois',language)]]</paper-item>
                     </paper-listbox>
                 </paper-dropdown-menu>
+                <paper-dropdown-menu id="frequencyConfigDropDown" label="[[localize(frequencyConfig.label, frequencyConfig.label, language)]]" disabled=[[frequencyConfig.disabled]]>
+                    <paper-listbox id="frequencyConfig" slot="dropdown-content" attr-for-selected="value" selected="{{regimenKey}}">
+                        <template is="dom-repeat" items="[[availableRegimenKeys]]">
+                            <paper-item value="[[item]]">[[localize(item, item, language)]]</paper-item>
+                        </template>
+                    </paper-listbox>
+                </paper-dropdown-menu>
+                <paper-icon-button class="button--icon-btn" icon="icons:add" on-tap="_addRegimen"></paper-icon-button>
             </div>
-            <template is="dom-repeat" items="[[regimenKeys]]" as="key">
+            <template is="dom-repeat" items="[[regimenKeys]]">
                 <ht-regimen-day
-                        api="[[api]]"
-                        i18n="[[i18n]]"
-                        language="[[language]]"
-                        resources="[[resources]]"
-                        frequency="[[frequency]]"
-                        regimen-ui="[[_regimens]]"
-                        regimen="{{selectedMedicationContentWithId.medicationValue.regimen}}"
-                        key="[[key]]"
+                        api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
+                        frequency="[[frequency]]" regimen-ui="[[_regimens]]" regimen="{{selectedMedicationContentWithId.medicationValue.regimen}}" key="[[item]]"
                         medication-unit="[[selectedMedicationContentWithId.medicationUnit]]"
-                        quantity-factor=[[quantityFactorValue]]
-                        on-regimen-changed="_regimenChanged">
+                        quantity-factor=[[quantityFactorValue]] on-regimen-changed="_regimenChanged" on-regimen-deleted="_regimenDeleted">
                 </ht-regimen-day>
             </template>
             <div class="regimen-line display-type-regimen">
@@ -954,9 +959,25 @@
                         value: () => [],
                         notify: true
                     },
+                    regimenKey: {
+                        type: String,
+                        value: ""
+                    },
                     medicationId: {
                         type: String,
                         value: ""
+                    },
+                    frequencyConfigs: {
+                        type: Object,
+                        value: {}
+                    },
+                    frequencyConfig: {
+                        type: Object,
+                        value: {}
+                    },
+                    availableRegimenKeys: {
+                        type: Array,
+                        value: () => []
                     }
                 }
             }
@@ -971,7 +992,8 @@
                     '_selectedMedicationChanged(selectedMedication)',
                     '_medicationChanged(medication, medication.*)',
                     '_medicationDetailChanged(medicationDetail.*)',
-                    '_quantityFactorChanged(quantityFactor)'
+                    '_quantityFactorChanged(quantityFactor)',
+                    '_frequencyChanged(frequency)'
                 ];
             }
 
@@ -1002,6 +1024,13 @@
                     {id: "third", label: "quantity_factor_third", numLabel: "1/3", denominator: 3},
                     {id: "quarter", label: "quantity_factor_quarter", numLabel: "1/4", denominator: 4}
                 ];
+
+                this.frequencyConfigs = {
+                    daily: {keys: [], label: "", disabled: true},
+                    weekly: {keys: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"], label: "dayOfWeek", disabled: false                    },
+                    monthly: {keys: _.range(1, 32), label: "dayOfMonth", disabled: false}
+                };
+
             }
 
             ready() {
@@ -1104,24 +1133,66 @@
                 this.notifyPath("medicationDetail.boxes", "changed");
                 const quantitySample = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen[0].administratedQuantity.quantity", "");
                 this.set("quantityFactor", quantitySample && !parseInt(quantitySample, 10) && this._quantityFactors.find(q => q.numLabel === quantitySample) || this._quantityFactors[0]);
+                this.set("frequency" , "");
                 this.set("frequency", _.get(this.selectedMedicationContentWithId, "medicationValue.regimen[0].frequency", "daily"));
-                this._initRegimenKeys();
             }
 
-            _initRegimenKeys() {
-                this.splice("regimenKeys", 0, this.regimenKeys.length);
+
+            _frequencyChanged() {
+                if (this.frequency === "") return;
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
                 if (!regimen) return;
                 regimen = regimen.filter(reg => reg.frequency === this.frequency);
-                const keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
-                if (keyId) {
-                    const regimenKeys = regimen.filter((e, i, a) => a.findIndex(x => x[keyId] === e[keyId]) === i).map(reg => reg[keyId]);
-                    this.push("regimenKeys", ...regimenKeys)
-                } else {
-                    this.push("regimenKeys", "none")
-                }
+                this._initRegimenKeys();
+                this.set("frequencyConfig", this.frequencyConfigs[this.frequency]);
                 this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen);
             }
+
+            _initRegimenKeys() {
+                const keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
+                this.splice("regimenKeys", 0, this.regimenKeys.length);
+                let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
+                if (keyId) {
+                    if (!regimen.length) {
+                        this.push("regimenKeys", this.frequencyConfigs[this.frequency].keys[0]);
+                    } else {
+                        const regimenKeys = regimen.filter((e, i, a) => a.findIndex(x => x[keyId] === e[keyId]) === i).map(reg => reg[keyId]);
+                        this.push("regimenKeys", ...regimenKeys)
+                    }
+                } else {
+                    this.push("regimenKeys", "none");
+                }
+                this._updateFrequencyConfigs();
+            }
+
+            _updateFrequencyConfigs() {
+                if (!this.frequency) return;
+                const configs = this.frequencyConfigs;
+                if (this.frequency !== "daily") {
+                    this.splice("availableRegimenKeys", 0, this.availableRegimenKeys.length);
+                    const availableRegimenKeys = configs[this.frequency].keys.filter(key => !this.regimenKeys.some(regKey => regKey === key));
+                    if (availableRegimenKeys.length) {
+                        this.push("availableRegimenKeys", ...availableRegimenKeys);
+                        this.set("regimenKey", availableRegimenKeys[0]);
+                    }
+                }
+            }
+
+            _regimenDeleted() {
+
+                this._updateFrequencyConfigs();
+            }
+
+            _addRegimen() {
+                const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
+                if (!regimen) return;
+                if (!this.regimenKey) return;
+                if (this.regimenKeys.includes(this.regimenKey))
+                    return;
+                this.push("regimenKeys", this.regimenKey);
+                this._updateFrequencyConfigs();
+            }
+
 
             _all(a,b) { return a && b }
 
