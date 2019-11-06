@@ -198,10 +198,15 @@
                 height: 62px;
             }
 
-            .boxes-qty {
+            .list-right {
+                width: 100%;
                 display: inline-block;
                 text-align: right;
+            }
+
+            .list-center {
                 width: 100%;
+                horiz-align: center;
             }
 
             .names-mobile-only {
@@ -716,6 +721,7 @@
                 width: 16px;
             }
 
+
             #medication-details {
                 height: 100%;
                 display: flex;
@@ -741,24 +747,25 @@
                             </vaadin-grid-column>
                             <vaadin-grid-column width="48px" flex-grow="0">
                                 <template class="header">
-                                    <div>[[localize('qua_abr','Qté',language)]]</div>
+                                    <div class="list-right">[[localize('qua_abr','Qté',language)]]</div>
                                 </template>
                                 <template>
-                                    <span class="boxes-qty">{{item.boxes}}</span>
+                                    <span class="list-right">{{item.boxes}}</span>
                                 </template>
                             </vaadin-grid-column>
                             <vaadin-grid-column width="48px" flex-grow="0">
                                 <template class="header">
-                                    <div>[[localize('type','Type',language)]]</div>
+                                    <div class="list-center">[[localize('type','Type',language)]]</div>
                                 </template>
                                 <template>
-                                    <template is="dom-if" if="[[_isMedicinePackage(item)]]">
-                                        <iron-icon icon="medication-svg-icons:registered" class="list-icon"></iron-icon>
-                                    </template>
-                                    <template is="dom-if" if="[[_isIngredient(item)]]">
-                                        <iron-icon icon="vaadin:pill" class="list-icon"></iron-icon>
-                                    </template>
-
+                                    <div class="list-center">
+                                        <template is="dom-if" if="[[_isMedicinePackage(item)]]">
+                                            <iron-icon icon="medication-svg-icons:registered" class="list-icon"></iron-icon>
+                                        </template>
+                                        <template is="dom-if" if="[[_isIngredient(item)]]">
+                                            <iron-icon icon="vaadin:pill" class="list-icon"></iron-icon>
+                                        </template>
+                                    </div>
                                 </template>
                             </vaadin-grid-column>
                             <vaadin-grid-column flex-grow="1">
@@ -1616,8 +1623,7 @@
                 <div id="dosage-pane" class$="right-pane [[_activePaneClass('dosage', trigger)]]">
                     <medication-details id="medication-details" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
                                         reimbursementCodeRecipe="[[reimbursementCodeRecipe]]" timeUnit="[[timeUnit]]"
-                                        selected-medication-content-with-id="{{selectedMedicationContentWithId}}" medication="[[selectedMedicationFromAccumulator]]"
-                                        on-value-changed="_medicationDetailValueChanged">
+                                        medication="[[selectedMedicationFromAccumulator]]">
                     </medication-details>
                 </div>
             </div>
@@ -1818,8 +1824,6 @@
 
             static get observers() {
                 return [
-                    // 'medicationTypeChanged(medicationType)',
-                    // '_selectLastMedication(medicationAccumulator.*)'
                     '_medicationChanged(selectedMedicationFromAccumulator)'
                 ];
             }
@@ -1829,10 +1833,17 @@
             }
 
             _medicationChanged() {
+                const list = this.$["accumulated-medications"];
+                const previous = list.selectedItems;
+                if (previous && previous.length) {
+                    previous.forEach(p => list.deselectItem(p));
+                }
+
                 const selected = this.selectedMedicationFromAccumulator;
-                if (!selected) return;
-                this.$["accumulated-medications"].selectedItems = selected && [selected] || [];
-                this._showPane('dosage');
+                if (selected) {
+                    this.$["accumulated-medications"].selectItem(selected);
+                    this._showPane('dosage');
+                }
             }
 
             _selectLastMedication() {
@@ -1842,8 +1853,8 @@
 
             _selectMedication(med) {
                 if (!this.medicationAccumulator || !this.medicationAccumulator.length || !this.medicationAccumulator.includes(med)) return;
+                const list = this.$["accumulated-medications"];
                 this.set("selectedMedicationFromAccumulator", med);
-                this.$["accumulated-medications"].Items = [this.selectedMedicationFromAccumulator];
             }
 
             _isMedicinalProduct(medicationType) {
@@ -1875,25 +1886,17 @@
                             } else if (idx > 0) {
                                 this._selectMedication(this.medicationAccumulator[idx - 1]);
                             } else {
+                                this.set("selectedMedicationFromAccumulator", null);
                                 this._showSearchPane();
                             }
                         }
                         this.splice('medicationAccumulator', idx, 1)
                     } else {
-                        this.notifyPath(`medicationAccumulator.${idx}`, "changed");
-                        if (this.selectedMedicationFromAccumulator && this.selectedMedicationFromAccumulator.id === this.medicationAccumulator[idx].id) {
-                            this.notifyPath("selectedMedicationFromAccumulator.boxes", "changed");
-                        }
+                        this.notifyPath(`medicationAccumulator.${idx}`);
                     }
                 } finally {
                     this.set("isUpdating", false);
                 }
-            }
-
-            _medicationDetailValueChanged(e) {
-                if (!_.hasIn(e, "detail.id")) return;
-                const idx = _.findIndex(this.medicationAccumulator, d => d.id === e.detail.id)
-                this._updateAccumulatorSelection(idx);
             }
 
             _removeFromAcc(e) {
@@ -1910,7 +1913,6 @@
                 this.medicationAccumulator[idx].boxes = (this.medicationAccumulator[idx].boxes || 1) + 1;
                 this._updateAccumulatorSelection(idx);
             }
-
 
             open(medication, options = {}) {
                 // @todo: spinner
@@ -2666,27 +2668,26 @@
                 return column.size || "100px";
             }
 
-            _addIngredient(e) {
-                const grid = this.$['ingredient-list'];
-                const med = grid.drugsCache.find(res => res.id === e.target.id);
+            _add(listId, medId) {
+                const grid = this.$[listId];
+                if (!grid || !medId) return;
+                const med = grid.drugsCache.find(res => res.id === medId);
                 this._addMedication(med);
+                this.set("filterValue", "");
+                this.refresh();
+            }
+
+            _addIngredient(e) {
+                this._add("ingredient-list", _.get(e, "target.id", ""));
             }
             _addMedicine(e) {
-                const grid = this.$['medicine-package-list'];
-                const med = grid.drugsCache.find(res => res.id === e.target.id);
-                this._addMedication(med);
+                this._add("medicine-package-list", _.get(e, "target.id", ""));
             }
-
             _addChronic(e) {
-                const grid = this.$['chronic-list'];
-                const med = grid.drugsCache.find(res => res.id === e.target.id);
-                this._addMedication(med);
+                this._add("chronic-list", _.get(e, "target.id", ""));
             }
-
             _addFromHistory(e) {
-                const grid = this.$['history-list'];
-                const med = grid.drugsCache.find(res => res.id === e.target.id);
-                this._addMedication(med);
+                this._add("history-list", _.get(e, "target.id", ""));
             }
 
             _isIngredient(med) {
@@ -2712,9 +2713,10 @@
                     if (!hasMedication) {
                         const unit = med.unit || this.localize('generic_unit', 'unit', this.language);
                         const newMedicationContent = {
-                            medicationValue: {},
+                            // medicationValue: {regimen: [{administratedQuantity: {time: '', quantity: 1, unit: unit}}]},
+                            medicationValue: {regimen: []},
                             medicationUnit: unit,
-                            regimen: [{administratedQuantity: {time: '', quantity: 1, unit: unit}}]
+                            // regimen: [{administratedQuantity: {time: '', quantity: 1, unit: unit}}]
                         };
 
                         newMed = {
@@ -2728,7 +2730,7 @@
                         };
 
                         Object.assign(newMedicationContent.medicationValue, drugType === "CD-INNCLUSTER" ? {substanceProduct: product} : {medicinalProduct: product});
-                        newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = med.unit;
+                        // newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = med.unit;
 
                         ((newMed.codes || (newMed.codes = [])).find(code => code.type === drugType) || (newMed.codes[newMed.codes.length] = {
                             type: drugType,
