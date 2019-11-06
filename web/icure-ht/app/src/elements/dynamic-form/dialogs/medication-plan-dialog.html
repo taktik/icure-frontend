@@ -11,6 +11,7 @@
 <link rel="import" href="../../../styles/dialog-style.html">
 <link rel="import" href="../../../styles/atc-styles.html">
 <link rel="import" href="../../../styles/scrollbar-style.html">
+<link rel="import" href="prescription-history.html">
 <link rel="import" href="../../ht-pat/dialogs/mycarenet/ht-pat-mcn-chapteriv-agreement.html">
 <link rel="import" href="../../icons/medication-icons.html">
 <link rel="import" href="../../../styles/paper-tabs-style.html">
@@ -703,6 +704,7 @@
 
             <h2 class="modal-title">[[_getModalTitle(selectedTab)]]
                 <paper-tabs selected="{{selectedTab}}">
+                    <paper-tab>Historique</paper-tab>
                     <paper-tab>[[localize('tab_pres','Present',language)]]</paper-tab>
                     <!--<paper-tab>[[localize('tab_hist','History',language)]]</paper-tab>-->
                     <paper-tab>[[localize('tab_pat','Patient',language)]]</paper-tab>
@@ -712,6 +714,9 @@
 
             <div class="content">
                 <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                    <prescription-history id="prescription-history" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"></prescription-history>
+                </template>
+                <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <div class="present">
                         <div class="table">
                             <div class="tr th">
@@ -935,7 +940,7 @@
                     </div>
                 </template>
 
-                <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
+                <template is="dom-if" if="{{_isEqual(selectedTab,2)}}">
                     <div class="patient">
                         <div class="general-infos">
                             <div class="infos-block">
@@ -988,7 +993,7 @@
                         </template>
                     </div>
                 </template>
-                <template is="dom-if" if="{{_isEqual(selectedTab,2)}}">
+                <template is="dom-if" if="{{_isEqual(selectedTab,3)}}">
                     <ht-pat-mcn-chapteriv-agreement id="chapterivdialog" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" medications="[[medications]]" on-create-service="_createService" on-update-services="_updateServices"></ht-pat-mcn-chapteriv-agreement>
                 </template>
             </div>
@@ -1005,6 +1010,12 @@
     <script>
 
         import _ from 'lodash/lodash'
+
+        const STATUS_NOT_SENT = 1;
+        const STATUS_SENT = 2;
+        const STATUS_PENDING = 4;
+        const STATUS_DELIVERED = 8;
+        const STATUS_REVOKED = 16;
 
         class MedicationPlanDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1266,6 +1277,80 @@
                 this.$['medication-plan'].open()
             }
 
+            _setStatus(service, status) {
+
+            }
+
+            setContacts(contacts) {
+
+                let prescriptions = [];
+
+                this._contacts = contacts;
+
+                this._contacts.forEach(contact => {
+                    contact.subContacts.forEach(subContact => {
+                        subContact.services.forEach(service => {
+                            this._getPrescription(service);
+                        });
+                    });
+                    contact.services.forEach(service => {
+                        this._getPrescription(prescriptions, service);
+                    });
+                })
+
+                if (this.patient.ssin && this.api.tokenId) { // if ehealth connected
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
+                        this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.patient.ssin, this.api.credentials.ehpassword).then(openPrescriptions => {
+                            console.log(openPrescriptions);
+                            prescriptions.forEach(prescription => {
+                                const found = prescription.rid && openPrescriptions.some(p => p.rid === prescription.rid);
+                                if (!("status" in prescription.service.content.fr.medicationValue)) {
+                                    prescription.service.content.fr.medicationValue.status = found ? STATUS_SENT : STATUS_NOT_SENT;
+                                    prescription.update = true;
+                                }
+                                let status = prescription.service.content.fr.medicationValue.status;
+                                if (found)
+                                    status = STATUS_SENT | STATUS_PENDING;
+                                else if (!(status & STATUS_REVOKED))
+                                    status |= STATUS_DELIVERED;
+                                if (prescription.service.content.fr.medication.status != status) {
+                                    prescription.service.content.fr.medicationValue.status = status;
+                                    prescription.update = true;
+                                }
+                                if (status & STATUS_NOT_SENT) prescription.status = "Non envoyée"
+                                else if (status & STATUS_PENDING) prescription.status = "En attente"
+                                else if (status & STATUS_DELIVERED) prescription.status = "Délivrée"
+                                else prescription.status = "Révoquée"
+                            })
+                        }));
+                };
+
+                this.shadowRoot.querySelector("#prescription-history").setPrescriptions(prescriptions);
+            }
+
+            _getPrescription(prescriptions, service) {
+                if (!service) return;
+                if (service.label === "Prescription" ||
+                    (service.tags.some(t => t.type === "ICURE" && t.code === "PRESC"))) {
+                    const medicationValue = service.content.fr.medicationValue;
+                    const medicinalProduct = medicationValue ? medicationValue.medicinalProduct : null;
+                    if (medicinalProduct) {
+                        const prescription = {
+                            service: service,
+                            date: this.api.moment(service.valueDate).format("DD/MM/YYYY"),
+                            name: medicinalProduct ? medicinalProduct.intendedname : "unknown",
+                            rid: medicationValue.prescriptionRID ? medicationValue.prescriptionRID : null,
+                            atc: _.get(service.codes.find(c => c.type === "CD-ATC"), "code"),
+                            cnk: _.get(service.codes.find(c => c.type === "CD-DRUG-CNK"), "code"),
+                            cds: medicinalProduct ? medicinalProduct.intendedcds.map(c => c.code) : "unknown",
+                            status: "unknown",
+                            update: false
+                        }
+                        prescriptions.push(prescription);
+                    }
+                }
+            }
+
             _localize(s) {
                 return this.api.contact().medication().localize(s, this.language)
             }
@@ -1455,7 +1540,9 @@
             }
 
             _getModalTitle(){
-                return this.selectedTab === 3 ? this.localize('tab_chap','Chapter IV') : this.localize('med_plan','Medication plan')
+                // TODO: LDE: not sure
+                //return this.selectedTab === 3 ? this.localize('tab_chap','Chapter IV') : this.localize('med_plan','Medication plan')
+                return this.selectedTab === 4 ? this.localize('tab_chap','Chapter IV') : this.localize('med_plan','Medication plan')
             }
 
             _getMedicationQuantity(quantity){
