@@ -2669,6 +2669,7 @@ on-upload-document="_hubUpload"
         import styx from '../../../scripts/styx';
         import { AccessLogDto } from "icc-api/dist/icc-api/model/AccessLogDto";
 
+        const md5 = require('md5');
         const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
         class HtPatDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
@@ -3095,6 +3096,10 @@ on-upload-document="_hubUpload"
                     sumehrStatusDesc:{
                         type: String,
                         value: "Sumehr"
+                    },
+                    hubReady:{
+                        type: Boolean,
+                        value: false
                     }
                 };
             }
@@ -3112,7 +3117,8 @@ on-upload-document="_hubUpload"
                     'selectedMedicationsChanged(selectedMedications)',
                     'hcpChanged(user)',
                     'showPatientHubState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*)',
-                    'showPatientSumehrState(sumehrOnHubChecked, sumehrPresentOnHub, sumehrContentOnPatientLoad, sumehrContentOnPatientRefresh, hubEndPoint)'
+                    'checkSumehrPresentOnHub(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*, hubReady)',
+                    'showPatientSumehrState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*, sumehrOnHubChecked, sumehrPresentOnHub, sumehrContentOnPatientLoad, sumehrContentOnPatientRefresh, hubEndPoint)'
                 ];
             }
 
@@ -4429,7 +4435,8 @@ on-upload-document="_hubUpload"
             }
 
             checkSumehrPresentOnHub(){
-                if(!this.sumehrOnHubChecked) {
+                console.log("checkSumehrPresentOnHub sumehrOnHubChecked ?",this.sumehrOnHubChecked);
+                if(this.hubReady && !this.sumehrOnHubChecked) {
                     this.$.patHubDetail._getMostRecentSumehr().then(res =>{
                         console.log("checkSumehrPresentOnHub.res",res);
                         this.set('sumehrPresentOnHub', res ? true : false);
@@ -4454,6 +4461,7 @@ on-upload-document="_hubUpload"
                                                 svcs => {
                                                     resp = this.removeTreatedServices(resp);
                                                     resp = this.removeNotExportedPatientWill(resp);
+                                                    resp.signature = md5(JSON.stringify(resp));
                                                     return resp;
                                                 }
                                             )
@@ -4483,11 +4491,12 @@ on-upload-document="_hubUpload"
             compareSumehrContent(content1, content2){
                 var changed = false;
                 if(content1 && content2){
-                    //TODO this is a very lame compare, make it better !
                     changed = !(content1.services.length === content2.services.length
                         && content1.healthElements.length === content2.healthElements.length
                         && content1.patientHealthcareParties.length === content2.patientHealthcareParties.length
-                        && content1.partnerships.length === content2.partnerships.length)
+                        && content1.partnerships.length === content2.partnerships.length
+                        && content1.signature === content2.signature
+                    )
                 }else if (content1 || content2) {
                     changed = true;
                 }
@@ -4496,7 +4505,7 @@ on-upload-document="_hubUpload"
 
             showPatientSumehrState(){
                 const changed = this.compareSumehrContent(this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
-                console.log('showPatientSumehrState triggered', this.sumehrPresentOnHub, changed, this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
+                console.log('showPatientSumehrState triggered present:', this.sumehrPresentOnHub, "changed:", changed, this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
                 this.$['sumehrStatus'].classList.remove('noSumehr');
                 this.$['sumehrStatus'].classList.remove('sumehr');
                 this.$['sumehrStatus'].classList.remove('sumehrChange');
@@ -4536,15 +4545,13 @@ on-upload-document="_hubUpload"
                 this.$["hubStatus"].classList.remove('accessOk');
                 this.$["hubStatus"].classList.remove('noAccess');
 
+                this.set("hubReady",!this.hubSupportsConsent ? true :
+                    !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? true : false);
+
                 !this.hubSupportsConsent ? this.$["hubStatus"].classList.add('accessOk') :
                     !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this.$["hubStatus"].classList.add('accessOk') :
                         this.$["hubStatus"].classList.add('noAccess')
             }
-            //                 }
-            //             )
-            //         })
-            //     }
-            // }
 
             unselectAdminFile() {
                 this.$.adminFileMenu.select(null);
