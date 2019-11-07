@@ -3633,41 +3633,6 @@ on-upload-document="_hubUpload"
                 }
             }
 
-            _generateSumehr(){
-                if (this.patient) {
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
-                        this.api.patient().getPatientWithUser(this.user, this.patient.id)
-                            .then(patientDto =>{
-                                this.api.crypto()
-                                    .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
-                                    .then(secretForeignKeys => {
-                                        this.api.bekmehr().generateSumehrExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
-                                            secretForeignKeys: secretForeignKeys.extractedKeys,
-                                            recipient: hcp,
-                                            comment: "mycomment"
-                                        }).then(output => {
-                                            //creation of the xml file
-                                            var file = typeof output === "string" ? new Blob([output] ,{type: "application/xml"}) : output
-
-                                            //creation the downloading link
-                                            var a = document.createElement("a");
-                                            document.body.appendChild(a);
-                                            a.style = "display: none";
-
-                                            //download the new file
-                                            var url = window.URL.createObjectURL(file);
-                                            a.href = url;
-                                            a.download = (patientDto.lastName || "Doe").replace(" ","_") + "_" + (patientDto.firstName || "John").replace(" ","_") + "_" + (moment().format("x"))+"_sumehr.xml";
-                                            a.click();
-                                            window.URL.revokeObjectURL(url);
-
-                                            document.body.removeChild(a);
-                                        }).catch( error=> console.log(error))
-                                    })
-                            }))
-                }
-            }
-
             clearEvent(el) {
                 const svcId = el.target.id.substr("event-btn-done_".length);
                 const svc = this.get('events').find(s => s.id === svcId);
@@ -4027,6 +3992,15 @@ on-upload-document="_hubUpload"
                     ]
                     const idServicesInHes = _.compact(hes.map(he => he.idService))
                     //console.log("Before filter service "+(+new Date() - now))
+
+                    //get patientwill services
+                    //s.endOfLife === null &&
+                    //pw.codes.find(c => c.type === "CD-PATIENT-WILL")
+                    this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['patientwill'].includes(c.code)) && s.codes.find(c => c.type === "CD-PATIENT-WILL" || c.type === "CD-PATIENT-WILL-HOS" || c.type === "CD-PATIENT-WILL-RES")).then(patientWillServices => {
+                        console.log("eols", patientWillServices.map(svc => svc.endOfLife));
+                        console.log("patientwillservices", patientWillServices);
+                        this.set("patientWillServices",patientWillServices);
+                    });
                     this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id)).then(hesAsServices => {
                         const svcHes = hesAsServices.filter(s => !s.tags.some(t => t.type === 'CD-ITEM' && t.code === 'medication')).map(svc => this._makeHeFromSvc(svc))
 
@@ -6221,7 +6195,7 @@ on-upload-document="_hubUpload"
 
             _exportSumehrDialog(){
                 this.set('showOutGoingDocContainer', false);
-                this.$['htPatHubSumehrPreview'].open(null, this, null);
+                this.$['htPatHubSumehrPreview'].open(null, this, null, true);
             }
 
             _triggerRefreshOutGoingDocumentTemplates(e) {
