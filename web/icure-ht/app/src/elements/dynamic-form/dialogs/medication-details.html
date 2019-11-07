@@ -701,7 +701,7 @@
             <div class="regimen-line display-type-regimen">
                 <paper-dropdown-menu id="unit" label="[[localize('qua', 'Quantité', language)]]" disabled="[[!medicationDetail.dividable]]">
                     <paper-listbox slot="dropdown-content" attr-for-selected="value" selected="{{quantityFactor}}">
-                        <template is="dom-repeat" items="[[_quantityFactors]]">
+                        <template is="dom-repeat" items="[[quantityFactors]]">
                             <paper-item id="[[item.id]]" value="[[item]]">[[localize(item.label, item.numLabel, language)]]</paper-item>
                         </template>
                     </paper-listbox>
@@ -713,20 +713,20 @@
             <template is="dom-repeat" items="[[regimenKeys]]">
                 <ht-regimen-day
                         api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
-                        frequency="[[frequency]]" regimen-ui="[[_regimens]]" regimen="{{selectedMedicationContentWithId.medicationValue.regimen}}" key="[[item]]"
-                        medication-unit="[[selectedMedicationContentWithId.medicationUnit]]"
+                        frequency-config="[[frequencyConfig]]" regimen-config="[[regimenConfig]]" regimen="{{selectedMedicationContentWithId.medicationValue.regimen}}" key="[[item]]"
+                        medication-unit="[[selectedMedicationContentWithId.medicationUnit]]" week-days="[[weekDays]]"
                         quantity-factor=[[quantityFactorValue]] on-regimen-changed="_regimenChanged" on-regimen-delete="_removeRegimen">
                 </ht-regimen-day>
             </template>
             <div class="regimen-line display-type-regimen">
                 <paper-dropdown-menu id="peri" label="[[localize('peri', 'Période', language)]]">
-                    <paper-listbox slot="dropdown-content" attr-for-selected="id" selected="{{frequency}}">
-                        <paper-item id="daily" data-item="daily">[[localize('day','jour',language)]]</paper-item>
-                        <paper-item id="weekly" data-item="weekly">[[localize('week','semaine',language)]]</paper-item>
-                        <paper-item id="monthly" data-item="monthly">[[localize('month','mois',language)]]</paper-item>
+                    <paper-listbox slot="dropdown-content" attr-for-selected="value" selected="{{frequencyConfig}}">
+                        <template is="dom-repeat" items="[[frequencyConfigs]]">
+                            <paper-item value="[[item]]">[[localize(item.id, item.id, language)]]</paper-item>
+                        </template>
                     </paper-listbox>
                 </paper-dropdown-menu>
-                <template is="dom-if" if="[[_canAddRegimen(frequency)]]">
+                <template is="dom-if" if="[[_canAddRegimen(frequencyConfig)]]">
                     <paper-dropdown-menu id="frequencyConfigDropDown" label="[[localize(frequencyConfig.label, frequencyConfig.label, language)]]" disabled=[[frequencyConfig.disabled]]>
                         <paper-listbox id="frequencyConfig" slot="dropdown-content" attr-for-selected="value" selected="{{regimenKey}}">
                             <template is="dom-repeat" items="[[availableRegimenKeys]]">
@@ -959,10 +959,10 @@
                         type: Number,
                         value: 0
                     },
-                    frequency: {
-                        type: String,
-                        value: ""
-                    },
+                    // frequency: {
+                    //     type: String,
+                    //     value: ""
+                    // },
                     regimenKeys: {
                         type: Array,
                         value: () => [],
@@ -976,17 +976,61 @@
                         type: String,
                         value: ""
                     },
-                    frequencyConfigs: {
-                        type: Object,
-                        value: {}
+
+                    quantityFactors: {
+                        type: Array,
+                        value: () => [
+                            {id: "one", label: "quantity_factor_one", numLabel: "1", denominator: 1},
+                            {id: "half", label: "quantity_factor_half", numLabel: "1/2", denominator: 2},
+                            {id: "third", label: "quantity_factor_third", numLabel: "1/3", denominator: 3},
+                            {id: "quarter", label: "quantity_factor_quarter", numLabel: "1/4", denominator: 4}
+                        ]
                     },
+
+                    frequencyConfigs: {
+                        type: Array,
+                        value: () => [
+                            {id: "daily", keys: [], label: "", disabled: true, keyId: ""},
+                            {id: "weekly", keys: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"], label: "dayOfWeek", disabled: false, keyId: "weekday"},
+                            {id: "monthly", keys: _.range(1, 32), label: "dayOfMonth", disabled: false, keyId: "dayNumber"}
+                        ]
+                    },
+
                     frequencyConfig: {
                         type: Object,
-                        value: {}
+                        value: {id: ""}
                     },
+
                     availableRegimenKeys: {
                         type: Array,
                         value: () => [""]
+                    },
+
+                    regimenConfig: {
+                        type: Array,
+                        value: () => [
+                            {id: "afterwakingup"},
+                            {id: "beforebreakfast", parentId: "morning"},
+                            {id: "morning"},
+                            {id: "duringbreakfast", parentId: "morning"},
+                            {id: "afterbreakfast", parentId: "morning"},
+                            {id: "betweenbreakfastandlunch"},
+                            {id: "beforelunch", parentId: "midday"},
+                            {id: "midday"},
+                            {id: "duringlunch", parentId: "midday"},
+                            {id: "afterlunch", parentId: "midday"},
+                            {id: "betweenlunchanddinner"},
+                            {id: "beforedinner", parentId: "evening"},
+                            {id: "evening"},
+                            {id: "duringdinner", parentId: "evening"},
+                            {id: "afterdinner", parentId: "evening"},
+                            {id: "thehourofsleep"}
+                        ]
+                    },
+
+                    weekDays: {
+                        type: Array,
+                        value: () => []
                     }
                 }
             }
@@ -1002,64 +1046,12 @@
                     '_medicationChanged(medication, medication.*)',
                     '_medicationDetailChanged(medicationDetail.*)',
                     '_quantityFactorChanged(quantityFactor)',
-                    '_frequencyChanged(frequency)'
+                    '_frequencyChanged(frequencyConfig)'
                 ];
             }
 
             constructor() {
                 super();
-
-                // this._regimens = [
-                //     {id: "afterwakingup", dayPeriod: {code: "afterwakingup", type: "care.topaz.customDayPeriod"}},
-                //     {id: "beforebreakfast", parentId: "morning", dayPeriod: {code: "beforebreakfast", type: "CD-DAYPERIOD"}},
-                //     {id: "morning", dayPeriod: {code: "morning", type: "CD-DAYPERIOD"}},
-                //     {id: "duringbreakfast", parentId: "morning", dayPeriod: {code: "duringbreakfast", type: "CD-DAYPERIOD"}},
-                //     {id: "afterbreakfast", parentId: "morning", dayPeriod: {code: "afterbreakfast", type: "CD-DAYPERIOD"}},
-                //     {id: "betweenbreakfastandlunch", dayPeriod: {code: "betweenbreakfastandlunch", type: "CD-DAYPERIOD"}},
-                //     {id: "beforelunch", parentId: "midday", dayPeriod: {code: "beforelunch", type: "CD-DAYPERIOD"}},
-                //     {id: "midday", dayPeriod: {code: "midday", type: "care.topaz.customDayPeriod"}},
-                //     {id: "duringlunch", parentId: "midday", dayPeriod: {code: "duringlunch", type: "CD-DAYPERIOD"}},
-                //     {id: "afterlunch", parentId: "midday", dayPeriod: {code: "afterlunch", type: "CD-DAYPERIOD"}},
-                //     {id: "betweenlunchanddinner", dayPeriod: {code: "betweenlunchanddinner", type: "CD-DAYPERIOD"}},
-                //     {id: "beforedinner", parentId: "evening", dayPeriod: {code: "beforedinner", type: "CD-DAYPERIOD"}},
-                //     {id: "evening", dayPeriod: {code: "evening", type: "CD-DAYPERIOD"}},
-                //     {id: "duringdinner", parentId: "evening", dayPeriod: {code: "duringdinner", type: "CD-DAYPERIOD"}},
-                //     {id: "afterdinner", parentId: "evening", dayPeriod: {code: "afterdinner", type: "CD-DAYPERIOD"}},
-                //     {id: "thehourofsleep", dayPeriod: {code: "thehourofsleep", type: "CD-DAYPERIOD"}}
-                // ];
-                this._regimens = [
-                    {id: "afterwakingup"},
-                    {id: "beforebreakfast", parentId: "morning"},
-                    {id: "morning"},
-                    {id: "duringbreakfast", parentId: "morning"},
-                    {id: "afterbreakfast", parentId: "morning"},
-                    {id: "betweenbreakfastandlunch"},
-                    {id: "beforelunch", parentId: "midday"},
-                    {id: "midday"},
-                    {id: "duringlunch", parentId: "midday"},
-                    {id: "afterlunch", parentId: "midday"},
-                    {id: "betweenlunchanddinner"},
-                    {id: "beforedinner", parentId: "evening"},
-                    {id: "evening"},
-                    {id: "duringdinner", parentId: "evening"},
-                    {id: "afterdinner", parentId: "evening"},
-                    {id: "thehourofsleep"}
-                ];
-
-
-                this._quantityFactors = [
-                    {id: "one", label: "quantity_factor_one", numLabel: "1", denominator: 1},
-                    {id: "half", label: "quantity_factor_half", numLabel: "1/2", denominator: 2},
-                    {id: "third", label: "quantity_factor_third", numLabel: "1/3", denominator: 3},
-                    {id: "quarter", label: "quantity_factor_quarter", numLabel: "1/4", denominator: 4}
-                ];
-
-                this.frequencyConfigs = {
-                    daily: {keys: [], label: "", disabled: true},
-                    weekly: {keys: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"], label: "dayOfWeek", disabled: false                    },
-                    monthly: {keys: _.range(1, 32), label: "dayOfMonth", disabled: false}
-                };
-
             }
 
             ready() {
@@ -1155,10 +1147,10 @@
 
                 // this.notifyPath("medicationDetail.boxes", "changed");
                 const quantitySample = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen[0].administratedQuantity.quantity", "");
-                this.set("quantityFactor", quantitySample && !parseInt(quantitySample, 10) && this._quantityFactors.find(q => q.numLabel === quantitySample) || this._quantityFactors[0]);
+                this.set("quantityFactor", quantitySample && !parseInt(quantitySample, 10) && this.quantityFactors.find(q => q.numLabel === quantitySample) || this.quantityFactors[0]);
                 const newFrequency = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen[0].frequency", "daily");
-                if (this.frequency !== newFrequency) {
-                    this.set("frequency", newFrequency);
+                if (this.frequencyConfig.id !== newFrequency) {
+                    this.set("frequencyConfig", this.frequencyConfigs.find(config => config.id === newFrequency));
                 } else {
                     this._frequencyChanged();
                 }
@@ -1166,23 +1158,28 @@
 
 
             _frequencyChanged() {
-                if (this.frequency === "") return;
-                this.set("frequencyConfig", this.frequencyConfigs[this.frequency]);
+                if (!this.frequencyConfig.id) return;
+                // this.set("frequencyConfig", this.frequencyConfigs[this.frequency]);
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-                this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen.filter(reg => reg.frequency === this.frequency));
+                this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen.filter(reg => reg.frequency === this.frequencyConfig.id));
                 this._initRegimenKeys();
             }
 
             _initRegimenKeys() {
-                const keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
+                // const keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
                 this.splice("regimenKeys", 0, this.regimenKeys.length);
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
+                const keyId = this.frequencyConfig.keyId;
                 if (keyId) {
                     if (!regimen.length) {
-                        this.push("regimenKeys", this.frequencyConfigs[this.frequency].keys[0]);
+                        this.push("regimenKeys", this.frequencyConfig.keys[0]);
                     } else {
-                        const regimenKeys = regimen.filter((e, i, a) => a.findIndex(x => x.administratedQuantity[keyId] === e.administratedQuantity[keyId]) === i).map(reg => reg.administratedQuantity[keyId]);
-                        this.push("regimenKeys", ...regimenKeys)
+                        if (keyId === "weekday") {
+                            const regimenKeys = regimen.filter((e, i, a) => a.findIndex(x => x[keyId].code === e[keyId].code) === i).map(reg => reg[keyId].code);
+                            this.push("regimenKeys", ...regimenKeys)
+                        } else {
+                            // @todo: to implement
+                        }
                     }
                 } else {
                     this.push("regimenKeys", "none");
@@ -1191,11 +1188,10 @@
             }
 
             _updateFrequencyConfigs() {
-                if (!this.frequency) return;
-                const configs = this.frequencyConfigs;
-                if (this.frequency !== "daily") {
+                if (!this.frequencyConfig) return;
+                if (this.frequencyConfig.id !== "daily") {
                     this.splice("availableRegimenKeys", 0, this.availableRegimenKeys.length);
-                    const availableRegimenKeys = configs[this.frequency].keys.filter(key => !this.regimenKeys.some(regKey => regKey === key));
+                    const availableRegimenKeys = this.frequencyConfig.keys.filter(key => !this.regimenKeys.some(regKey => regKey === key));
                     if (availableRegimenKeys.length) {
                         this.push("availableRegimenKeys", ...availableRegimenKeys);
                         this.set("regimenKey", availableRegimenKeys[0]);
@@ -1203,7 +1199,7 @@
                 }
             }
             _canAddRegimen() {
-                return (this.frequency === "weekly") || (this.frequency === "monthly");
+                return (this.frequencyConfig.id === "weekly") || (this.frequencyConfig.id === "monthly");
             }
 
             _addRegimen() {
@@ -1219,11 +1215,11 @@
             _removeRegimen(e) {
                 const key = _.get(e, "detail.key", "")
                 if (!key) return;
-                const keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
+                const keyId = this.frequencyConfig.id;
                 if (!keyId) return;
                 if (this.regimenKeys.length < 2) return;
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-                regimen = regimen.filter(reg => reg.administratedQuantity[keyId] !== key);
+                regimen = regimen.filter(reg => reg.keyId !== key);
                 this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen);
                 this.splice("regimenKeys", this.regimenKeys.indexOf(key), 1);
                 this._updateFrequencyConfigs();
@@ -1311,23 +1307,23 @@
             }
 
             init() {
-                return Promise.all(this._regimens.map(reg => {
-                    // const dayPeriod = reg.dayPeriod;
-                    return this.api.code().findCodes("be", "CD_DAYPERIOD", reg.id)
-                        .then(results => {
-                            if (results && results.length) {
-                                let dayPeriod = results[0];
-                                if (!dayPeriod) {
-                                    dayPeriod = {code: reg.id, type: "CD_DAYPERIOD"};
-                                }
-                                Object.assign(reg, {dayPeriod: dayPeriod});
-                                if (!dayPeriod.label || !dayPeriod.label[this.language]) {
-                                    reg.label =  _.fromPairs([[this.language, this.localize(`ms_${reg.id}`, reg.id)]]);
-                                }
+                return this.api.code().findCodes("be", "CD-DAYPERIOD")
+                    .then(dayPeriods => this.api.code().findCodes("be", "care.topaz.customDayPeriod")
+                        .then(customDayPeriods => dayPeriods.concat(customDayPeriods)))
+                    .then(dayPeriods => {
+                        return Promise.all(this.regimenConfig.map(reg => {
+                            let dayPeriod = dayPeriods.find(dayPeriod => dayPeriod.code === reg.id);
+                            if (!dayPeriod) {
+                                dayPeriod = {code: reg.id, type: "CD-DAYPERIOD"};
                             }
-                        })
+                            Object.assign(reg, {dayPeriod: dayPeriod});
+                            if (!dayPeriod.label || !dayPeriod.label[this.language]) {
+                                reg.label = _.fromPairs([[this.language, this.localize(`ms_${reg.id}`, reg.id)]]);
+                            }
+                        }))
                     })
-                )
+                    .then(() => this.api.code().findCodes("be", "CD-WEEKDAY"))
+                    .then((weekDays) => this.set("weekDays", weekDays));
             }
 
             _updateStats() {

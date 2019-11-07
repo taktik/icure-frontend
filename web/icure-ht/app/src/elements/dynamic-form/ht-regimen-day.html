@@ -351,7 +351,7 @@
                     api: {
                         type: Object
                     },
-                    regimenUi: {
+                    regimenConfig: {
                         type: Array,
                         value: () => {}
                     },
@@ -390,7 +390,18 @@
                     title: {
                         type: String,
                         value: ""
+                    },
+                    weekDays: {
+                        type: Array,
+                        value: () => []
+                    },
+
+                    frequencyConfig: {
+                        type: Object,
+                        value: {}
                     }
+
+
 
                     // initialized: {
                     //     type: Boolean,
@@ -402,8 +413,13 @@
                 return [
                     "_updateView(quantityFactor, regimen.*, key)",
                     // "_updateView(quantityFactor, key)",
-                    "_formTitle(key)"
+                    "_formTitle(key)",
+                    "_weekDaysChanged(weekDays)"
                 ];
+            }
+
+            _weekDaysChanged() {
+                console.log("weekDays", this.weekDays)
             }
 
             constructor() {
@@ -415,8 +431,8 @@
             }
 
             _formTitle() {
-                const title = _.capitalize(this.frequency === "daily" ? this.localize("per_day") :
-                    this.frequency === "weekly" ? `${this.localize("per_week")} -  ${this.localize(this.key)}` :
+                const title = _.capitalize(this.frequencyConfig.id === "daily" ? this.localize("per_day") :
+                    this.frequencyConfig.id === "weekly" ? `${this.localize("per_week")} -  ${this.localize(this.key)}` :
                         `${this.localize("per_month")} - ${this.localize("the")} ${this.key}`);
                 this.set("title", title);
             }
@@ -427,7 +443,8 @@
             }
 
             _filterRegimenItemByKey(reg) {
-                return !this.keyId || (reg.administratedQuantity[this.keyId] === this.key);
+                const keyId = this.frequencyConfig.keyId;
+                return !keyId || (reg[keyId] && (reg[keyId].code === this.key));
             }
 
             _getDayPeriodQuantity(dayPeriod) {
@@ -437,12 +454,12 @@
 
             _updateView() {
                 // this.initialized = true;
-                this.keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
+                const keyId = this.frequencyConfig.keyId;
                 console.log("key:", this.key);
-                console.log("keyId:", this.keyId);
+                console.log("keyId:", keyId);
 
                 if (!this.regimen) return;
-                this.regimenUi.forEach(base => {
+                this.regimenConfig.forEach(base => {
                     this.set(base.id, this._getDayPeriodQuantity(base.dayPeriod));
                 });
 
@@ -475,25 +492,27 @@
                         quantity: this.quantityFactor.denominator > 1 && this.quantityFactor.numLabel || parseInt(quantity, 10) || "",
                         unit: this.medicationUnit,
                     },
-                    frequency: this.frequency
+                    frequency: this.frequencyConfig.id
                 };
                 if (timeKey && timeValue) {
                     regItem[timeKey] = timeValue;
                 }
-                if (this.keyId) {
-                    if (this.keyId === "day") {
-                        regItem["weekday"] = {weekday: {type: "CD_WEEKDAY", code: this.key}};
+
+                const keyId = this.frequencyConfig.keyId;
+                if (keyId) {
+                    if (keyId === "weekday") {
+                        regItem[keyId] = this.weekDays.find(weekDay => weekDay.code === this.key);
                     } else {
-                        regItem["dayNumber"] = this.key;
+                        regItem[keyId] = this.key;
                     }
                 }
                 return regItem;
             }
 
             _updateDayPeriodRegimen(id, quantity = "") {
-                this.keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
+                // const keyId = this.frequencyConfig.keyId;
                 if (!this.regimen) return;
-                const dayPeriod = (this.regimenUi.find(reg => reg.id === id) || {dayPeriod: ""}).dayPeriod;
+                const dayPeriod = (this.regimenConfig.find(reg => reg.id === id) || {dayPeriod: ""}).dayPeriod;
                 if (!dayPeriod) return;
                 const index = this.regimen.findIndex(reg => this._filterRegimenItemByKey(reg) && reg.dayPeriod && reg.dayPeriod.code === dayPeriod.code);
                 if (quantity) {
@@ -517,11 +536,11 @@
                 if (quantity === "") return;
                 this._updateDayPeriodRegimen(id, quantity);
 
-                this.regimenUi.filter(reg => reg.parentId === id).forEach(reg => {
+                this.regimenConfig.filter(reg => reg.parentId === id).forEach(reg => {
                     this._setQuantity(reg.id);
                     this._updateDayPeriodRegimen(reg.id);
                 });
-                const reg = this.regimenUi.find(reg => reg.id === id);
+                const reg = this.regimenConfig.find(reg => reg.id === id);
                 if (reg && reg.parentId) {
                     this._setQuantity(reg.parentId);
                     this._updateDayPeriodRegimen(reg.parentId);
