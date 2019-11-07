@@ -713,22 +713,22 @@
             <template is="dom-repeat" items="[[regimenKeys]]">
                 <ht-regimen-day
                         api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
-                        frequency-config="[[frequencyConfig]]" regimen-config="[[regimenConfig]]" regimen="{{selectedMedicationContentWithId.medicationValue.regimen}}" key="[[item]]"
-                        medication-unit="[[selectedMedicationContentWithId.medicationUnit]]" week-days="[[weekDays]]"
+                        period-config="[[periodConfig]]" regimen-config="[[regimenConfig]]" regimen="{{selectedMedicationContentWithId.medicationValue.regimen}}" key="[[item]]"
+                        medication-unit="[[selectedMedicationContentWithId.medicationUnit]]" week-days="[[weekDays]]" occurrences="[[regimenKeys.length]]"
                         quantity-factor=[[quantityFactorValue]] on-regimen-changed="_regimenChanged" on-regimen-delete="_removeRegimen">
                 </ht-regimen-day>
             </template>
             <div class="regimen-line display-type-regimen">
                 <paper-dropdown-menu id="peri" label="[[localize('peri', 'Période', language)]]">
-                    <paper-listbox slot="dropdown-content" attr-for-selected="value" selected="{{frequencyConfig}}">
-                        <template is="dom-repeat" items="[[frequencyConfigs]]">
+                    <paper-listbox slot="dropdown-content" attr-for-selected="value" selected="{{periodConfig}}">
+                        <template is="dom-repeat" items="[[periodConfigs]]">
                             <paper-item value="[[item]]">[[localize(item.id, item.id, language)]]</paper-item>
                         </template>
                     </paper-listbox>
                 </paper-dropdown-menu>
-                <template is="dom-if" if="[[_canAddRegimen(frequencyConfig)]]">
-                    <paper-dropdown-menu id="frequencyConfigDropDown" label="[[localize(frequencyConfig.label, frequencyConfig.label, language)]]" disabled=[[frequencyConfig.disabled]]>
-                        <paper-listbox id="frequencyConfig" slot="dropdown-content" attr-for-selected="value" selected="{{regimenKey}}">
+                <template is="dom-if" if="[[_canAddRegimen(periodConfig)]]">
+                    <paper-dropdown-menu id="periodConfigDropDown" label="[[localize(periodConfig.label, periodConfig.label, language)]]" disabled=[[periodConfig.disabled]]>
+                        <paper-listbox id="periodConfig" slot="dropdown-content" attr-for-selected="value" selected="{{regimenKey}}">
                             <template is="dom-repeat" items="[[availableRegimenKeys]]">
                                 <paper-item value="[[item]]">[[localize(item, item, language)]]</paper-item>
                             </template>
@@ -987,16 +987,17 @@
                         ]
                     },
 
-                    frequencyConfigs: {
+                    periodConfigs: {
                         type: Array,
                         value: () => [
-                            {id: "daily", keys: [], label: "", disabled: true, keyId: ""},
-                            {id: "weekly", keys: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"], label: "dayOfWeek", disabled: false, keyId: "weekday"},
-                            {id: "monthly", keys: _.range(1, 32), label: "dayOfMonth", disabled: false, keyId: "dayNumber"}
+                            {id: "dailyPosology", title: "dai", keys: [], label: "", disabled: true, keyId: ""},
+                            {id: "weeklyPosology", title: "wee", keys: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"], label: "dayOfWeek", disabled: false, keyId: "weekday"}
+                            // @ todo: dayNumber not supported in posologyString
+                            // {id: "monthly", keys: _.range(1, 32), label: "dayOfMonth", disabled: false, keyId: "dayNumber"}
                         ]
                     },
 
-                    frequencyConfig: {
+                    periodConfig: {
                         type: Object,
                         value: {id: ""}
                     },
@@ -1046,7 +1047,7 @@
                     '_medicationChanged(medication, medication.*)',
                     '_medicationDetailChanged(medicationDetail.*)',
                     '_quantityFactorChanged(quantityFactor)',
-                    '_frequencyChanged(frequencyConfig)'
+                    '_periodChanged(periodConfig)'
                 ];
             }
 
@@ -1148,50 +1149,52 @@
                 // this.notifyPath("medicationDetail.boxes", "changed");
                 const quantitySample = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen[0].administratedQuantity.quantity", "");
                 this.set("quantityFactor", quantitySample && !parseInt(quantitySample, 10) && this.quantityFactors.find(q => q.numLabel === quantitySample) || this.quantityFactors[0]);
-                const newFrequency = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen[0].frequency", "daily");
-                if (this.frequencyConfig.id !== newFrequency) {
-                    this.set("frequencyConfig", this.frequencyConfigs.find(config => config.id === newFrequency));
+
+                // @todo: month (dayNumber) and date
+                const period = _.has(this.selectedMedicationContentWithId, "medicationValue.regimen[0].weekday") ? "weeklyPosology" : "dailyPosology" ;
+                if (this.periodConfig.id !== period) {
+                    this.set("periodConfig", this.periodConfigs.find(config => config.id === period));
                 } else {
-                    this._frequencyChanged();
+                    this._periodChanged();
                 }
             }
 
 
-            _frequencyChanged() {
-                if (!this.frequencyConfig.id) return;
-                // this.set("frequencyConfig", this.frequencyConfigs[this.frequency]);
+            _periodChanged() {
+                if (!this.periodConfig.id) return;
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-                this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen.filter(reg => reg.frequency === this.frequencyConfig.id));
+                this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen.filter(reg => this.periodConfig.id === "weeklyPosology" ? reg.weekday : !reg.weekday));
                 this._initRegimenKeys();
             }
 
             _initRegimenKeys() {
-                // const keyId = this.frequency === "weekly" ? "day" : this.frequency === "monthly" ? "time" : "";
                 this.splice("regimenKeys", 0, this.regimenKeys.length);
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-                const keyId = this.frequencyConfig.keyId;
-                if (keyId) {
+                if (this.periodConfig.id === "weeklyPosology") {
                     if (!regimen.length) {
-                        this.push("regimenKeys", this.frequencyConfig.keys[0]);
+                        this.push("regimenKeys", this.periodConfig.keys[0]);
                     } else {
+                        const keyId = this.periodConfig.keyId;
                         if (keyId === "weekday") {
-                            const regimenKeys = regimen.filter((e, i, a) => a.findIndex(x => x[keyId].code === e[keyId].code) === i).map(reg => reg[keyId].code);
+                            const regimenKeys = regimen.filter((e, i, a) => a.findIndex(x => x[keyId].code === e[keyId].code) === i)
+                                .map(reg => reg[keyId].code)
+                                .filter(code => this.weekDays.some(weekDay => weekDay.code === code));
                             this.push("regimenKeys", ...regimenKeys)
                         } else {
-                            // @todo: to implement
+                            // @todo: dayNumber and date cases
                         }
                     }
                 } else {
                     this.push("regimenKeys", "none");
                 }
-                this._updateFrequencyConfigs();
+                this._updatePeriodConfigs();
             }
 
-            _updateFrequencyConfigs() {
-                if (!this.frequencyConfig) return;
-                if (this.frequencyConfig.id !== "daily") {
+            _updatePeriodConfigs() {
+                if (!this.periodConfig) return;
+                if (this.periodConfig.id !== "dailyPosology") {
                     this.splice("availableRegimenKeys", 0, this.availableRegimenKeys.length);
-                    const availableRegimenKeys = this.frequencyConfig.keys.filter(key => !this.regimenKeys.some(regKey => regKey === key));
+                    const availableRegimenKeys = this.periodConfig.keys.filter(key => !this.regimenKeys.some(regKey => regKey === key));
                     if (availableRegimenKeys.length) {
                         this.push("availableRegimenKeys", ...availableRegimenKeys);
                         this.set("regimenKey", availableRegimenKeys[0]);
@@ -1199,7 +1202,13 @@
                 }
             }
             _canAddRegimen() {
-                return (this.frequencyConfig.id === "weekly") || (this.frequencyConfig.id === "monthly");
+                // @ todo
+                // return (this.periodConfig.id === "weeklyPosology") || (this.periodConfig.id === "monthlyPosology");
+                return (this.periodConfig.id === "weeklyPosology");
+            }
+
+            _canDeleteRegimen() {
+                return (this.regimenKeys.length > 1);
             }
 
             _addRegimen() {
@@ -1209,20 +1218,24 @@
                 if (this.regimenKeys.includes(this.regimenKey))
                     return;
                 this.push("regimenKeys", this.regimenKey);
-                this._updateFrequencyConfigs();
+                this._updatePeriodConfigs();
             }
 
             _removeRegimen(e) {
                 const key = _.get(e, "detail.key", "")
                 if (!key) return;
-                const keyId = this.frequencyConfig.id;
-                if (!keyId) return;
+                if (this.periodConfig.id === "dailyPosology") return;
                 if (this.regimenKeys.length < 2) return;
+                const keyId = this.periodConfig.keyId;
                 let regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-                regimen = regimen.filter(reg => reg.keyId !== key);
+                if (keyId === "weekday") {
+                    regimen = regimen.filter(reg => reg.weekday && reg.weekday.code != key)
+                } else {
+                    // @ todo dayNumber and date
+                }
                 this.set("selectedMedicationContentWithId.medicationValue.regimen", regimen);
                 this.splice("regimenKeys", this.regimenKeys.indexOf(key), 1);
-                this._updateFrequencyConfigs();
+                this._updatePeriodConfigs();
             }
 
 
@@ -1318,12 +1331,12 @@
                             }
                             Object.assign(reg, {dayPeriod: dayPeriod});
                             if (!dayPeriod.label || !dayPeriod.label[this.language]) {
-                                reg.label = _.fromPairs([[this.language, this.localize(`ms_${reg.id}`, reg.id)]]);
+                                dayPeriod.label = _.fromPairs([[this.language, _.lowerCase(_.trim(this.localize(`ms_${reg.id}`, reg.id)))]]);
                             }
                         }))
                     })
                     .then(() => this.api.code().findCodes("be", "CD-WEEKDAY"))
-                    .then((weekDays) => this.set("weekDays", weekDays));
+                    .then((weekDays) => this.set("weekDays", weekDays.map(weekDay => Object.assign(weekDay, {"weekday": weekDay.label[this.language] || weekDay.id}))));
             }
 
             _updateStats() {
@@ -1342,108 +1355,11 @@
                 this.set("totalTimes", totalTimes);
             }
 
-
-            // _updateView() {
-            //     return;
-            //     const getQuantity = (regimen, dayPeriod) => {
-            //         let reg = regimen.find(r => r.dayPeriod && r.dayPeriod.type === dayPeriod.type && r.dayPeriod.code === dayPeriod.code);
-            //         return reg ? reg.administratedQuantity.quantity : 0;
-            //     };
-            //
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     this._regimens.forEach(base => {
-            //         this.set(base.id, getQuantity(regimen, base.dayPeriod));
-            //     });
-            //
-            //     if (this.extras && this.extras.length) {
-            //         this.splice("extras", 0, this.extras.length);
-            //     }
-            //     regimen.filter(reg => !reg.dayPeriod).forEach(reg => {
-            //         this.push("extras", {
-            //             code: reg.timeOfDay,
-            //             quantity: reg.administratedQuantity.quantity
-            //         });
-            //         this.extras.sort((a, b) => a.code - b.code);
-            //     });
-            //     this._updateDuration();
-            //
-            //     this.notifyPath("selectedMedicationContentWithId.medicationValue", "changed");
-            // }
-
-            // _setQuantity(id, quantity = 0) {
-            //     console.log("_setQuantity:" + id);
-            //     this.set(id, quantity);
-            // }
-            //
-            // _getQuantity(id) {
-            //     console.log("_getQuantity:" + id);
-            //     return this.get(id);
-            // }
-
-            // _updateDayPeriodRegimen(id, quantity = "") {
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     const dayPeriod = (this._regimens.find(reg => reg.id === id) || {dayPeriod: ""}).dayPeriod;
-            //     if (!dayPeriod) return;
-            //     const index = regimen.findIndex(reg => reg.dayPeriod && reg.dayPeriod.code === dayPeriod.code);
-            //     if (quantity) {
-            //         const updated = {
-            //             administratedQuantity: {
-            //                 quantity: this.quantityFactor.denominator > 1 && this.quantityFactor.numLabel || parseInt(quantity, 10) || "",
-            //                 unit: this.selectedMedicationContentWithId.medicationUnit
-            //             },
-            //             dayPeriod : dayPeriod,
-            //             frequency: "daily"
-            //         };
-            //         if (index > -1) {
-            //             this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1, updated);
-            //         } else {
-            //             this.push("selectedMedicationContentWithId.medicationValue.regimen", updated);
-            //         }
-            //     } else {
-            //         if (index > -1) {
-            //             this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1);
-            //         }
-            //     }
-            // }
-            //
-            // _quantityChanged(e) {
-            //     const id = e.currentTarget.id;
-            //     let quantity = e.currentTarget.quantity;
-            //     this._updateDayPeriodRegimen(id, quantity);
-            //
-            //     this._regimens.filter(reg => reg.parentId === id).forEach(reg => {
-            //         this._setQuantity(reg.id);
-            //         this._updateDayPeriodRegimen(reg.id);
-            //     });
-            //     const reg = this._regimens.find(reg => reg.id === id);
-            //     if (reg && reg.parentId) {
-            //         this._setQuantity(reg.parentId);
-            //         this._updateDayPeriodRegimen(reg.parentId);
-            //     }
-            // }
-
-            // _resetAll() {
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     this.selectedMedicationContentWithId.medicationValue.regimen = [];
-            //     this._updateView();
-            // }
-            //
-            // _resetDayPeriodRegimen(e) {
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     this.selectedMedicationContentWithId.medicationValue.regimen = regimen.filter(reg => !this._regimens.some(base => reg.dayPeriod && reg.dayPeriod.code === base.dayPeriod.code));
-            //     this._updateView();
-            // }
-            //
-            // _resetTimeOfDayRegimen(e) {
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     this.selectedMedicationContentWithId.medicationValue.regimen = regimen.filter(reg => this._regimens.some(base => reg.dayPeriod && reg.dayPeriod.code === base.dayPeriod.code));
-            //     this._updateView();
-            // }
+            _resetAll() {
+                const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
+                if (!regimen) return;
+                this.splice("selectedMedicationContentWithId.medicationValue.regimen", 0, regimen.length);
+            }
 
             _copyPosologyNote() {
                 this._resetAll();
@@ -1548,119 +1464,6 @@
                 const regs = this._register();
                 console.log(regs);
             }
-
-            // save() {
-            //     const regs = this._register();
-            //     this.medicationDetail.newMedication.content.fr.medicationValue.regimen = regs;
-            //     //set("selectedMedicationContentWithId.medicationValue.regimen", regs);
-            //     this._valueChanged()
-            // }
-
-            // _addExtra() {
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     const time = moment(this.time,['HH:mm','HHmm']);
-            //     const timeOfDay = parseInt(time.format("HHmmss"), 10);
-            //     const index = regimen.findIndex(reg => reg.timeOfDay && reg.timeOfDay === timeOfDay);
-            //     let quantity = 0;
-            //     if (this.quantityFactor.denominator > 1) {
-            //         if (index > -1) return;
-            //         quantity = this.quantityFactor.numLabel;
-            //     } else {
-            //         quantity = ((index > -1) && parseInt(regimen[index].administratedQuantity.quantity, 10) || 0) + 1;
-            //     }
-            //     const updated = {
-            //         administratedQuantity: {
-            //             quantity: quantity,
-            //             unit: this.selectedMedicationContentWithId.medicationUnit
-            //         },
-            //         timeOfDay : timeOfDay,
-            //         frequency: "daily"
-            //     };
-            //     if (index > -1) {
-            //         this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1, updated);
-            //     } else {
-            //         this.push("selectedMedicationContentWithId.medicationValue.regimen", updated);
-            //     }
-            //     this._updateView();
-            // }
-            //
-            // _extraChanged(e) {
-            //     const extra = _.get(e, "currentTarget.extra", "");
-            //     const quantity = extra.quantity;
-            //     if (!extra) return;
-            //     const regimen = _.get(this.selectedMedicationContentWithId, "medicationValue.regimen", "");
-            //     if (!regimen) return;
-            //     const index = regimen.findIndex(reg => reg.timeOfDay && !reg.dayPeriod && reg.timeOfDay === extra.code);
-            //
-            //     if (quantity) {
-            //         const updated = {
-            //             administratedQuantity: {
-            //                 quantity: quantity,
-            //                 unit: this.selectedMedicationContentWithId.medicationUnit
-            //             },
-            //             timeOfDay : extra.code,
-            //             frequency: "daily"
-            //         };
-            //         if (index > -1) {
-            //             this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1, updated);
-            //         } else {
-            //             this.push("selectedMedicationContentWithId.medicationValue.regimen", updated);
-            //         }
-            //     } else {
-            //         if (index > -1) {
-            //             this.splice("selectedMedicationContentWithId.medicationValue.regimen", index, 1);
-            //         }
-            //     }
-            //     this._updateView();
-            // }
-
-            // _valueChanged() {
-            //     console.log("_valueChanged()",this.medicationDetail)
-            //     this.dispatchEvent(new CustomEvent('value-changed', {detail: {medication: this.medicationDetail, medications:this.medications}, bubbles: true, composed: true}))
-            // }
-            //
-            // _register() {
-            //     let regs = [];
-            //     this._regimens.filter(reg => reg.code !== "unknown").forEach(reg => {
-            //         this._registerDayPeriod(regs, reg.id, reg.code);
-            //     });
-            //     this.extras.forEach(extra => this._registerExtra(regs, extra));
-            //     return regs;
-            // }
-            //
-            // _registerDayPeriod(regs, id, code) {
-            //     const quantity = this._getQuantity(id);
-            //     if (quantity < 1) return;
-            //     regs.push ({
-            //         administratedQuantity: {
-            //             quantity: quantity
-            //         },
-            //         dayPeriod: {
-            //             code: code,
-            //             type: "CD-DAYPERIOD"
-            //         },
-            //         frequency: "daily"
-            //     });
-            // }
-            //
-            // _registerExtra(regs, extra) {
-            //     regs.push ({
-            //         administratedQuantity: {
-            //             // quantity: extra.quantity.toString(),
-            //             quantity: extra.quantity,
-            //             time: null,
-            //             unit: "unit"
-            //         },
-            //         frequency: "daily",
-            //         timeOfDay: extra.code
-            //     });
-            // }
-            //
-            // selectRegimen(scores, rg, start, end) {
-            //     const s = rg.timeOfDay || rg.dayPeriod && rg.dayPeriod.code && scores[rg.dayPeriod.code] || 0;
-            //     return s >= start && s <= end
-            // }
 
             _changeReimbursementItem(item) {
                 if(item && item.id){

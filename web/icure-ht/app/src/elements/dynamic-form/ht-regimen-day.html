@@ -253,10 +253,12 @@
 
         <paper-card class="pat-details-card">
             <div class="form-title">
-                <span>[[title]]</span>
-                <div>
-                    <paper-icon-button id="remove-[[_id(item)]]" class="list-item-icon--add" role="button" icon="icons:remove" on-tap="_removeRegimen"></paper-icon-button>
-                </div>
+                <span>[[_getTitle(key)]]</span>
+                <template is="dom-if" if="[[_canDelete(occurrences)]]">
+                    <div>
+                        <paper-icon-button id="remove" class="list-item-icon--add" role="button" icon="icons:remove" on-tap="_removeRegimen"></paper-icon-button>
+                    </div>
+                </template>
             </div>
             <div class="regimen-line display-type-regimen">
                 <div class="grid-container">
@@ -331,9 +333,11 @@
                         <ht-regimen id="extra[[extra.code]]" extra="{{extra}}" unit="[[medicationDetail.bufferUnit]]" quantity-factor="[[quantityFactor]]" on-extra-changed="_extraChanged"></ht-regimen>
                     </template>
                 </div>
-                <div class="extra-control">
-                    <paper-icon-button class="button--icon-btn" icon="icons:delete" on-tap="_resetAll"></paper-icon-button>
-                </div>
+                <template is="dom-if" if="[[_canReset(regimen.length)]]">
+                    <div class="extra-control">
+                        <paper-icon-button class="button--icon-btn" icon="icons:delete" on-tap="_reset"></paper-icon-button>
+                    </div>
+                </template>
             </div>
         </paper-card>
 
@@ -396,30 +400,26 @@
                         value: () => []
                     },
 
-                    frequencyConfig: {
+                    periodConfig: {
                         type: Object,
                         value: {}
+                    },
+
+                    canDelete: {
+                        type: Boolean,
+                        value: false
+                    },
+
+                    occurrences: {
+                        type: Number,
+                        value: 0
                     }
-
-
-
-                    // initialized: {
-                    //     type: Boolean,
-                    //     value: false
-                    // }
                 }
             }
             static get observers() {
                 return [
-                    "_updateView(quantityFactor, regimen.*, key)",
-                    // "_updateView(quantityFactor, key)",
-                    "_formTitle(key)",
-                    "_weekDaysChanged(weekDays)"
+                    "_updateView(quantityFactor, regimen.*, key)"
                 ];
-            }
-
-            _weekDaysChanged() {
-                console.log("weekDays", this.weekDays)
             }
 
             constructor() {
@@ -430,11 +430,15 @@
                 super.ready();
             }
 
-            _formTitle() {
-                const title = _.capitalize(this.frequencyConfig.id === "daily" ? this.localize("per_day") :
-                    this.frequencyConfig.id === "weekly" ? `${this.localize("per_week")} -  ${this.localize(this.key)}` :
-                        `${this.localize("per_month")} - ${this.localize("the")} ${this.key}`);
-                this.set("title", title);
+            _getTitle() {
+                const header = _.capitalize(this.localize(this.periodConfig.title));
+                return _.capitalize(this.periodConfig.id === "dailyPosology" ? header :
+                    this.periodConfig.id === "weeklyPosology" ? `${header} -  ${this.localize(this.key)}` :
+                        `$header - ${this.localize("the")} ${this.key}`);
+            }
+
+            _canDelete() {
+                return (parseInt(this.occurrences) > 1);
             }
 
             _removeRegimen() {
@@ -443,8 +447,7 @@
             }
 
             _filterRegimenItemByKey(reg) {
-                const keyId = this.frequencyConfig.keyId;
-                return !keyId || (reg[keyId] && (reg[keyId].code === this.key));
+                return !this.periodConfig.keyId || (reg[this.periodConfig.keyId] && (reg[this.periodConfig.keyId].code === this.key));
             }
 
             _getDayPeriodQuantity(dayPeriod) {
@@ -453,8 +456,7 @@
             }
 
             _updateView() {
-                // this.initialized = true;
-                const keyId = this.frequencyConfig.keyId;
+                const keyId = this.periodConfig.keyId;
                 console.log("key:", this.key);
                 console.log("keyId:", keyId);
 
@@ -491,14 +493,13 @@
                     administratedQuantity: {
                         quantity: this.quantityFactor.denominator > 1 && this.quantityFactor.numLabel || parseInt(quantity, 10) || "",
                         unit: this.medicationUnit,
-                    },
-                    frequency: this.frequencyConfig.id
+                    }
                 };
                 if (timeKey && timeValue) {
                     regItem[timeKey] = timeValue;
                 }
 
-                const keyId = this.frequencyConfig.keyId;
+                const keyId = this.periodConfig.keyId;
                 if (keyId) {
                     if (keyId === "weekday") {
                         regItem[keyId] = this.weekDays.find(weekDay => weekDay.code === this.key);
@@ -510,7 +511,6 @@
             }
 
             _updateDayPeriodRegimen(id, quantity = "") {
-                // const keyId = this.frequencyConfig.keyId;
                 if (!this.regimen) return;
                 const dayPeriod = (this.regimenConfig.find(reg => reg.id === id) || {dayPeriod: ""}).dayPeriod;
                 if (!dayPeriod) return;
@@ -530,7 +530,6 @@
             }
 
             _quantityChanged(e) {
-                // if (!this.initialized) return;
                 const id = e.currentTarget.id;
                 let quantity = e.currentTarget.quantity;
                 if (quantity === "") return;
@@ -547,9 +546,14 @@
                 }
             }
 
-            _resetAll() {
+            _canReset() {
+                return (this.regimen.filter(reg => this._filterRegimenItemByKey(reg)).length);
+            }
+
+            _reset() {
                 if (!this.regimen) return;
-                this.regimen = this.regimen.filter(reg => !this._filterRegimenItemByKey(reg));
+                this.regimen.filter(reg => this._filterRegimenItemByKey(reg)).map(reg => this.regimen.indexOf(reg)).sort((a, b) => (b - a)).map(index => this.splice("regimen", index, 1));
+                // this.regimen = this.regimen.filter(reg => !this._filterRegimenItemByKey(reg));
                 this._updateView();
             }
 
