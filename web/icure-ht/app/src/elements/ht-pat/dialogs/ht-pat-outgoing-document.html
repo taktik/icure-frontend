@@ -236,6 +236,10 @@
                                 type: Object,
                                 value: () => {}
                             },
+                            contactHcp: {
+                                type: Object,
+                                value: () => {}
+                            },
                             currentPatient: {
                                 type: Object,
                                 value: () => {}
@@ -251,6 +255,10 @@
                             currentContact: {
                                 type: Array,
                                 value: () => []
+                            },
+                            selectedContact: {
+                                type: Object,
+                                value: () => {}
                             },
                             allHealthElements: {
                                 type: Array,
@@ -323,11 +331,12 @@
                 return inputValue ? this.api.getCurrentAgeFromBirthDate(inputValue,( e , s ) => this.localize(e, s, this.language)) : ''
             }
 
-            _getPrettifiedHcp() {
+            _getPrettifiedHcp(hcpId=null) {
 
                 const promResolve = Promise.resolve()
 
-                return this.api.hcparty().getCurrentHealthcareParty()
+                return promResolve
+                    .then(() => !hcpId ? this.api.hcparty().getCurrentHealthcareParty() : this.api.hcparty().getHealthcareParty(hcpId))
                     .then(hcp => {
                         const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
                         return _.merge({}, hcp, _.mapValues({
@@ -345,6 +354,15 @@
                         }, i => typeof i === "string" ? !!_.trim(i) ? _.trim(i) : '-' : i))
                     })
                     .catch(()=>promResolve)
+
+            }
+
+            _getPrettifiedContactHcp() {
+
+                // Get from selected contact and not current contact / might be different
+                const contactHcpId = !!_.trim(_.get(this,"_data.selectedContact.responsible","")) ? _.trim(_.get(this,"_data.selectedContact.responsible","")) : _.trim(_.get(this,"user.healthcarePartyId"))
+
+                return contactHcpId === _.trim(_.get(this,"_data.currentHcp.id","")) ? Promise.resolve(_.cloneDeep(_.get(this,"_data.currentHcp",{}))) :  this._getPrettifiedHcp(contactHcpId)
 
             }
 
@@ -468,7 +486,38 @@
                     ), _.isEqual
                 )
 
-                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))))
+
+
+
+
+
+
+                // let prom = Promise.resolve([])
+                // const filteredCodesToResolve = _.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code")))
+                //
+                // return Promise.all(_.map(filteredCodesToResolve, it => {
+                //     prom = prom.then(filteredCodesToResolve => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))
+                //         .then(foundCodes => _.map(foundCodes, singleCode => {
+                //             singleCode = _.merge({},singleCode,{
+                //                 labelHr: singleCode.type === "CD-TRANSACTION" ?
+                //                     _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                //                     singleCode.type === "CD-SEVERITY" ? _.upperFirst(_.trim(this.localize(_.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                //                     singleCode.type === "CD-DAYPERIOD" ? _.upperFirst(_.trim(this.localize('ms_' + _.trim(_.get(singleCode,"code")), (_.trim(_.get(singleCode,"label." + this.language,"")) ? _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) : _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())), this.language)).toLowerCase()) :
+                //                     _.trim(_.get(singleCode,"label." + this.language,"")) ?
+                //                         _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) :
+                //                         _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())
+                //             })
+                //             if(!resolvedCodes[singleCode.type]) { resolvedCodes[singleCode.type] = [singleCode] } else { resolvedCodes[singleCode.type].push(singleCode) }
+                //             return _.concat(filteredCodesToResolve,resolvedCodes)
+                //         }))
+                //     )
+                // }))
+
+
+
+
+
+                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code",""))).catch(e=>{})))
                     .then(promResults => _.map(promResults, promResult => _.map(promResult, singleCode => {
                         singleCode = _.merge({},singleCode,{
                             labelHr: singleCode.type === "CD-TRANSACTION" ?
@@ -611,9 +660,10 @@
                     formatDate: (date) => this.api.moment(date).format('DD/MM/YYYY'),
                     user: _.get(this,"user",{}),
                     patient: _.get(this,"_data.currentPatient",{}),
-                    hcp: _.get(this,"_data.currentHcp",{}),
-                    currentContact: _.get(this,"currentContact",{}),
-                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.currentContact.openingDate","")),
+                    hcp: _.get(this,"_data.contactHcp",{}),
+                    // currentContact: _.get(this,"currentContact",{}),
+                    currentContact: _.get(this,"_data.selectedContact",{}),
+                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.selectedContact.openingDate","")),
                     language: this.language,
                     formsAndDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
                     dataProvider: _.get(this,"dataProvider",{}),
@@ -641,378 +691,6 @@
                         } catch (e) { reject(e); }
                     })
                 }, ctx)
-
-            }
-
-            _getProseEditorVariables() {
-
-                const staticVariables = [{
-                    type:'blocks',
-                    additionalCssClasses:'largeDivider',
-                    name: this.localize('informationBlocks', 'Information blocks', this.language),
-                    subVars: [{
-                        name:this.localize('idHcp', 'Physician identification', this.language),
-                        nodes: [
-                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idHcp', 'Physician identification', this.language)).toUpperCase()}]},
-                            {type: 'table',content: [
-                                    {type: 'table_row',content: [
-                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
-                                                    {type:'paragraph', content: [
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("doctor", "Doctor", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                    {type:'paragraph',content: [
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
-                                                            {type:'variable', attrs: {expr: 'hcp.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.city'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                    {type:'paragraph',content: [
-                                                            {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'hcp.email'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.phone'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("mobile", "Mobile", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.mobile'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                ]}
-                                        ]}
-                                ]},
-                            {type: 'paragraph',content: [{type: 'text', text:" "}]},
-                        ]
-                    },{
-                          name:this.localize('footerHcp', 'Physician signature', this.language),
-                          nodes: [
-                              {type:'paragraph',content: [{type:'text', text:" "}]},
-                              {type:'paragraph',content: [{type:'text', marks: [{type:'strong'}], text: _.trim(this.localize('hcpRegards', 'Fraternally yours', this.language)) + ", "}]},
-                              {type:'paragraph',content: [{type:'text', text:" "}]},
-                              {type:'paragraph',content: [
-                                  {type:'text', text: this.localize("doctor", "Doctor", this.language) + " "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}}, {type:'text', text: ' - '},
-                                  {type:'text', text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}, {type:'text', text: ' '}
-                              ]},
-
-                              {type:'paragraph',content: [{type:'text', text: this.localize("postalAddress", "Address", this.language) + ": "},{type:'variable', attrs: {expr: 'hcp.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.city'}}, {type:'text', text: ' '},]},
-                              {type:'paragraph',content: [
-                                    {type:'text', text: "Email: "}, {type: 'variable', attrs: {expr: 'hcp.email'}}, {type:'text', text: ' - '},
-                                    {type:'text', text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.phone'}},{type:'text', text: ' - '}, {type: 'text', text: this.localize("mobile", "Mobile", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.mobile'}}, {type:'text', text: ' '},
-                                ]},
-                          ]
-                      },{
-                        name:this.localize('idPatient', 'Patient identification', this.language),
-                        nodes: [
-                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatient', 'Patient identification', this.language)).toUpperCase()}]},
-                            {type: 'table',content: [
-                                    {type: 'table_row',content: [
-                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
-                                                    {type:'paragraph',content: [
-                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("lastAndAndFirstNames", "Last & first names", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.firstName'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
-                                                            {type: 'variable', attrs: {expr: 'patient.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'patient.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.city'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                    {type:'paragraph',content: [
-                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("sexLitteral", "Sex", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.genderHr'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("birthDate", "Birthdate", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("ssinPatVerbose", "NISS", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.ssinHr'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                    {type:'paragraph',content: [
-                                                            {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'patient.email'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.phone'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("job", "Job", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.profession'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                    {type:'paragraph',content: [
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("adm_in", "Insurance", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},
-                                                            {type:'text', text: ' (#'}, {type: 'variable', attrs: {expr: 'patient.insuranceData.code'}}, {type:'text', text: ') - '},
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("AFF", "Membership number", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},
-                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: "CT1 - CT2: "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}}, {type:'text', text: ' '},
-                                                        ]},
-                                                ]}
-                                        ]}
-                                ]},
-                            {type: 'paragraph',content: [{type: 'text', text:" "}]},
-                        ]
-                    }]
-                },{
-                    type:'hcp',
-                    name: this.localize('physicianInformations', 'Physician informations', this.language),
-                    subVars: [
-                        {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.lastName'}},{type:'text', text: ' '}]},
-                        {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.firstName'}},{type:'text', text: ' '}]},
-                        {name: this.localize('inami', 'Nihii', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.nihiiHr'}},{type:'text', text: ' '}]},
-                        {name: this.localize('postalAddress', 'Address', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.address'}},{type:'text', text: ' '}]},
-                        {name: this.localize('postalCode', 'Zip', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.postalCode'}},{type:'text', text: ' '}]},
-                        {name: this.localize('city', 'City', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.city'}},{type:'text', text: ' '}]},
-                        {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'hcp.email'}},{type:'text', text: ' '}]},
-                        {name: this.localize('phone', 'Phone', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.phone'}},{type:'text', text: ' '}]},
-                        {name: this.localize('mobile', 'Mobile', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.mobile'}},{type:'text', text: ' '}]},
-                    ]
-                },{
-                    type:'patient',
-                    additionalCssClasses:'largeDivider',
-                    name:this.localize('patientInformations', 'Patient informations', this.language),
-                    subVars: [
-                        {name: this.localize('docTitle', 'Title', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.civilityHr'}},{type:'text', text: ' '}]},
-                        {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.lastName'}},{type:'text', text: ' '}]},
-                        {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.firstName'}},{type:'text', text: ' '}]},
-                        {name: this.localize("postalAddress", "Address", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.address'}},{type:'text', text: ' '}]},
-                        {name: this.localize("postalCode", "Zip", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.postalCode'}},{type:'text', text: ' '}]},
-                        {name: this.localize("city", "City", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.city'}},{type:'text', text: ' '}]},
-                        {name: this.localize("sexLitteral", "Sex", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.genderHr'}},{type:'text', text: ' '}]},
-                        {name: this.localize("birthDate", "Birthdate", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},{type:'text', text: ' '}]},
-                        {name: this.localize("age", "Age", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.age'}},{type:'text', text: ' '}]},
-                        {name: this.localize("ssinPatVerbose", "NISS", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.ssinHr'}},{type:'text', text: ' '}]},
-                        {name: this.localize("nationality", "Nationality", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.nationality'}},{type:'text', text: ' '}]},
-                        {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'patient.email'}},{type:'text', text: ' '}]},
-                        {name: this.localize("phone", "Phone", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.phone'}},{type:'text', text: ' '}]},
-                        {name: this.localize("job", "Job", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.profession'}},{type:'text', text: ' '}]},
-                        {name: this.localize("adm_in", "Insurance", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},{type:'text', text: ' '}]},
-                        {name: this.localize("insuranceCode", "Insurance code", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.code'}},{type:'text', text: ' '}]},
-                        {name: "CT1 - CT2", nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},{type:'text', text: ' '}]},
-                        {name: this.localize("AFF", "Membership number", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},{type:'text', text: ' '}]},
-                        {name: this.localize("husbandWife", "Partner", this.language), nodes: [
-                            {type: 'variable', attrs: {expr: 'patient.partnerHr.lastName'}},{type:'text', text: ' '},
-                            {type: 'variable', attrs: {expr: 'patient.partnerHr.firstName'}},{type:'text', text: ' '},
-                            {type: 'variable', attrs: {expr: 'patient.partnerHr.ssinHr'}},{type:'text', text: ' '}
-                        ]},
-                    ]
-                }]
-
-                const healthElementVariables = {
-                    type:'hes',
-                    additionalCssClasses:'largeDivider',
-                    name: this.localize('healthcareelements', 'Health elements', this.language),
-                    subVars: _.compact(_.map(_.get(this,"_data.allHealthElements",[]), (hes, heType) => {
-
-                        const heTypeLabel = heType === "activeHealthElements" ? this.localize("act_hea_pro","Active Health Problems", this.language) :
-                            heType === "inactiveHealthElements" ? this.localize("med_ant","Medical antecedents", this.language) :
-                                heType === "surgicalHealthElements" ? this.localize("surg","Surgical", this.language) :
-                                    heType === "familyrisks" ? this.localize("fam_ris","Family risks", this.language) :
-                                        heType === "risks" ? this.localize("ris","Risks", this.language) :
-                                            heType === "allergies" ? this.localize("aller","Allergies", this.language) :
-                                                heType === "medications" ? this.localize("med","Medication", this.language) :
-                                                    heType === "archivedHealthElements" ? this.localize("arc","Archives", this.language) : ""
-
-                        return (!_.size(hes) /* || heType==="archivedHealthElements" */) ? null : {
-                            name: heTypeLabel,
-                            sorting: heType === "activeHealthElements" ? 1 :
-                                heType === "inactiveHealthElements" ? 2 :
-                                    heType === "surgicalHealthElements" ? 3 :
-                                        heType === "familyrisks" ? 4 :
-                                            heType === "risks" ? 5 :
-                                                heType === "allergies" ? 6 :
-                                                    heType === "medications" ? 7 :
-                                                        heType === "archivedHealthElements" ? 8 : 999,
-                            nodes: [
-                                {type:'template', attrs: {
-                                        expr:`subContextsHes("${heType}")`,
-                                        template: {'default': heType !== "medications" ?
-                                                [
-                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "}]},
-                                                    {type: 'table',content: [
-                                                            {type: 'table_row',content: [
-                                                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: _.compact([
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("healthElement","Health element", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heHr`}}, {type:'text', text: " "}]},
-                                                                            ((heType !== "allergies" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}, {type:'text', text: " "}]} ),
-                                                                            {type:'paragraph',content: [
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " "},
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("cert","Certainity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.certaintyHr`}}, {type:'text', text: " "},
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("sev","Severity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.severityHr`}}, {type:'text', text: " "},
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("temp","Temporality", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.evolutionHr`}}, {type:'text', text: " "},
-                                                                                ]},
-                                                                            ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}]} ),
-                                                                            {type:'paragraph',content: [
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " "},
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}}, {type:'text', text: " "},
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("remanence","Rémanence", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.temporalityHr`}}, {type:'text', text: " "}
-                                                                                ]},
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICPC" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icpcsHr`}}, {type:'text', text: " "}]},
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICD" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icdsHr`}}, {type:'text', text: " "}]},
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
-                                                                        ])
-                                                                    },
-                                                                ]},
-                                                        ]},
-                                                ] : [
-                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
-                                                    {type: 'table',content: [
-                                                            {type: 'table_row',content: [
-                                                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
-                                                                            {type:'paragraph',content: [
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("begin","Begin", this.language) + ": "},
-                                                                                    {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},
-                                                                                    {type:'text', text: " - "},
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("end","End", this.language) + ": "},
-                                                                                    {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},
-                                                                                    {type:'text', text: " - "} ,
-                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("substitution","Substitution", this.language) + ": "},
-                                                                                    {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},
-                                                                                    {type:'text', text: " "}
-                                                                                ]},
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("pos","Posology", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.regimenHr`}}, {type:'text', text: " "}]},
-                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
-                                                                        ]},
-                                                                ]},
-                                                        ]},
-                                                ]
-                                        },
-                                    }},
-                                {type:'paragraph',content: [{type:'text', text: " "}]},
-                            ]
-                        }
-
-                    }))
-                }
-
-                _.assign(healthElementVariables, {subVars: _.orderBy(_.get(healthElementVariables,"subVars",[]), ['sorting'],['asc'])})
-
-                const getterByDataType = {
-                    TKDate: "getDateValue",
-                    TKNumber: "getNumberValue",
-                    TKMeasure: "getMeasureValue",
-                    TKBoolean: "getBooleanValue",
-                }
-
-                // Prose editor will try to have our templates / variables to fit on one page.
-                // If not enough space is available, Prose editor will jump to the next A4 page, trying to make it fit there.
-                // Ie: if we are "too long" => infinite loop seeking for next A4 page hoping to have enough space again and again.
-                // Todo: improve Prose editor and have it to split content over several pages when required
-                const maxVaribalesPerPage = 43;
-
-                const formVariables = {
-                    type:'forms',
-                    additionalCssClasses:'largeDivider',
-                    name: this.localize('formBlocks', 'Form blocks', this.language),
-                    subVars: _.flatten(_.compact(_.map(_.get(this,"_data.formsAndDataProviders",[]), (form,templateGuid) => {
-
-                        const formObject = typeof _.get(form,"dataProvider.form","") === "function" && _.get(form,"dataProvider.form","")()
-                        const formName = _.trim(_.get(formObject, "descr", _.trim(_.get(formObject,".template.name", ""))))
-                        const formTemplateDataList = _.get(formObject,"template.layout.sections[0].formColumns[0].formDataList",[])
-                        const formTemplateIsConsultation = _.trim(_.get(formObject,"template.guid","")) === "FFFFFFFF-FFFF-FFFF-FFFF-CONSULTATION"
-
-                        const templateGuidAndIndex = templateGuid.split('#')
-                        const templateGuidsAndIndexes = _.keys(_.get(this,"_data.formsAndDataProviders",[]))
-                        const totalFormsForCurrentTemplateGuid = parseInt(_.size(_.filter(templateGuidsAndIndexes, it => it.indexOf(templateGuidAndIndex[0]) > -1)))
-
-                        return {
-                            name: _.get(formObject,"descr","") + (totalFormsForCurrentTemplateGuid === 1 ? "" : " (" + _.trim(parseInt(templateGuidAndIndex[1])) + "/" + totalFormsForCurrentTemplateGuid + ")" ),
-                            nodes: [
-                                {type:'paragraph', content: [
-                                        {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("form", "Form", this.language).toUpperCase()},
-                                        {type:'text', text: ": " + _.trim(formName).toUpperCase()},
-                                        {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
-                                        {type:'variable', attrs: {expr: `contactOpeningDate`}},
-                                        {type:'text',text: ' '}
-                                    ]},
-                                {type: 'table',content: [
-                                        {type: 'table_row',content: [
-                                                {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content:[{
-                                                        type:'template',
-                                                        attrs: {
-                                                            expr: `subContextsForms("${templateGuid}")`,
-                                                            template: {'default': _.slice(_.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
-
-                                                                    const isSubForm = !!_.get(k,"isSubForm", false)
-                                                                    const subForms = !!isSubForm && form.dataProvider.getSubForms(_.get(k,"name"))
-                                                                    const fieldLabel = !!formTemplateIsConsultation ? _.trim(_.get(k,"name")) : _.trim(_.get( _.find(formTemplateDataList, {name: _.get(k,"name")}), "label")) || _.trim(_.get(k,"name"))
-                                                                    const fieldValue = form && form.dataProvider && form.dataProvider.getValue(k.name)
-
-                                                                    return (!!isSubForm && !_.size(subForms)) ?
-
-                                                                        // Empty subform
-                                                                        false :
-
-                                                                        // Field with no value
-                                                                        /* (!isSubForm && (!_.trim(fieldValue) || _.trim(fieldValue) === "-" || _.trim(fieldValue).toLowerCase() === "ok")) ? false : */
-
-                                                                        // Not sub form and has field value
-                                                                        (!isSubForm) ? {type:'paragraph',content: [
-                                                                            {type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},
-                                                                            {type:'variable', attrs: {expr: `const v = dataProvider.` + _.trim(_.get(getterByDataType, k.type, "getValue")) + `("${k.name}"); Array.isArray(v) ? v.join(', ') : ` + (
-                                                                                _.trim(_.get(k,"type")) === "TKDate" ? "componentDataProvider.getYYYYMMDDAsDDMMYYYY(v)" :
-                                                                                _.trim(_.get(k,"type")) === "TKMeasure" ? "componentDataProvider.getMeasureValue(v)" :
-                                                                                _.trim(_.get(k,"type")) === "TKBoolean" ? "componentDataProvider.getBooleanValue(v)" :
-                                                                                "componentDataProvider.getHrCodesAndTagsValue(v)"
-                                                                            )}},
-                                                                            {type:'text',text: ' '}
-                                                                        ]} :
-
-                                                                            // Non-empty subform, map all its fields => values
-                                                                            _.concat(
-                                                                                _.compact(_.map(subForms, (subForm,subFormIdx) => {
-                                                                                    const subFormObject = typeof _.get(subForm,"dataProvider.form","") === "function" && _.get(subForm,"dataProvider.form","")()
-                                                                                    const subFormName = _.trim(_.get(subFormObject,"template.name", ""))
-                                                                                    const subFormTemplateDataList = _.get(subFormObject,"template.layout.sections[0].formColumns[0].formDataList",[])
-
-                                                                                    return [
-                                                                                        {type:'paragraph',content: [{type:'text', text: " "}]},
-                                                                                        {type:'paragraph', content: [
-                                                                                                {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("subForm", "Sub-form", this.language).toUpperCase()},
-                                                                                                {type:'text', text: ": " + _.trim(subFormName).toUpperCase()},
-                                                                                                {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
-                                                                                                {type:'variable', attrs: {expr: `contactOpeningDate`}},
-                                                                                                {type:'text',text: ' '}
-                                                                                            ]},
-                                                                                        {type: 'table',content: [
-                                                                                                {type: 'table_row',content: [
-                                                                                                        {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [{
-                                                                                                                type:'template',
-                                                                                                                attrs: {
-                                                                                                                    expr:`subContextsSubForms("${k.name}",${subFormIdx})`,
-                                                                                                                    template: {'default': _.compact( _.map( this._getFormEditorSortedItemsBasedOnTemplate(subForm.dataProvider).filter(i => i.type !== 'TKAction'), kk => {
-                                                                                                                            const subFormFieldLabel = _.trim(_.get( _.find(subFormTemplateDataList, {name: _.get(kk,"name","")}), "label", _.trim(_.get(kk,"name",""))))
-                                                                                                                            const subFormFieldValue = subForm && subForm.dataProvider && subForm.dataProvider.getValue(kk.name)
-                                                                                                                            return /* (!_.trim(subFormFieldValue) || _.trim(subFormFieldValue) === "-" || _.trim(subFormFieldValue).toLowerCase() === "ok") ? false : */ {
-                                                                                                                                type:'paragraph',
-                                                                                                                                content: [
-                                                                                                                                    {type:'text', marks: [{type: 'strong'}], text: subFormFieldLabel + ": "},
-                                                                                                                                    {type:'variable', attrs: {expr: `const v = dataProvider.` + _.trim(_.get(getterByDataType, kk.type, "getValue")) + `("${kk.name}"); Array.isArray(v) ? v.join(', ') : ` + (
-                                                                                                                                        _.trim(_.get(k,"type")) === "TKDate" ? "componentDataProvider.getYYYYMMDDAsDDMMYYYY(v)" :
-                                                                                                                                        _.trim(_.get(k,"type")) === "TKMeasure" ? "componentDataProvider.getMeasureValue(v)" :
-                                                                                                                                        _.trim(_.get(k,"type")) === "TKBoolean" ? "componentDataProvider.getBooleanValue(v)" :
-                                                                                                                                        "componentDataProvider.getHrCodesAndTagsValue(v)"
-                                                                                                                                    )}},
-                                                                                                                                ]
-                                                                                                                            }
-                                                                                                                        }))}
-                                                                                                                }
-                                                                                                            }]}
-                                                                                                    ]}
-                                                                                            ]}
-                                                                                    ]
-                                                                                })),
-                                                                                [{type:'paragraph',content: [{type:'text', text: " "}]}]
-                                                                            )
-                                                                }))),0,maxVaribalesPerPage)}
-                                                        }
-                                                    }]},
-                                            ]},
-                                    ]},
-                                {type:'paragraph',content: [{type:'text', text: " "}]},
-                            ]
-                        }
-
-                    })))
-                }
-
-                // document title, hcp footer (signature)
-                const miscVariables = {
-                    type:'misc',
-                    name: this.localize('miscellaneous', 'Miscellaneous', this.language),
-                    subVars: [
-                        {name: this.localize('hub-doc-title', 'Document title', this.language), nodes: [{type: 'variable', attrs: {expr: 'dataProvider.getVariableValue("documentTitle")'}},{type:'text', text: ' '}]},
-                        {name: this.localize('todaysDate', 'Todays date', this.language), nodes: [{type: 'variable', attrs: {expr: 'dataProvider.getVariableValue("todaysDate")'}},{type:'text', text: ' '}]},
-                        {name: this.localize('hour', 'Time', this.language), nodes: [{type: 'variable', attrs: {expr: 'dataProvider.getVariableValue("time")'}},{type:'text', text: ' '}]},
-                    ]
-                 }
-
-                const proseEditorVariables = _
-                    .chain(_.compact(_.concat(
-                        staticVariables,
-                        (!!_.size(_.get(healthElementVariables,"subVars")) ? healthElementVariables : []),
-                        formVariables,
-                        miscVariables
-                    )))
-                    .map(it => { _.assign(_.last(it.subVars), {isLast: "isLast"}); return it; })
-                    .value()
-
-                _.assign(_.last(proseEditorVariables),{isLast: "isLast"})
-
-                return Promise.resolve(proseEditorVariables);
 
             }
 
@@ -1171,7 +849,7 @@
                                 body {margin: 0; padding: 0mm; font-family: 'Roboto', Arial, Helvetica, sans-serif; font-size:12px; line-height:1.2em; background:#ffffff; -webkit-font-smoothing: antialiased; font-smooth: always; }
                                 .page { padding:8mm; color:#000000; position:relative; background:#ffffff; }
 
-                                h1 { font-size: 1.8em; font-weight: bold; padding:0; margin-top:0; color:#101079; text-transform:uppercase;}
+                                h1 { font-size: 1.8em; font-weight: bold; padding:0; margin-top:0; color:#101079; text-transform:uppercase; line-height:1.3em;}
                                 h2 { font-size: 1.5em; font-weight: bold; padding:0; }
                                 h3 { font-size: 1.3em; font-weight: bold; padding:0; }
                                 h4 { font-size: 1.1em; font-weight: bold; padding:0; }
@@ -1251,15 +929,15 @@
 
                         const messageObject = {
                             transportGuid: "OUTGOING-DOCUMENT:PATIENT:ARCHIVE",
-                            recipients: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
+                            recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
                             metas: {
                                 filename : fileName,
-                                hcpId: _.trim(_.get(this, "_data.currentHcp.id", "")),
+                                hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
                                 contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
                                 templateGuid: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.guid","")),
                                 templateVersion: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.group.guid","")),
                             },
-                            toAddresses: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
+                            toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
                             subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
                         }
 
@@ -1328,8 +1006,9 @@
                         const proseJsonContent = prose.editorView.state.doc.toJSON();
                         const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
                         const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
-                        console.log("proseJsonContentWithoutVars", proseJsonContentWithoutVars);
-                        return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(proseJsonContentWithoutVars))
+                        const proseTextContentWithoutVars = JSON.stringify(proseJsonContentWithoutVars).replace(/"rendered":"([^"*]*)"/g,'"rendered":""');
+                        console.log("savedTemplate", proseTextContentWithoutVars);
+                        return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), proseTextContentWithoutVars)
                     })
                     .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
                     .then(docTemplateObject=> this.set("_data.proseEditorSelectedTemplate",docTemplateObject))
@@ -1342,7 +1021,34 @@
             _getProseEditorTemplates(forceNoAutoInject=false) {
 
                 const promResolve = Promise.resolve()
-                const coreTemplateGuids = ["new-doc", "lettre-liaison", "msoap", "amu", "coups-blessures", "presence-consultation", "violences-physiques","grossesse", "bonne-sante", "aptitude-sportive", "frequentation-creche"]
+                const coreTemplateGuids = [
+                    "new-doc",
+                    "lettre-liaison",
+                    "msoap",
+                    "amu",
+                    "coups-blessures",
+                    "presence-consultation",
+                    // "violences-physiques",
+                    "grossesse",
+                    "bonne-sante",
+                    "aptitude-sportive",
+                    "frequentation-creche",
+                    "rapport-medecin-conseil",
+                    "aide-familiale",
+                    "transport-ambulance",
+                    "bonne-sante-one",
+                    "forfait-incontinence",
+                    "incapacite-vote",
+                    "jour-circonstance",
+                    "frottis-depistage",
+                    "itt",
+                    "necessite-toilette",
+                    "attestation-amu",
+                    "psy",
+                    "placement-malades-mentaux",
+                    "rapport-circonstancie-malades-mentaux",
+                    "itt-independant",
+                ]
 
                 return promResolve
                     .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
@@ -1402,17 +1108,457 @@
 
             }
 
+            _getProseEditorVariables() {
 
+                const staticVariables = [{
+                    type:'blocks',
+                    additionalCssClasses:'largeDivider',
+                    name: this.localize('informationBlocks', 'Information blocks', this.language),
+                    subVars: [{
+                        name:this.localize('idHcp', 'Physician identification', this.language),
+                        nodes: [
+                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idHcp', 'Physician identification', this.language)).toUpperCase()}]},
+                            {type: 'table',content: [
+                                    {type: 'table_row',content: [
+                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                                    {type:'paragraph', content: [
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("doctorAbreviation", "Dr.", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
+                                                            {type:'variable', attrs: {expr: 'hcp.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.city'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'hcp.email'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.phone'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("mobile", "Mobile", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.mobile'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                ]}
+                                        ]}
+                                ]},
+                            {type: 'paragraph',content: [{type: 'text', text:" "}]},
+                        ]
+                    },{
+                          name:this.localize('footerHcp', 'Physician signature', this.language),
+                          nodes: [
+                              {type:'paragraph',content: [{type:'text', text:" "}]},
+                              {type:'paragraph',content: [{type:'text', marks: [{type:'strong'}], text: _.trim(this.localize('hcpRegards', 'Fraternally yours', this.language)) + ", "}]},
+                              {type:'paragraph',content: [{type:'text', text:" "}]},
+                              {type:'paragraph',content: [
+                                  {type:'text', text: this.localize("doctorAbreviation", "Dr.", this.language) + " "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}}, {type:'text', text: ' - '},
+                                  {type:'text', text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}, {type:'text', text: ' '}
+                              ]},
 
+                              {type:'paragraph',content: [{type:'text', text: this.localize("postalAddress", "Address", this.language) + ": "},{type:'variable', attrs: {expr: 'hcp.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'hcp.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.city'}}, {type:'text', text: ' '},]},
+                              {type:'paragraph',content: [
+                                    {type:'text', text: "Email: "}, {type: 'variable', attrs: {expr: 'hcp.email'}}, {type:'text', text: ' - '},
+                                    {type:'text', text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.phone'}},{type:'text', text: ' - '}, {type: 'text', text: this.localize("mobile", "Mobile", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.mobile'}}, {type:'text', text: ' '},
+                                ]},
+                          ]
+                      },{
+                        name:this.localize('idPatientShort', 'Patient id. (short)', this.language),
+                        nodes: [
+                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatientHr', 'Patient identification', this.language)).toUpperCase()}]},
+                            {type: 'table',content: [
+                                    {type: 'table_row',content: [
+                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                                    {type:'paragraph',content: [
+                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("lastAndAndFirstNames", "Last & first names", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.firstName'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
+                                                            {type: 'variable', attrs: {expr: 'patient.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'patient.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.city'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("sexLitteral", "Sex", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.genderHr'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("birthDate", "Birthdate", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("ssinPatVerbose", "NISS", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.ssinHr'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                ]}
+                                        ]}
+                                ]},
+                            {type: 'paragraph',content: [{type: 'text', text:" "}]},
+                        ]
+                    },{
+                        name:this.localize('idPatient', 'Patient identification', this.language),
+                        nodes: [
+                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatientHr', 'Patient identification', this.language)).toUpperCase()}]},
+                            {type: 'table',content: [
+                                    {type: 'table_row',content: [
+                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                                    {type:'paragraph',content: [
+                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("lastAndAndFirstNames", "Last & first names", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.firstName'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
+                                                            {type: 'variable', attrs: {expr: 'patient.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'patient.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.city'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("sexLitteral", "Sex", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.genderHr'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("birthDate", "Birthdate", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("ssinPatVerbose", "NISS", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.ssinHr'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type:'text', marks: [{type: 'strong'}], text: "Email: "}, {type: 'variable', attrs: {expr: 'patient.email'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("phone", "Phone", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.phone'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("job", "Job", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.profession'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("adm_in", "Insurance", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},
+                                                            {type:'text', text: ' (#'}, {type: 'variable', attrs: {expr: 'patient.insuranceData.code'}}, {type:'text', text: ') - '},
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("AFF", "Membership number", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: "CT1 - CT2: "}, {type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                ]}
+                                        ]}
+                                ]},
+                            {type: 'paragraph',content: [{type: 'text', text:" "}]},
+                        ]
+                    }]
+                },{
+                    type:'hcp',
+                    name: this.localize('physicianInformations', 'Physician informations', this.language),
+                    subVars: [
+                        {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.lastName'}},{type:'text', text: ' '}]},
+                        {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.firstName'}},{type:'text', text: ' '}]},
+                        {name: this.localize('inami', 'Nihii', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.nihiiHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize('postalAddress', 'Address', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.address'}},{type:'text', text: ' '}]},
+                        {name: this.localize('postalCode', 'Zip', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.postalCode'}},{type:'text', text: ' '}]},
+                        {name: this.localize('city', 'City', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.city'}},{type:'text', text: ' '}]},
+                        {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'hcp.email'}},{type:'text', text: ' '}]},
+                        {name: this.localize('phone', 'Phone', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.phone'}},{type:'text', text: ' '}]},
+                        {name: this.localize('mobile', 'Mobile', this.language), nodes: [{type: 'variable', attrs: {expr: 'hcp.mobile'}},{type:'text', text: ' '}]},
+                    ]
+                },{
+                    type:'patient',
+                    additionalCssClasses:'largeDivider',
+                    name:this.localize('patientInformations', 'Patient informations', this.language),
+                    subVars: [
+                        {name: this.localize('docTitle', 'Title', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.civilityHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize('las_nam', 'Last name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.lastName'}},{type:'text', text: ' '}]},
+                        {name: this.localize('fir_nam', 'First name', this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.firstName'}},{type:'text', text: ' '}]},
+                        {name: this.localize("postalAddress", "Address", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.address'}},{type:'text', text: ' '}]},
+                        {name: this.localize("postalCode", "Zip", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.postalCode'}},{type:'text', text: ' '}]},
+                        {name: this.localize("city", "City", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.city'}},{type:'text', text: ' '}]},
+                        {name: this.localize("sexLitteral", "Sex", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.genderHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize("birthDate", "Birthdate", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize("age", "Age", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.age'}},{type:'text', text: ' '}]},
+                        {name: this.localize("ssinPatVerbose", "NISS", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.ssinHr'}},{type:'text', text: ' '}]},
+                        {name: this.localize("nationality", "Nationality", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.nationality'}},{type:'text', text: ' '}]},
+                        {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'patient.email'}},{type:'text', text: ' '}]},
+                        {name: this.localize("phone", "Phone", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.phone'}},{type:'text', text: ' '}]},
+                        {name: this.localize("job", "Job", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.profession'}},{type:'text', text: ' '}]},
+                        {name: this.localize("adm_in", "Insurance", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceCode", "Insurance code", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.code'}},{type:'text', text: ' '}]},
+                        {name: "CT1 - CT2", nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},{type:'text', text: ' '}]},
+                        {name: this.localize("AFF", "Membership number", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},{type:'text', text: ' '}]},
+                        {name: this.localize("husbandWife", "Partner", this.language), nodes: [
+                            {type: 'variable', attrs: {expr: 'patient.partnerHr.lastName'}},{type:'text', text: ' '},
+                            {type: 'variable', attrs: {expr: 'patient.partnerHr.firstName'}},{type:'text', text: ' '},
+                            {type: 'variable', attrs: {expr: 'patient.partnerHr.ssinHr'}},{type:'text', text: ' '}
+                        ]},
+                    ]
+                }]
 
+                const healthElementVariables = {
+                    type:'hes',
+                    // additionalCssClasses:'largeDivider',
+                    name: this.localize('healthcareelements', 'Health elements', this.language) + " (" + this.localize('detailed', 'detailed', this.language) +")",
+                    subVars: _.compact(_.map(_.get(this,"_data.allHealthElements",[]), (hes, heType) => {
 
+                        const heTypeLabel = heType === "activeHealthElements" ? this.localize("act_hea_pro","Active Health Problems", this.language) :
+                            heType === "inactiveHealthElements" ? this.localize("med_ant","Medical antecedents", this.language) :
+                                heType === "surgicalHealthElements" ? this.localize("surg","Surgical", this.language) :
+                                    heType === "familyrisks" ? this.localize("fam_ris","Family risks", this.language) :
+                                        heType === "risks" ? this.localize("ris","Risks", this.language) :
+                                            heType === "allergies" ? this.localize("aller","Allergies", this.language) :
+                                                heType === "medications" ? this.localize("med","Medication", this.language) :
+                                                    heType === "archivedHealthElements" ? this.localize("arc","Archives", this.language) : ""
 
+                        return (!_.size(hes) /* || heType==="archivedHealthElements" */) ? null : {
+                            name: heTypeLabel,
+                            sorting: heType === "activeHealthElements" ? 1 :
+                                heType === "inactiveHealthElements" ? 2 :
+                                    heType === "surgicalHealthElements" ? 3 :
+                                        heType === "familyrisks" ? 4 :
+                                            heType === "risks" ? 5 :
+                                                heType === "allergies" ? 6 :
+                                                    heType === "medications" ? 7 :
+                                                        heType === "archivedHealthElements" ? 8 : 999,
+                            nodes: [
+                                {type:'template', attrs: {
+                                        expr:`subContextsHes("${heType}")`,
+                                        template: {'default': heType !== "medications" ?
+                                                [
+                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "}]},
+                                                    {type: 'table',content: [
+                                                            {type: 'table_row',content: [
+                                                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: _.compact([
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("healthElement","Health element", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heHr`}}, {type:'text', text: " "}]},
+                                                                            ((heType !== "allergies" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}, {type:'text', text: " "}]} ),
+                                                                            {type:'paragraph',content: [
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " "},
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("cert","Certainity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.certaintyHr`}}, {type:'text', text: " "},
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("sev","Severity", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.severityHr`}}, {type:'text', text: " "},
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("temp","Temporality", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.evolutionHr`}}, {type:'text', text: " "},
+                                                                                ]},
+                                                                            ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? false : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}]} ),
+                                                                            {type:'paragraph',content: [
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " "},
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}}, {type:'text', text: " "},
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("remanence","Rémanence", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.temporalityHr`}}, {type:'text', text: " "}
+                                                                                ]},
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICPC" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icpcsHr`}}, {type:'text', text: " "}]},
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: "ICD" + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.icdsHr`}}, {type:'text', text: " "}]},
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
+                                                                        ])
+                                                                    },
+                                                                ]},
+                                                        ]},
+                                                ] : [
+                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
+                                                    {type: 'table',content: [
+                                                            {type: 'table_row',content: [
+                                                                    {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                                                            {type:'paragraph',content: [
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("begin","Begin", this.language) + ": "},
+                                                                                    {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},
+                                                                                    {type:'text', text: " - "},
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("end","End", this.language) + ": "},
+                                                                                    {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},
+                                                                                    {type:'text', text: " - "} ,
+                                                                                    {type:'text', marks: [{type: 'strong'}], text: this.localize("substitution","Substitution", this.language) + ": "},
+                                                                                    {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},
+                                                                                    {type:'text', text: " "}
+                                                                                ]},
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("pos","Posology", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.regimenHr`}}, {type:'text', text: " "}]},
+                                                                            {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("last_update","Last update", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.lastUpdateDateHr`}}, {type:'text', text: " "}]},
+                                                                        ]},
+                                                                ]},
+                                                        ]},
+                                                ]
+                                        },
+                                    }},
+                                {type:'paragraph',content: [{type:'text', text: " "}]},
+                            ]
+                        }
 
+                    }))
+                }
 
+                _.assign(healthElementVariables, {subVars: _.orderBy(_.get(healthElementVariables,"subVars",[]), ['sorting'],['asc'])})
 
+                const healthElementVariablesLight = {
+                    type:'hesLight',
+                    additionalCssClasses:'largeDivider',
+                    name: this.localize('healthcareelements', 'Health elements', this.language) + " (" + this.localize('summary', 'summary', this.language) +")",
+                    subVars: _.compact(_.map(_.get(this,"_data.allHealthElements",[]), (hes, heType) => {
 
+                        const heTypeLabel = heType === "activeHealthElements" ? this.localize("act_hea_pro","Active Health Problems", this.language) :
+                            heType === "inactiveHealthElements" ? this.localize("med_ant","Medical antecedents", this.language) :
+                                heType === "surgicalHealthElements" ? this.localize("surg","Surgical", this.language) :
+                                    heType === "familyrisks" ? this.localize("fam_ris","Family risks", this.language) :
+                                        heType === "risks" ? this.localize("ris","Risks", this.language) :
+                                            heType === "allergies" ? this.localize("aller","Allergies", this.language) :
+                                                heType === "medications" ? this.localize("med","Medication", this.language) :
+                                                    heType === "archivedHealthElements" ? this.localize("arc","Archives", this.language) : ""
 
+                        return (!_.size(hes) /* || heType==="archivedHealthElements" */) ? null : {
+                            name: heTypeLabel,
+                            sorting: heType === "activeHealthElements" ? 1 :
+                                heType === "inactiveHealthElements" ? 2 :
+                                    heType === "surgicalHealthElements" ? 3 :
+                                        heType === "familyrisks" ? 4 :
+                                            heType === "risks" ? 5 :
+                                                heType === "allergies" ? 6 :
+                                                    heType === "medications" ? 7 :
+                                                        heType === "archivedHealthElements" ? 8 : 999,
+                            nodes: [
+                                {type:'template', attrs: {
+                                        expr:`subContextsHes("${heType}")`,
+                                        template: {'default': heType !== "medications" ?
+                                                [
+                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "}]},
+                                                    {type:'paragraph', content: _.flatten(_.compact(_.concat(
+                                                        [
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " - "},
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " - "},
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}},
+                                                        ],
+                                                        ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? [{type:'text', text: " "}] : [{type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}] )
+                                                    )))},
+                                                    ((heType !== "allergies" && heType !== "archivedHealthElements") ? {type:'text', text: " "} : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}]} ),
 
+                                                ] : [
+                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
+                                                    {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("begin","Begin", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},{type:'text', text: " - "},{type:'text', marks: [{type: 'strong'}], text: this.localize("end","End", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},{type:'text', text: " - "} ,{type:'text', marks: [{type: 'strong'}], text: this.localize("substitution","Substitution", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},{type:'text', text: " "}]},
+                                                    {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
+                                                ]
+                                        },
+                                    }},
+                                {type:'paragraph',content: [{type:'text', text: " "}]},
+                            ]
+                        }
+
+                    }))
+                }
+
+                _.assign(healthElementVariablesLight, {subVars: _.orderBy(_.get(healthElementVariablesLight,"subVars",[]), ['sorting'],['asc'])})
+
+                const getterByDataType = {
+                    TKDate: "getDateValue",
+                    TKNumber: "getNumberValue",
+                    TKMeasure: "getMeasureValue",
+                    TKBoolean: "getBooleanValue",
+                }
+
+                // Prose editor will try to have our templates / variables to fit on one page.
+                // If not enough space is available, Prose editor will jump to the next A4 page, trying to make it fit there.
+                // Ie: if we are "too long" => infinite loop seeking for next A4 page hoping to have enough space again and again.
+                // Todo: improve Prose editor and have it to split content over several pages when required
+                const maxVaribalesPerPage = 43;
+
+                const formVariables = {
+                    type:'forms',
+                    additionalCssClasses:'largeDivider',
+                    name: this.localize('formBlocks', 'Form blocks', this.language),
+                    subVars: _.flatten(_.compact(_.map(_.get(this,"_data.formsAndDataProviders",[]), (form,templateGuid) => {
+
+                        const formObject = typeof _.get(form,"dataProvider.form","") === "function" && _.get(form,"dataProvider.form","")()
+                        const formName = _.trim(_.get(formObject, "descr", _.trim(_.get(formObject,".template.name", ""))))
+                        const formTemplateDataList = _.get(formObject,"template.layout.sections[0].formColumns[0].formDataList",[])
+                        const formTemplateIsConsultation = _.trim(_.get(formObject,"template.guid","")) === "FFFFFFFF-FFFF-FFFF-FFFF-CONSULTATION"
+
+                        const templateGuidAndIndex = templateGuid.split('#')
+                        const templateGuidsAndIndexes = _.keys(_.get(this,"_data.formsAndDataProviders",[]))
+                        const totalFormsForCurrentTemplateGuid = parseInt(_.size(_.filter(templateGuidsAndIndexes, it => it.indexOf(templateGuidAndIndex[0]) > -1)))
+
+                        return {
+                            name: _.get(formObject,"descr","") + (totalFormsForCurrentTemplateGuid === 1 ? "" : " (" + _.trim(parseInt(templateGuidAndIndex[1])) + "/" + totalFormsForCurrentTemplateGuid + ")" ),
+                            nodes: [
+                                {type:'paragraph', content: [
+                                        {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("form", "Form", this.language).toUpperCase()},
+                                        {type:'text', text: ": " + _.trim(formName).toUpperCase()},
+                                        {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
+                                        {type:'variable', attrs: {expr: `contactOpeningDate`}},
+                                        {type:'text',text: ' '}
+                                    ]},
+                                {type: 'table',content: [
+                                        {type: 'table_row',content: [
+                                                {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content:[{
+                                                        type:'template',
+                                                        attrs: {
+                                                            expr: `subContextsForms("${templateGuid}")`,
+                                                            template: {'default': _.slice(_.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
+
+                                                                    const isSubForm = !!_.get(k,"isSubForm", false)
+                                                                    const subForms = !!isSubForm && form.dataProvider.getSubForms(_.get(k,"name"))
+                                                                    const fieldLabel = !!formTemplateIsConsultation ? _.trim(_.get(k,"name")) : _.trim(_.get( _.find(formTemplateDataList, {name: _.get(k,"name")}), "label")) || _.trim(_.get(k,"name"))
+                                                                    const fieldValue = form && form.dataProvider && form.dataProvider.getValue(k.name)
+
+                                                                    return (!!isSubForm && !_.size(subForms)) ?
+
+                                                                        // Empty subform
+                                                                        false :
+
+                                                                        // Field with no value
+                                                                        /* (!isSubForm && (!_.trim(fieldValue) || _.trim(fieldValue) === "-" || _.trim(fieldValue).toLowerCase() === "ok")) ? false : */
+
+                                                                        // Not sub form and has field value
+                                                                        (!isSubForm) ? {type:'paragraph',content: [
+                                                                            {type:'text', marks: [{type: 'strong'}], text: fieldLabel + ": "},
+                                                                            {type:'variable', attrs: {expr: `const v = dataProvider.` + _.trim(_.get(getterByDataType, k.type, "getValue")) + `("${k.name}"); Array.isArray(v) ? v.join(', ') : ` + (
+                                                                                _.trim(_.get(k,"type")) === "TKDate" ? "componentDataProvider.getYYYYMMDDAsDDMMYYYY(v)" :
+                                                                                _.trim(_.get(k,"type")) === "TKMeasure" ? "componentDataProvider.getMeasureValue(v)" :
+                                                                                _.trim(_.get(k,"type")) === "TKBoolean" ? "componentDataProvider.getBooleanValue(v)" :
+                                                                                "componentDataProvider.getHrCodesAndTagsValue(v)"
+                                                                            )}},
+                                                                            {type:'text',text: ' '}
+                                                                        ]} :
+
+                                                                            // Non-empty subform, map all its fields => values
+                                                                            _.concat(
+                                                                                _.compact(_.map(subForms, (subForm,subFormIdx) => {
+                                                                                    const subFormObject = typeof _.get(subForm,"dataProvider.form","") === "function" && _.get(subForm,"dataProvider.form","")()
+                                                                                    const subFormName = _.trim(_.get(subFormObject,"template.name", ""))
+                                                                                    const subFormTemplateDataList = _.get(subFormObject,"template.layout.sections[0].formColumns[0].formDataList",[])
+
+                                                                                    return [
+                                                                                        {type:'paragraph',content: [{type:'text', text: " "}]},
+                                                                                        {type:'paragraph', content: [
+                                                                                                {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("subForm", "Sub-form", this.language).toUpperCase()},
+                                                                                                {type:'text', text: ": " + _.trim(subFormName).toUpperCase()},
+                                                                                                {type:'text', text: " - " + this.localize("con_of", "Consultation of", this.language) + ": "},
+                                                                                                {type:'variable', attrs: {expr: `contactOpeningDate`}},
+                                                                                                {type:'text',text: ' '}
+                                                                                            ]},
+                                                                                        {type: 'table',content: [
+                                                                                                {type: 'table_row',content: [
+                                                                                                        {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [{
+                                                                                                                type:'template',
+                                                                                                                attrs: {
+                                                                                                                    expr:`subContextsSubForms("${k.name}",${subFormIdx})`,
+                                                                                                                    template: {'default': _.compact( _.map( this._getFormEditorSortedItemsBasedOnTemplate(subForm.dataProvider).filter(i => i.type !== 'TKAction'), kk => {
+                                                                                                                            const subFormFieldLabel = _.trim(_.get( _.find(subFormTemplateDataList, {name: _.get(kk,"name","")}), "label", _.trim(_.get(kk,"name",""))))
+                                                                                                                            const subFormFieldValue = subForm && subForm.dataProvider && subForm.dataProvider.getValue(kk.name)
+                                                                                                                            return /* (!_.trim(subFormFieldValue) || _.trim(subFormFieldValue) === "-" || _.trim(subFormFieldValue).toLowerCase() === "ok") ? false : */ {
+                                                                                                                                type:'paragraph',
+                                                                                                                                content: [
+                                                                                                                                    {type:'text', marks: [{type: 'strong'}], text: subFormFieldLabel + ": "},
+                                                                                                                                    {type:'variable', attrs: {expr: `const v = dataProvider.` + _.trim(_.get(getterByDataType, kk.type, "getValue")) + `("${kk.name}"); Array.isArray(v) ? v.join(', ') : ` + (
+                                                                                                                                        _.trim(_.get(k,"type")) === "TKDate" ? "componentDataProvider.getYYYYMMDDAsDDMMYYYY(v)" :
+                                                                                                                                        _.trim(_.get(k,"type")) === "TKMeasure" ? "componentDataProvider.getMeasureValue(v)" :
+                                                                                                                                        _.trim(_.get(k,"type")) === "TKBoolean" ? "componentDataProvider.getBooleanValue(v)" :
+                                                                                                                                        "componentDataProvider.getHrCodesAndTagsValue(v)"
+                                                                                                                                    )}},
+                                                                                                                                ]
+                                                                                                                            }
+                                                                                                                        }))}
+                                                                                                                }
+                                                                                                            }]}
+                                                                                                    ]}
+                                                                                            ]}
+                                                                                    ]
+                                                                                })),
+                                                                                [{type:'paragraph',content: [{type:'text', text: " "}]}]
+                                                                            )
+                                                                }))),0,maxVaribalesPerPage)}
+                                                        }
+                                                    }]},
+                                            ]},
+                                    ]},
+                                {type:'paragraph',content: [{type:'text', text: " "}]},
+                            ]
+                        }
+
+                    })))
+                }
+
+                // document title, hcp footer (signature)
+                const miscVariables = {
+                    type:'misc',
+                    name: this.localize('miscellaneous', 'Miscellaneous', this.language),
+                    subVars: [
+                        {name: this.localize('hub-doc-title', 'Document title', this.language), nodes: [{type: 'variable', attrs: {expr: 'dataProvider.getVariableValue("documentTitle")'}},{type:'text', text: ' '}]},
+                        {name: this.localize('todaysDate', 'Todays date', this.language), nodes: [{type: 'variable', attrs: {expr: 'dataProvider.getVariableValue("todaysDate")'}},{type:'text', text: ' '}]},
+                        {name: this.localize('hour', 'Time', this.language), nodes: [{type: 'variable', attrs: {expr: 'dataProvider.getVariableValue("time")'}},{type:'text', text: ' '}]},
+                    ]
+                 }
+
+                const proseEditorVariables = _
+                    .chain(_.compact(_.concat(
+                        staticVariables,
+                        (!!_.size(_.get(healthElementVariables,"subVars")) ? healthElementVariables : []),
+                        (!!_.size(_.get(healthElementVariablesLight,"subVars")) ? healthElementVariablesLight : []),
+                        formVariables,
+                        miscVariables
+                    )))
+                    .map(it => { _.assign(_.last(it.subVars), {isLast: "isLast"}); return it; })
+                    .value()
+
+                _.assign(_.last(proseEditorVariables),{isLast: "isLast"})
+
+                return Promise.resolve(proseEditorVariables);
+
+            }
 
             open(inputData) {
 
@@ -1425,6 +1571,7 @@
                     .then(() => { this.set("_isBusy", true); this.shadowRoot.querySelector('#outgoingDocumentDialog').open(); })
                     .then(() => this._getPrettifiedFormsAndDataProviders(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[]))).then(formsAndDataProviders => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders:formsAndDataProviders})))
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
+                    .then(() => this._getPrettifiedContactHcp().then(hcps => _.assign(this._data, {contactHcp:hcps})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
                     .then(() => this._getCodesFromData().then(codes => _.assign(this._data, {codes:codes})))
                     .then(() => this._getPrettifiedHealthElements(_.get(this,"_data.allHealthElements",[])).then(x=>x))
@@ -1436,20 +1583,11 @@
                     .catch(e => console.log("[ERROR] outgoing document", e, inputData))
                     .finally(() => (this.set("_isBusy", false)||true) && console.log("--- this._data ---",this._data))
 
-                    // Todo: Close menu lors clique dans éditeur (fonctionne master / AD)
-                    // Todo: fuck sais pas vraiment écrire texte libre dans template ? Curseur saute systématiquement en dehors du bloc, après 1er caractètre tapé
-                    // Todo: Gérer les dates (complètes / incomplètes selon nouvelle méthod Julien icc-api)
-                    // Todo: Dans le cas d'une MM, reprendre son titre complet + logo (si existe)
-                    // Todo: Dans lettre liaison: faire smart component pour aller chercher coordonnées complètes confrère/soeur dans cobra => soit prose object, soit component
-                    // Todo: suite au point précédent, intégrer nouvelle version de lettre de liaison / avis confère: TODO______10-murielle-mernier- Avis confrere - V2.docx (avec recherche cobra)
+                    // Todo: When using prose template object, can't write in it ? Cusor jumps after one char typed / render issue ?
+                    // Todo: Handle incomplete dates with Julien's new method of icc-api
+                    // Todo: With linking letters, create smart component to get recipient details using cobra
 
             }
-
-
-
-
-
-
 
         }
 

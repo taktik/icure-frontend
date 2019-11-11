@@ -433,7 +433,7 @@
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                 </div>
                 <div class="hub-menu-view">
-                    <ht-pat-hub-transaction-view id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
+                    <ht-pat-hub-transaction-view id="htPatHubTransactionViewer" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" diary-note="[[diaryNote]]" transaction-of-diary-note="[[transactionOfDiaryNote]]"  resources="[[resources]]" on-hub-download="_hubDownload"></ht-pat-hub-transaction-view>
                 </div>
                 <div class="buttons">
                     <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
@@ -561,6 +561,14 @@
                     breakTheGlassReason:{
                         type: String,
                         value: null
+                    },
+                    diaryNote:{
+                        type: Array,
+                        value: () => []
+                    },
+                    transactionOfDiaryNote:{
+                        type: Array,
+                        value: () => []
                     }
                 };
             }
@@ -654,7 +662,7 @@
                         this.hubEndPoint = this.curEnv ===  'acc' ? 'https://acchub.abrumet.be/hubservices/intrahub/v3/intrahub.asmx' : 'https://hub.abrumet.be/hubservices/intrahub/v3/intrahub.asmx';
                         this.set("hubSupportsConsent", true);
                         this.hubPackageId = null;
-                        this.hubApplication = "RSB" ;//TODO: verify value
+                        this.hubApplication = "" ;//TODO: verify value
                         this.set("supportBreakTheGlass", false);
                         break;
                     case 'rsw':
@@ -693,6 +701,8 @@
                 });
                 this._getHubTransactionList().then(tranResp => {
                     this.set('hubTransactionList', tranResp);
+                    this.set('diaryNote', tranResp.filter(tr => tr.desc === "diarynote"))
+                    this._getDiaryNote()
                     this.set('isLoading', false);
                 }).catch(error => {
                     this.set('isLoading', false);
@@ -703,6 +713,25 @@
                     this.putHubPatient().then(putResp => {
                         this.getHubPatient().then(hubPat => this.set('patientHubInfo', hubPat)).catch(error => {console.log(error);})
                     }).catch(error => {console.log(error);})
+                }
+            }
+
+            _getDiaryNote(){
+                if(_.size(this.diaryNote)){
+                    let prom = Promise.resolve()
+
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                        this.diaryNote.map(dn => {
+                            prom = prom.then(listOfTransaction =>
+                                this.api.fhc().Hubcontroller().getTransactionMessageUsingGET(this.hubEndPoint, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, hcp.lastName, hcp.firstName, hcp.nihii, hcp.ssin, this.hcpZip, this.patient.ssin, dn.ids.find(id => id.s === 'LOCAL').sv, dn.ids.find(id => id.s === 'LOCAL').sl, dn.ids.find(id => id.s === 'LOCAL').value, this.hubPackageId, this.breakTheGlassReason)
+                                    .then(tr => _.concat(listOfTransaction, _.assign(tr, {transaction: dn})))
+                            )
+                        })
+
+                        prom = prom.then(listOfTransaction => {
+                            this.set("transactionOfDiaryNote", _.compact(listOfTransaction))
+                        })
+                    })
                 }
             }
 
