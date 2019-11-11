@@ -1456,7 +1456,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 line-height: 20px;
             }
 
-            .table-line-menu .code{
+            .table-line-menu .code {
                 min-width: 40px;
                 padding-right: 4px;
             }
@@ -1490,6 +1490,41 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 height: 20px;
                 align-items: center;
                 justify-content: center;
+            }
+
+            .table-line-menu .bio-normal {
+                font-weight: normal;
+            }
+
+            .table-line-menu .bio-date {
+                min-width: 60px;
+                padding-left: 4px;
+                padding-right: 4px;
+            }
+
+            .table-line-menu .bio-label {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                padding-left: 4px;
+                padding-right: 4px;
+                flex-grow: 1;
+                white-space: nowrap;
+            }
+
+            .table-line-menu .bio-value {
+                overflow: hidden;
+                min-width: 50px;
+                padding-left: 4px;
+                padding-right: 4px;
+                white-space: nowrap;
+            }
+
+            .table-line-menu .bio-value2 {
+                overflow: hidden;
+                min-width: 54px;
+                padding-left: 4px;
+                padding-right: 4px;
+                white-space: nowrap;
             }
 
             .items-number {
@@ -1773,6 +1808,38 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <paper-item class="menu-item" id="_complete_file" on-tap="_expandColumn">[[localize('com_fil','Complete file',language)]]<div><paper-icon-button class="menu-item-icon menu-item-icon--add" icon="icons:add" on-tap="_addHealthElement"></paper-icon-button><iron-icon class="menu-item-icon" icon="icons:arrow-forward"></iron-icon></div></paper-item>
                         </paper-listbox>
                         <div class="submenus-container">
+
+                            <collapse-button id="cb_biom">
+                                <paper-item slot="sublist-collapse-item" class="menu-trigger menu-item" id="biometrics" elevation="">
+                                    <div class="one-line-menu list-title"><span>Données biométriques</span></div>
+                                    <div style="display: flex; align-items: center;">
+                                        <template is="dom-if" if="[[biometrics.length]]">
+                                            <div class="items-number"><span>[[biometrics.length]]</span></div>
+                                        </template>
+                                        <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu" hover="none"></paper-icon-button>
+                                    </div>
+                                </paper-item>
+                                <paper-listbox class="menu-content sublist">
+                                    <div class="table-line-menu table-line-menu-top">
+                                        <div class="bio-date">Date</div>
+                                        <div class="bio-label">Libellé</div>
+                                        <div class="bio-value2">Valeur</div>
+                                    </div>
+                                    <template is="dom-repeat" items="[[biometrics]]">
+                                        <collapse-button>
+                                            <paper-item slot="sublist-collapse-item" id="[[getHeId(he)]]" aria-selected="[[selected]]" class$="menu-trigger menu-item [[isIronSelected(selected)]]" on-tap="select">
+                                                <div class="table-line-menu">
+                                                    <div class="bio-date bio-normal">[[item.date]]</div>
+                                                    <div class="bio-label bio-normal">[[item.label]]</div>
+                                                    <div class="bio-value bio-normal">[[item.value]]</div>
+                                                </div>
+                                            </paper-item>
+                                        </collapse-button>
+                                    </template>
+                                </paper-listbox>
+                            </collapse-button>
+
+
                             <collapse-button id="cb_ahelb">
                                 <paper-item slot="sublist-collapse-item" class="menu-trigger menu-item" id="_ht_active_hes" elevation="">
                                     <div class="one-line-menu list-title"><span>[[localize('act_hea_pro','Active Health Problems',language)]]</span></div>
@@ -3013,6 +3080,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Array,
                         value: () => []
                     },
+                    biometrics: {
+                        type: Object
+                    },
                     prescriptions:{
                         type : Array,
                         value: [],
@@ -3109,6 +3179,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     ]
                 );
                 this.shadowRoot.querySelector("#sort-direction").selectedItem = this.sortDirections[0];
+
+                this._biometrics = [
+                    { key: "height", code: "height", regex: null },
+                    { key: "weight", code: "weight", regex: null },
+                    { key: "bmi", code: "bmi", regex: null },
+                    { key: "glycemia", code: "glycemie", regex: /^Glycémie/i },
+                    { key: "cholesterol", code: "cholesterol", regex: /^Cholestrerol/i  },
+                    { key: "sbp", code: "sbp", regex: null },
+                    { key: "dbp", code: "dbp", regex: null },
+                ];
 
                 return this.api.getDocumentTypes(this.resources, this.language)
                     .then(documentTypes => this.set("documentTypes", _.concat([{code: 'all', name: this.localize('all', 'All', this.language)}], documentTypes)))
@@ -3779,6 +3859,60 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
             }
 
+            _getBiometrics() {
+                let biometrics = {};
+                this.contacts.forEach(contact => {
+                    contact.subContacts.forEach(subcontact => {
+                        subcontact.services.forEach(service => {
+                            this._getBiometricFromService(biometrics, service);
+                        });
+                    });
+                    contact.services.forEach(service => {
+                        this._getBiometricFromService(biometrics, service);
+                    });
+                });
+
+                this._biometrics.filter(b => b.key in biometrics).forEach(b => {
+                    biometrics[b.key].sort((c, d) => d.date - c.date);
+                });
+
+                const values = this._biometrics.filter(b => b.key in biometrics).flatMap(b => biometrics[b.key].map(c => { return {
+                        date: this.api.moment(c.date).format('DD/MM/YY'),
+                        label: c.label,
+                        value: c.value
+                    }})
+                );
+
+                this.set("biometrics", values);
+            }
+
+            _getBiometricFromService(biometrics, service) {
+                this._biometrics.forEach(biometric => {
+                    if ((biometric.code && service.tags && service.tags.some(t => t.type == "CD-PARAMETER" && t.code == biometric.code)) ||
+                        (biometric.regex && service.label && service.label.match(biometric.regex))) {
+                        if (!(biometric.key in biometrics))
+                            biometrics[biometric.key] = [];
+                        if (biometrics[biometric.key].length < 3) {
+                            const label = service.label ? service.label : (biometric.label ?
+                                this.localize(biometric.label, biometric.key) : biometric.key);
+                            const value = this._getValue(service);
+                            if (value)
+                                biometrics[biometric.key].push({date: service.valueDate, label: label, value: value});
+                        }
+                    }
+                });
+            }
+
+            _getValue(service) {
+                if (service.content.fr.numberValue)
+                    return service.content.fr.numberValue;
+                if (service.content.fr.stringValue)
+                    return service.content.fr.stringValue;
+                if (service.content.fr.measureValue)
+                    return service.content.fr.measureValue.value;
+                return null;
+            }
+
             patientChanged(api, user, patient) {
                 this.set('curGenInsResp', null);
                 this.set("SpinnerActive",true)
@@ -4118,6 +4252,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             }  else {
                                 this.set('selectedContactIds',['ctc_'+newCtc.id])
                             }
+
+                            this._getBiometrics();
 
                             setTimeout(() =>
                                 this.selectedContactIds.forEach(cDomId => {
