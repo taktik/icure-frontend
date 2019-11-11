@@ -394,7 +394,7 @@
             }
 
             static get observers() {
-                return ['_selectedMdaConsultTypeChanged(selectedMdaConsultType)'];
+                return ['_selectedMdaConsultTypeChanged(selectedMdaConsultType)', '_selectedMdaContactTypeChanged(selectedMdaContactType)'];
             }
 
             ready() {
@@ -489,16 +489,16 @@
                                         name: null
                                     },
                                     service: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:hospitalisation:service"), 'attributeValues', []).join(" "),
-                                    admissionDate: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:hospitalisation:admisisionDate"), 'attributeValues', []).join(" ")
+                                    admissionDate: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:hospitalisation:admissionDate"), 'attributeValues', []).join(" ")
                                 }
                             })),
-                            generalSituation: _.get(_.get(mdaResponse, 'assertions', []).find(assertion => _.get(assertion, 'advice.assertionType', null) === "urn:be:cin:nippin:generalSituation"), 'statementsAndAuthnStatementsAndAuthzDecisionStatements', []).map(stat => ({
+                            generalSituation: _.get(_.get(mdaResponse, 'assertions', []).find(assertion => _.get(assertion, 'advice.assertionType', null) === "urn:be:cin:nippin:insurability:generalSituation"), 'statementsAndAuthnStatementsAndAuthzDecisionStatements', []).map(stat => ({
                                 generalSituation: {
                                     event: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:event"), 'attributeValues', []).join(" "),
-                                    transfert: {
-                                        direction: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:transfert:direction"), 'attributeValues', []).join(" "),
-                                        IO: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:transfert:IO"), 'attributeValues', []).join(" "),
-                                        transfertDate: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:transfert:direction:date"), 'attributeValues', []).join(" ")
+                                    transfer: {
+                                        direction: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:transfer:direction"), 'attributeValues', []).join(" "),
+                                        IO: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:transfer:IO"), 'attributeValues', []).join(" "),
+                                        transferDate: _.get(_.get(stat, 'attributesAndEncryptedAttributes', []).find(att => _.get(att, 'name', null) === "urn:be:cin:nippin:generalSituation:transfer:date"), 'attributeValues', []).join(" ")
                                     }
                                 }
                             })),
@@ -556,7 +556,8 @@
                         return mdaResponse
                     })
 
-                }).then(mdaResponse => {
+                }).then(mdaResponse => this._consultAddressBook(mdaResponse))
+                .then(mdaResponse => {
                     this.set('mdaResult', mdaResponse)
                     console.log(this.mdaResult)
                 }).finally(() => {
@@ -567,22 +568,33 @@
             _consultAddressBook(mdaResponse){
                 let prom = Promise.resolve({})
 
-                _.flatten(_.concat(
+                _.uniq(_.compact(_.flatten(_.concat(
                     _.get(mdaResponse, 'formatedResponse.hospitalisation', []).map(hosp => ({nihii: _.get(hosp, 'hospitalisation.hospital.nihii', null), type: 'org'})),
                     _.get(mdaResponse, 'formatedResponse.carePath', []).map( cp => [{nihii: _.get(cp, 'carePath.physician.nihii', null), type: 'hcp'},{nihii: _.get(cp, 'carePath.specialist.nihii', null), type: 'hcp'}]),
                     _.get(mdaResponse, 'formatedResponse.referencePharmacy', []).map(rp => ({nihii: _.get(rp, 'referencePharmacy.pharmacy.nihii', null), type: 'org'}))
-                )).map(nihii => {
+                )))).map(nihii => {
                     prom = prom.then(nihiiList =>
                         (
-                            _.get(nihii, 'type', null) === 'org' ? this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(nihii, 'nihii', null)) : _.get(nihii, 'type', null) === 'hcp' ? this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(nihii, 'nihii', null)): Promise.resolve({})
-                        ).then(adrResp => {
-                            _.concat(nihiiList, adrResp)
-                        })
+                            this.api.patient().checkInami(_.get(nihii, 'nihii', null)) ? _.get(nihii, 'type', null) === 'org' ? this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(nihii, 'nihii', null)) : _.get(nihii, 'type', null) === 'hcp' ? this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), _.get(this.api, 'credentials.ehpassword', null), _.get(nihii, 'nihii', null)): Promise.resolve({}) : Promise.resolve({})
+                        ).then(adrResp => _.concat(nihiiList, _.assign(adrResp, {initialSearch: nihii})))
                     )
+                })
 
-                    prom.then(nihiiList => {
-                        console.log(nihiiList)
+                return prom.then(nihiiList => {
+                    _.get(mdaResponse, 'formatedResponse.hospitalisation', []).map(hosp => {
+                        hosp.hospitalisation.hospital.name = _.get(_.compact(nihiiList).find(nihii => _.get(nihii, 'initialSearch.nihii', null) === _.get(hosp, 'hospitalisation.hospital.nihii', '')), 'name', null)
                     })
+                    _.get(mdaResponse, 'formatedResponse.referencePharmacy', []).map(rp => {
+                        rp.referencePharmacy.pharmacy.name = _.get(_.compact(nihiiList).find(nihii => _.get(nihii, 'initialSearch.nihii', null) === _.get(rp, 'referencePharmacy.pharmacy.nihii', '')), 'name', null)
+                    })
+                    _.get(mdaResponse, 'formatedResponse.carePath', []).map( cp => {
+                        cp.carePath.physician.firstName = _.get(_.compact(nihiiList).find(nihii => _.get(nihii, 'initialSearch.nihii', null) === _.get(cp, 'carePath.physician.nihii', '')), 'firstName', null)
+                        cp.carePath.physician.lastName = _.get(_.compact(nihiiList).find(nihii => _.get(nihii, 'initialSearch.nihii', null) === _.get(cp, 'carePath.physician.nihii', '')), 'lastName', null)
+                        cp.carePath.specialist.firstName = _.get(_.compact(nihiiList).find(nihii => _.get(nihii, 'initialSearch.nihii', null) === _.get(cp, 'carePath.specialist.nihii', '')), 'firstName', null)
+                        cp.carePath.specialist.lastName = _.get(_.compact(nihiiList).find(nihii => _.get(nihii, 'initialSearch.nihii', null) === _.get(cp, 'carePath.specialist.nihii', '')), 'lastName', null)
+                    })
+
+                    return mdaResponse
                 })
             }
 
@@ -595,9 +607,11 @@
             }
 
             _selectedMdaConsultTypeChanged(){
-                if(this.selectedMdaConsultType){
+                this.set("mdaSearch.requestType", _.get(this.selectedMdaConsultType, 'type', "information"))
+            }
 
-                }
+            _selectedMdaContactTypeChanged(){
+                this.set("mdaSearch.contactType", _.get(this.selectedMdaContactType, 'type', "other"))
             }
 
             _isMdaSearchByNiss(){
