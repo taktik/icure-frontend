@@ -353,6 +353,9 @@
         import mustache from "mustache/mustache.js";
         import moment from 'moment/src/moment';
 
+        const STATUS_NOT_SENT = 1;
+        const STATUS_SENT = 2;
+
         class HtPatPrescriptionDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
 
             static get is() {
@@ -1215,37 +1218,36 @@
                 })
             }
 
-            _markDrugsAsSent(drugsToBePrescribed) {
-                drugsToBePrescribed.forEach(s => {
-                    const tag = s.tags.find(t => t.type === 'CD-LIFECYCLE')
+            _markDrugsAs(drugs, code, status) {
+                drugs.forEach(service => {
+                    const id = "CD-LIFECYCLE" + code + "|1";
+                    const tag = service.tags.find(t => t.type === 'CD-LIFECYCLE')
                     if (tag) {
-                        tag.id = 'CD-LIFECYCLE|ordered|1';
-                        tag.code = 'ordered'
-                    } else {
-                        s.tags.push(this.api.code().normalize({id: 'CD-LIFECYCLE|ordered|1'}))
+                        tag.id = id;
+                        tag.code = code
+                    } else
+                        service.tags.push(this.api.code().normalize({id: id}))
+                    const content = this.api.contact().preferredContent(service, this.language)
+                    if (content && content.medicationValue) {
+                        if ("status" in content.medicationValue) {
+                            content.medicationValue.status &= STATUS_SENT | STATUS_NOT_SENT;
+                            content.medicationValue.status |= status;
+                        } else
+                            content.medicationValue.status = status;
                     }
                 })
                 this._refreshDrugsToBePrescribed()
-
                 this.dispatchEvent(new CustomEvent('pdf-report',{detail: {loading: false, success: true}}))
                 this.dispatchEvent(new CustomEvent("save-contact", {composed: true, bubbles: true}))
             }
 
-            _markDrugsAsNotSent(drugsToBePrescribed) {
-                drugsToBePrescribed.forEach(s => {
-                    this.api.contact().medicationValue(s, this.language).prescriptionRID = null
-                    const tag = s.tags.find(t => t.type === 'CD-LIFECYCLE')
-                    if (tag) {
-                        tag.id = 'CD-LIFECYCLE|active|1';
-                        tag.code = 'active'
-                    } else {
-                        s.tags.push(this.api.code().normalize({id: 'CD-LIFECYCLE|active|1'}))
-                    }
-                })
-                this._refreshDrugsToBePrescribed()
 
-                this.dispatchEvent(new CustomEvent('pdf-report',{detail: {loading: false, success: true}}))
-                this.dispatchEvent(new CustomEvent("save-contact", {composed: true, bubbles: true}))
+            _markDrugsAsSent(drugsToBePrescribed) {
+                this._markDrugsAs(drugsToBePrescribed, "ordered", STATUS_SENT);
+            }
+
+            _markDrugsAsNotSent(drugsToBePrescribed) {
+                this._markDrugsAs(drugsToBePrescribed, "active", STATUS_NOT_SENT);
             }
 
             _populateDrugsOnPrescriptions() {
