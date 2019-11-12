@@ -1168,7 +1168,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 </template>
                                 <paper-input always-float-label label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
                                 <paper-input always-float-label label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
-                                <vaadin-date-picker-light i18n="[[i18n]]" attr-for-value="value">
+                                <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" need-full-date="[[fullDateMode]]">
                                     <paper-input always-float-label label="[[localize('dat_of_bir','Date of birth',language)]]" value="{{dateAsString}}"></paper-input>
                                 </vaadin-date-picker-light>
                                 <paper-input always-float-label label="[[localize('niss','Ssin',language)]]" value="{{ssin}}" on-keyup="_searchDuplicate"></paper-input>
@@ -1383,7 +1383,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
         <paper-dialog id="sharePatientDelegationDialog">
-            <h2 class="modal-title">[[localize("titleSharPatDelDia","Quels sont les droits d'accès à partager ?",language)]]</h2>
+            <h2 class="modal-title">[[localize("titleSharPatDelDia","Quels sont les drdoits d'accès à partager ?",language)]]</h2>
             <div class="content">
                 <vaadin-grid items="[[hcpSelectedForSharing]]">
                     <vaadin-grid-column width="150px">
@@ -1551,34 +1551,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     taskProgress: {
                         type: Number,
                         value: 0
-                    },
-                    i18n: {
-                        Type: Object,
-                        value: function () {
-                            moment.locale('fr')
-                            const res = {
-                                monthNames: moment.months(),
-                                weekdays: moment.weekdays(),
-                                weekdaysShort: moment.weekdaysShort(),
-                                firstDayOfWeek: moment.localeData().firstDayOfWeek(),
-                                week: 'Semaine',
-                                calendar: 'Calendrier',
-                                clear: 'Clear',
-                                today: 'Aujourd\'hui',
-                                cancel: 'Annuler',
-                                formatDate: function (d) {
-                                    //return moment(d).format(moment.localeData().longDateFormat('L'))
-                                    return moment(d).format('DD/MM/YYYY')
-                                },
-                                parseDate: function (s) {
-                                    return moment(s, 'DD/MM/YYYY').toDate()
-                                },
-                                formatTitle: function (monthName, fullYear) {
-                                    return monthName + ' ' + fullYear
-                                }
-                            }
-                            return res
-                        }
                     },
                     selectedFilters: {
                         type: Array,
@@ -1773,6 +1745,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     openAddedPatient: {
                         type: Boolean,
                         value: true
+                    },
+                    fullDateMode:{
+                        type:Boolean,
+                        value:false
                     }
 
                 }
@@ -1852,7 +1828,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             } catch (ignored) {}
                         }
 
-                        const filter = svcFilter ? null : {
+                        let filter = svcFilter ? null : {
                             '$type': 'IntersectionFilter',
                             'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                             'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word => /^[0-9]{11}$/.test(word) ? {
@@ -1868,30 +1844,61 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                 'filters': [
                                     {
-                                        '$type': 'PatientByHcPartyDateOfBirthBetweenFilter', 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        '$type': 'PatientByHcPartyDateOfBirthBetweenFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                         'minDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '00') : Number(word.substr(0,4) + '0000'),
                                         'maxDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '99') : Number(word.substr(0,4) + '9999')
+                                    },
+                                    {
+                                        '$type': 'PatientByHcPartyAndSsinFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        'ssin': word
                                     },
                                     {
                                         '$type': 'PatientByHcPartyAndExternalIdFilter', 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                         'externalId': word
                                     }
                                 ]
-                            } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
-                                '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            } : /^[0-9]+$/.test(word) ? {
+                                '$type': 'PatientByHcPartyAndSsinFilter',
                                 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
-                                'searchString': word
+                                'ssin': word
+                            // } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
+                            //     '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            //     'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                            //     'searchString': word
                             } : null))
                         }
+
+                        if (filter.filters.length < 1)
+                            filter = {
+                                '$type': 'UnionFilter',
+                                'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map(word =>
+                                    word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g, '').length >= 2 ? {
+                                        '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        'searchString': word
+                                    } : null))
+                            }
 
                         const predicates = svcFilter ? [] : latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word =>
                             /^[0-9]{11}$/.test(word) ? (() => true) :
                                 /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? (() => true) :
                                     /^[0-9]{3}[0-9]+$/.test(word) ? ((p) => (p.dateOfBirth && (`${p.dateOfBirth}`.includes(word))) || (p.externalId && p.externalId.includes(word))) :
                                         (p => {
+                                            let addresses = "";
+                                            p.addresses.forEach(address => {
+                                                if (addresses.length > 0)
+                                                    addresses += " ";
+                                                addresses += this._getPostalAddress(address);
+                                            })
+                                            console.log("search predicate on addresses: " + addresses)
                                             const w = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'')
                                             return w.length<2 ? true : (p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
-                                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
+                                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                                (p.placeOfBirth && p.placeOfBirth.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                                (addresses && addresses.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
                                         })
                         )
 
@@ -2081,21 +2088,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }, 500) //Wait for the user to stop typing
             }
 
+            _getPostalAddress(address) {
+                return _.compact([
+                    _.trim(_.get(address,"street","")),
+                    _.trim(_.get(address,"houseNumber","")) + (!!_.trim(_.get(address,"postboxNumber","")) ? "/" + _.trim(_.get(address,"postboxNumber","")) : ""),
+                    ( !!_.trim(_.get(address,"postalCode","")) || !!_.trim(_.get(address,"city",""))) ? "-" : "",
+                    _.trim(_.get(address,"postalCode","")),
+                    _.trim(_.get(address,"city",""))
+                ]).join(" ")
+            }
 
             pimpPatient(p) {
                 p.email = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'email').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
                 p.phone = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'phone').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
                 p.mobile = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'mobile').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
-
-                const addressData = _.find(_.get(p,"addresses",[]), {addressType:"home"}) || _.find(_.get(p,"addresses",[]), {addressType:"work"}) || _.get(p,"addresses[0]",[])
-                p.postalAddress = _.compact([
-                     _.trim(_.get(addressData,"street","")),
-                    _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : ""),
-                    ( !!_.trim(_.get(addressData,"postalCode","")) || !!_.trim(_.get(addressData,"city",""))) ? "-" : "",
-                    _.trim(_.get(addressData,"postalCode","")),
-                    _.trim(_.get(addressData,"city",""))
-                ]).join(" ")
-
+                const address = _.find(_.get(p,"addresses",[]), {addressType:"home"}) || _.find(_.get(p,"addresses",[]), {addressType:"work"}) || _.get(p,"addresses[0]",[])
+                p.postalAddress = this._getPostalAddress(address);
                 return p
             }
 
@@ -2368,7 +2376,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         lastName: this.lastName,
                         firstName: this.firstName,
                         active: true,
-                        dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(moment(this.dateAsString, 'DD/MM/YYYY').format('YYYYMMDD')) || null,
+                        dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(_.padEnd(this.dateAsString.split("/").reverse().join(""),8,"0")) || null,
                         ssin: this.ssin,
                         gender: this.valueGender,
                         medicalHouseContracts: [this.medicalHouseContractShadowObject]
@@ -2454,8 +2462,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.dateAsString = null
                 this.ssin = null
                 this.valueGender = null
+                this.cardData=[];
                 if(this.medicalHouseContract) {
-                this.medicalHouseContractShadowObject = {
+                    this.medicalHouseContractShadowObject = {
                         hcpId: this.medicalHouseContract.hcpId,
                         mmNihii: this.medicalHouseContract.mmNihii,
                         startOfContract: this.medicalHouseContract.startOfContract,
@@ -2463,8 +2472,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         kine: this.medicalHouseContract.kine,
                         gp: this.medicalHouseContract.gp,
                         nurse: this.medicalHouseContract.nurse,
+                    }
                 }
-            }
+                this.selected=null
+                this.selectedItem=null
+                this.$["datePickerCreation"].accuracy="day"
+                this.$["datePickerCreation"].value=""
                 this.$['evalutationMonths'].value = 0
                 this.$['startOfCoverage'].value = ""
                 this.updateStartOfCoverage()

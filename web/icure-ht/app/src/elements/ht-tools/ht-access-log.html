@@ -15,13 +15,14 @@
 <link rel="import" href="../qrcode-manager/qrcode-printer.html">
 
 <link rel="import" href="../../styles/dialog-style.html">
+<link rel="import" href="../../styles/buttons-style.html">
 
 <dom-module id="ht-access-log">
     <template>
-        <style include="dialog-style">
+        <style include="dialog-style buttons-style">
             paper-dialog {
-                width: 60%;
-                height: 50%;
+                width: 90%;
+                height: 90%;
                 max-height: none !important;
                 display: flex;
                 flex-direction: column;
@@ -36,8 +37,9 @@
             }
 
             div.content {
-                display: flex;
+                display: grid;
                 flex-direction: column;
+                grid-template-columns: 500px auto;
             }
 
             vadin-grid {
@@ -49,48 +51,135 @@
             paper-input{
                 --paper-input-container-focus-color: var(--app-primary-color);
             }
+
+            .col-left {
+                height: 100%;
+                background: var(--app-background-color-dark);
+                box-shadow: var(--shadow-elevation-3dp_-_box-shadow);
+                grid-column: 1/2;
+                grid-row: 1/1;
+                z-index: 3;
+                margin-top: 0px;
+                padding-left: 5px;
+                padding-top: 5px;
+                box-sizing: border-box;
+                overflow-y: auto;
+            }
+
+            .list-box{
+                height: calc(100% - 65px);
+                overflow-y: auto;
+            }
+
+            .col-right {
+                height: 100%;
+                background: var(--app-background-color);
+                /*box-shadow: var(--shadow-elevation-2dp_-_box-shadow);*/
+                border-bottom: 1px solid var(--app-background-color-dark);
+                margin: 0;
+                grid-column: 2/2;
+                grid-row: 1/1;
+                z-index: 2;
+                overflow-y: auto;
+                padding: 24px;
+                box-sizing: border-box;
+            }
+
+            .log-text{
+                padding : 0px;
+                width: 100%;
+                display : flex;
+            }
+            .log-text-col{
+                max-widt: 250px;
+            }
+            .tab-right{
+                height: calc(100% - 30px);
+            }
+
+            paper-checkbox {
+                --primary-color: var(--paper-indigo-500);
+                margin: 0 24px;
+            }
+
+            paper-checkbox{
+                --paper-checkbox-checked-color: var(--app-secondary-color);
+            }
             
         </style>
         <paper-dialog id="dialog" opened="{{opened}}">
-            <h3 class="modal-title">Access log</h3>
+            <h2 class="modal-title">Access log</h2>
             <div class="content">
-                <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}"
-                             on-keydown="refresh"></paper-input>
-                <vaadin-grid items="[[logList]]">
-                    <vaadin-grid-column>
-                        <template class="header">
-                            Prestataires
-                        </template>
-                        <template>
-                            [[item.user]]
-                        </template>
-                    </vaadin-grid-column>
-                    <vaadin-grid-column>
-                        <template class="header">
-                            Patient
-                        </template>
-                        <template>
-                            [[item.patient]]
-                        </template>
-                    </vaadin-grid-column>
-                    <vaadin-grid-column>
-                        <template class="header">
-                            Date d'accès
-                        </template>
-                        <template>
-                            [[convertDate(item.date)]]
-                        </template>
-                    </vaadin-grid-column>
-                </vaadin-grid>
+                <div class="col-left">
+                    <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" on-keydown="refresh" disabled="[[exportMode]]"></paper-input>
+                    <div class="list-box">
+                        <paper-listbox id="_log_listbox" focused selectable="paper-item" selected="{{selected}}">
+                            <div class="log-text">
+                                <div class="log-text-col">[[localize('dat','date',language)]]</div>
+                                <div class="log-text-col">[[localize('persphysicianRole','Prestataire',language)]]</div>
+                                <div class="log-text-col">[[localize('pat','Patients',language)]]</div>
+                            </div>
+                            <template is="dom-repeat" items="[[logList]]">
+                                    <paper-item class="log-text">
+                                        <div class="log-text-col">
+                                            <template is="dom-if" if="[[exportMode]]">
+                                                <paper-checkBox role="check" index="[[getIndex(item,logList.*)]]" on-checked-changed="setListExport"></paper-checkBox>
+                                            </template>
+                                            [[item.date]]
+                                        </div>
+                                        <div class="log-text-col">[[item.user]]</div>
+                                        <div class="log-text-col">[[item.patient]]</div>
+                                    </paper-item>
+                            </template>
+                            <!--<paper-item on-tap="getMoreAccess">
+                                <div>[[localize('more','More',language)]]</div>
+                            </paper-item>-->
+                        </paper-listbox>
+                    </div>
+                </div>
+                <div class="col-right">
+                    <template is="dom-if"if="[[selectedLog]]">
+                        <div class="header-selected">[[_getSelectedLogTitle(selectedLog,selectedLog.*)]]</div>
+                        <vaadin-grid items="[[selectedLog.logs]]" class="tab-right">
+                            <vaadin-grid-column>
+                                <template class="header">
+                                    [[localize('hour','heure',language)]]
+                                </template>
+                                <template>
+                                    [[convertDate(item.date)]]
+                                </template>
+                            </vaadin-grid-column>
+                            <vaadin-grid-column>
+                                <template class="header">
+                                    [[localize('det','détail',language)]]
+                                </template>
+                                <template>
+                                    [[_getDetail(item)]]
+                                </template>
+                            </vaadin-grid-column>
+                        </vaadin-grid>
+                    </template>
+                </div>
             </div>
             <div class="buttons">
+                <template is="dom-if" if="[[exportMode]]">
+                    <paper-button class="button button--other" on-tap="export">[[localize('can','Cancel',language)]]</paper-button>
+                    <paper-button class="button button--other" on-tap="launchExport">[[localize('valid','Valid',language)]]</paper-button>
+                </template>
+                <template is="dom-if" if="[[!exportMode]]">
+                    <paper-button class="button button--other" on-tap="export">[[localize('export','Export',language)]]</paper-button>
+                </template>
                 <paper-button class="button" on-tap="close">[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
     </template>
     <script>
+        import moment from 'moment/src/moment';
+        const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+        import _ from 'lodash/lodash';
+
         class HtExportKey extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
-            static get is() {
+            static get is() {/**@todo faire les translate ^^*/
                 return 'ht-access-log';
             }
 
@@ -124,6 +213,23 @@
                     latestSearchValue : {
                         type : String,
                         value : ""
+                    },
+                    selectedLog:{
+                        type : Object,
+                        value : null
+                    },
+                    selected:{
+                        type: Object,
+                        value : null,
+                        observer : 'selectedChanged'
+                    },
+                    exportMode:{
+                        type: Boolean,
+                        value: false
+                    },
+                    exportLogList:{
+                        type:Array,
+                        value: []
                     }
                 };
             }
@@ -137,11 +243,13 @@
             }
 
             convertDate(date){
-                return this.api.moment(date).format("DD/MM/YYYY")
+                return date ? this.api.moment(date).format("DD/MM/YYYY HH:mm:ss") : "inconnu"
             }
 
             updateList(){
                 if (!this.user) return
+
+                this.set('selected',null)
 
                 let latestSearchValue = this.filterValue
                 this.latestSearchValue = latestSearchValue
@@ -183,7 +291,10 @@
                                         logListTemp.push({
                                             date: result.date,
                                             patient: patient.lastName + " " + patient.firstName,
-                                            user: users.rows.find(user => user.id===id).name
+                                            user: users.rows.find(user => user.id===id).name,
+                                            detail : result.detail,
+                                            userId : result.user,
+                                            patientId : result.patientId
                                         })
                                 })
                             }))
@@ -193,7 +304,23 @@
                         logListTemp.sort( (a,b) =>{
                             return b.date -a.date;
                         })
-                        this.set("logList",logListTemp)
+                        const logByUser=_.groupBy(logListTemp,log=> log.userId)
+                        this.set("logList",_.flatMapDeep(Object.keys(logByUser).map(userId =>{
+                            const logByPatient=_.groupBy(logByUser[userId],log=> log.patientId)
+                            return Object.keys(logByPatient).map(patient =>{
+                                const logByDate = _.groupBy(logByPatient[patient],log => this.api.moment(log.date).format("DD/MM/YYYY"))
+                                return Object.keys(logByDate).map(date =>{
+                                    return{
+                                        logs : logByDate[date],
+                                        date : date,
+                                        userId : userId,
+                                        patientId : patient,
+                                        patient : _.first(logByDate[date]).patient,
+                                        user :_.first(logByDate[date]).user
+                                    }
+                                })
+                            })
+                        })))
                     })
                 })
             }
@@ -216,6 +343,99 @@
                         }
                     }.bind(this), 500); //Wait for the user to stop typing
                 }.bind(this), 100);
+            }
+
+            _getSelectedLogTitle(){
+                return this.localize("log_title_header","Log du")+" "+this.selectedLog.date+" "+this.localize('perBy','par')+" "+this.selectedLog.user+" "+this.localize('log_title_ending','sur le patient')+" "+this.selectedLog.patient;
+            }
+
+            selectedChanged(){
+                if((!this.selected && this.selected!==0)|| this.exportMode)return;
+                this.set("selectedLog",this.logList[this.selected])
+            }
+
+            _getDetail(item){
+                return item.detail || this.localize('log_info','ancien systeme de log => ouverture du patient')
+            }
+
+
+            getMore(){
+
+            }
+
+            export(){
+                this.set("exportLogList",[])
+                this.set("exportMode",!this.exportMode)
+            }
+
+            launchExport(){
+                const data =_.flatMapDeep(this.exportLogList.map(idxToExport => this.logList[idxToExport].logs.map(log =>{
+                    return {
+                        date : this.convertDate(log.date),
+                        user : this.logList[idxToExport].user,
+                        patient : this.logList[idxToExport].patient,
+                        detail : this._getDetail(log),
+                    }
+                })))
+                this.set("exportLogList",[])
+                this.set("exportMode",false)
+                this.generateXlsFile(data);
+            }
+
+            generateXlsFile(data) {
+
+                // Create xls work book and assign properties
+                const xlsWorkBook = {SheetNames: [], Sheets: {}}
+                xlsWorkBook.Props = {Title: "AccessLog List", Author: "Topaz"}
+
+                // Create sheet based on json data collection
+                var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
+
+                // Link sheet to workbook
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, 'AccessLog List')
+
+                // Virtual data output
+                var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
+
+                // Put output to virtual "file"
+                var fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+
+                // Create download link and append to page's body
+                var downloadLink = document.createElement("a")
+                document.body.appendChild(downloadLink)
+                downloadLink.style = "display: none"
+
+                // Create url
+                var urlObject = window.URL.createObjectURL(fileBlob)
+
+                // Link to url
+                downloadLink.href = urlObject
+                downloadLink.download = "accessLog_list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
+
+                // Trigger download and drop object
+                downloadLink.click()
+                window.URL.revokeObjectURL(urlObject)
+
+                // Free mem
+                fileBlob = false
+                xlsWorkBookOutput = false
+
+                return
+            }
+
+            getIndex(item){
+                return this.logList.findIndex(log => log===item)
+            }
+
+            setListExport(e){
+                e.stopPropagation()
+                const idx=this.exportLogList.find(it => it===e.target.index)
+                if(idx>-1 && !e.detail.value){
+                    this.exportLogList.splice(idx, 1);
+                }
+                else if(e.detail.value){
+                    this.push("exportLogList",e.target.index)
+                }
             }
         }
         customElements.define(HtExportKey.is, HtExportKey);
