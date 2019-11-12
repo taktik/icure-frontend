@@ -153,12 +153,71 @@
                 border-bottom: 1px solid var(--app-background-color-dark);
             }
 
+            .status {
+                border-radius: 20px;
+                padding: 1px 12px 1px 8px;
+                font-size: 14px;
+                display: block;
+                width: auto;
+                max-width: fit-content;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                overflow: hidden;
+            }
+
+            .statusOrange{
+                background: #fcdf354d;
+            }
+            .statusGreen{
+                background: #07f8804d;
+            }
+            .statusRed{
+                background: #ff4d4d4d;
+            }
+
+            .statusIcon {
+                height: 8px;
+                width: 8px;
+            }
+
+            .statusIconOrange {
+                color: var(--app-status-color-pending);
+            }
+            .statusIconGreen {
+                color: var(--app-status-color-ok);
+            }
+            .statusIconRed {
+                color: var(--app-status-color-nok);
+            }
+
+            paper-icon-button > iron-icon {
+                height: 16px;
+                width: 16px;
+            }
+
+            .filter {
+                display: flex;
+                flex-flow: row nowrap;
+            }
+
+            .dateFilter {
+                mergin-left: 5px;
+            }
+
             .content{
                 padding: 0;
             }
 
         </style>
         <div class="content">
+
+            <div class="filter">
+                <vaadin-date-picker class="dateFilter" id="dateFrom" label="De"
+                    value="{{dateFrom}}" i18n="[[i18n]]"></vaadin-date-picker>
+                <vaadin-date-picker class="dateFilter" id="dateTo" label="à"
+                    value="{{dateTo}}" i18n="[[i18n]]"></vaadin-date-picker>
+            </div>
+
             <div class="table">
                 <div class="tr th">
                     <div class="td fg0" style="min-width: 100px">Date</div>
@@ -182,11 +241,14 @@
                                 </template>
                             </div>
                         </div>
-                        <div class="td fg0" style="min-width: 140px">[[_getValue(item.status, refresher)]]</div>
+                        <div class="td fg0" style="min-width: 140px">
+                            <span class$="status status[[_getStatusClass(item, refresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon[[_getStatusClass(item, refresher)]]"></iron-icon>&nbsp;[[_getStatus(item, refresher)]]</span>
+                        </div>
                         <div class="td fg0" style="min-width: 100px">
+                            <paper-icon-button data-rid$="[[item.rid]]" icon="print" on-tap="_print"></paper-icon-button>
                             <template is="dom-if" if="[[item.rid]]">
-                                <paper-icon-button data-rid="[[item.rid]]" class="form-title-bar-btn" icon="social:notifications" on-tap="_notify"></paper-icon-button>
-                                <paper-icon-button data-rid="[[item.rid]]" class="form-title-bar-btn" icon="icons:delete" on-tap="_revoke"></paper-icon-button>
+                                <paper-icon-button data-rid$="[[item.rid]]" icon="social:notifications" on-tap="_notify"></paper-icon-button>
+                                <paper-icon-button data-rid$="[[item.rid]]" class="form-title-bar-btn" icon="icons:block" on-tap="_revoke"></paper-icon-button>
                             </template>
                         </div>
                     </div>
@@ -198,6 +260,12 @@
     <script>
 
         import _ from 'lodash/lodash'
+
+        const STATUS_NOT_SENT = 1;
+        const STATUS_SENT = 2;
+        const STATUS_PENDING = 4;
+        const STATUS_DELIVERED = 8;
+        const STATUS_REVOKED = 16;
 
         class PrescriptionHistory extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -215,6 +283,14 @@
                     },
                     user: {
                         type: Object
+                    },
+                    dateFrom: {
+                        type: Object,
+                        value: null
+                    },
+                    dateTo: {
+                        type: Object,
+                        value: null
                     },
                     patient : {
                         type : Object,
@@ -251,14 +327,26 @@
             setPrescriptions(prescriptions) {
                 this.set("prescriptions", prescriptions);
                 this.set("refresher", this.refresher + 1)
+                const to = this.api.moment(Date.now());
+                const from = this.api.moment(Date.now()).subtract(1, 'Y');
+                this.set("dateFrom", from.format("YYYY-MM-DD"));
+                this.set("dateTo", to.format("YYYY-MM-DD"));
             }
 
-            _getValue(value) {
-                return value;
+            _getStatus(item) {
+                return item.status;
+            }
+
+            _getStatusClass(item) {
+                if (item.service.status & STATUS_DELIVERED )
+                    return "Green";
+                if (item.service.status & STATUS_REVOKED )
+                    return "Red";
+                return "Orange";
             }
 
             _updateFeedback(e) {
-                const rid = e.currentTarget.dataRid;
+                const rid = e.currentTarget.dataset.rid;
                 console.log("_update " + rid);
                 if (!this.hcp) return;
                 this.api.fhc().Recipecontroller().updateFeedbackFlagUsingPUT(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid)
@@ -271,7 +359,7 @@
             }
 
             _notify(e) {
-                const rid = e.currentTarget.dataRid;
+                const rid = e.currentTarget.dataset.rid;
                 console.log("_notify " + rid);
                 if (!this.hcp) return;
                 this.api.fhc().Recipecontroller().sendNotificationUsingPOST(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid)
@@ -284,16 +372,36 @@
             }
 
             _revoke(e) {
-                const rid = e.currentTarget.dataRid;
+                const rid = e.currentTarget.dataset.rid;
                 console.log("_revoke " + rid);
                 if (!this.hcp) return;
+                const prescription = this.prescriptions.find(p => p.rid === rid);
+                prescription.service.content.fr.medicationValue.status = STATUS_SENT | STATUS_REVOKED;
                 this.api.fhc().Recipecontroller().revokePrescriptionUsingDELETE(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid, "no reason specified")
                 .then(isDeleted => {
-                    console.log("delete rid: ", isDeleted)
+                    console.log("revoke1", isDeleted)
+                    return isDeleted ? this.api.contact().modifyContactWithUser(this.user, prescription.contact)
+                        .then(() => {
+                            console.log("revoke2")
+                        }) : Promise.resolve();
                 })
                 .catch(error => {
                     console.log("error:", error)
                 })
+            }
+
+            _print(e) {
+                const rid = e.currentTarget.dataset.rid;
+                console.log("_print " + rid);
+                if (!this.hcp) return;
+                const prescription = this.prescriptions.find(p => p.rid === rid);
+                this.dispatchEvent(new CustomEvent('print-prescription', {
+                    detail: {
+                        service: prescription.service
+                    },
+                    bubbles:true,
+                    composed:true
+                }))
             }
         }
 
