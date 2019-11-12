@@ -91,7 +91,14 @@
                 sessionId: {
                     type: String
                 },
-
+                mainLog:{
+                    type: Object,
+                    value : {}
+                },
+                promiseAccessLog:{
+                    type : Object,
+                    value : {}
+                }
             }
         }
 
@@ -154,6 +161,13 @@
             this.messageicc = new IccMessageXApi(this.host, this.headers120s, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
 
+            this._Spy(this.accesslogicc,"createAccessLog");
+            ["modifyPatientWithUser","createPatientWithUser","getPatientsWithUser","mergeIntoWithUser","modifyPatientReferralWithUser","getPatientWithUser"].map(method => this._Spy(this.patienticc,method));
+            ["modifyContactWithUser","getContactWithUser","getContactsWithUser","modifyContactsWithUser","createContactWithUser"].map(method => this._Spy(this.contacticc,method));
+            ["serviceToHealthElement"].map(method => this._Spy(this.helementicc,method));
+            ["deleteInvoice","getInvoice","getInvoices","mergeTo","modifyInvoice","createInvoice"].map(method => this._Spy(this.invoiceicc,method));
+            ["createDocument","deleteAttachment","deleteDocument","getAttachment","getDocument","getDocuments","modifyDocument","modifyDocuments","setAttachment","setAttachmentMulti"].map(method => this._Spy(this.documenticc,method));
+            ["createMessage","deleteMessages","deleteMessagesBatch","getChildren","getChildrenOfList","getMessage","modifyMessage","setMessagesReadStatus"].map(method => this._Spy(this.messageicc,method));
             this.dispatchEvent(new CustomEvent('refresh', {detail: {}}))
         }
 
@@ -955,6 +969,107 @@
                     return this.user().modifyUser(_.assign(user, {properties:_.concat(otherProperties, acknowledgementUpdatedProperties)})).then(u => this.register(u, "user"))
                 })
 
+        }
+
+
+        /**
+         * Log manager by Julien Wathelet
+         * 1) méthode spy done
+         * 2) gestion des log courrants ouvert. done
+         * 3) tester multi-fenêtre
+         * 4) gestion des treats done
+         * 5) tout tester
+         * */
+         _Spy(obj, method) {
+            let spy = {
+                object : obj,
+                args: [],
+                method : method
+            };
+
+            const add = this._addNewCurrentLog.bind(this);
+            const setMain = this._setMainLog.bind(this);
+            let original = obj[method];
+            spy.original=original
+            obj[method] = function() {
+                spy.args = [].slice.apply(arguments);
+                if(spy.method!=="createAccessLog"){ add(spy)}
+                else {setMain(spy)}
+                return original.apply(obj, spy.args)
+            };
+         }
+
+        _addNewCurrentLog(info){
+            this.user().getCurrentUser().then(user=>{
+                let patients = this._getPatientIds(info)
+                patients.map(pat => {
+                    let log ={
+                        id: this.crypto().randomUuid(),
+                        patientId: pat,
+                        user: user.id||this.mainLog.userId,
+                        date: +new Date(),
+                        accessType: 'USER_ACCESS',
+                        detail: info.method
+                    }
+
+                    return this.accesslogicc.createAccessLog(log)
+                })
+            })
+
+        }
+
+        _setMainLog(info){
+            this.set('mainLog',{
+                patientId : info.args[0].patientId,
+                userId : info.args[0].userId
+            })
+        }
+
+        _getPatientIds(info){
+            let patientIds = _.countBy(_.zip(this._getParamNames(info.original),info.args).map(([name,arg]) => {
+                if(!arg)return false
+                if(arg.constructor.name==="UserDto"){
+                    return false;
+                }else if(arg.constructor.name==="PatientDto"){
+                    return arg.id;
+                }else if(arg.constructor.name==="ListOfIdsDto"){
+                    return arg.ids.join(",");
+                }else if(name.includes("user")){
+                    return false;
+                }else if(name.includes("patient")){
+                    return arg;
+                }else if(name.includes("toId")){
+                    return arg;
+                }else if(name.includes("fromIds")){
+                    return arg;
+                }else if(info.method.includes("getPatientsWithUser")){
+                    return arg.ids.join(",");
+                }
+                return false;
+            }).filter(id => !!id));
+            let patients = ""
+            if(info.method==="mergeIntoWithUser"){
+                patients = _.values(patientIds).join(",")
+            }
+            else{
+                const biggest = _.last(_.sortBy(_.values(patientIds)))
+                patients= _.findKey(patientIds,nb => nb===biggest)
+            }
+
+            if(!patients){
+                patients = this.mainLog.patientId;
+            }
+            return !patients ? null : (patients.includes(",") ? patients.split(",") : [patients]);
+        }
+
+        _getParamNames(func) {
+            const STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
+            const ARGUMENT_NAMES = /([^\s,]+)/g;
+            let fnStr = func.toString().replace(STRIP_COMMENTS, '');
+            let result = fnStr.slice(fnStr.indexOf('(')+1, fnStr.indexOf(')')).match(ARGUMENT_NAMES);
+            if(result === null)
+                result = [];
+            return result;
         }
 
     }
