@@ -212,10 +212,10 @@
         <div class="content">
 
             <div class="filter">
-                <vaadin-date-picker class="dateFilter" id="dateFrom" label="De"
-                    value="{{dateFrom}}" i18n="[[i18n]]"></vaadin-date-picker>
-                <vaadin-date-picker class="dateFilter" id="dateTo" label="à"
-                    value="{{dateTo}}" i18n="[[i18n]]"></vaadin-date-picker>
+                <vaadin-date-picker class="dateFilter" id="dateMin" on-value-changed="_onValueChanged" label="De"
+                    value="{{dateMin}}" i18n="[[i18n]]"></vaadin-date-picker>
+                <vaadin-date-picker class="dateFilter" id="dateMax" on-value-changed="_onValueChanged" label="à"
+                    value="{{dateMax}}" i18n="[[i18n]]"></vaadin-date-picker>
             </div>
 
             <div class="table">
@@ -248,7 +248,7 @@
                             <paper-icon-button data-rid$="[[item.rid]]" icon="print" on-tap="_print"></paper-icon-button>
                             <template is="dom-if" if="[[item.rid]]">
                                 <paper-icon-button data-rid$="[[item.rid]]" icon="social:notifications" on-tap="_notify"></paper-icon-button>
-                                <paper-icon-button data-rid$="[[item.rid]]" class="form-title-bar-btn" icon="icons:block" on-tap="_revoke"></paper-icon-button>
+                                <paper-icon-button data-rid$="[[item.rid]]" icon="icons:block" on-tap="_revoke"></paper-icon-button>
                             </template>
                         </div>
                     </div>
@@ -284,11 +284,11 @@
                     user: {
                         type: Object
                     },
-                    dateFrom: {
+                    dateMin: {
                         type: Object,
                         value: null
                     },
-                    dateTo: {
+                    dateMax: {
                         type: Object,
                         value: null
                     },
@@ -325,12 +325,43 @@
             }
 
             setPrescriptions(prescriptions) {
+                this._prescriptions = prescriptions;
                 this.set("prescriptions", prescriptions);
                 this.set("refresher", this.refresher + 1)
-                const to = this.api.moment(Date.now());
-                const from = this.api.moment(Date.now()).subtract(1, 'Y');
-                this.set("dateFrom", from.format("YYYY-MM-DD"));
-                this.set("dateTo", to.format("YYYY-MM-DD"));
+                const min = this.api.moment(Date.now()).subtract(1, 'Y');
+                const max = this._tomorrow();
+                this.set("dateMin", min.format("YYYY-MM-DD"));
+                this.set("dateMax", max.format("YYYY-MM-DD"));
+                this._filter();
+            }
+
+            _tomorrow() {
+                return this.api.moment(Date.now()).add(1, 'D');
+            }
+
+            _between(date, min, max) {
+                if (min && max) return date >=min && date <= max;
+                if (min) return date >= min;
+                if (max) return date <= max;
+                return true;
+            }
+
+            _filter() {
+                if (!this._prescriptions) return;
+                this.$["dateMin"].max = this.$["dateMax"].value;
+                this.$["dateMax"].min = this.$["dateMin"].value;
+                this.$["dateMax"].max = this._tomorrow().format("YYYY-MM-DD");
+                const min = this.dateMin ? parseInt(this.api.moment(this.dateMin).format('YYYYMMDDHHmmss')) : null;
+                const max = this.dateMax ? parseInt(this.api.moment(this.dateMax).format('YYYYMMDDHHmmss')) : null;
+                const prescriptions = this._prescriptions.filter(p => this._between(p.service.valueDate, min, max));
+                this.set("prescriptions", prescriptions);
+            }
+
+            _onValueChanged(e) {
+                console.log("change");
+                this.dateMin = this.$["dateMin"].value;
+                this.dateMax = this.$["dateMax"].value;
+                this._filter();
             }
 
             _getStatus(item) {
