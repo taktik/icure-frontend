@@ -1978,6 +1978,8 @@
                         // Hard coded, Nurse prescription
                         if( ["64DAB551-B007-4B5C-BD64-F886301F5326"].indexOf(subFormTemplateObject.guid) >-1 ) this.printNursePrescriptionForm(subFormDataProvider, subFormObject, subFormTemplateObject);
 
+                        // Hard coded, echelle Katz
+						if( ["c68418b2-4dd5-466e-baad-04954304ac49"].indexOf(subFormTemplateObject.guid) >-1 ) this.printEvalKatz(subFormDataProvider, subFormObject, subFormTemplateObject);
                     })
                 })
             }
@@ -2898,6 +2900,113 @@
 
             }
 
+			printEvalKatz(subFormDataProvider, subFormObject, subFormTemplateObject){
+				const template = require("./rsrc/katz-pdf-template.json")
+				const address = this.patient.addresses.length ? this.patient.addresses.find(ad => ad.addressType=="home") || _.first(this.patient.addresses) : null
+				const ins= _
+						.chain(_.get(this.patient, "insurabilities",{}))
+						.filter((i)=>{
+							return i &&
+									!!moment( _.trim(_.get(i, "startDate", "0") ), "YYYYMMDD" ).isBefore(moment()) &&
+									(!!moment( _.trim(_.get(i, "endDate", "0") ), "YYYYMMDD" ).isAfter(moment()) || !_.trim(_.get(i, "endDate", "") ) ) &&
+									!!_.trim( _.get( i, "insuranceId", "" ) )
+						})
+						.head()
+						.value()
+				const data = {
+					"info" : {
+						"patient" : {
+							"name" : this.patient.firstName+" "+this.patient.lastName,
+							"mainAddress" : address ? address.postalCode+" "+address.city+", "+address.street+" N°"+address.houseNumber+" "+address.postboxNumber+", "+address.country : "........................",
+							"dateOfBirth" : this.api.formatedMoment(this.patient.dateOfBirth),
+							"ssin": this.patient.ssin,
+							"inscriptOA" : ins.identificationNumber
+						}
+					}
+				}
+				const html=`<body>
+   <div class="header center">
+      <div><h2>Annexe 3</h2></div>
+      <div>A envoyer sous enveloppe fermée au médecin-conseil</div>
+      <div>Soins infirmiers- Echelle d'évaluation</div>
+      <div>- justifiant la demande d'honoraires forfaitaires par journée de soins (1)</div>
+      <div>- notifiant des soins de toilette (1)</div>
+      <div>Données d’identification du bénéficiaire</div>
+   </div>
+   <div class="patientInfo big">
+      <div>Nom et prénom: {{info.patient.name}}</div>
+      <div>Adresse (résidence principale): {{info.patient.mainAddress}}</div>
+      <div>Date de naissance: {{info.patient.dateOfBirth}}</div>
+      <div>N° de sécurité sociale (NISS): {{info.patient.ssin}}</div>
+      <div>N° d'inscription O.A. (<span class="notBig">uniquement pour les patients sans NISS</span>): {{info.patient.inscriptOA}}</div>
+      <div>N° d'identification de l'O.A.: {{info.patient.oa}}</div>
+   </div>
+   <div class="OtherInfo">
+      <div>Adress de lieu de soins (si différente de la résidence principale): {{info.other.address}}</div>
+      <div>Je soussigné(e) {{info.other.hcp.name}} inscrit(e) sur la liste des praticiens de l'art infirmier de l'I.N.A.M.I. sous le n° {{info.other.hcp.nihii}} déclare que:</div>
+      <div>- conformément à la nomenclature des soins infirmiers, la dépendance physique du bénéficiare peut être décrite comme suit:</div>
+      <div>Echelle d'évaluation</div>
+   </div>
+   <table>
+      <tr>
+         <th>Critère</th>
+         <th>Score</th>
+         <th>1</th>
+         <th>2</th>
+         <th>3</th>
+         <th>4</th>
+      </tr>
+      {{#criteres}}
+         <tr>
+            <td>{{name}}</td>
+            <td>{{score}}</td>
+            {{#values}}
+               <td>{{.}}</td>
+            {{/values}}
+         </tr>
+      {{/criteres}}
+   </table>
+   <div>
+      - en cas de score 2 pour le critère de continence : une combinaison de l'incontinence d'urine nocturne et de l'incontinence d'urine occasionnelle durant la journée a été constatée chez le bénéficiaire :
+      OUI [{{checkedYes}}]   NON [{{checkedNo}}]
+   </div>
+   <div>
+      et donne connaissance au médecin-conseil qu'il/elle commence les soins chez le bénéficiaire:
+   </div>
+   <div>
+      en date du ......................................
+   </div>
+   <div>
+      pendant une période qui se termine .................................................
+   </div>
+   <div>
+      Si des soins ont été prescrits, identification du médecin prescripteur:
+   <div>
+   </div>
+      nom: ........................................................................................... n° I.N.A.M.I.: ............................
+   </div>
+   <div>
+      Sur base de l'échelle d'évaluation reprise ci-dessus, le {{forfait}} est demandé, des soins de toilette sont notifiés (2).
+   </div>
+   <div>
+      Le certificat médical établi par le médecin traitant, conformément au modèle fixé par le Comité de l'assurance soins de santé, permettant de considérer le bénéficiaire comme désorienté dans le temps et l'espace est / n'est pas (2) joint (article. 8, § 6, de la nomenclature).
+   </div>
+   <div>
+      identification du médecin prescripteur de ce certificat médical :
+   </div>
+   <div>
+      nom: ........................................................................................... n° I.N.A.M.I.: ............................
+   </div>
+   <div>
+      Le praticien de l'art infirmier, (date, nom et signature) :
+   </div>
+   <div class="footer">
+      (1) Biffer la mention inutile
+      (2) Biffer ce qui ne convient pas
+   </div>
+</body>`
+			}
+
             _getPdfHeader( layoutAttributes = false ) {
 
 			    layoutAttributes = _.merge(
@@ -3005,7 +3114,7 @@
                            .head()
                            .value(),
                        	gender: this.localize(_.trim(_.get(this.patient, "gender", "male")) + "GenderLong",this.language),
-                       	birthDate: parseInt(_.get(this.patient, "dateOfBirth", 0)) ? moment(_.trim(_.get(this.patient, "dateOfBirth")),"YYYYMMDD").format("DD/MM/YYYY") : "-"
+                       	birthDate: parseInt(_.get(this.patient, "dateOfBirth", 0)) ? this.api.formatedMoment(_.get(this.patient, "dateOfBirth")) : "-"
                    },
                    hcpData: {
 						id: _.trim( _.get(this.globalHcp, "id", "") ),
