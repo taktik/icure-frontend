@@ -16,6 +16,7 @@
 <link rel="import" href="../../../ht-spinner/ht-spinner.html">
 <link rel="import" href="../../../dynamic-form/dynamic-doc.html">
 <link rel="import" href="./ht-pat-hub-medication-scheme-view.html">
+<link rel="import" href="./ht-pat-hub-diarynote-view.html">
 <link rel="import" href="../../../../styles/scrollbar-style.html">
 <link rel="import" href="../../../../styles/dialog-style.html">
 <link rel="import" href="../../../../styles/paper-tabs-style.html">
@@ -370,6 +371,11 @@
                 <paper-tab>
                     <iron-icon class="tabIcon" icon="maps:local-library"></iron-icon> [[localize('tra_acc_tra','Trace',language)]]
                 </paper-tab>
+                <template is="dom-if" if="[[_haveDiaryNote(diaryNote, diaryNote.*)]]">
+                    <paper-tab>
+                        <iron-icon class="tabIcon" icon="vaadin:newspaper"></iron-icon> [[localize('diarynotes','Journal notes',language)]]
+                    </paper-tab>
+                </template>
                <!--<paper-tab>[[localize('json_vwr','JSON View',language)]]</paper-tab>-->
             </paper-tabs>
             <iron-pages selected="[[tabs]]">
@@ -739,6 +745,9 @@
                     </div>
                 </page>
                 <page>
+                    <ht-pat-hub-diarynote-view api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" resources="[[resources]]" diary-note="[[diaryNote]]" transaction-of-diary-note="[[transactionOfDiaryNote]]"></ht-pat-hub-diarynote-view>
+                </page>
+                <page>
                     <div class="pageContent">
                         <div class="hub-cons"> <!-- Notification input -->
                             <div>
@@ -751,12 +760,12 @@
             </iron-pages>
 
         <paper-dialog id="importHubDocumentDialog">
-            <div class="modal-title">
-                [[localize('imp-pat','Import document',language)]]
-            </div>
-            <div class="selectedDocumentToImportContent">
-                <paper-input label="[[localize('hub-doc-title', 'Document title', language)]]" value="{{selectedDocumentToBeImported.title}}"></paper-input>
-                <paper-input label="[[localize('hub-doc-type', 'Document type', language)]]" value="{{selectedDocumentToBeImported.docType}}" disabled></paper-input>
+            <h2 class="modal-title">[[localize('imp-pat','Import document',language)]]</h2>
+            <div class="content">
+                <div class="selectedDocumentToImportContent">
+                    <paper-input label="[[localize('hub-doc-title', 'Document title', language)]]" value="{{selectedDocumentToBeImported.title}}"></paper-input>
+                    <paper-input label="[[localize('hub-doc-type', 'Document type', language)]]" value="{{selectedDocumentToBeImported.docType}}" disabled></paper-input>
+                </div>
             </div>
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeImportDialog">[[localize('clo','Close',language)]]</paper-button>
@@ -904,6 +913,14 @@
                             {code: "tsp", label: {fr: "cuillère à café", en: '', nl: ''}},
                             {code: "unt/h", label: {fr: "unités par heure", en: '', nl: ''}}
                         ]
+                    },
+                    diaryNote:{
+                        type: Array,
+                        value: () => []
+                    },
+                    transactionOfDiaryNote:{
+                        type: Array,
+                        value: () => []
                     }
 
                 };
@@ -1049,6 +1066,8 @@
                 this.set('message', null);
                 this.set('transInfo', transInfo);
                 this.set('isLoading',true);
+                this.set('diaryNote', [])
+                this.set('transactionOfDiaryNote', [])
                 this._getTrail(transInfo).then(trail => this.set('auditTrail',trail));
                 if(tranRespPromise){
                     tranRespPromise.then(tranResp => {
@@ -1460,6 +1479,8 @@
             }
 
             close() {
+                this.set('diaryNote', [])
+                this.set('transactionOfDiaryNote', [])
                 this.$.dialog.close();
             }
 
@@ -1703,7 +1724,7 @@
                             .then(createdMessage => this.api.document().newInstance(this.user, createdMessage, {
                                 documentType: this.selectedDocumentToBeImported && this.selectedDocumentToBeImported.docType ? this.selectedDocumentToBeImported.docType : 'report',
                                 mainUti: this.api.document().uti(this.tranformHubTypeToUti(this.selectedDocumentToBeImported.document)),
-                                name: this.selectedDocumentToBeImported && this.selectedDocumentToBeImported.title ? this.selectedDocumentToBeImported.title : "documentDownloadFromHub_"+moment().format("YYYYMMDDhhmmss")
+                                name: this.selectedDocumentToBeImported && this.selectedDocumentToBeImported.title ? "documentDownloadFromHub_" + this.selectedDocumentToBeImported.title : "documentDownloadFromHub_"+moment().format("YYYYMMDDhhmmss")
                             }))
                             .then(newDocInstance => this.api.document().createDocument(newDocInstance))
                             .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject('encrypt', this.user, createdDocument, this.api.crypto().utils.base64toArrayBuffer(this.selectedDocumentToBeImported.document.value))
@@ -1719,7 +1740,10 @@
                                 const svc = this.api.contact().service().newInstance(this.user, {
                                     content: _.fromPairs([[this.language, { documentId: resourcesObject.id, stringValue: resourcesObject.name }]]),
                                     label: 'document',
-                                    tags: [{type: 'CD-TRANSACTION', code: this.selectedDocumentToBeImported && this.selectedDocumentToBeImported.docType ? this.selectedDocumentToBeImported.docType : 'report'}]
+                                    tags: [
+                                        {type: 'CD-TRANSACTION', code: this.selectedDocumentToBeImported && this.selectedDocumentToBeImported.docType ? this.selectedDocumentToBeImported.docType : 'report'},
+                                        {type: 'HUB-TRANSACTION', code: 'download'},
+                                    ]
                                 });
                                 this.currentContact.services.push(svc);
                                 sc.services.push({ serviceId: svc.id });
@@ -1843,6 +1867,9 @@
                 return value && this.localize("cd-vaccine-indication-"+value, value, this.language)
             }
 
+            _haveDiaryNote(){
+                return _.size(_.compact(_.get(this, "diaryNote", []))) > 0 ? true : false
+            }
 
         }
         customElements.define(HtPatHubTransactionViewSecond.is, HtPatHubTransactionViewSecond);
