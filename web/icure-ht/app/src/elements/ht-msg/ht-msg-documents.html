@@ -459,7 +459,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.metas.filename]]</div>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">[[item.subject]]</div>
+                            <!--
+                            <div class$="cell [[_boldIfIsUnread(item)]]">
+                                <template is="dom-repeat" items="[[item.metas.documentList]]" as="document">
+                                    <p>
+                                    <div class="document">
+                                        <div class="document-title">[[document.type]]: [[document.filename]]</div>
+                                    </div>
+                                    </p>
+                                </template>
+                            </div>
+                            -->
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column flex-grow="1">
@@ -764,11 +775,17 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             if (currentPageNumber < totalPages) this.set('_currentPageNumber', currentPageNumber + 1)
         }
 
+        // _filterType(message, documentType) {
+        //     if (!documentType) return true;
+        //     if (!message.metas && !message.metas.type) return false;
+        //     if (!this.listType.filter(item => item.code === documentType)) return false;
+        //     return message.metas.type === documentType;
+        // }
         _filterType(message, documentType) {
             if (!documentType) return true;
-            if (!message.metas && !message.metas.type) return false;
+            if (!message.metas && !message.metas.documentList) return false;
             if (!this.listType.filter(item => item.code === documentType)) return false;
-            return message.metas.type === documentType;
+            return message.metas.documentList.some(doc => doc.type === documentType);
         }
 
         _getMessages(currentFolder, documentFilter) {
@@ -778,7 +795,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             let foundMessages = [];
 
             return !currentFolder ? foundMessages : Promise.all(this._importedDocumentType.map(importedDocumentType => this.api.message().findMessagesByTransportGuid('DOC:' + importedDocumentType + ':IN', null, null, null, 1000)
-                .then(messages => messages.rows.filter(m => (currentFolder === 'todealwith' ? this._toDealWith(m) : !this._toDealWith(m)) && this._filterType(m, documentFilter)))
+                .then(messages => messages.rows.filter(message => message.metas).map(message => {
+                    if (message.metas.documentListJson) {
+                        message.metas.documentList = JSON.parse(message.metas.documentListJson);
+                    } else {
+                        message.metas.documentList = [{filename: message.metas.filename, type: message.metas.type}];
+                    }
+                    return message;
+                }))
+                .then(messages => messages.filter(m => (currentFolder === 'todealwith' ? this._toDealWith(m) : !this._toDealWith(m)) && this._filterType(m, documentFilter)))
                 .then(messages => Promise.all(messages.map(m => this._getCachedDecryptedBlobs(m))))
                 .then(messages => {
                     console.log('got complete list');
@@ -921,6 +946,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return new Promise((resolve) => {
                     if (this._isUnread(selectedMessage) && selectedMessage.recipients && selectedMessage.recipients[0] && this.user.healthcarePartyId === selectedMessage.recipients[0]) {
                         selectedMessage.status = (selectedMessage.status & ~(1 << 1));
+                        selectedMessage.metas && selectedMessage.metas.documentList && delete selectedMessage.metas.documentList;
                         this.set("activeItem.status", selectedMessage.status);
                         this._clearGridCache();
                         return this.api.message().modifyMessage(selectedMessage)
@@ -954,6 +980,32 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             return !!((m.status & (1 << 26)) === 0)
         }
 
+        _initializeCounter(folder) {
+            this._getMessages(folder, "")
+                .then(foundMessages => {
+                    let messageCount = foundMessages.length;
+                    this.dispatchEvent(new CustomEvent('initialize-doc-counter', {
+                        bubbles: true,
+                        composed: true,
+                        detail: { folder: folder, count: messageCount} }));
+                })
+                .catch(e => {
+                    console.log(e);
+                });
+        }
+
+        _promiseCounter(folder) {
+            return new Promise(() => this._initializeCounter(folder));
+        }
+
+
+        _initializeCounters() {
+            //this._initializeCounter("todealwith");
+            //this._initializeCounter("dealtwith");
+            this._promiseCounter("todealwith")
+                .then(this._promiseCounter("dealtwith"));
+        }
+
         _refresh() {
             if (this.menuSelectionObject && this.menuSelectionObject.selection) {
                 this._resetLoadingMessage();
@@ -962,6 +1014,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     message: this.localize('ehb.gettingMessages', this.language),
                     icon: "arrow-forward"
                 });
+
+                this._initializeCounters();
 
                 let currentPageNumber = parseInt(this.get("_currentPageNumber")) || 1;
                 const currentFolder = _.trim(this.get("menuSelectionObject.selection.folder")) || "todealwith";
@@ -1004,11 +1058,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         });
                         this.set('_isLoading', false);
                         this.dispatchEvent(new CustomEvent('selection-messages-change', {detail: {selection: {item: null}}}));
+                        this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
                         this._triggerGridResize()
                     })
 
             } else {
                 this.dispatchEvent(new CustomEvent('selection-messages-change', {detail: {selection: {item: null}}}));
+                this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
                 this._triggerGridResize()
             }
         }
@@ -1066,150 +1122,105 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
         }
 
-        saveDoc(e) {
-            if (!(e && e.detail && e.detail.documents && e.detail.documents.length)) return;
-            let message = null;
-            (e.detail.documents || []).map(doc => {
-                Promise.all([
-                    this.api.user().findByHcpartyId(doc.hcp),
-                    this.api.message().newInstance(this.user)])
-                    .then(([user, msg]) => this.api.message().createMessage(_.merge(msg, {
-                        transportGuid: "DOC:" + (doc.isScanned ? "SCAN" : "IMPORT") + ":IN",
-                        recipients: [doc.hcp, (this.user.healthcarePartyId || (this.hcp && this.hcp.id) || "")],
-                        recipientsType: "org.taktik.icure.entities.HealthcareParty",
-                        metas: {
-                            filename: doc.title,
-                            importDate: doc.importDate,
-                            documentDate: doc.docDate,
-                            type: doc.type
-                        },
-                        toAddresses: [_.get(this.user, 'email', _.get(this.user, 'healthcarePartyId', "")), _.get(user, "email", doc.hcp)],
-                        subject: "imported doc in message",
-                        //@ToDo test on persphysician ==> traited or not
-                        status: (doc.isScanned ? 1 << 24 : 0) | 1 << 25 | (doc.patientId ? 1 << 26 : 0) | 1 << 1
-                    })))
-                    // .then(msg => this.encryptPatientId(msg, doc.patientId))
-                    // .then(msg => this.api.message().modifyMessage(msg))
-                    .then(msg => {
-                        message = msg;
-                        return this.api.document().newInstance(this.user, msg, {
-                            documentType: doc.type,
-                            mainUti: this.api.document().uti(_.toLower(doc.extension) === "pdf" ? "application/" + _.toLower(doc.extension) : "image/" + _.toLower(doc.extension)),
-                            name: doc.title.includes("." + doc.extension) ? _.trim(doc.title) : _.trim(doc.title) + "." + doc.extension
-                        })
-                    })
-                    .then(newDoc => this.api.document().createDocument(newDoc))
-                    .then(createdDoc => {
-                        doc.docId = createdDoc.id
-                        return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, createdDoc, doc.fileBlob)
-                    })
-                    .then(encryptedFileContent => this.api.document().setAttachment(doc.docId, null, encryptedFileContent)
-                        .then(x => x)
-                        .catch((e) => {
-                            console.log("---error upload attachment---")
-                        }))
-                    .finally(x => {
-                        if (!doc.patientId && !this.message) {
-                            this.encryptInfo(message, [{}])
-                                .then((msg) => this.api.message().modifyMessage(msg))
-                                .then(() => this._refresh())
-                        } else {
-                            this.api.patient().getPatientWithUser(this.user, doc.patientId)
-                                .then(patient => this.api.register(patient, "patient"))
-                                .then(patient => this.api.contact().newInstance(this.user, patient, {
-                                    created: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-                                    modified: parseInt(moment(doc.docDate).format("x")) || new Date().getTime(),
-                                    author: this.user.id,
-                                    responsible: this.user.healthcarePartyId,
-                                    subContacts: []
-                                }))
-                                .then(contact => {
-                                    const svc = this.api.contact().service().newInstance(this.user, {
-                                        content: _.fromPairs([[this.language, {
-                                            documentId: doc.docId,
-                                            stringValue: doc.title
-                                        }]]), label: 'imported document'
-                                    });
-                                    contact.services = [svc];
-                                    const sc = {status: 64, services: [{serviceId: svc.id}]};
-                                    contact.subContacts.push(sc);
-
-                                    return this.api.contact().createContactWithUser(this.user, contact)
-                                })
-                                .then(contact => this.api.register(contact, "contact"))
-                                .then(contact => this.encryptInfo(message, [{
-                                    'patientId': doc.patientId,
-                                    'isAssigned': true,
-                                    'contactId': contact.id
-                                }]))
-                                .then((msg) => this.api.message().modifyMessage(msg))
-                                .then(() => this._refresh())
-                        }
-                    })
-            })
+        _encrypt(documentObject, object) {
+            return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", this.user, documentObject, this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(object || "")))
+                .then(ua => Base64.encode(this.api.crypto().utils.ua2text(ua)))
         }
 
         updateDoc(e) {
-            if (!e.detail.doc || !e.detail.messageId) return;
-            this.api.message().getMessage(e.detail.messageId)
-                .then(message => {
-                    message.metas.filename = e.detail.doc.filename;
-                    message.metas.documentDate = e.detail.doc.documentDate;
-                    message.metas.type = e.detail.doc.type;
-                    message.subject = "modified and imported doc in patient folder";
-                    return this.api.document().getDocument(e.detail.doc.id)
-                        .then(doc => {
-                            doc.documentType = e.detail.doc.type;
-                            let extension = _.toLower(doc.name.split('.').pop());
-                            doc.name = e.detail.doc.filename.includes("." + extension) ? _.trim(e.detail.doc.filename) : _.trim(e.detail.doc.filename) + "." + extension;
-                            doc.created = parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime()
-                            return this.api.document().modifyDocument(doc)
-                        })
-                        .then(doc => this.api.register(doc, "document"))
-                        .then(doc => {
-                            if (!e.detail.patientId) {
-                                return message;
-                            } else {
-                                message.status = message.status ^ 1 << 26 | (e.detail.patientId ? 1 << 26 : 0);
-                                return this.api.patient().getPatientWithUser(this.user, e.detail.patientId)
-                                    .then(patient => this.api.contact().newInstance(this.user, patient, {
-                                        created: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
-                                        modified: parseInt(moment(e.detail.doc.documentDate).format("x")) || new Date().getTime(),
-                                        author: this.user.id,
-                                        responsible: this.user.healthcarePartyId,
-                                        subContacts: []
-                                    }))
-                                    .then(contact => {
-                                        const svc = this.api.contact().service().newInstance(this.user, {
-                                            content: _.fromPairs([[this.language, {
-                                                documentId: doc.id,
-                                                stringValue: e.detail.doc.filename
-                                            }]]),
-                                            tags: [{type: 'CD-TRANSACTION', code: doc.documentType ? doc.documentType : 'report'}],
-                                            label: 'imported document'
-                                        });
-                                        contact.services = [svc];
-                                        const sc = {status: 64, services: [{serviceId: svc.id}]};
-                                        contact.subContacts.push(sc);
-                                        return this.api.contact().createContactWithUser(this.user, contact)
-                                    })
-                                    .then(contact => this.api.register(contact, "contact"))
-                                    .then(contact => this.encryptInfo(message, [{
-                                        'patientId': e.detail.patientId,
-                                        'isAssigned': true,
-                                        'contactId': contact.id
-                                    }]))
-                            }
-                        })
+            if (!e.detail || !e.detail.selectedMessage || !e.detail.attachments || !e.detail.attachments.length) return;
+            const selectedMessage = e.detail.selectedMessage;
+            const attachments = e.detail.attachments;
+
+            let documentList = [];
+            let docDate = moment();
+            if (selectedMessage.metas.documentDate)
+                docDate = moment(selectedMessage.metas.documentDate);
+            const docDateYMD = parseInt(docDate.format("YYYYMMDDHHmmss"));
+            const docDateMs = parseInt(docDate.format("x")) || new Date().getTime();
+            const docDateAsString = docDate.format("YYYY-MM-DD");
+
+            this.api.message().getMessage(selectedMessage.id)
+                .then(msg => new Promise(resolve => {
+                    msg.subject = selectedMessage.subject;
+                    msg.metas.documentDate = docDateAsString;
+                    if (selectedMessage.patientId) {
+                        msg.status = msg.status ^ 1 << 26 | (selectedMessage.patientId ? 1 << 26 : 0);
+                        return this.api.patient().getPatientWithUser(this.user, selectedMessage.patientId)
+                            .then(patient => this.api.register(patient, "patient"))
+                            .then(patient => this.api.contact().newInstance(this.user, patient, {
+                                    openingDate: docDateYMD,
+                                    closingDate: docDateYMD,
+                                    author: this.user.id,
+                                    responsible: this.user.healthcarePartyId,
+                                    subContacts: []
+                                })
+                            )
+                            .then(contact => resolve(contact))
+                        } else {
+                            return resolve();
+                        }
+                    })
+                    .then(contact => {
+                        documentList = selectedMessage.metas && selectedMessage.metas.documentListJson && JSON.parse(selectedMessage.metas.documentListJson) || [];
+                        return Promise.all(attachments.map(attachment => {
+                            const item = documentList.find(item => item.id === attachment.documentId);
+                            if (!item) return Promise.resolve();
+                            return this.api.document().getDocument(item.id)
+                                .then(document => {
+                                    document.name = attachment.filename || "";
+                                    document.documentType = attachment.type; // TODO: default value
+                                    return this._encrypt(document, attachment && attachment.comment || "")
+                                        .then(cryptedComment => {
+                                            item.comment = cryptedComment;
+                                            if (!contact) return;
+                                            const svc = this.api.contact().service().newInstance(this.user, {
+                                                content: _.fromPairs([[this.language, {
+                                                    documentId: item.id,
+                                                    stringValue: attachment.filename
+                                                }]]),
+                                                created: docDateMs,
+                                                tags: [{type: 'CD-TRANSACTION', code: attachment.type || 'report'}],
+                                                label: 'imported document',
+                                                comment: cryptedComment
+                                            });
+
+                                            if (contact.services === undefined) contact.services = [svc];
+                                            else contact.services.push(svc);
+
+                                            const sc = {status: 64, services: [{serviceId: svc.id}]};
+                                            contact.subContacts.push(sc);
+                                        })
+                                        .then(() => document)
+                                })
+                                .then(document => this.api.document().modifyDocument(document))
+                                .then(document => this.api.register(document, "document"))
+                        }))
+                        .then(() => contact)
+                    })
+                    .then(contact => {
+                        if (!contact) return;
+                        return this.api.contact().createContactWithUser(this.user, contact)
+                            .then(contact => this.api.register(contact, "contact"))
+                            .then(contact => this.encryptInfo(msg, [{
+                                'patientId': selectedMessage.patientId,
+                                'isAssigned': true,
+                                'contactId': contact.id
+                            }]))
+                    })
+                    .then(() => msg)
+                )
+                .then(msg => {
+                    msg.metas.documentListJson = JSON.stringify(documentList);
+                    return this.api.message().modifyMessage(msg);
                 })
-                .then(msg => this.api.message().modifyMessage(msg))
                 .then(msg => this.api.register(msg, 'message'))
                 .then(msg => this._discardCachedMessage(msg))
                 .then(() => this._refresh())
                 .catch(error => {
                     this.dispatchEvent(new CustomEvent('show-error-message', {
                         detail: {
-                            title: e.detail.doc.filename || this.localize("error", "Error", this.language),
+                            title: selectedMessage.subject || this.localize("error", "Error", this.language),
                             message: "err.document.update",
                             detail: error
                         }, bubbles: true
@@ -1218,22 +1229,30 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         }
 
         unassignDoc(e) {
-            if (!e.detail.doc || !e.detail.messageId || !e.detail.contactId) return;
-            this.api.message().getMessage(e.detail.messageId)
+            if (!e.detail || !e.detail.selectedMessage) return;
+            const selectedMessage = e.detail.selectedMessage;
+            this.api.message().getMessage(selectedMessage.id)
                 .then(message => {
                     message.status = message.status ^ 1 << 26;
-                    return this.encryptInfo(message, [{}])
-                        .then(message => this.api.message().modifyMessage(message))
-                        .then(message => this.api.register(message, 'message'))
-                        .then(() => this.api.contact().getContactWithUser(this.user, e.detail.contactId))
+                    const docIds = JSON.parse(message.metas.documentListJson).map(item => item.id);
+                    return this.api.contact().getContactWithUser(this.user, selectedMessage.contactId)
                         .then(contact => {
-                            contact.deletionDate = parseInt(moment().format('YYYYMMDDHHmmss'));
+                            const servicesLeft = contact.services.filter(svc => !docIds.includes(svc.content[this.language].documentId));
+                            if (servicesLeft.length === 0) {
+                                contact.deletionDate = parseInt(moment().format('YYYYMMDDHHmmss'));
+                            } else {
+                                contact.services = servicesLeft;
+                            }
                             return this.api.contact().modifyContactWithUser(this.user, contact);
                         })
                         .then(contact => this.api.register(contact, "contact"))
-                        .then(message => this._discardCachedMessage(message))
-                        .then(() => this._refresh())
+                        .then(() => message)
                 })
+                .then(message => this.encryptInfo(message, [{}]))
+                .then(message => this.api.message().modifyMessage(message))
+                .then(message => this.api.register(message, 'message'))
+                .then(message => this._discardCachedMessage(message))
+                .then(() => this._refresh())
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
                         title: e.detail.doc.filename,
@@ -1244,13 +1263,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         }
 
         deleteDoc(e) {
-            if (!e.detail.doc || !e.detail.messageId) return;
-            if (e.detail.contactId) return;
-            this.api.message().getMessage(e.detail.messageId)
+            if (!e.detail || !e.detail.selectedMessage) return;
+            this.api.message().getMessage(e.detail.selectedMessage.id)
                 .then(message => this.api.message().deleteMessages(message.id)
                     .then(message => this._discardCachedMessage(message))
-                    .then(() => this._refresh())
                 )
+                .then(() => this._refresh())
                 .catch((error) => this.dispatchEvent(new CustomEvent('show-error-message', {
                     detail: {
                         title: e.detail.doc.filename,
