@@ -154,13 +154,6 @@ onmessage = e => {
 
                         if (!!_.get(singleAssignResult,"assigned",false)) {
                             assignedMap[_.trim(_.get(singleAssignResult,"contactId",""))] = _.trim(_.get(singleAssignResult,"protocolId",""))
-                            accesslogApi.createAccessLog({
-                                id: iccCryptoXApi.randomUuid(),
-                                patientId: _.trim(_.get(singleAssignResult,"patientId","")),
-                                user: _.trim(_.get(user,"id","")),
-                                date: +new Date(),
-                                accessType: 'USER_ACCESS'
-                            }).catch(e=>console.log("ERROR with createAccessLog: ", e))
                         } else {
                             unassignedList.push(singleAssignResult.protocolId)
                         }
@@ -278,6 +271,17 @@ onmessage = e => {
 
                     const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
+
+                    if(_.size(candidates) === 1){
+                        accesslogApi.createAccessLog({
+                            id: iccCryptoXApi.randomUuid(),
+                            patientId: candidates[0].id,
+                            user: _.trim(_.get(user,"id","")),
+                            date: +new Date(),
+                            accessType: 'SYSTEM_ACCESS',
+                            detail : "Save Assignment in Message panel"
+                        }).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    }
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :

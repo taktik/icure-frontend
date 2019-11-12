@@ -1042,7 +1042,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class="cell numeric">[[localize('pho','Phone',language)]]</div>
                         </template>
                         <template>
-                            <div class="cell numeric">[[item.phone]]</div>
+                            <div class="cell numeric">[[_getPhone(item)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <!-- <vaadin-grid-column flex-grow="0" width="150px">
@@ -1162,11 +1162,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <iron-pages selected="[[tabs]]">
                         <page>
                             <div class="content-block horizontal">
-                                <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
-                                <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                                <template is="dom-if" if="[[onElectron]]">
+                                    <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
+                                    <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                                </template>
                                 <paper-input always-float-label label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
                                 <paper-input always-float-label label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
-                                <vaadin-date-picker-light i18n="[[i18n]]" attr-for-value="value">
+                                <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" need-full-date="[[fullDateMode]]">
                                     <paper-input always-float-label label="[[localize('dat_of_bir','Date of birth',language)]]" value="{{dateAsString}}"></paper-input>
                                 </vaadin-date-picker-light>
                                 <paper-input always-float-label label="[[localize('niss','Ssin',language)]]" value="{{ssin}}" on-keyup="_searchDuplicate"></paper-input>
@@ -1381,7 +1383,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
         <paper-dialog id="sharePatientDelegationDialog">
-            <h2 class="modal-title">[[localize("titleSharPatDelDia","Quels sont les droits d'accès à partager ?",language)]]</h2>
+            <h2 class="modal-title">[[localize("titleSharPatDelDia","Quels sont les drdoits d'accès à partager ?",language)]]</h2>
             <div class="content">
                 <vaadin-grid items="[[hcpSelectedForSharing]]">
                     <vaadin-grid-column width="150px">
@@ -1549,34 +1551,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     taskProgress: {
                         type: Number,
                         value: 0
-                    },
-                    i18n: {
-                        Type: Object,
-                        value: function () {
-                            moment.locale('fr')
-                            const res = {
-                                monthNames: moment.months(),
-                                weekdays: moment.weekdays(),
-                                weekdaysShort: moment.weekdaysShort(),
-                                firstDayOfWeek: moment.localeData().firstDayOfWeek(),
-                                week: 'Semaine',
-                                calendar: 'Calendrier',
-                                clear: 'Clear',
-                                today: 'Aujourd\'hui',
-                                cancel: 'Annuler',
-                                formatDate: function (d) {
-                                    //return moment(d).format(moment.localeData().longDateFormat('L'))
-                                    return moment(d).format('DD/MM/YYYY')
-                                },
-                                parseDate: function (s) {
-                                    return moment(s, 'DD/MM/YYYY').toDate()
-                                },
-                                formatTitle: function (monthName, fullYear) {
-                                    return monthName + ' ' + fullYear
-                                }
-                            }
-                            return res
-                        }
                     },
                     selectedFilters: {
                         type: Array,
@@ -1752,6 +1726,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Object,
                         value: {}
                     },
+                    newPatCardData: {
+                        type: Object,
+                        value: {}
+                    },
                     canAddPat: {
                         type: Boolean,
                         value: false
@@ -1767,6 +1745,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     openAddedPatient: {
                         type: Boolean,
                         value: true
+                    },
+                    fullDateMode:{
+                        type:Boolean,
+                        value:false
                     }
 
                 }
@@ -2169,10 +2151,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         if (res.cards[0]) {
                             this.set('firstName', res.cards[0].firstName)
                             this.set('lastName', res.cards[0].surname)
-                            this.set('dateAsString', this.api.moment(res.cards[0].dateOfBirth * 1000).format('YYYY-MM-DD'))
+                            this.set('dateAsString', this.api.moment(res.cards[0].dateOfBirth * 1000).format('DD/MM/YYYY'))
                             this.set('ssin', res.cards[0].nationalNumber)
                             this.set('valueGender', res.cards[0].gender === 'M' ? 'male' : 'female')
-                            this.set('cardData',res.cards[0])
+                            this.set('newPatCardData',res.cards[0])
                         }
                     })
             }
@@ -2342,17 +2324,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['import-mf-dialog'].open()
             }
 
-            generateXlsFile(data) {
+            generateXlsFile(data, filename, title, author) {
 
                 // Create xls work book and assign properties
+                filename = filename || ("patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls")
+                title = title || "Patients list"
+                author = author || "iCure"
                 const xlsWorkBook = {SheetNames: [], Sheets: {}}
-                xlsWorkBook.Props = {Title: "Patients list", Author: "iCure"}
+                xlsWorkBook.Props = {Title: title, Author: author}
 
                 // Create sheet based on json data collection
                 var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
 
                 // Link sheet to workbook
-                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, 'Patients list')
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, title)
 
                 // Virtual data output
                 var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
@@ -2370,7 +2355,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 // Link to url
                 downloadLink.href = urlObject
-                downloadLink.download = "patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
+                downloadLink.download = filename
 
                 // Trigger download and drop object
                 downloadLink.click()
@@ -2391,13 +2376,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         lastName: this.lastName,
                         firstName: this.firstName,
                         active: true,
-                        dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(moment(this.dateAsString, 'DD/MM/YYYY').format('YYYYMMDD')) || null,
+                        dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(_.padEnd(this.dateAsString.split("/").reverse().join(""),8,"0")) || null,
                         ssin: this.ssin,
                         gender: this.valueGender,
                         medicalHouseContracts: [this.medicalHouseContractShadowObject]
                     }
-                    if (Object.keys(this.cardData).length !== 0 && this.ssin === this.cardData.nationalNumber) {
-                        let streetData = _.trim(this.cardData.street).split(" ")
+                    if (Object.keys(this.newPatCardData).length !== 0 && this.ssin === this.newPatCardData.nationalNumber) {
+                        let streetData = _.trim(this.newPatCardData.street).split(" ")
                         const number = streetData.find(str => str.match(/\d/g))
                         const boxNumber = streetData[streetData.length - 1] !== number ? streetData[streetData.length - 1] : ""
                         const street = streetData.reduce((tot, str) => {
@@ -2407,18 +2392,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             return tot;
                         })
                         _.merge(newPatient, {
-                            placeOfBirth: this.cardData.locationOfBirth,
-                            nationality: this.cardData.nationality,
-                            picture: this.cardData.picture,
+                            placeOfBirth: this.newPatCardData.locationOfBirth,
+                            nationality: this.newPatCardData.nationality,
+                            picture: this.newPatCardData.picture,
                             addresses: [
                                 {
                                     addressType: "home",
                                     street: street,
                                     houseNumber: number,
                                     postboxNumber: boxNumber,
-                                    postalCode: this.cardData.zipCode,
-                                    city: this.cardData.municipality,
-                                    country: this.cardData.country
+                                    postalCode: this.newPatCardData.zipCode,
+                                    city: this.newPatCardData.municipality,
+                                    country: this.newPatCardData.country
                                 }
                             ]
                         })
@@ -2477,8 +2462,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.dateAsString = null
                 this.ssin = null
                 this.valueGender = null
+                this.cardData=[];
                 if(this.medicalHouseContract) {
-                this.medicalHouseContractShadowObject = {
+                    this.medicalHouseContractShadowObject = {
                         hcpId: this.medicalHouseContract.hcpId,
                         mmNihii: this.medicalHouseContract.mmNihii,
                         startOfContract: this.medicalHouseContract.startOfContract,
@@ -2486,8 +2472,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         kine: this.medicalHouseContract.kine,
                         gp: this.medicalHouseContract.gp,
                         nurse: this.medicalHouseContract.nurse,
+                    }
                 }
-            }
+                this.selected=null
+                this.selectedItem=null
+                this.$["datePickerCreation"].accuracy="day"
+                this.$["datePickerCreation"].value=""
                 this.$['evalutationMonths'].value = 0
                 this.$['startOfCoverage'].value = ""
                 this.updateStartOfCoverage()
@@ -3282,6 +3272,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(e.detail.ok){
                     this.api.patient().getPatientWithUser(this.user,e.detail.patientId).then(p => this.api.register(p, 'patient')).then(p => this.set('selectedPatient', p))
                 }
+            }
+
+            _getPhone(item){
+                return ((item.addresses.find(add => add.telecoms.find(tel=> tel.telecomType==="mobile" || tel.telecomType==="phone"))|| {telecoms:[]}).telecoms.find(tel=> tel.telecomType==="mobile" || tel.telecomType==="phone")||{telecomNumber:""}).telecomNumber
             }
 
         }
