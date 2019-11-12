@@ -236,6 +236,10 @@
                                 type: Object,
                                 value: () => {}
                             },
+                            contactHcp: {
+                                type: Object,
+                                value: () => {}
+                            },
                             currentPatient: {
                                 type: Object,
                                 value: () => {}
@@ -251,6 +255,10 @@
                             currentContact: {
                                 type: Array,
                                 value: () => []
+                            },
+                            selectedContact: {
+                                type: Object,
+                                value: () => {}
                             },
                             allHealthElements: {
                                 type: Array,
@@ -323,11 +331,12 @@
                 return inputValue ? this.api.getCurrentAgeFromBirthDate(inputValue,( e , s ) => this.localize(e, s, this.language)) : ''
             }
 
-            _getPrettifiedHcp() {
+            _getPrettifiedHcp(hcpId=null) {
 
                 const promResolve = Promise.resolve()
 
-                return this.api.hcparty().getCurrentHealthcareParty()
+                return promResolve
+                    .then(() => !hcpId ? this.api.hcparty().getCurrentHealthcareParty() : this.api.hcparty().getHealthcareParty(hcpId))
                     .then(hcp => {
                         const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
                         return _.merge({}, hcp, _.mapValues({
@@ -345,6 +354,15 @@
                         }, i => typeof i === "string" ? !!_.trim(i) ? _.trim(i) : '-' : i))
                     })
                     .catch(()=>promResolve)
+
+            }
+
+            _getPrettifiedContactHcp() {
+
+                // Get from selected contact and not current contact / might be different
+                const contactHcpId = !!_.trim(_.get(this,"_data.selectedContact.responsible","")) ? _.trim(_.get(this,"_data.selectedContact.responsible","")) : _.trim(_.get(this,"user.healthcarePartyId"))
+
+                return contactHcpId === _.trim(_.get(this,"_data.currentHcp.id","")) ? Promise.resolve(_.cloneDeep(_.get(this,"_data.currentHcp",{}))) :  this._getPrettifiedHcp(contactHcpId)
 
             }
 
@@ -468,7 +486,38 @@
                     ), _.isEqual
                 )
 
-                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))))
+
+
+
+
+
+
+                // let prom = Promise.resolve([])
+                // const filteredCodesToResolve = _.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code")))
+                //
+                // return Promise.all(_.map(filteredCodesToResolve, it => {
+                //     prom = prom.then(filteredCodesToResolve => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))
+                //         .then(foundCodes => _.map(foundCodes, singleCode => {
+                //             singleCode = _.merge({},singleCode,{
+                //                 labelHr: singleCode.type === "CD-TRANSACTION" ?
+                //                     _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                //                     singleCode.type === "CD-SEVERITY" ? _.upperFirst(_.trim(this.localize(_.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                //                     singleCode.type === "CD-DAYPERIOD" ? _.upperFirst(_.trim(this.localize('ms_' + _.trim(_.get(singleCode,"code")), (_.trim(_.get(singleCode,"label." + this.language,"")) ? _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) : _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())), this.language)).toLowerCase()) :
+                //                     _.trim(_.get(singleCode,"label." + this.language,"")) ?
+                //                         _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) :
+                //                         _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())
+                //             })
+                //             if(!resolvedCodes[singleCode.type]) { resolvedCodes[singleCode.type] = [singleCode] } else { resolvedCodes[singleCode.type].push(singleCode) }
+                //             return _.concat(filteredCodesToResolve,resolvedCodes)
+                //         }))
+                //     )
+                // }))
+
+
+
+
+
+                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code",""))).catch(e=>{})))
                     .then(promResults => _.map(promResults, promResult => _.map(promResult, singleCode => {
                         singleCode = _.merge({},singleCode,{
                             labelHr: singleCode.type === "CD-TRANSACTION" ?
@@ -611,9 +660,10 @@
                     formatDate: (date) => this.api.moment(date).format('DD/MM/YYYY'),
                     user: _.get(this,"user",{}),
                     patient: _.get(this,"_data.currentPatient",{}),
-                    hcp: _.get(this,"_data.currentHcp",{}),
-                    currentContact: _.get(this,"currentContact",{}),
-                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.currentContact.openingDate","")),
+                    hcp: _.get(this,"_data.contactHcp",{}),
+                    // currentContact: _.get(this,"currentContact",{}),
+                    currentContact: _.get(this,"_data.selectedContact",{}),
+                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.selectedContact.openingDate","")),
                     language: this.language,
                     formsAndDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
                     dataProvider: _.get(this,"dataProvider",{}),
@@ -644,6 +694,420 @@
 
             }
 
+            _getTemplateSelectorColumns() {
+
+                return [
+                    { key: 'name', title: this.localize('name',this.language) },
+                    { key: 'descr', title: this.localize('des',this.language) },
+                    { key: 'createdHr', title: this.localize('creation',this.language) }
+                ]
+
+            }
+
+            _refreshDataProseEditorTemplates() {
+
+                return this._getProseEditorTemplatesAndAttachment()
+                    .then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates}))
+                    .then(() => this.dispatchEvent(new CustomEvent('refresh-templates-menu', {composed: true, bubbles: true, detail: {}})))
+                    .then(() => this._refreshDialogLoadTemplate())
+
+            }
+
+            _flushProseEditorContent() {
+
+                const promResolve = Promise.resolve()
+                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
+
+                return promResolve
+                    .then(() => this.set("_data.proseEditorSelectedTemplate",null))
+                    .then(() => proseEditor && proseEditor.setHTMLContent(""))
+
+            }
+
+            _openDialogLoadTemplate() {
+
+                this.shadowRoot.querySelector("#loadTemplateDialog") && this.shadowRoot.querySelector("#loadTemplateDialog").open()
+                setTimeout(()=>{this._refreshDialogLoadTemplate()},100)
+
+            }
+
+            _refreshDialogLoadTemplate() {
+
+                const loadTemplateDialog = this.shadowRoot.querySelector("#loadTemplateDialog")
+                loadTemplateDialog && ((loadTemplateDialog.filterValue = "  ")||true) && (loadTemplateDialog.refresh()||true) && (loadTemplateDialog.forceRefresh()||true) && setTimeout(()=>{loadTemplateDialog.filterValue = ""},1100)
+
+            }
+
+            _templatesDp() {
+
+                return {
+                    filter: function (filterValue, limit, offset, sortKey, descending) {
+                        const searchTermRegExp = _.trim(filterValue) && new RegExp(_.trim(filterValue).normalize('NFD').replace(/[\u0300-\u036f ]/g, ""), "i")
+                        const filteredResults = _.filter(_.get(this,"_data.proseEditorTemplates",[]), it => _.trim(_.get(it,"searchTerms","")).match(searchTermRegExp))
+                        return Promise.resolve({ totalSize: _.size(filteredResults), rows: (descending ? _.reverse(_.sortBy(filteredResults, sortKey)) : _.sortBy(filteredResults, sortKey)).slice(0, limit) })
+                    }.bind(this)
+                }
+
+            }
+
+            _applyProseEditorTemplate(e, selectedTemplate) {
+
+                const promResolve = Promise.resolve()
+                const prose = this.shadowRoot.querySelector("#prose-editor")
+
+                return (!prose || !_.get(selectedTemplate,"attachmentFileContent")) ? promResolve : promResolve
+                    .then(() => this._flushProseEditorContent())
+                    .then(() => this.set("_data.proseEditorSelectedTemplate",selectedTemplate))
+                    .then(() => prose && prose.setJSONContent(this.api.crypto().utils.ua2utf8(_.get(this,"_data.proseEditorSelectedTemplate.attachmentFileContent"))))
+                    .then(() => this._refreshProseEditorContext())
+
+            }
+
+            _getPrettifiedFormsAndDataProviders(formsAndDataProviders) {
+
+                const promResolve = Promise.resolve()
+                let totalFormCountsByTemplateGuid = []
+
+                return !_.size(formsAndDataProviders) ? promResolve : promResolve.then(() =>  _
+                    .chain(formsAndDataProviders)
+                    .map(formAndDp => {
+                        const formObject = typeof _.get(formAndDp,"dataProvider.form") === "function" && _.get(formAndDp,"dataProvider.form")()
+                        const templateGuid = _.trim(_.get(formObject, "template.guid",""))
+                        return !!formObject && !!templateGuid && {templateGuid:templateGuid, formAndDp:formAndDp}
+                    })
+                    .compact()
+                    .map(it => {
+                        const templateGuid = _.trim(_.get(it,"templateGuid",""))
+                        if(!_.get(totalFormCountsByTemplateGuid,templateGuid,false)) totalFormCountsByTemplateGuid[templateGuid] = 0; totalFormCountsByTemplateGuid[templateGuid]++;
+                        return [templateGuid + "#" + _.trim(totalFormCountsByTemplateGuid[templateGuid]),_.get(it,"formAndDp",null)]
+                    })
+                    .fromPairs()
+                    .value()
+                )
+            }
+
+            _openDialogSaveTemplate() {
+
+                this.$['saveTemplateDialog'].open();
+
+            }
+
+            _dropVarsFromProseJsonContent(proseJsonContent, variablesPath) {
+                if(!_.size(variablesPath)) return proseJsonContent;
+                _.map(variablesPath,(v)=>{_.set( proseJsonContent, v + ".content", [])})
+                return proseJsonContent;
+            }
+
+            _confirmTemplateSaved() {
+
+                if( this.shadowRoot.querySelector("#templateSavedLabel") && this.shadowRoot.querySelector("#templateSavedLabel").classList ) {
+                    this.shadowRoot.querySelector("#templateSavedLabel").classList.add('displayNotification')
+                    setTimeout(() => {this.shadowRoot.querySelector("#templateSavedLabel").classList.remove('displayNotification')}, 5000)
+                }
+
+            }
+
+            _confirmTemplateNotSaved() {
+
+                if( this.shadowRoot.querySelector("#templateNotSavedLabel") && this.shadowRoot.querySelector("#templateNotSavedLabel").classList ) {
+                    this.shadowRoot.querySelector("#templateNotSavedLabel").classList.add('displayNotification')
+                    setTimeout(() => {this.shadowRoot.querySelector("#templateNotSavedLabel").classList.remove('displayNotification')}, 5000)
+                }
+
+            }
+
+            _getProseEditorTemplatesAndAttachment() {
+
+                const promResolve = Promise.resolve()
+
+                return this._getProseEditorTemplates()
+                    .then(foundTemplates => Promise.all(_.map(foundTemplates, template => template && this.api.doctemplate().getAttachmentText(template.id, template.attachmentId).then(attachmentFileContent => _.merge({}, template, {attachmentFileContent:attachmentFileContent})) )))
+                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplatesAndAttachment", e); return promResolve; })
+
+            }
+
+            _getPdfFooter() {
+
+                return `` +
+                    '<'+'script'+'>'+'document.fonts.ready.then(() => { setInterval(() => {document.body.dispatchEvent(new CustomEvent("pdfDoneRenderingEvent"))}, 1000); }); <'+'/script'+'>' + `
+                    </body>
+                </html>`
+
+            }
+
+            _getPdfHeader() {
+
+                return `
+                    <html>
+                        <head>
+
+                            <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Alegreya|Barlow|Barlow+Condensed|Cardo|Crete+Round|EB+Garamond|Exo|Exo+2|Fjalla+One|Great+Vibes|Indie+Flower|Josefin+Sans|Kurale|Libre+Baskerville|Lobster|Lora|Maven+Pro|Monoton|Montserrat|Montserrat+Alternates|Nanum+Myeongjo|Neucha|Old+Standard+TT|Open+Sans|Oswald|Pathway+Gothic+One|Poiret+One|Poppins|Quattrocento|Quattrocento+Sans|Quicksand|Raleway:400,700|Roboto|Roboto+Condensed|Source+Serif+Pro|Spectral|Teko|Tinos|Vollkorn">
+
+                            <style>
+
+                                @page {size: A4; width: 210mm; height: 297mm; margin: 0; padding: 0; }
+                                body {margin: 0; padding: 0mm; font-family: 'Roboto', Arial, Helvetica, sans-serif; font-size:12px; line-height:1.2em; background:#ffffff; -webkit-font-smoothing: antialiased; font-smooth: always; }
+                                .page { padding:8mm; color:#000000; position:relative; background:#ffffff; }
+
+                                h1 { font-size: 1.8em; font-weight: bold; padding:0; margin-top:0; color:#101079; text-transform:uppercase; line-height:1.3em;}
+                                h2 { font-size: 1.5em; font-weight: bold; padding:0; }
+                                h3 { font-size: 1.3em; font-weight: bold; padding:0; }
+                                h4 { font-size: 1.1em; font-weight: bold; padding:0; }
+                                h5 { font-size: 1em; padding:0; }
+
+                                p { padding:0; margin:10px 0 10px 0; }
+
+                                table { width:100%; margin:0 0 10mm 0; border:1px solid #dddddd; border-collapse: collapse; font-size:12px; line-height:1.2em; }
+                                table tr td { border:1px solid #dddddd; font-size:12px; padding:0 3mm; vertical-align:top; }
+
+                            </style>
+
+                        </head>
+
+                    <body>
+                `
+
+            }
+
+            _print(parameters={}) {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+
+                const promResolve = Promise.resolve()
+                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
+                const proseContent = _.trim(_.get(proseEditor,"$.container.innerHTML"))
+                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")), this.localize("out-doc","Outgoing document",this.language), +new Date()]).join(" ")) + ".pdf"
+
+                return promResolve
+                    .then(() => this.set("_isBusy", true))
+                    .then(() => this.api.pdfReport(this._getPdfHeader() + this.api.rewriteTableColumnsWidth(proseContent) + this._getPdfFooter(),_.merge({completionEvent:"pdfDoneRenderingEvent"/*, printBackground:true*/},(!!_.get(parameters,"forceReturnFile",false) ? {} : {type : "rapp-mail"}))))
+                    .then(printedPdf => !!_.get(parameters,"forceReturnFile",false) ? ([printedPdf.pdf,fileName]) : !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", fileName))
+                    .catch(e => console.log("[ERROR] _print", e))
+                    .finally(() => this.set("_isBusy", false))
+
+            }
+
+            _saveDocumentAsService(inputConfig) {
+
+                const promResolve = Promise.resolve()
+
+                const svc = this.api.contact().service().newInstance( _.get(this,"user",{}), {
+                    content: _.fromPairs([[this.language, { documentId: inputConfig.documentId, stringValue: inputConfig.stringValue }]]),
+                    label: _.trim(_.get(inputConfig, "messageObject.subject","")),
+                    contactId: inputConfig.contactId,
+                    tags: [{ type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) }]
+                })
+
+                if(false === _.get(this, "_data.currentContact.services", false)) this._data.currentContact.services = []
+                if(false === _.get(this, "_data.currentContact.subContacts", false)) this._data.currentContact.subContacts = []
+
+                this._data.currentContact.services.push(svc)
+                this._data.currentContact.subContacts.push({
+                    status: 64,
+                    services: [{serviceId: svc.id}],
+                    tags: svc.tags,
+                })
+
+                return promResolve
+                    .then(() => !!_.trim(_.get(this, "_data.currentContact.rev", "")) ?
+                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {})) :
+                        this.api.contact().createContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {}))
+                    )
+                    .then(c=>this.api.register(c,'contact')).then(c => (this._data.currentContact.rev = c.rev) && c)
+                    .then(()=>this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}})))
+
+            }
+
+            _saveAndAddToPatFile() {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+
+                return this._print({forceReturnFile:true})
+                    .then(([printedPdf,fileName]) => {
+
+                        this.set("_isBusy", true)
+
+                        const messageObject = {
+                            transportGuid: "OUTGOING-DOCUMENT:PATIENT:ARCHIVE",
+                            recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                            metas: {
+                                filename : fileName,
+                                hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
+                                contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
+                                templateGuid: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.guid","")),
+                                templateVersion: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.group.guid","")),
+                            },
+                            toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                            subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
+                        }
+
+                        return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"patient",{}))
+                            .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
+                            .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {
+                                documentType: 'report',
+                                mainUti: this.api.document().uti("application/pdf"),
+                                name: _.get(messageObject,"metas.filename"),
+                                tags: [
+                                    {type: "templateGuid", code: _.trim(_.get(messageObject, "metas.templateGuid",""))},
+                                    {type: "templateVersion", code: _.trim(_.get(messageObject, "metas.templateVersion",""))}
+                                ]
+                            }))
+                            .then(documentInstance => this.api.document().createDocument(documentInstance))
+                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, printedPdf).then(encryptedFileContent => [createdDocument,encryptedFileContent]))
+                            .then(([createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => createdDocument))
+                            .then(createdDocument=> this._saveDocumentAsService({
+                                documentId: _.trim(_.get(createdDocument, "id", "")),
+                                stringValue: _.trim(_.get(messageObject,"subject","")),
+                                contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
+                                messageObject: messageObject,
+                            }))
+                            .then(()=>this._flushProseEditorContent())
+                            .then(()=>this.set("_data.proseEditorSelectedTemplate",{}))
+                            .then(()=>this.shadowRoot.querySelector('#outgoingDocumentDialog').close())
+
+                    })
+                    .catch(e => console.log("[ERROR] _saveAndAddToPatFile", e))
+                    .finally(() => this.set("_isBusy", false))
+
+            }
+
+            _doSaveTemplate(e) {
+
+                const promResolve = Promise.resolve()
+                const fieldsToValidate = ["templateName","templateDescription"]
+                const fieldsValidation = _.compact(_.map( fieldsToValidate, k => { const fieldToValidate = this.shadowRoot.querySelector('#' + k); return (fieldToValidate && typeof _.get(fieldToValidate, "validate", false) === "function" && fieldToValidate.validate()); }))
+
+                return (_.size(fieldsToValidate) !== _.size(fieldsValidation)) ? promResolve : promResolve
+                    .then(() => this.set("_isBusy", true))
+                    .then(() => {
+                        const targetButton = !!_.size(_.get(e, "target", "")) && _.get(e, "target.nodeName", "") === "PAPER-BUTTON" ? _.get(e, "target", {}) : _.find(_.get(e, "path", []), p => _.get(p, "nodeName", "") === "PAPER-BUTTON")
+                        const saveAsNewVersion = _.get(targetButton, "dataset.version", {}) === "new"
+                        return (!!saveAsNewVersion || !_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", ""))) ?
+                            this.api.doctemplate().createDocumentTemplate({
+                                created: +new Date(),
+                                documentType: "template",
+                                mainUti: "prose.template.json." + this.language,
+                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
+                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
+                            }) :
+                            this.api.doctemplate().updateDocumentTemplate(_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", "")), {
+                                created: parseInt(_.get(this, "_data.proseEditorSelectedTemplate.created", +new Date())),
+                                guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.guid","")),
+                                group: {name: "version", guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.group.guid",""))},
+                                documentType: "template",
+                                mainUti: "prose.template.json." + this.language,
+                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
+                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
+                                rev: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.rev", "")),
+                            })
+                    })
+                    .then(docTemplateObject => {
+                        const prose = this.root.querySelector("#prose-editor");
+                        const proseJsonContent = prose.editorView.state.doc.toJSON();
+                        const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
+                        const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
+                        const proseTextContentWithoutVars = JSON.stringify(proseJsonContentWithoutVars).replace(/"rendered":"([^"*]*)"/g,'"rendered":""');
+                        console.log("savedTemplate", proseTextContentWithoutVars);
+                        return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), proseTextContentWithoutVars)
+                    })
+                    .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
+                    .then(docTemplateObject=> this.set("_data.proseEditorSelectedTemplate",docTemplateObject))
+                    .then(()=> this._confirmTemplateSaved())
+                    .catch(e=>{ console.log("[ERROR] _doSaveTemplate", e); this._confirmTemplateNotSaved(); })
+                    .finally(() => (this.set("_isBusy", false)||true) && this.$['saveTemplateDialog'].close())
+
+            }
+
+            _getProseEditorTemplates(forceNoAutoInject=false) {
+
+                const promResolve = Promise.resolve()
+                const coreTemplateGuids = [
+                    "new-doc",
+                    "lettre-liaison",
+                    "msoap",
+                    "amu",
+                    "coups-blessures",
+                    "presence-consultation",
+                    // "violences-physiques",
+                    "grossesse",
+                    "bonne-sante",
+                    "aptitude-sportive",
+                    "frequentation-creche",
+                    "rapport-medecin-conseil",
+                    "aide-familiale",
+                    "transport-ambulance",
+                    "bonne-sante-one",
+                    "forfait-incontinence",
+                    "incapacite-vote",
+                    "jour-circonstance",
+                    "frottis-depistage",
+                    "itt",
+                    "necessite-toilette",
+                    "attestation-amu",
+                    "psy",
+                    "placement-malades-mentaux",
+                    "rapport-circonstancie-malades-mentaux",
+                    "itt-independant",
+                ]
+
+                return promResolve
+                    .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
+                    .then(foundTemplates => _
+                        .chain(foundTemplates)
+                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language && !parseInt(_.get(it,"deleted",0)))
+                        .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
+                        .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
+                        .orderBy(["name", "crdate"],["asc", "asc"])
+                        .value()
+                    )
+
+                    // Require static files core templates and compare versions (delete templates from db if obsolete)
+                    .then(foundTemplatesFromDb => Promise.all(_.map(coreTemplateGuids, coreTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + coreTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } }))
+                        .then(staticFilesCoreTemplates => _.compact(_.map(staticFilesCoreTemplates, staticFileTemplate => {
+                            const matchingTemplateFromDatabase = _.find(foundTemplatesFromDb, it => _.trim(_.get(it,"guid")) === _.trim(_.get(staticFileTemplate,"guid")))
+                            return (!!_.trim(_.get(matchingTemplateFromDatabase,"id","")) && (parseInt(_.get(staticFileTemplate,"version",0)) > parseInt(_.get(matchingTemplateFromDatabase,"group.guid",0))) ) ? matchingTemplateFromDatabase : null
+                        })))
+                        .then(templatesToDeleteFromDatabase => !_.size(templatesToDeleteFromDatabase) ?
+                            foundTemplatesFromDb :
+                            Promise.all(_.map(templatesToDeleteFromDatabase, it => this.api.doctemplate().deleteDocumentTemplate(_.trim(_.get(it,"id",""))).catch(e=>{})))
+                                .then(() => {
+                                    const deletedGuids = _.compact(_.map(templatesToDeleteFromDatabase, it => _.trim(_.get(it,"guid"))))
+                                    return _.filter(foundTemplatesFromDb, it => deletedGuids.indexOf(_.trim(_.get(it,"guid"))) === -1)
+                                })
+                        )
+                    )
+                    .then(foundTemplates => {
+
+                        // Have "New document" as last item of list
+                        const sortedFoundTemplates = _.concat(
+                            _.filter(foundTemplates, it => _.trim(_.get(it,"guid","")) !== "new-doc" ),
+                            _.merge(_.find(foundTemplates, it => _.trim(_.get(it,"guid","")) === "new-doc" ), {isLast: true})
+                        )
+
+                        const foundTemplateGuids = _.uniq(_.compact(_.map(sortedFoundTemplates, it=>_.trim(_.get(it,"guid","")))))
+                        const missingTemplateGuids = _.uniq(_.compact(_.difference(coreTemplateGuids, foundTemplateGuids)))
+
+                        // Auto-inject part, when core templates are not found
+                        return (!_.size(missingTemplateGuids) || !!forceNoAutoInject) ? sortedFoundTemplates : promResolve
+                            .then(() => Promise.all(_.map(missingTemplateGuids, missingTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + missingTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } })))
+                            .then(loadedMissingTemplates => Promise.all(_.map(_.filter(loadedMissingTemplates, it => !!_.trim(_.get(it,"guid",""))), templateToInject => this.api.doctemplate().createDocumentTemplate({
+                                    created: +new Date(),
+                                    documentType: _.trim(_.get(templateToInject,"documentType", "template")),
+                                    guid: _.trim(_.get(templateToInject,"guid", "")),
+                                    group: {name: "version", guid: _.trim(_.get(templateToInject,"version", ""))},
+                                    mainUti: _.trim(_.get(templateToInject,"mainUti", "prose.template.json." + this.language)),
+                                    name: _.trim(_.get(templateToInject,"name", this.api.crypto().randomUuid())),
+                                    descr: _.trim(_.get(templateToInject,"descr", "-")),
+                                })
+                                    .then(docTemplateObject => this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(_.get(templateToInject,"content"))))
+                            )))
+                            .then(()=>this._getProseEditorTemplates(true)) // "True" param avoids infinite loop in case template couldn't be "required"
+
+                    })
+                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplates", e); return promResolve; })
+
+            }
+
             _getProseEditorVariables() {
 
                 const staticVariables = [{
@@ -658,7 +1122,7 @@
                                     {type: 'table_row',content: [
                                             {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
                                                     {type:'paragraph', content: [
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("doctor", "Doctor", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}},
+                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("doctorAbreviation", "Dr.", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}},
                                                             {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}, {type:'text', text: ' '},
                                                         ]},
                                                     {type:'paragraph',content: [
@@ -682,7 +1146,7 @@
                               {type:'paragraph',content: [{type:'text', marks: [{type:'strong'}], text: _.trim(this.localize('hcpRegards', 'Fraternally yours', this.language)) + ", "}]},
                               {type:'paragraph',content: [{type:'text', text:" "}]},
                               {type:'paragraph',content: [
-                                  {type:'text', text: this.localize("doctor", "Doctor", this.language) + " "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}}, {type:'text', text: ' - '},
+                                  {type:'text', text: this.localize("doctorAbreviation", "Dr.", this.language) + " "}, {type: 'variable', attrs: {expr: 'hcp.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'hcp.firstName'}}, {type:'text', text: ' - '},
                                   {type:'text', text: this.localize("inami", "Nihii", this.language) + ": "}, {type: 'variable', attrs: {expr: 'hcp.nihiiHr'}}, {type:'text', text: ' '}
                               ]},
 
@@ -693,9 +1157,31 @@
                                 ]},
                           ]
                       },{
+                        name:this.localize('idPatientShort', 'Patient id. (short)', this.language),
+                        nodes: [
+                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatientHr', 'Patient identification', this.language)).toUpperCase()}]},
+                            {type: 'table',content: [
+                                    {type: 'table_row',content: [
+                                            {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
+                                                    {type:'paragraph',content: [
+                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("lastAndAndFirstNames", "Last & first names", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.lastName'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.firstName'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("postalAddress", "Address", this.language) + ": "},
+                                                            {type: 'variable', attrs: {expr: 'patient.address'}}, {type:'text', text: ' - '}, {type: 'variable', attrs: {expr: 'patient.postalCode'}}, {type:'text', text: ' '}, {type: 'variable', attrs: {expr: 'patient.city'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                    {type:'paragraph',content: [
+                                                            {type: 'text', marks: [{type: 'strong'}], text: this.localize("sexLitteral", "Sex", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.genderHr'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("birthDate", "Birthdate", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.dateOfBirthHr'}},
+                                                            {type:'text', text: ' - '}, {type: 'text', marks: [{type: 'strong'}], text: this.localize("ssinPatVerbose", "NISS", this.language) + ": "}, {type: 'variable', attrs: {expr: 'patient.ssinHr'}}, {type:'text', text: ' '},
+                                                        ]},
+                                                ]}
+                                        ]}
+                                ]},
+                            {type: 'paragraph',content: [{type: 'text', text:" "}]},
+                        ]
+                    },{
                         name:this.localize('idPatient', 'Patient identification', this.language),
                         nodes: [
-                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatient', 'Patient identification', this.language)).toUpperCase()}]},
+                            {type: 'paragraph',content: [{type: 'text', marks: [{type: 'strong'},{type: 'underlined'}], text:_.trim(this.localize('idPatientHr', 'Patient identification', this.language)).toUpperCase()}]},
                             {type: 'table',content: [
                                     {type: 'table_row',content: [
                                             {type: 'table_cell',attrs: { "colspan":1,"rowspan":1,"colwidth":null,"borderColor":"#999999","background":"#fafafa"},content: [
@@ -1074,416 +1560,6 @@
 
             }
 
-            _getTemplateSelectorColumns() {
-
-                return [
-                    { key: 'name', title: this.localize('name',this.language) },
-                    { key: 'descr', title: this.localize('des',this.language) },
-                    { key: 'createdHr', title: this.localize('creation',this.language) }
-                ]
-
-            }
-
-            _refreshDataProseEditorTemplates() {
-
-                return this._getProseEditorTemplatesAndAttachment()
-                    .then(proseEditorTemplates => _.assign(this._data, {proseEditorTemplates:proseEditorTemplates}))
-                    .then(() => this.dispatchEvent(new CustomEvent('refresh-templates-menu', {composed: true, bubbles: true, detail: {}})))
-                    .then(() => this._refreshDialogLoadTemplate())
-
-            }
-
-            _flushProseEditorContent() {
-
-                const promResolve = Promise.resolve()
-                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
-
-                return promResolve
-                    .then(() => this.set("_data.proseEditorSelectedTemplate",null))
-                    .then(() => proseEditor && proseEditor.setHTMLContent(""))
-
-            }
-
-            _openDialogLoadTemplate() {
-
-                this.shadowRoot.querySelector("#loadTemplateDialog") && this.shadowRoot.querySelector("#loadTemplateDialog").open()
-                setTimeout(()=>{this._refreshDialogLoadTemplate()},100)
-
-            }
-
-            _refreshDialogLoadTemplate() {
-
-                const loadTemplateDialog = this.shadowRoot.querySelector("#loadTemplateDialog")
-                loadTemplateDialog && ((loadTemplateDialog.filterValue = "  ")||true) && (loadTemplateDialog.refresh()||true) && (loadTemplateDialog.forceRefresh()||true) && setTimeout(()=>{loadTemplateDialog.filterValue = ""},1100)
-
-            }
-
-            _templatesDp() {
-
-                return {
-                    filter: function (filterValue, limit, offset, sortKey, descending) {
-                        const searchTermRegExp = _.trim(filterValue) && new RegExp(_.trim(filterValue).normalize('NFD').replace(/[\u0300-\u036f ]/g, ""), "i")
-                        const filteredResults = _.filter(_.get(this,"_data.proseEditorTemplates",[]), it => _.trim(_.get(it,"searchTerms","")).match(searchTermRegExp))
-                        return Promise.resolve({ totalSize: _.size(filteredResults), rows: (descending ? _.reverse(_.sortBy(filteredResults, sortKey)) : _.sortBy(filteredResults, sortKey)).slice(0, limit) })
-                    }.bind(this)
-                }
-
-            }
-
-            _applyProseEditorTemplate(e, selectedTemplate) {
-
-                const promResolve = Promise.resolve()
-                const prose = this.shadowRoot.querySelector("#prose-editor")
-
-                return (!prose || !_.get(selectedTemplate,"attachmentFileContent")) ? promResolve : promResolve
-                    .then(() => this._flushProseEditorContent())
-                    .then(() => this.set("_data.proseEditorSelectedTemplate",selectedTemplate))
-                    .then(() => prose && prose.setJSONContent(this.api.crypto().utils.ua2utf8(_.get(this,"_data.proseEditorSelectedTemplate.attachmentFileContent"))))
-                    .then(() => this._refreshProseEditorContext())
-
-            }
-
-            _getPrettifiedFormsAndDataProviders(formsAndDataProviders) {
-
-                const promResolve = Promise.resolve()
-                let totalFormCountsByTemplateGuid = []
-
-                return !_.size(formsAndDataProviders) ? promResolve : promResolve.then(() =>  _
-                    .chain(formsAndDataProviders)
-                    .map(formAndDp => {
-                        const formObject = typeof _.get(formAndDp,"dataProvider.form") === "function" && _.get(formAndDp,"dataProvider.form")()
-                        const templateGuid = _.trim(_.get(formObject, "template.guid",""))
-                        return !!formObject && !!templateGuid && {templateGuid:templateGuid, formAndDp:formAndDp}
-                    })
-                    .compact()
-                    .map(it => {
-                        const templateGuid = _.trim(_.get(it,"templateGuid",""))
-                        if(!_.get(totalFormCountsByTemplateGuid,templateGuid,false)) totalFormCountsByTemplateGuid[templateGuid] = 0; totalFormCountsByTemplateGuid[templateGuid]++;
-                        return [templateGuid + "#" + _.trim(totalFormCountsByTemplateGuid[templateGuid]),_.get(it,"formAndDp",null)]
-                    })
-                    .fromPairs()
-                    .value()
-                )
-            }
-
-            _openDialogSaveTemplate() {
-
-                this.$['saveTemplateDialog'].open();
-
-            }
-
-            _dropVarsFromProseJsonContent(proseJsonContent, variablesPath) {
-                if(!_.size(variablesPath)) return proseJsonContent;
-                _.map(variablesPath,(v)=>{_.set( proseJsonContent, v + ".content", [])})
-                return proseJsonContent;
-            }
-
-            _confirmTemplateSaved() {
-
-                if( this.shadowRoot.querySelector("#templateSavedLabel") && this.shadowRoot.querySelector("#templateSavedLabel").classList ) {
-                    this.shadowRoot.querySelector("#templateSavedLabel").classList.add('displayNotification')
-                    setTimeout(() => {this.shadowRoot.querySelector("#templateSavedLabel").classList.remove('displayNotification')}, 5000)
-                }
-
-            }
-
-            _confirmTemplateNotSaved() {
-
-                if( this.shadowRoot.querySelector("#templateNotSavedLabel") && this.shadowRoot.querySelector("#templateNotSavedLabel").classList ) {
-                    this.shadowRoot.querySelector("#templateNotSavedLabel").classList.add('displayNotification')
-                    setTimeout(() => {this.shadowRoot.querySelector("#templateNotSavedLabel").classList.remove('displayNotification')}, 5000)
-                }
-
-            }
-
-            _getProseEditorTemplatesAndAttachment() {
-
-                const promResolve = Promise.resolve()
-
-                return this._getProseEditorTemplates()
-                    .then(foundTemplates => Promise.all(_.map(foundTemplates, template => template && this.api.doctemplate().getAttachmentText(template.id, template.attachmentId).then(attachmentFileContent => _.merge({}, template, {attachmentFileContent:attachmentFileContent})) )))
-                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplatesAndAttachment", e); return promResolve; })
-
-            }
-
-            _getPdfFooter() {
-
-                return `` +
-                    '<'+'script'+'>'+'document.fonts.ready.then(() => { setInterval(() => {document.body.dispatchEvent(new CustomEvent("pdfDoneRenderingEvent"))}, 1000); }); <'+'/script'+'>' + `
-                    </body>
-                </html>`
-
-            }
-
-            _getPdfHeader() {
-
-                return `
-                    <html>
-                        <head>
-
-                            <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Alegreya|Barlow|Barlow+Condensed|Cardo|Crete+Round|EB+Garamond|Exo|Exo+2|Fjalla+One|Great+Vibes|Indie+Flower|Josefin+Sans|Kurale|Libre+Baskerville|Lobster|Lora|Maven+Pro|Monoton|Montserrat|Montserrat+Alternates|Nanum+Myeongjo|Neucha|Old+Standard+TT|Open+Sans|Oswald|Pathway+Gothic+One|Poiret+One|Poppins|Quattrocento|Quattrocento+Sans|Quicksand|Raleway:400,700|Roboto|Roboto+Condensed|Source+Serif+Pro|Spectral|Teko|Tinos|Vollkorn">
-
-                            <style>
-
-                                @page {size: A4; width: 210mm; height: 297mm; margin: 0; padding: 0; }
-                                body {margin: 0; padding: 0mm; font-family: 'Roboto', Arial, Helvetica, sans-serif; font-size:12px; line-height:1.2em; background:#ffffff; -webkit-font-smoothing: antialiased; font-smooth: always; }
-                                .page { padding:8mm; color:#000000; position:relative; background:#ffffff; }
-
-                                h1 { font-size: 1.8em; font-weight: bold; padding:0; margin-top:0; color:#101079; text-transform:uppercase;}
-                                h2 { font-size: 1.5em; font-weight: bold; padding:0; }
-                                h3 { font-size: 1.3em; font-weight: bold; padding:0; }
-                                h4 { font-size: 1.1em; font-weight: bold; padding:0; }
-                                h5 { font-size: 1em; padding:0; }
-
-                                p { padding:0; margin:10px 0 10px 0; }
-
-                                table { width:100%; margin:0 0 10mm 0; border:1px solid #dddddd; border-collapse: collapse; font-size:12px; line-height:1.2em; }
-                                table tr td { border:1px solid #dddddd; font-size:12px; padding:0 3mm; vertical-align:top; }
-
-                            </style>
-
-                        </head>
-
-                    <body>
-                `
-
-            }
-
-            _print(parameters={}) {
-
-                if(!!_.get(this,"_isBusy",false)) return;
-
-                const promResolve = Promise.resolve()
-                const proseEditor = this.shadowRoot.querySelector("#prose-editor")
-                const proseContent = _.trim(_.get(proseEditor,"$.container.innerHTML"))
-                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")), this.localize("out-doc","Outgoing document",this.language), +new Date()]).join(" ")) + ".pdf"
-
-                return promResolve
-                    .then(() => this.set("_isBusy", true))
-                    .then(() => this.api.pdfReport(this._getPdfHeader() + this.api.rewriteTableColumnsWidth(proseContent) + this._getPdfFooter(),_.merge({completionEvent:"pdfDoneRenderingEvent"/*, printBackground:true*/},(!!_.get(parameters,"forceReturnFile",false) ? {} : {type : "rapp-mail"}))))
-                    .then(printedPdf => !!_.get(parameters,"forceReturnFile",false) ? ([printedPdf.pdf,fileName]) : !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", fileName))
-                    .catch(e => console.log("[ERROR] _print", e))
-                    .finally(() => this.set("_isBusy", false))
-
-            }
-
-            _saveDocumentAsService(inputConfig) {
-
-                const promResolve = Promise.resolve()
-
-                const svc = this.api.contact().service().newInstance( _.get(this,"user",{}), {
-                    content: _.fromPairs([[this.language, { documentId: inputConfig.documentId, stringValue: inputConfig.stringValue }]]),
-                    label: _.trim(_.get(inputConfig, "messageObject.subject","")),
-                    contactId: inputConfig.contactId,
-                    tags: [{ type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) }]
-                })
-
-                if(false === _.get(this, "_data.currentContact.services", false)) this._data.currentContact.services = []
-                if(false === _.get(this, "_data.currentContact.subContacts", false)) this._data.currentContact.subContacts = []
-
-                this._data.currentContact.services.push(svc)
-                this._data.currentContact.subContacts.push({
-                    status: 64,
-                    services: [{serviceId: svc.id}],
-                    tags: svc.tags,
-                })
-
-                return promResolve
-                    .then(() => !!_.trim(_.get(this, "_data.currentContact.rev", "")) ?
-                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {})) :
-                        this.api.contact().createContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {}))
-                    )
-                    .then(c=>this.api.register(c,'contact')).then(c => (this._data.currentContact.rev = c.rev) && c)
-                    .then(()=>this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}})))
-
-            }
-
-            _saveAndAddToPatFile() {
-
-                if(!!_.get(this,"_isBusy",false)) return;
-
-                return this._print({forceReturnFile:true})
-                    .then(([printedPdf,fileName]) => {
-
-                        this.set("_isBusy", true)
-
-                        const messageObject = {
-                            transportGuid: "OUTGOING-DOCUMENT:PATIENT:ARCHIVE",
-                            recipients: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
-                            metas: {
-                                filename : fileName,
-                                hcpId: _.trim(_.get(this, "_data.currentHcp.id", "")),
-                                contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
-                                templateGuid: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.guid","")),
-                                templateVersion: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.group.guid","")),
-                            },
-                            toAddresses: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
-                            subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
-                        }
-
-                        return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"patient",{}))
-                            .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
-                            .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {
-                                documentType: 'report',
-                                mainUti: this.api.document().uti("application/pdf"),
-                                name: _.get(messageObject,"metas.filename"),
-                                tags: [
-                                    {type: "templateGuid", code: _.trim(_.get(messageObject, "metas.templateGuid",""))},
-                                    {type: "templateVersion", code: _.trim(_.get(messageObject, "metas.templateVersion",""))}
-                                ]
-                            }))
-                            .then(documentInstance => this.api.document().createDocument(documentInstance))
-                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, printedPdf).then(encryptedFileContent => [createdDocument,encryptedFileContent]))
-                            .then(([createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => createdDocument))
-                            .then(createdDocument=> this._saveDocumentAsService({
-                                documentId: _.trim(_.get(createdDocument, "id", "")),
-                                stringValue: _.trim(_.get(messageObject,"subject","")),
-                                contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
-                                messageObject: messageObject,
-                            }))
-                            .then(()=>this._flushProseEditorContent())
-                            .then(()=>this.set("_data.proseEditorSelectedTemplate",{}))
-                            .then(()=>this.shadowRoot.querySelector('#outgoingDocumentDialog').close())
-
-                    })
-                    .catch(e => console.log("[ERROR] _saveAndAddToPatFile", e))
-                    .finally(() => this.set("_isBusy", false))
-
-            }
-
-            _doSaveTemplate(e) {
-
-                const promResolve = Promise.resolve()
-                const fieldsToValidate = ["templateName","templateDescription"]
-                const fieldsValidation = _.compact(_.map( fieldsToValidate, k => { const fieldToValidate = this.shadowRoot.querySelector('#' + k); return (fieldToValidate && typeof _.get(fieldToValidate, "validate", false) === "function" && fieldToValidate.validate()); }))
-
-                return (_.size(fieldsToValidate) !== _.size(fieldsValidation)) ? promResolve : promResolve
-                    .then(() => this.set("_isBusy", true))
-                    .then(() => {
-                        const targetButton = !!_.size(_.get(e, "target", "")) && _.get(e, "target.nodeName", "") === "PAPER-BUTTON" ? _.get(e, "target", {}) : _.find(_.get(e, "path", []), p => _.get(p, "nodeName", "") === "PAPER-BUTTON")
-                        const saveAsNewVersion = _.get(targetButton, "dataset.version", {}) === "new"
-                        return (!!saveAsNewVersion || !_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", ""))) ?
-                            this.api.doctemplate().createDocumentTemplate({
-                                created: +new Date(),
-                                documentType: "template",
-                                mainUti: "prose.template.json." + this.language,
-                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
-                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
-                            }) :
-                            this.api.doctemplate().updateDocumentTemplate(_.trim(_.get(this, "_data.proseEditorSelectedTemplate.id", "")), {
-                                created: parseInt(_.get(this, "_data.proseEditorSelectedTemplate.created", +new Date())),
-                                guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.guid","")),
-                                group: {name: "version", guid: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.group.guid",""))},
-                                documentType: "template",
-                                mainUti: "prose.template.json." + this.language,
-                                name: _.trim(this.shadowRoot.querySelector('#templateName').value),
-                                descr: _.trim(this.shadowRoot.querySelector('#templateDescription').value),
-                                rev: _.trim(_.get(this, "_data.proseEditorSelectedTemplate.rev", "")),
-                            })
-                    })
-                    .then(docTemplateObject => {
-                        const prose = this.root.querySelector("#prose-editor");
-                        const proseJsonContent = prose.editorView.state.doc.toJSON();
-                        const variablesPath = this.api.findJsonObjectPathByPropNameAndPropValue( proseJsonContent, "type", "variable" );
-                        const proseJsonContentWithoutVars = this._dropVarsFromProseJsonContent(proseJsonContent, variablesPath);
-                        const proseTextContentWithoutVars = JSON.stringify(proseJsonContentWithoutVars).replace(/"rendered":"([^"*]*)"/g,'"rendered":""');
-                        console.log("savedTemplate", proseTextContentWithoutVars);
-                        return this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), proseTextContentWithoutVars)
-                    })
-                    .then(docTemplateObject=> this._refreshDataProseEditorTemplates().then(()=>docTemplateObject))
-                    .then(docTemplateObject=> this.set("_data.proseEditorSelectedTemplate",docTemplateObject))
-                    .then(()=> this._confirmTemplateSaved())
-                    .catch(e=>{ console.log("[ERROR] _doSaveTemplate", e); this._confirmTemplateNotSaved(); })
-                    .finally(() => (this.set("_isBusy", false)||true) && this.$['saveTemplateDialog'].close())
-
-            }
-
-            _getProseEditorTemplates(forceNoAutoInject=false) {
-
-                const promResolve = Promise.resolve()
-                const coreTemplateGuids = [
-                    "new-doc",
-                    "lettre-liaison",
-                    "msoap",
-                    "amu",
-                    "coups-blessures",
-                    "presence-consultation",
-                    // "violences-physiques",
-                    "grossesse",
-                    "bonne-sante",
-                    "aptitude-sportive",
-                    "frequentation-creche",
-                    "rapport-medecin-conseil",
-                    "aide-familiale",
-                    "transport-ambulance",
-                    "bonne-sante-one",
-                    "forfait-incontinence",
-                    "incapacite-vote",
-                    "jour-circonstance",
-                    "frottis-depistage",
-                    "itt",
-                    "necessite-toilette",
-                    "attestation-amu",
-                ]
-
-                return promResolve
-                    .then(() => this.api.doctemplate().findDocumentTemplatesByDocumentType('template'))
-                    .then(foundTemplates => _
-                        .chain(foundTemplates)
-                        .filter(it => _.trim(_.get(it,"mainUti","")) === "prose.template.json." + this.language && !parseInt(_.get(it,"deleted",0)))
-                        .map(it =>_.merge({},it,{createdHr:moment(it.created).format('DD/MM/YYYY - HH:mm:ss')}))
-                        .map(it =>_.merge({},it,{searchTerms: _.trim(_.trim(_.get(it,"id") + " " + _.get(it,"name") + " " + _.get(it,"descr")).normalize('NFD').replace(/[\u0300-\u036f ]/g, "").toLowerCase()) }))
-                        .orderBy(["name", "crdate"],["asc", "asc"])
-                        .value()
-                    )
-
-                    // Require static files core templates and compare versions (delete templates from db if obsolete)
-                    .then(foundTemplatesFromDb => Promise.all(_.map(coreTemplateGuids, coreTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + coreTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } }))
-                        .then(staticFilesCoreTemplates => _.compact(_.map(staticFilesCoreTemplates, staticFileTemplate => {
-                            const matchingTemplateFromDatabase = _.find(foundTemplatesFromDb, it => _.trim(_.get(it,"guid")) === _.trim(_.get(staticFileTemplate,"guid")))
-                            return (!!_.trim(_.get(matchingTemplateFromDatabase,"id","")) && (parseInt(_.get(staticFileTemplate,"version",0)) > parseInt(_.get(matchingTemplateFromDatabase,"group.guid",0))) ) ? matchingTemplateFromDatabase : null
-                        })))
-                        .then(templatesToDeleteFromDatabase => !_.size(templatesToDeleteFromDatabase) ?
-                            foundTemplatesFromDb :
-                            Promise.all(_.map(templatesToDeleteFromDatabase, it => this.api.doctemplate().deleteDocumentTemplate(_.trim(_.get(it,"id",""))).catch(e=>{})))
-                                .then(() => {
-                                    const deletedGuids = _.compact(_.map(templatesToDeleteFromDatabase, it => _.trim(_.get(it,"guid"))))
-                                    return _.filter(foundTemplatesFromDb, it => deletedGuids.indexOf(_.trim(_.get(it,"guid"))) === -1)
-                                })
-                        )
-                    )
-                    .then(foundTemplates => {
-
-                        // Have "New document" as last item of list
-                        const sortedFoundTemplates = _.concat(
-                            _.filter(foundTemplates, it => _.trim(_.get(it,"guid","")) !== "new-doc" ),
-                            _.merge(_.find(foundTemplates, it => _.trim(_.get(it,"guid","")) === "new-doc" ), {isLast: true})
-                        )
-
-                        const foundTemplateGuids = _.uniq(_.compact(_.map(sortedFoundTemplates, it=>_.trim(_.get(it,"guid","")))))
-                        const missingTemplateGuids = _.uniq(_.compact(_.difference(coreTemplateGuids, foundTemplateGuids)))
-
-                        // Auto-inject part, when core templates are not found
-                        return (!_.size(missingTemplateGuids) || !!forceNoAutoInject) ? sortedFoundTemplates : promResolve
-                            .then(() => Promise.all(_.map(missingTemplateGuids, missingTemplateGuid => { try { return require("./rsrc/outgoing-document-template-" + missingTemplateGuid + "-" + this.language + ".json") } catch(e) { return promResolve } })))
-                            .then(loadedMissingTemplates => Promise.all(_.map(_.filter(loadedMissingTemplates, it => !!_.trim(_.get(it,"guid",""))), templateToInject => this.api.doctemplate().createDocumentTemplate({
-                                    created: +new Date(),
-                                    documentType: _.trim(_.get(templateToInject,"documentType", "template")),
-                                    guid: _.trim(_.get(templateToInject,"guid", "")),
-                                    group: {name: "version", guid: _.trim(_.get(templateToInject,"version", ""))},
-                                    mainUti: _.trim(_.get(templateToInject,"mainUti", "prose.template.json." + this.language)),
-                                    name: _.trim(_.get(templateToInject,"name", this.api.crypto().randomUuid())),
-                                    descr: _.trim(_.get(templateToInject,"descr", "-")),
-                                })
-                                    .then(docTemplateObject => this.api.doctemplate().setAttachment(_.trim(_.get(docTemplateObject, "id","")), JSON.stringify(_.get(templateToInject,"content"))))
-                            )))
-                            .then(()=>this._getProseEditorTemplates(true)) // "True" param avoids infinite loop in case template couldn't be "required"
-
-                    })
-                    .catch(e=>{ console.log("[ERROR] _getProseEditorTemplates", e); return promResolve; })
-
-            }
-
             open(inputData) {
 
                 if(!!_.get(this,"_isBusy",false)) return;
@@ -1495,6 +1571,7 @@
                     .then(() => { this.set("_isBusy", true); this.shadowRoot.querySelector('#outgoingDocumentDialog').open(); })
                     .then(() => this._getPrettifiedFormsAndDataProviders(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[]))).then(formsAndDataProviders => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders:formsAndDataProviders})))
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
+                    .then(() => this._getPrettifiedContactHcp().then(hcps => _.assign(this._data, {contactHcp:hcps})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
                     .then(() => this._getCodesFromData().then(codes => _.assign(this._data, {codes:codes})))
                     .then(() => this._getPrettifiedHealthElements(_.get(this,"_data.allHealthElements",[])).then(x=>x))
@@ -1506,7 +1583,6 @@
                     .catch(e => console.log("[ERROR] outgoing document", e, inputData))
                     .finally(() => (this.set("_isBusy", false)||true) && console.log("--- this._data ---",this._data))
 
-                    // Todo: Close menu when clicking outside
                     // Todo: When using prose template object, can't write in it ? Cusor jumps after one char typed / render issue ?
                     // Todo: Handle incomplete dates with Julien's new method of icc-api
                     // Todo: With linking letters, create smart component to get recipient details using cobra
