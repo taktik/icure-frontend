@@ -267,7 +267,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 opacity: 0;
             }
 
-
             .notification-panel {
                 position: fixed;
                 top: 50%;
@@ -283,6 +282,39 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 opacity: 0;
             }
 
+            .patient-info{
+                display:flex;
+                flex-direction:row;
+                flex-wrap: nowrap;
+                color: var(--primary-text-color);
+            }
+
+            .patient-info-picture-container {
+                margin-top: 2px;
+                height: 14px;
+                width: 14px;
+                min-width: 14px;
+                border-radius:50%;
+                overflow: hidden;
+            }
+
+            .patient-info-picture-container img{
+                width:100%;
+                margin:50%;
+                transform: translate(-50%,-50%);
+            }
+
+            .patient-info-container{
+                display:flex;
+                flex-direction:row;
+                flex-wrap: nowrap;
+                margin-top: 4px;
+            }
+
+            .patient-info-text{
+                margin-left: 4px;
+                font-size: var(--font-size-small);
+            }
 
             footer.log-info {
                 position: fixed;
@@ -416,6 +448,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
             #ht-invite-hcp .content{
                 padding: 12px;
+                height : 400px;
             }
             paper-dialog#ht-invite-hcp-user-already-exists{
                 width: 60%;
@@ -645,6 +678,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 max-height: 100%;
             }
 
+            .keystoreExpIcon{
+                color: var(--app-status-color-nok)!important;
+                height: 13px;
+                width: 13px;
+            }
+
         </style>
 
         <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
@@ -785,7 +824,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <splash-screen-tz></splash-screen-tz>
                     </ht-main>
                     <ht-pat id="ht-pat" name="pat" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}" credentials="[[credentials]]"
-                            socket="[[socket]]" on-user-saved="_userSaved" on-idle="resetTimer" on-force-reload-patient="forceReloadPatient" on-error-electron="setElectronErrorMessage">
+                            socket="[[socket]]" on-user-saved="_userSaved" on-idle="resetTimer" on-patient-changed="_patientChanged" on-force-reload-patient="forceReloadPatient" on-error-electron="setElectronErrorMessage">
                         <splash-screen-tz></splash-screen-tz>
                     </ht-pat>
                     <ht-hcp name="hcp" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}">
@@ -812,12 +851,32 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         <span id="eHealthStatus" class="ehealth-connection-status pending"></span>
                         <paper-tooltip for="eHealthStatus" position="top">[[localize('ehe','eHealth status',language)]]</paper-tooltip>
                     </div>
+                    <div class="eHealth-status-container">
+                        <template is="dom-if" if="[[showKeystoreExpiredStatusIcon]]">
+                            <iron-icon id="keystoreExpiredStatusIcon" icon="vaadin:warning" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiredStatusIcon" position="top"> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</paper-tooltip>
+                        </template>
+                        <template is="dom-if" if="[[showKeystoreExpiresSoonStatusIcon]]">
+                            <iron-icon id="keystoreExpiresSoonStatusIcon" icon="alarm" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiresSoonStatusIcon" position="top"> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]] </paper-tooltip>
+                        </template>
+                    </div>
                     <template is="dom-if" if="[[hasMHCertificate]]">
                         <div class="eHealth-status-container">
                             <iron-icon icon="icure-svg-icons:ehealth"></iron-icon>
                             <span>[[localize('medical_house','Medical House',language)]] eHealth</span>
                             <span id="eHealthMHStatus" class="ehealth-mh-connection-status pending"></span>
                             <paper-tooltip for="eHealthMHStatus" position="top">[[localize('eheMM','eHealth status for Medical House certificats',language)]]</paper-tooltip>
+                        </div>
+                    </template>
+                    <template is="dom-if" if="{{patient}}">
+                        <div class="patient-info">
+                            <div class="patient-info-picture-container"><img src$="[[picture(patient,patient.picture)]]"></div>
+                            <div class="patient-info-container">
+                                <span class="patient-info-text">[[getGender(patient.gender)]] [[patient.firstName]] [[patient.lastName]]</span>
+                                <span class="patient-info-text">°[[_timeFormat(patient.dateOfBirth)]] °[[_ageFormat(patient.dateOfBirth)]]</span>
+                                <span class="patient-info-text">°[[patient.ssin]]</span>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -852,8 +911,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         <template is="dom-if" if="[[busySpinner]]"><div id="busySpinner"><div id="busySpinnerContainer"><ht-spinner class="spinner" active></ht-spinner></div></div></template>
 
         <paper-dialog id="ht-invite-hcp">
-            <h2 class="modal-title">[[localize('inviteHCP','Invite a colleague ',language)]]</h2>
-            <div id="" class="content formNewHcp">
+            <h2 class="modal-title">[[localize('inviteHCP','Invite a colleague',language)]]</h2>
+            <div class="content">
                 <paper-input class="inviteHcpInput" label="[[localize('las_nam','Last name',language)]]" value="{{lastName}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('ema','Email',language)]]" value="{{email}}"></paper-input>
@@ -867,8 +926,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
         <paper-dialog id="ht-invite-hcp-link">
-            <h3>Lien de première connexion</h3>
-            <h4>[[invitedHcpLink]]</h4>
+            <h2 class="modal-title">Lien de première connexion</h2>
+            <div class="content">
+                <div style="padding:12px;height: 100px;">[[invitedHcpLink]]</div>
+            </div>
+            <div class="buttons">
+                <paper-button dialog-dismiss class="button">[[localize('clo','Close',language)]]</paper-button>
+            </div>
         </paper-dialog>
 
         <paper-dialog id="ht-invite-hcp-user-already-exists">
@@ -940,6 +1004,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </vaadin-grid>
         </paper-dialog>
 
+
+        <template is="dom-if" if="[[showKeystoreExpiredLabel]]">
+            <div class="failedLabel displayNotification" id="keystoreExpiredLabel"><iron-icon icon="clear"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</div>
+        </template>
+        <template is="dom-if" if="[[showKeystoreExpiresSoonLabel]]">
+            <div class="warningLabel displayNotification" id="keystoreExpiresSoonLabel"><iron-icon icon="alarm"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]</div>
+        </template>
+
+
     </template>
 
     <script>
@@ -984,7 +1057,49 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         Type: Object,
                         noReset: true,
                         value() {
-                            moment.locale('fr')
+                            moment.locale('fr', {
+                                months : 'janvier_février_mars_avril_mai_juin_juillet_août_septembre_octobre_novembre_décembre'.split('_'),
+                                monthsShort : 'janv._févr._mars_avr._mai_juin_juil._août_sept._oct._nov._déc.'.split('_'),
+                                monthsParseExact : true,
+                                weekdays : 'dimanche_lundi_mardi_mercredi_jeudi_vendredi_samedi'.split('_'),
+                                weekdaysShort : 'dim._lun._mar._mer._jeu._ven._sam.'.split('_'),
+                                weekdaysMin : 'Di_Lu_Ma_Me_Je_Ve_Sa'.split('_'),
+                                weekdaysParseExact : true,
+                                longDateFormat : {
+                                    LT : 'HH:mm',
+                                    LTS : 'HH:mm:ss',
+                                    L : 'DD/MM/YYYY',
+                                    LL : 'D MMMM YYYY',
+                                    LLL : 'D MMMM YYYY HH:mm',
+                                    LLLL : 'dddd D MMMM YYYY HH:mm'
+                                },
+                                calendar : {
+                                    sameDay : '[Aujourd’hui à] LT',
+                                    nextDay : '[Demain à] LT',
+                                    nextWeek : 'dddd [à] LT',
+                                    lastDay : '[Hier à] LT',
+                                    lastWeek : 'dddd [dernier à] LT',
+                                    sameElse : 'L'
+                                },
+                                relativeTime : {
+                                    future : 'dans %s',
+                                    past : 'il y a %s',
+                                    s : 'quelques secondes',
+                                    m : 'une minute',
+                                    mm : '%d minutes',
+                                    h : 'une heure',
+                                    hh : '%d heures',
+                                    d : 'un jour',
+                                    dd : '%d jours',
+                                    M : 'un mois',
+                                    MM : '%d mois',
+                                    y : 'un an',
+                                    yy : '%d ans'
+                                },
+                                week : {
+                                    dow :1
+                                }
+                            });
                             const res = {
                                 monthNames: moment.months(),
                                 weekdays: moment.weekdays(),
@@ -994,16 +1109,42 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 calendar: 'Calendrier',
                                 clear: 'Clear',
                                 today: 'Aujourd\'hui',
+                                thisMonth: "ce mois-ci",
+                                thisYear: "cette année",
                                 cancel: 'Annuler',
-                                formatDate(d) {
-                                    //return moment(d).format(moment.localeData().longDateFormat('L'))
-                                    return moment(d).format('DD/MM/YYYY')
+                                formatDate(d, accuracy) {
+                                    const date = moment(d).format('DD/MM/YYYY')
+                                    return accuracy==="year" ? date.substr(6) : accuracy==="month" ? date.substr(3) : date
                                 },
-                                parseDate(s) {
-                                    return moment(s, 'DD/MM/YYYY').toDate()
+                                parseDate(text) {
+                                    const parts = text.split('/');
+                                    const today = new Date();
+                                    let day, month = today.getMonth(), year = today.getFullYear(),accuracy="";
+
+                                    parts.reverse()
+                                    if (parts.length >= 1) {
+                                        year = parseInt(parts[0]);
+                                        accuracy="year";
+                                    }
+                                    if (parts.length >= 2 && parseInt(parts[1]) > 0) {
+                                        month = parseInt(parts[1]) - 1;
+                                        accuracy="month";
+                                    }else{
+                                        month= 0;
+                                    }
+                                    if (parts.length >= 3 && parseInt(parts[2])>0) {
+                                        day = parseInt(parts[2]);
+                                        accuracy="day";
+                                    }else{
+                                        day = 1;
+                                    }
+
+                                    if (day !== undefined) {
+                                        return {day, month, year, accuracy};
+                                    }
                                 },
                                 formatTitle(monthName, fullYear) {
-                                    return monthName + ' ' + fullYear
+                                    return monthName
                                 }
                             }
                             return res
@@ -1162,7 +1303,27 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     electronErrorMessage:{
                         type:String,
                         value:""
-                    }
+                    },
+                    keyStoreValidityLabel : {
+                        type : String,
+                        value : ""
+                    },
+                    showKeystoreExpiresSoonLabel: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiredLabel: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiresSoonStatusIcon: {
+                        type : Boolean,
+                        value : false
+                    },
+                    showKeystoreExpiredStatusIcon: {
+                        type : Boolean,
+                        value : false
+                    },
                 }
             }
 
@@ -1170,7 +1331,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return [
                     '_routePageChanged(routeData.page)',
                     '_isValidInvite(lastName,firstName,validMail)',
-                    'isMailValid(email)'
+                    'isMailValid(email)',
+                    'resourceAndLanguageChanged(resources,language)'
                 ]
             }
 
@@ -1288,10 +1450,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         })
 
                         this.socket.on("auto-read-card-eid", cards =>{
+                            if(typeof cards==="string" && cards.includes("Error"))return;
                             if(this.route.path.includes("/pat")){
-                                this.$["ht-pat"].autoReadCardEid(cards)
-                            }else if(this.route.path.includes("/main")){
-                                this.$["htmain"].autoReadCardEid(cards)
+                                this.$["ht-pat"] && typeof this.$["ht-pat"].autoReadCardEid ==="function" && this.$["ht-pat"].autoReadCardEid(cards)
+                            }else if(this.route.path.includes("/main") && !this.route.path.includes("/auth")){
+                                this.$["htmain"] && typeof this.$["htmain"].autoReadCardEid ==="function" && this.$["htmain"].autoReadCardEid(cards)
                             }
                         })
 
@@ -1486,7 +1649,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                     this.worker && this.worker.terminate()
 
-                    this.reset()
+                    if(this.view!=="auth")this.reset()
                     this.set('routeData.page', '/')
                     //setTimeout(() => window.location.reload(), 100) // don't reload at logout
                 } else {
@@ -1575,6 +1738,34 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['ht-app-account-selector'].open()
             }
 
+            _showToasterMessage(id) {
+                this.set(id, true)
+                setTimeout(() => { this.set(id, false) }, 5000*2)
+            }
+
+            _checkKeystoreValidity() {
+                //console.log("_checkKeystoreValidity: ", this.showKeystoreExpiredLabel, this.showKeystoreExpiresSoonLabel)
+                const monthLimit = 2 // number of remaining months when to start warning the user
+
+                this.api.fhc().Stscontroller().getKeystoreInfoUsingGET(this.api.keystoreId, this.credentials.ehpassword).then(info => {
+                    if(info.validity && info.validity - moment().valueOf() <= 0) {
+                        this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+                        this._showToasterMessage("showKeystoreExpiredLabel")
+                        this.set("showKeystoreExpiredStatusIcon", true)
+                        this.set("showKeystoreExpiresSoonStatusIcon", false)
+                    } else if(info.validity && info.validity - moment().add(monthLimit, 'months').valueOf() <= 0) {
+                        this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+                        this._showToasterMessage("showKeystoreExpiresSoonLabel")
+                        this.set("showKeystoreExpiresSoonStatusIcon", true)
+                        this.set("showKeystoreExpiredStatusIcon", false)
+                    } else {
+                        this.set("showKeystoreExpiredStatusIcon", false)
+                        this.set("showKeystoreExpiresSoonStatusIcon", false)
+                    }
+                })
+
+            }
+
             _getToken() {
                 return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
                 {
@@ -1582,7 +1773,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpassword, isMH ? hcp.nihii.substr(0,8): hcp.ssin, this.api.keystoreId, isMH).then(res => {
                         this.$.eHealthStatus.classList.remove('pending')
                         this.$.eHealthStatus.classList.remove('disconnected')
-                        this.$.eHealthStatus.classList.add('connected')
+
+                        !_.isEmpty(res) ? this.$.eHealthStatus.classList.add('connected') : this.$.eHealthStatus.classList.add('disconnected')
 
                         this.set('api.isMH', isMH)
                         if(isMH){
@@ -1640,13 +1832,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 //get the password from local storage
                 //let mhPassword= "";
                 return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
-                    .then(hcp => this.$.api.hcparty().getHealthcareParty(hcp.parentId))
+                    .then(hcp => hcp.parentId ? this.$.api.hcparty().getHealthcareParty(hcp.parentId) : hcp)
                     .then(hcpMH => {
                         this.set('hasMHCertificate', hcpMH && this.api.keystoreIdMH)
                         return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpasswordMH, hcpMH.nihii.substr(0, 8), this.api.keystoreIdMH, true).then(res => {
                             if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('pending')
                             if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('disconnected')
-                            if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.add('connected')
+                            !_.isEmpty(res) ? this.root.getElementById('eHealthMHStatus') ? this.root.getElementById('eHealthMHStatus').classList.add('connected') : null : this.root.getElementById('eHealthMHStatus').classList.add('disconnected')
 
                             this.set('api.tokenIdMH', res.tokenId)
                             this.set('api.tokenMH', res.token)
@@ -1674,10 +1866,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.set('headers', _.assign(_.assign({}, this.headers),
                         {Authorization: 'Basic ' + btoa(this.credentials.userId + ':' + this.credentials.appToken)}))
                 }
-                else if ((this.credentials.username && this.credentials.password)) {
-                    this.set('headers', _.assign(_.assign({}, this.headers),
+                // else if ((this.credentials.username && this.credentials.password)) {
+                else this.set('headers', _.assign(_.assign({}, this.headers),
                         {Authorization: 'Basic ' + btoa(this.credentials.username + ':' + this.credentials.password + (this.credentials.twofa ? '|' + this.credentials.twofa : ''))}))
-                }
+                // }
 
                 //Be careful not to use this.api here as it might not have been defined yet
                 //TODD debounce here
@@ -1766,7 +1958,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this._timeCheckMH(0)//Should launch directly, no wait in this case!!!
                         this._inboxMessageCheck()
                         this._checkForUpdateMessage()
-                        this._correctionDateOfBirth();
+                        this._correctionGenderPatients();
 
                     })
                 }).catch(function (e) {
@@ -1813,6 +2005,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     if (ehKeychain) {
                         return this.$.api.fhc().Stscontroller().uploadKeystoreUsingPOST(ehKeychain).then(res => {
                             this.$.api.keystoreId = res.uuid
+                            this._checkKeystoreValidity()
                             return this._getToken()
                         }).catch((e) => {
                             this.$.eHealthStatus.classList.remove('pending')
@@ -2054,6 +2247,31 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['ht-access-log'].open()
             }
 
+            _patientChanged(e) {
+                this.set("patient", e.detail.patient);
+            }
+
+            _timeFormat(date) {
+                return date ? this.api.moment(date).format(date > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
+            }
+
+            _ageFormat(date) {
+                return date ? this.api.getCurrentAgeFromBirthDate(date,( e , s ) => this.localize(e, s, this.language)) : '';
+            }
+
+            getGender(gender){
+                if(gender==="male")return "M.";
+                if(gender==="female")return "Mme";
+                else return "";
+            }
+
+            picture(pat) {
+                if (!pat) {
+                    return require('../images/male-placeholder.png');
+                }
+                return pat.picture ? 'data:image/png;base64,' + pat.picture : (pat.gender && pat.gender.substr(0,1).toLowerCase() === 'f') ? require('../images/female-placeholder.png') : require('../images/male-placeholder.png');
+            }
+
             createAndInviteUser(){
                 this.api.hcparty().createHealthcareParty({
                     "name": this.lastName + " " + this.firstName,
@@ -2286,12 +2504,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set("electronErrorMessage","")
             }
 
+            //Deprecated - restore date of brith of patients with the ssin of patient
             _correctionDateOfBirth() {
 
                 if( !this.user || !this.api || !!this.busyCorrectingDatesOfBirth || moment().format("YYYYMMDD") > "20190901" ) return;
                 this.busyCorrectingDatesOfBirth = true;
 
-                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""))
+                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""),this.filterForDate)
                     .then(myPatients=>_.chain(myPatients).filter(p => [6,8,11,13].indexOf(_.trim(p.ssin).length) > -1 && !(parseInt(p.dateOfBirth)||null)).value())
                     .then(patients => {
 
@@ -2325,13 +2544,57 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
-            _getPatientsByHcp(hcpId) {
+            // - restore gender of patients with the ssin of patient
+            _correctionGenderPatients(){
+                const isChecked = localStorage.getItem("checked_gender_"+_.get(this,"user.healthcarePartyId","0")) || false;
+                if( !this.user || isChecked || !!this.busyCorrectingGender || !this.api || moment().format("YYYYMMDD") > "20191201" ) return;
+                this.busyCorrectingGender = true;
+
+                this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""),this.filterForGender)
+                    .then(patients => _.chain(patients).filter(p => this.api.patient().isValidSsin(p.ssin)).value())
+                    .then(patients => {
+                        let prom = Promise.resolve([])
+                        let number = 1;
+                        _.map(patients, pat => {
+                            prom = prom.then(promisesCarrier => {
+                                const gender = pat.ssin.slice(6, 9) % 2 === 1 ? "male" : "female";
+                                console.log("patient n°"+number+"/"+patients.length+" with ssin n°"+pat.ssin+" : gender de base ==="+pat.gender+" | nouveau gender ==="+gender)
+                                number+=1;
+                                if (gender !== pat.gender) {
+                                    return this.api.patient().modifyPatientWithUser(this.user,_.merge({},pat,{gender : gender || "unknow"}))
+                                        .then(p=>this.api.register(p,"patient"))
+                                        .then(p=>_.concat(promisesCarrier, p))
+                                        .catch(()=>Promise.resolve())
+                                }else{
+                                    return Promise.resolve([])
+                                }
+                            })
+                        })
+
+                        return prom
+                            .then(() => {
+                                this.busyCorrectingGender = false
+                                console.log("fini")
+                                localStorage.setItem("checked_gender_"+_.get(this,"user.healthcarePartyId","0"),true);
+                            })
+                    })
+            }
+
+            filterForDate(pl){
+                return _.filter( pl.rows, i => !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")) && parseInt(_.get(i,"ssin", "")) )
+            }
+
+            filterForGender(pl){
+                return _.filter( pl.rows, i => parseInt(_.get(i,"ssin", "0")))
+            }
+
+            _getPatientsByHcp(hcpId,filterFunction) {
                 return this.api.getRowsUsingPagination(
                     (key,docId) =>
                         this.api.patient().listPatientsByHcPartyWithUser(this.user, hcpId, null, key && JSON.stringify(key), docId, 1000)
                             .then(pl => {
                                 return {
-                                    rows: _.filter( pl.rows, i => !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")) && parseInt(_.get(i,"ssin", "")) ),
+                                    rows: filterFunction(pl),
                                     nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
                                     nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
                                     done: !pl.nextKeyPair
@@ -2350,6 +2613,25 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if(e.detail && e.detail.origin && e.detail.origin.includes("ht-auto-read-eid-opening")){
                     this._refreshPatient();
                 }
+            }
+
+            resourceAndLanguageChanged(){
+                if(!this.resources || !this.language)return;
+                const months =  Array.from(Array(12).keys()).map(month =>this.localize("month_"+(month+1),month+1,this.language || "en"))
+                const weeks = Array.from(Array(7).keys()).map(month =>this.localize("weekDay_"+(month+1),"un jour",this.language || "en"))
+                weeks.unshift(weeks[6])
+                weeks.pop()
+                this.set("i18n.monthNames",months)
+                this.set("i18n.monthNamesShort",months.map(month => month.substr(0,3)))
+                this.set("i18n.weekdays",weeks)
+                this.set("i18n.weekdaysShort",weeks.map(day => day.substr(0,3)))
+                this.set("i18n.week",this.localize('week','Semaine',this.language));
+                this.set("i18n.calendar",this.localize('calendar','Calendrier',this.language))
+                this.set("i18n.clear",this.localize('clear','Clear',this.language))
+                this.set("i18n.today",this.localize("sel_tod",'Aujourd\'hui',this.language))
+                this.set("i18n.thisMonth",this.localize("this_month","ce mois-ci",this.language))
+                this.set("i18n.thisYear",this.localize("this_year","cette année",this.language))
+                this.set("i18n.cancel",this.localize("can",'Annuler',this.language))
             }
 
         }

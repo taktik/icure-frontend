@@ -33,6 +33,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../styles/dialog-style.html">
 <link rel="import" href="../../styles/notification-style.html">
 <link rel="import" href="./dialogs/ht-import-mf-dialog.html">
+<link rel="import" href="./dialogs/ht-pat-fusion-dialog.html">
 <link rel="import" href="../../styles/buttons-style.html">
 <link rel="import" href="../../styles/paper-input-style.html">
 <link rel="import" href="../dynamic-form/dynamic-date-field.html">
@@ -477,27 +478,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     font-size: var(--form-font-size);
                 }
 
-                #fusionDialog {
-                    width: 50%;
-                }
-
-                #fusionDialog .content {
-                    padding-top: 24px;
-                    padding-bottom: calc(24px + 52px);
-                    display: flex;
-                    flex-flow: row wrap;
-                    justify-content: center;
-                }
-
-                #fusionDialog .content > div {
-                    width: 100%;
-                    text-align: center;
-                }
-
-                #fusionDialog .content paper-input-container{
-                    --paper-input-container-focus-color: var(--app-primary-color);
-                }
-
                 #duplicate-list {
                     max-height: 200px;
                 }
@@ -934,6 +914,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </custom-style>
 
         <div class="container">
+            <ht-pat-fusion-dialog id="fusion-dialog" api="[[api]]" language="[[language]]" user="[[user]]" i18n="[[i18n]]" resources="[[resources]]" on-patient-merged="_patientMerged"></ht-pat-fusion-dialog>
             <ht-auto-read-eid-opening id="autoRead" language="[[language]]" resources="[[resources]]" card="[[cardData]]" api="[[api]]" user="[[user]]"></ht-auto-read-eid-opening>
 
             <div class="second-filter-panel">
@@ -1061,7 +1042,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             <div class="cell numeric">[[localize('pho','Phone',language)]]</div>
                         </template>
                         <template>
-                            <div class="cell numeric">[[item.phone]]</div>
+                            <div class="cell numeric">[[_getPhone(item)]]</div>
                         </template>
                     </vaadin-grid-column>
                     <!-- <vaadin-grid-column flex-grow="0" width="150px">
@@ -1181,11 +1162,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <iron-pages selected="[[tabs]]">
                         <page>
                             <div class="content-block horizontal">
-                                <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
-                                <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                                <template is="dom-if" if="[[onElectron]]">
+                                    <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
+                                    <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                                </template>
                                 <paper-input always-float-label label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
                                 <paper-input always-float-label label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
-                                <vaadin-date-picker-light i18n="[[i18n]]" attr-for-value="value">
+                                <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" need-full-date="[[fullDateMode]]">
                                     <paper-input always-float-label label="[[localize('dat_of_bir','Date of birth',language)]]" value="{{dateAsString}}"></paper-input>
                                 </vaadin-date-picker-light>
                                 <paper-input always-float-label label="[[localize('niss','Ssin',language)]]" value="{{ssin}}" on-keyup="_searchDuplicate"></paper-input>
@@ -1206,6 +1189,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         </paper-listbox>
                                     </paper-menu-button>
                                 </paper-input-container>
+                                <paper-checkbox class="doNotDisplay" checked="{{createMhContract}}" id="createMedicalHouseContractCheckBox" label="[[localize('subscription_form_medical_house','Medicalhouse flatrate subscription',language)]]"
+                                                always-float-label
+                                                style="margin-right:30px; margin-top:30px">[[localize('subscription_form_medical_house','Medicalhouse flatrate subscription',language)]]?
+                                </paper-checkbox>
                             </div>
                         </page>
                         <page>
@@ -1396,7 +1383,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
         <paper-dialog id="sharePatientDelegationDialog">
-            <h2 class="modal-title">[[localize("titleSharPatDelDia","Quels sont les droits d'accès à partager ?",language)]]</h2>
+            <h2 class="modal-title">[[localize("titleSharPatDelDia","Quels sont les drdoits d'accès à partager ?",language)]]</h2>
             <div class="content">
                 <vaadin-grid items="[[hcpSelectedForSharing]]">
                     <vaadin-grid-column width="150px">
@@ -1501,27 +1488,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="button button--save" dialog-dismiss>[[localize('done','Done',language)]]</paper-button>
             </div>
         </paper-dialog>
-
-        <paper-dialog id="fusionDialog">
-            <h2 class="modal-title">[[localize('fus_pat','Fusion patients',language)]]</h2>
-            <div class="content">
-                <div>[[localize('fir_pat_fus','Selectionner le patient qui restera',language)]]</div>
-                <paper-dropdown-menu-light>
-                    <label></label>
-                    <paper-listbox slot="dropdown-content" selected="{{fusionSelected}}" attr-for-selected="name">
-                        <template is="dom-repeat" items="[[patientSelected]]">
-                            <paper-item name="[[item.id]]">[[item.names]]</paper-item>
-                        </template>
-                    </paper-listbox>
-                </paper-dropdown-menu-light>
-            </div>
-            <div class="buttons">
-                <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
-                <paper-button class="button button--save" dialog-confirm autofocus disabled="[[!fusionSelected.length]]" on-tap="confirmFusion">[[localize('fus_pat','Fusion patients',language)]]
-                </paper-button>
-            </div>
-        </paper-dialog>
-
     </template>
 
     <script>
@@ -1535,6 +1501,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         import '../../../bower_components/js-xlsx/shim.js'
 
         const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+        import * as models from 'icc-api/dist/icc-api/model/models'
 
         class HtPatList extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1584,34 +1551,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     taskProgress: {
                         type: Number,
                         value: 0
-                    },
-                    i18n: {
-                        Type: Object,
-                        value: function () {
-                            moment.locale('fr')
-                            const res = {
-                                monthNames: moment.months(),
-                                weekdays: moment.weekdays(),
-                                weekdaysShort: moment.weekdaysShort(),
-                                firstDayOfWeek: moment.localeData().firstDayOfWeek(),
-                                week: 'Semaine',
-                                calendar: 'Calendrier',
-                                clear: 'Clear',
-                                today: 'Aujourd\'hui',
-                                cancel: 'Annuler',
-                                formatDate: function (d) {
-                                    //return moment(d).format(moment.localeData().longDateFormat('L'))
-                                    return moment(d).format('DD/MM/YYYY')
-                                },
-                                parseDate: function (s) {
-                                    return moment(s, 'DD/MM/YYYY').toDate()
-                                },
-                                formatTitle: function (monthName, fullYear) {
-                                    return monthName + ' ' + fullYear
-                                }
-                            }
-                            return res
-                        }
                     },
                     selectedFilters: {
                         type: Array,
@@ -1714,10 +1653,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: String,
                         notify: true
                     },
-                    fusionSelected: {
-                        type: String,
-                        value : ""
-                    },
                     hcpFilterValue: {
                         type: String
                     },
@@ -1761,6 +1696,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             hcpId: ''
                         })
                     },
+                    createMhContract:{
+                      type: Boolean,
+                      value: false
+                    },
                     isLoadingPatient: {
                         type: Boolean,
                         value: false
@@ -1787,6 +1726,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Object,
                         value: {}
                     },
+                    newPatCardData: {
+                        type: Object,
+                        value: {}
+                    },
                     canAddPat: {
                         type: Boolean,
                         value: false
@@ -1802,6 +1745,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     openAddedPatient: {
                         type: Boolean,
                         value: true
+                    },
+                    fullDateMode:{
+                        type:Boolean,
+                        value:false
                     }
 
                 }
@@ -1810,7 +1757,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             static get observers() {
                 return [
                     '_hcpChanged(hcp)','_selectedFilterIndexesChanged(selectedFilterIndexes.splices)', '_filterValueChanged(filterValue)', '_showInactivePatientsChanged(showInactive)', '_hcpFilterChanged(hcpFilterValue, _allHcpsChecked)',
-                    '_canAddPat(lastName,firstName,dateAsString,ssin,listResultPatients)', '_resetSearchField(selectedPatient)'
+                    '_canAddPat(lastName,firstName,dateAsString,ssin,listResultPatients)', '_resetSearchField(selectedPatient)', '_createMhContractChanged(createMhContract)'
                 ]
             }
 
@@ -1881,7 +1828,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             } catch (ignored) {}
                         }
 
-                        const filter = svcFilter ? null : {
+                        let filter = svcFilter ? null : {
                             '$type': 'IntersectionFilter',
                             'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                             'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word => /^[0-9]{11}$/.test(word) ? {
@@ -1897,30 +1844,61 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                 'filters': [
                                     {
-                                        '$type': 'PatientByHcPartyDateOfBirthBetweenFilter', 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        '$type': 'PatientByHcPartyDateOfBirthBetweenFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                         'minDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '00') : Number(word.substr(0,4) + '0000'),
                                         'maxDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '99') : Number(word.substr(0,4) + '9999')
+                                    },
+                                    {
+                                        '$type': 'PatientByHcPartyAndSsinFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        'ssin': word
                                     },
                                     {
                                         '$type': 'PatientByHcPartyAndExternalIdFilter', 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
                                         'externalId': word
                                     }
                                 ]
-                            } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
-                                '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            } : /^[0-9]+$/.test(word) ? {
+                                '$type': 'PatientByHcPartyAndSsinFilter',
                                 'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
-                                'searchString': word
+                                'ssin': word
+                            // } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
+                            //     '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                            //     'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                            //     'searchString': word
                             } : null))
                         }
+
+                        if (filter.filters.length < 1)
+                            filter = {
+                                '$type': 'UnionFilter',
+                                'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                'filters': _.compact(latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map(word =>
+                                    word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g, '').length >= 2 ? {
+                                        '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                                        'healthcarePartyId': currentHcp.parentId || this.user.healthcarePartyId,
+                                        'searchString': word
+                                    } : null))
+                            }
 
                         const predicates = svcFilter ? [] : latestSearchValue.split(/[ ,;:]+/).filter(w => w.length >= 2).map( word =>
                             /^[0-9]{11}$/.test(word) ? (() => true) :
                                 /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? (() => true) :
                                     /^[0-9]{3}[0-9]+$/.test(word) ? ((p) => (p.dateOfBirth && (`${p.dateOfBirth}`.includes(word))) || (p.externalId && p.externalId.includes(word))) :
                                         (p => {
+                                            let addresses = "";
+                                            p.addresses.forEach(address => {
+                                                if (addresses.length > 0)
+                                                    addresses += " ";
+                                                addresses += this._getPostalAddress(address);
+                                            })
+                                            console.log("search predicate on addresses: " + addresses)
                                             const w = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'')
                                             return w.length<2 ? true : (p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
-                                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
+                                                (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                                (p.placeOfBirth && p.placeOfBirth.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                                (addresses && addresses.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
                                         })
                         )
 
@@ -2110,21 +2088,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }, 500) //Wait for the user to stop typing
             }
 
+            _getPostalAddress(address) {
+                return _.compact([
+                    _.trim(_.get(address,"street","")),
+                    _.trim(_.get(address,"houseNumber","")) + (!!_.trim(_.get(address,"postboxNumber","")) ? "/" + _.trim(_.get(address,"postboxNumber","")) : ""),
+                    ( !!_.trim(_.get(address,"postalCode","")) || !!_.trim(_.get(address,"city",""))) ? "-" : "",
+                    _.trim(_.get(address,"postalCode","")),
+                    _.trim(_.get(address,"city",""))
+                ]).join(" ")
+            }
 
             pimpPatient(p) {
                 p.email = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'email').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
                 p.phone = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'phone').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
                 p.mobile = p.addresses && p.addresses.map(a => a.telecoms && a.telecoms.filter(t => t.telecomType === 'mobile').map(t => t.telecomNumber).join()).filter(a => a).join() || ''
-
-                const addressData = _.find(_.get(p,"addresses",[]), {addressType:"home"}) || _.find(_.get(p,"addresses",[]), {addressType:"work"}) || _.get(p,"addresses[0]",[])
-                p.postalAddress = _.compact([
-                     _.trim(_.get(addressData,"street","")),
-                    _.trim(_.get(addressData,"houseNumber","")) + (!!_.trim(_.get(addressData,"postboxNumber","")) ? "/" + _.trim(_.get(addressData,"postboxNumber","")) : ""),
-                    ( !!_.trim(_.get(addressData,"postalCode","")) || !!_.trim(_.get(addressData,"city",""))) ? "-" : "",
-                    _.trim(_.get(addressData,"postalCode","")),
-                    _.trim(_.get(addressData,"city",""))
-                ]).join(" ")
-
+                const address = _.find(_.get(p,"addresses",[]), {addressType:"home"}) || _.find(_.get(p,"addresses",[]), {addressType:"work"}) || _.get(p,"addresses[0]",[])
+                p.postalAddress = this._getPostalAddress(address);
                 return p
             }
 
@@ -2172,10 +2151,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         if (res.cards[0]) {
                             this.set('firstName', res.cards[0].firstName)
                             this.set('lastName', res.cards[0].surname)
-                            this.set('dateAsString', this.api.moment(res.cards[0].dateOfBirth * 1000).format('YYYY-MM-DD'))
+                            this.set('dateAsString', this.api.moment(res.cards[0].dateOfBirth * 1000).format('DD/MM/YYYY'))
                             this.set('ssin', res.cards[0].nationalNumber)
                             this.set('valueGender', res.cards[0].gender === 'M' ? 'male' : 'female')
-                            this.set('cardData',res.cards[0])
+                            this.set('newPatCardData',res.cards[0])
                         }
                     })
             }
@@ -2345,17 +2324,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['import-mf-dialog'].open()
             }
 
-            generateXlsFile(data) {
+            generateXlsFile(data, filename, title, author) {
 
                 // Create xls work book and assign properties
+                filename = filename || ("patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls")
+                title = title || "Patients list"
+                author = author || "iCure"
                 const xlsWorkBook = {SheetNames: [], Sheets: {}}
-                xlsWorkBook.Props = {Title: "Patients list", Author: "iCure"}
+                xlsWorkBook.Props = {Title: title, Author: author}
 
                 // Create sheet based on json data collection
                 var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
 
                 // Link sheet to workbook
-                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, 'Patients list')
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, title)
 
                 // Virtual data output
                 var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
@@ -2373,7 +2355,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                 // Link to url
                 downloadLink.href = urlObject
-                downloadLink.download = "patient-list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
+                downloadLink.download = filename
 
                 // Trigger download and drop object
                 downloadLink.click()
@@ -2394,13 +2376,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         lastName: this.lastName,
                         firstName: this.firstName,
                         active: true,
-                        dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(moment(this.dateAsString, 'DD/MM/YYYY').format('YYYYMMDD')) || null,
+                        dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(_.padEnd(this.dateAsString.split("/").reverse().join(""),8,"0")) || null,
                         ssin: this.ssin,
                         gender: this.valueGender,
                         medicalHouseContracts: [this.medicalHouseContractShadowObject]
                     }
-                    if (Object.keys(this.cardData).length !== 0 && this.ssin === this.cardData.nationalNumber) {
-                        let streetData = _.trim(this.cardData.street).split(" ")
+                    if (Object.keys(this.newPatCardData).length !== 0 && this.ssin === this.newPatCardData.nationalNumber) {
+                        let streetData = _.trim(this.newPatCardData.street).split(" ")
                         const number = streetData.find(str => str.match(/\d/g))
                         const boxNumber = streetData[streetData.length - 1] !== number ? streetData[streetData.length - 1] : ""
                         const street = streetData.reduce((tot, str) => {
@@ -2410,24 +2392,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             return tot;
                         })
                         _.merge(newPatient, {
-                            placeOfBirth: this.cardData.locationOfBirth,
-                            nationality: this.cardData.nationality,
-                            picture: this.cardData.picture,
+                            placeOfBirth: this.newPatCardData.locationOfBirth,
+                            nationality: this.newPatCardData.nationality,
+                            picture: this.newPatCardData.picture,
                             addresses: [
                                 {
                                     addressType: "home",
                                     street: street,
                                     houseNumber: number,
                                     postboxNumber: boxNumber,
-                                    postalCode: this.cardData.zipCode,
-                                    city: this.cardData.municipality,
-                                    country: this.cardData.country
+                                    postalCode: this.newPatCardData.zipCode,
+                                    city: this.newPatCardData.municipality,
+                                    country: this.newPatCardData.country
                                 }
                             ]
                         })
                     }
-                    this.updateStartOfCoverage()
-                    newPatient.medicalHouseContracts[0] = this.medicalHouseContractShadowObject;
+                    if(this.createMhContract) {
+                        this.updateStartOfCoverage()
+                        newPatient.medicalHouseContracts[0] = this.medicalHouseContractShadowObject;
+                    }else{
+                        newPatient.medicalHouseContracts.pop();
+                    }
                     return this.api.patient().newInstance(this.user, newPatient).then(
                         p => this.api.patient().createPatientWithUser(this.user, p)
                     ).then(
@@ -2476,8 +2462,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.dateAsString = null
                 this.ssin = null
                 this.valueGender = null
+                this.cardData=[];
                 if(this.medicalHouseContract) {
-                this.medicalHouseContractShadowObject = {
+                    this.medicalHouseContractShadowObject = {
                         hcpId: this.medicalHouseContract.hcpId,
                         mmNihii: this.medicalHouseContract.mmNihii,
                         startOfContract: this.medicalHouseContract.startOfContract,
@@ -2485,8 +2472,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         kine: this.medicalHouseContract.kine,
                         gp: this.medicalHouseContract.gp,
                         nurse: this.medicalHouseContract.nurse,
+                    }
                 }
-            }
+                this.selected=null
+                this.selectedItem=null
+                this.$["datePickerCreation"].accuracy="day"
+                this.$["datePickerCreation"].value=""
                 this.$['evalutationMonths'].value = 0
                 this.$['startOfCoverage'].value = ""
                 this.updateStartOfCoverage()
@@ -2738,8 +2729,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (this.fusionOption) {
                     this.set("patientSelected", this.patientSelected.filter(element => element.check === true))
                     if (this.patientSelected.length > 1)
-                        this.set("fusionSelected","")
-                        this.$['fusionDialog'].open()
+                        this.api.patient().getPatientsWithUser(this.user,new models.ListOfIdsDto({ids:_.uniq(this.patientSelected.map(pat => pat.id))}))
+                            .then(pats => this.$['fusion-dialog'].open(pats))
                 }
             }
 
@@ -3104,24 +3095,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 return this.shareOption || this.exportOption || this.fusionOption
             }
 
-            confirmFusion() {
-                this.set("isLoadingPatient",true)
-                let listIds = ""
-                this.patientSelected.forEach(patient => {
-                    if (patient.id !== this.fusionSelected)
-                        listIds += patient.id + ","
-                })
-                listIds = listIds.substring(0, listIds.length - 1)
-                //console.log(listIds)
-                if (this.fusionSelected)
-                    this.api.patient().mergeIntoWithUser(this.user, this.fusionSelected, listIds).then(response => {
-                        console.log(response)
-                        this.set('selectedPatient', response)
-                        this.set('isLoadingPatient',false)
-                    })
-                else this.set('isLoadingPatient',false)
-            }
-
             _isPatientsSelected() {
                 return this.patientSelected.filter(x => x.check == true).length
             }
@@ -3160,28 +3133,47 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
-
+            //TODO: check for flatrate invoice type of MH HCP: "billingType": "flatRate"
             checkForParentMedicalHouse() {
                 if (this.user && this.user.healthcarePartyId) {
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
                         if ( !!(hcp && hcp.parentId) || _.trim(_.get(hcp,"type","")).toLowerCase() === "medicalhouse" ) {
                             this.api.hcparty().getHealthcareParty(_.get(hcp,"parentId", _.trim(hcp.id) )).then(parentHcp => {
-                                if ( _.trim(_.get(parentHcp,"type","")).toLowerCase() === "medicalhouse" || _.trim(_.get(hcp,"type","")).toLowerCase() === "medicalhouse" ) {
+                                if ( (_.trim(_.get(parentHcp,"type","")).toLowerCase() === "medicalhouse"
+                                    || _.trim(_.get(hcp,"type","")).toLowerCase() === "medicalhouse")
+                                && (_.trim(_.get(parentHcp,"billingType","")).toLowerCase() === "flatrate"
+                                        || _.trim(_.get(hcp,"billingType","")).toLowerCase() === "flatrate")) {
                                     this.shadowRoot.getElementById("medicalHouseTabView").classList.remove("doNotDisplay")
+                                    this.shadowRoot.getElementById("createMedicalHouseContractCheckBox").classList.remove("doNotDisplay")
                                     this.hcpParentMedicalHouseData = parentHcp
+                                    this.set("createMhContract", true);
                                 } else {
                                     this.shadowRoot.getElementById("medicalHouseTabView").classList.add("doNotDisplay")
+                                    this.shadowRoot.getElementById("createMedicalHouseContractCheckBox").classList.add("doNotDisplay")
+                                    this.set("createMhContract", false);
                                 }
                             })
                         } else {
                             this.shadowRoot.getElementById("medicalHouseTabView").classList.add("doNotDisplay")
+                            this.shadowRoot.getElementById("createMedicalHouseContractCheckBox").classList.add("doNotDisplay")
+                            this.set("createMhContract", false);
                         }
                     })
                 } else {
                     this.shadowRoot.getElementById("medicalHouseTabView").classList.add("doNotDisplay")
+                    this.shadowRoot.getElementById("createMedicalHouseContractCheckBox").classList.add("doNotDisplay")
+                    this.set("createMhContract", false);
                 }
             }
 
+            _createMhContractChanged(mhc){
+                if(mhc){
+                    this.shadowRoot.getElementById("medicalHouseTabView").classList.remove("doNotDisplay")
+                }else{
+                    this.shadowRoot.getElementById("medicalHouseTabView").classList.add("doNotDisplay")
+                }
+
+            }
 
             _mhSearch(e) {
                 let mhLatestSearchValue = e && e.detail.value
@@ -3274,6 +3266,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             cleanNiss(niss){
                 return niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
+            }
+
+            _patientMerged(e){
+                if(e.detail.ok){
+                    this.api.patient().getPatientWithUser(this.user,e.detail.patientId).then(p => this.api.register(p, 'patient')).then(p => this.set('selectedPatient', p))
+                }
+            }
+
+            _getPhone(item){
+                return ((item.addresses.find(add => add.telecoms.find(tel=> tel.telecomType==="mobile" || tel.telecomType==="phone"))|| {telecoms:[]}).telecoms.find(tel=> tel.telecomType==="mobile" || tel.telecomType==="phone")||{telecomNumber:""}).telecomNumber
             }
 
         }
