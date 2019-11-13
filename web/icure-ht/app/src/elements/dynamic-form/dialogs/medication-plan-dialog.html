@@ -35,7 +35,7 @@
             }
 
             .present, .patient {
-                height: 100%;
+                height: calc(100% - 35px);
                 overflow-y: auto;
                 margin-top: 0;
                 padding: 24px;
@@ -697,6 +697,20 @@
                 padding: 0;
             }
 
+            paper-checkbox {
+                --primary-color: var(--paper-indigo-500);
+                margin: 0 24px;
+            }
+
+            paper-checkbox{
+                --paper-checkbox-checked-color: var(--app-secondary-color);
+            }
+
+            .header-content{
+                padding: 5px;
+                height: 25px;
+            }
+
         </style>
 
         <paper-dialog id="medication-plan" always-on-top="true" no-cancel-on-outside-click="true">
@@ -712,6 +726,10 @@
 
             <div class="content">
                 <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                    <div class="header-content">
+                        <paper-checkbox on-change="checkChanged" id="needPres" label="[[localize('need_display_presc','need Display Presc',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_presc','need Display Presc',language)]]</paper-checkbox>
+                        <paper-checkbox checked on-change="checkChanged" id="needMedi" label="[[localize('need_display_medication','need display medication',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_medication','need display medication',language)]]</paper-checkbox>
+                    </div>
                     <div class="present">
                         <div class="table">
                             <div class="tr th">
@@ -789,7 +807,7 @@
                             </div>
                             <!-- END HEADER -->
                             <!-- START BODY -->
-                            <template is="dom-repeat" items="[[medicationClassesWithPosology]]" as="medicationsWithPosology">
+                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*,needDisplayPresc,needDisplayMedication)]]" as="medicationsWithPosology">
                                 <div class="tr category">
                                     <div class="td"></div>
                                     <div class="td td--category" style="flex-grow: 5;">
@@ -995,6 +1013,9 @@
 
 
             <div class="buttons">
+                <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                    <paper-button on-tap="print" class="button button--other">[[localize('print','Print',language)]]</paper-button>
+                </template>
                 <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('close','Close',language)]]</paper-button>
 
                 <!--<paper-button dialog-confirm autofocus on-tap="" class="button button--save">[[localize('add_medication','Add Medication',language)]]</paper-button>-->
@@ -1005,6 +1026,8 @@
     <script>
 
         import _ from 'lodash/lodash'
+        import moment from 'moment/src/moment'
+        import mustache from "mustache/mustache.js";
 
         class MedicationPlanDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1156,12 +1179,24 @@
                     patient : {
                         type : Object,
                         value : {}
+                    },
+                    prescriptions:{
+                        type: Array,
+                        value: []
+                    },
+                    needDisplayPresc:{
+                      type: Boolean,
+                      value: false
+                    },
+                    needDisplayMedication:{
+                        type: Boolean,
+                        value : true
                     }
                 }
             }
 
             static get observers() {
-                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medications.*)']
+                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medications.*)','_prescriptionsChanged(prescriptions.*)']
             }
 
             constructor() {
@@ -1368,6 +1403,50 @@
                 return regsTable
             }
 
+            checkChanged(e){
+                this.set("needDisplayPresc",this.shadowRoot.querySelector("#needPres").checked)
+                this.set("needDisplayMedication",this.shadowRoot.querySelector("#needMedi").checked)
+            }
+
+            _getPrescrMed(){
+                const prescTab =this.medicationClassesWithPosology.map(val => this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
+                const medTab =this.prescriptionsClassesWithPosology.map(val => this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
+                return _.zipWith(medTab, prescTab,(med,presc) =>{
+                    return {
+                        "letter" : _.get(med, 'letter', null),
+                        "meds" : _.uniq(_.concat(this.needDisplayMedication ? _.get(med, 'meds', []) : [],this.needDisplayPresc? _.get(presc, 'meds', []) :[]))
+                    };
+                });
+            }
+
+            _prescriptionsChanged(){
+                const scores = this.api.contact().medication().regimenScores()
+                this.prescriptionsClassesWithPosology =  _.sortBy(Object.values(this.prescriptions.filter(prescr => {
+                    const medValue = this.api.contact().medicationValue(prescr)
+                    return (medValue && medValue.endMoment || prescr.closingDate) ? this.api.moment(medValue && medValue.endMoment || prescr.closingDate).isSameOrAfter(moment()) : true
+                }).map( p => ({
+                    medication:p, regimenTable: this.extractRegimenSlices(((this.api.contact().preferredContent(p, this.language) || {}).medicationValue || {}).regimen, 'daily', [
+                        x => x < scores.beforebreakfast,
+                        x => x === scores.beforebreakfast,
+                        x => x === scores.duringbreakfast,
+                        x => x === scores.afterbreakfast,
+                        x => x < scores.beforelunch,
+                        x => x === scores.beforelunch,
+                        x => x === scores.duringlunch,
+                        x => x === scores.afterlunch,
+                        x => x < scores.beforedinner,
+                        x => x === scores.beforedinner,
+                        x => x === scores.duringdinner,
+                        x => x === scores.afterdinner,
+                        x => x > scores.afterdinner
+                    ])
+                })).reduce((acc,p) => {
+                    const letter = ((p.medication && p.medication.codes && p.medication.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0,1)
+                    ;(acc[letter] || (acc[letter] = {letter:letter, meds:[]})).meds.push(p)
+                    return acc
+                }, {})), 'letter')
+            }
+
             _medicationsChanged() {
                 const scores = this.api.contact().medication().regimenScores()
                 this.medicationClassesWithPosology =  _.sortBy(Object.values(this.medications.map( m => ({
@@ -1430,7 +1509,7 @@
             }
 
             _medicationClass(m) {
-                return m.colour && (m.colour + '-back') || ''
+                return (m.colour && (m.colour + '-back'))|| "ATC--"+_.get(m.codes.find(c=> c.type==="CD-ATC"), 'code', ' ').charAt(0)+"-back"
             }
 
             _localizedTitle(medicationsWithPosology) {
@@ -1728,6 +1807,58 @@
 
             reset(){
                 this.$.chapterivdialog && this.$.chapterivdialog.reset()
+            }
+
+            print() {
+                const template = require("./src/medication-doctor-view-pdf-template.json")
+
+                let list = this._getPrescrMed()
+                list = list.map(l => {
+                    l.localizedTitle = this._localizedTitle(l)
+                    l.meds = l.meds.map(med => {
+                        med.combinedTableHeaders0 = this.combinedTableHeaders(list, 0)
+                        med.combinedTableHeaders4 = this.combinedTableHeaders(list, 4)
+                        med.combinedTableHeaders8 = this.combinedTableHeaders(list, 8)
+                        med.combinedTableHeaders12 = this.combinedTableHeaders(list, 12)
+                        med.medicationClass = this._medicationClass(med.medication)
+                        med.serviceDescription = this._serviceDescription(med.medication)
+                        med.servicePosology = this._servicePosology(med.medication)
+                        med.euro = this._hasValidChap4Class(med.medication)==="ok"? template.icon.euroOK : this._hasValidChap4Class(med.medication)==="pending" ? template.icon.euroPending : template.icon.euroNok
+                        med.getMedicationClosingDate = this._getMedicationClosingDate(med.medication)
+                        return med;
+                    })
+                    return l;
+                })
+                const view = {
+                    history : template.icon.history,
+                    list: list,
+                    moon : template.icon.moon,
+                    sun : template.icon.sun,
+                    localize: {
+                        mom_break: this.localize('mom_break', 'Breakfast', this.language),
+                        mom_lunch: this.localize('mom_lunch', 'Lunch', this.language),
+                        mom_dinner: this.localize('mom_dinner', 'Dinner', this.language),
+                        medic: this.localize('medic', 'Medicine', this.language),
+                        freq: this.localize('freq', 'Frequency', this.language),
+                        mom_before: this.localize('mom_before_short', 'Before', this.language),
+                        mom_during: this.localize('mom_during_short', 'During', this.language),
+                        mom_after: this.localize('mom_after_short', 'After', this.language),
+                        endDate: this.localize('endDate', 'End Date', this.language),
+                        com: this.localize('com', 'Comments', this.language)
+                    }
+                }
+
+                this.api.pdfReport(mustache.render(template.html, view), {
+                    type: "rapp-mail",
+                    rotate : 1
+                }).then(({pdf: pdfFileContent, printed: printed}) => !printed && this.api.triggerFileDownload(
+                    pdfFileContent,
+                    "application/pdf",
+                    _.kebabCase(_.compact([
+                        "schema_medication_",
+                        +new Date()
+                    ]).join("_")) + ".pdf"
+                ))
             }
         }
 

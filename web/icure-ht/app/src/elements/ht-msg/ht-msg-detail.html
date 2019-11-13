@@ -1552,7 +1552,7 @@
                                     <div class="fr50"><paper-input label="[[localize('fir_nam','First name',language)]]" value="{{newPat.firstName}}" id="newPat_firstName"  auto-validate required></paper-input></div>
                                     <div class="clear"></div>
 
-                                    <div class="fl50"><vaadin-date-picker label="[[localize('birthDate','Date of birth',language)]]" i18n="[[i18n]]" value="{{newPat.birthDate}}" id="newPat_birthDate" auto-validate required></vaadin-date-picker></div>
+                                    <div class="fl50"><vaadin-date-picker label="[[localize('birthDate','Date of birth',language)]]" i18n="[[i18n]]" value="{{newPat.birthDate}}" id="newPat_birthDate" need-full-date="[[fullDateMode]]" auto-validate required></vaadin-date-picker></div>
                                     <div class="fr50"><ht-ssin-validator validator-name="ht-ssin-validator"></ht-ssin-validator><paper-input label="[[localize('ssinPatVerbose','National identification number',language)]]" auto-validate required validator="ht-ssin-validator" value="{{newPat.ssin}}" id="newPat_ssin"></paper-input></div>
                                     <div class="clear"></div>
 
@@ -1757,35 +1757,6 @@
                         value: false,
                         noReset: true
                     },
-                    i18n: {
-                        Type: Object,
-                        value: function () {
-                            moment.locale('fr');
-                            const res = {
-                                monthNames: moment.months(),
-                                weekdays: moment.weekdays(),
-                                weekdaysShort: moment.weekdaysShort(),
-                                firstDayOfWeek: moment.localeData().firstDayOfWeek(),
-                                week: 'Semaine',
-                                calendar: 'Calendrier',
-                                clear: 'Clear',
-                                today: 'Aujourd\'hui',
-                                cancel: 'Annuler',
-                                formatDate: function (d) {
-                                    //return moment(d).format(moment.localeData().longDateFormat('L'))
-                                    return moment(d).format('DD/MM/YYYY');
-                                },
-                                parseDate: function (s) {
-                                    return moment(s, 'DD/MM/YYYY').toDate();
-                                },
-                                formatTitle: function (monthName, fullYear) {
-                                    return monthName + ' ' + fullYear;
-                                }
-                            };
-                            return res;
-                        },
-                        noReset: true
-                    },
                     selectedMessage: {
                         type: Object,
                         value: {}
@@ -1930,6 +1901,10 @@
                         type: Array,
                         value: () => [],
                         noReset: true
+                    },
+                    fullDateMode:{
+                        type: Boolean,
+                        value : false
                     }
                 };
             }
@@ -2227,15 +2202,26 @@
                         'healthcarePartyId': parentOrCurrentHcpId,
                         'filters': [
                             {
-                                '$type': 'PatientByHcPartyDateOfBirthBetweenFilter', 'healthcarePartyId': parentOrCurrentHcpId,
+                                '$type': 'PatientByHcPartyDateOfBirthBetweenFilter',
+                                'healthcarePartyId': parentOrCurrentHcpId,
                                 'minDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '00') : Number(word.substr(0,4) + '0000'),
                                 'maxDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '99') : Number(word.substr(0,4) + '9999')
                             },
                             {
-                                '$type': 'PatientByHcPartyAndExternalIdFilter', 'healthcarePartyId': parentOrCurrentHcpId,
+                                '$type': 'PatientByHcPartyAndSsinFilter',
+                                'healthcarePartyId': parentOrCurrentHcpId,
+                                'ssin': word
+                            },
+                            {
+                                '$type': 'PatientByHcPartyAndExternalIdFilter',
+                                'healthcarePartyId': parentOrCurrentHcpId,
                                 'externalId': word
                             }
                         ]
+                    } : /^[0-9]+$/.test(word) ? {
+                        '$type': 'PatientByHcPartyAndSsinFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'ssin': word
                     } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
                         '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
                         'healthcarePartyId': parentOrCurrentHcpId,
@@ -2285,7 +2271,7 @@
                                         firstName: _.map(_.trim(_.get(patientData, "firstName", "")).split(" "), i => _.capitalize(i)).join(" "),
                                         lastName: _.map(_.trim(_.get(patientData, "lastName", "")).split(" "), i => _.capitalize(i)).join(" "),
                                         dateOfBirth: _.trim(_.get(patientData, "dateOfBirth", "")),
-                                        dateOfBirthHr: (_.parseInt(_.trim(_.get(patientData, "dateOfBirth", ""))) ? moment(_.trim(_.get(patientData, "dateOfBirth", ""))).format("DD/MM/YYYY") : ""),
+                                        dateOfBirthHr: (_.parseInt(_.trim(_.get(patientData, "dateOfBirth", ""))) ? this.api.formatedMoment(_.parseInt(_.trim(_.get(patientData, "dateOfBirth", "")))) : ""),
                                         ssin: _.trim(_.get(patientData, "ssin", "")),
                                         sex: (_.trim(_.get(patientData, "gender", "male")).toLowerCase() === "male" ? "M" : "F"),
                                         picture: _.trim(_.get(patientData, "picture", "")),
@@ -2345,7 +2331,7 @@
                                 codes: _.get(singleBeResultImportInfo,"codes[0]",{}),
                                 lastName: _.map( _.trim(_.get(singleBeResultImportInfo, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
                                 firstName: _.map( _.trim(_.get(singleBeResultImportInfo, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                dateOfBirthHr: (_.parseInt(_.trim(_.get(singleBeResultImportInfo,"dateOfBirth",""))) ? moment(_.trim(_.get(singleBeResultImportInfo,"dateOfBirth",""))).format("DD/MM/YYYY") : ""),
+                                dateOfBirthHr: (_.parseInt(_.trim(_.get(singleBeResultImportInfo,"dateOfBirth",""))) ? this.api.formatedMoment(_.parseInt(_.trim(_.get(singleBeResultImportInfo,"dateOfBirth","")))): ""),
                                 complete: !!_.get(singleBeResultImportInfo,"complete",""),
                                 demandDate: parseInt(_.get(singleBeResultImportInfo,"demandDate",0)),
                                 demandDateHr: moment(_.get(singleBeResultImportInfo,"demandDate",undefined)).format("DD/MM/YYYY")
@@ -2400,7 +2386,7 @@
                                 firstName: _.map(_.trim(_.get(pat, "firstName", "")).split(" "), i => _.capitalize(i)).join(" "),
                                 ssinOrBirthdate: (
                                     !!_.trim(_.get(pat, "ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(pat, "ssin", ""))) + ")" :
-                                    !!_.trim(_.get(pat, "dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(pat, "dateOfBirth", "")), "YYYYMMDD").format('DD/MM/YYYY') + ")" :
+                                    !!_.trim(_.get(pat, "dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + this.api.formatedMoment(_.parseInt(_.trim(_.get(pat, "dateOfBirth", "")))) + ")" :
                                     ""
                                 )
                             }})),"ssinOrBirthdate")
@@ -2487,7 +2473,7 @@
                             firstName: _.map(_.trim(_.get(patientData, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
                             lastName: _.map(_.trim(_.get(patientData, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
                             dateOfBirth: _.trim(_.get(patientData,"dateOfBirth","")),
-                            dateOfBirthHr: (_.parseInt(_.trim(_.get(patientData,"dateOfBirth",""))) ? moment(_.trim(_.get(patientData,"dateOfBirth",""))).format("DD/MM/YYYY") : ""),
+                            dateOfBirthHr: (_.parseInt(_.trim(_.get(patientData,"dateOfBirth",""))) ? this.api.formatedMoment(_.parseInt(_.trim(_.get(patientData,"dateOfBirth","")))) : ""),
                             ssin: _.trim(_.get(patientData,"ssin","")),
                             sex: (_.trim(_.get(patientData,"gender","male")).toLowerCase()==="male" ? "M" : "F"),
                             picture: _.trim(_.get(patientData,"picture","")),
@@ -2585,7 +2571,7 @@
                             active: true,
                             ssin: _.trim(_.get(this,"newPat.ssin")),
                             gender: _.trim(_.get(this,"newPat.gender")),
-                            dateOfBirth: parseInt(_.trim(_.get(this,"newPat.birthDate")).replace(/-/g, ''))||null
+                            dateOfBirth: parseInt(_.padEnd(_.trim(_.get(this,"newPat.birthDate")).split("-").join(""),8,"0"))||null
                         }))
                         .then(patientInstance => this.api.patient().createPatientWithUser(this.user, patientInstance))
                         .then(patientObject => {

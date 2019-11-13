@@ -232,7 +232,15 @@
                     _data: {
                         type: Object,
                         value: () => {return{
+                            currentMh: {
+                                type: Object,
+                                value: () => {}
+                            },
                             currentHcp: {
+                                type: Object,
+                                value: () => {}
+                            },
+                            contactHcp: {
                                 type: Object,
                                 value: () => {}
                             },
@@ -251,6 +259,10 @@
                             currentContact: {
                                 type: Array,
                                 value: () => []
+                            },
+                            selectedContact: {
+                                type: Object,
+                                value: () => {}
                             },
                             allHealthElements: {
                                 type: Array,
@@ -323,11 +335,12 @@
                 return inputValue ? this.api.getCurrentAgeFromBirthDate(inputValue,( e , s ) => this.localize(e, s, this.language)) : ''
             }
 
-            _getPrettifiedHcp() {
+            _getPrettifiedHcp(hcpId=null) {
 
                 const promResolve = Promise.resolve()
 
-                return this.api.hcparty().getCurrentHealthcareParty()
+                return promResolve
+                    .then(() => !hcpId ? this.api.hcparty().getCurrentHealthcareParty() : this.api.hcparty().getHealthcareParty(hcpId))
                     .then(hcp => {
                         const addressData = _.find(_.get(hcp,"addresses",[]), {addressType:"work"}) || _.find(_.get(hcp,"addresses",[]), {addressType:"home"}) || _.get(hcp,"addresses[0]",[])
                         return _.merge({}, hcp, _.mapValues({
@@ -345,6 +358,21 @@
                         }, i => typeof i === "string" ? !!_.trim(i) ? _.trim(i) : '-' : i))
                     })
                     .catch(()=>promResolve)
+
+            }
+
+            _getPrettifiedMh() {
+
+                return !_.trim(_.get(this,"_data.currentHcp.parentId","")) ? Promise.resolve() :  this._getPrettifiedHcp(_.trim(_.get(this,"_data.currentHcp.parentId","")))
+
+            }
+
+            _getPrettifiedContactHcp() {
+
+                // Get from selected contact and not current contact / might be different
+                const contactHcpId = !!_.trim(_.get(this,"_data.selectedContact.responsible","")) ? _.trim(_.get(this,"_data.selectedContact.responsible","")) : _.trim(_.get(this,"user.healthcarePartyId"))
+
+                return contactHcpId === _.trim(_.get(this,"_data.currentHcp.id","")) ? Promise.resolve(_.cloneDeep(_.get(this,"_data.currentHcp",{}))) :  this._getPrettifiedHcp(contactHcpId)
 
             }
 
@@ -412,7 +440,10 @@
                 return !_.trim(insuranceId) ? promResolve : this.api.insurance().getInsurance(insuranceId)
                     .then(insuranceData => _.merge({}, {
                         code: _.trim(_.get(insuranceData, "code", "")),
-                        name: this._upperFirstAll(!!_.trim(_.get(insuranceData, "name." + this.language, "")) ? _.trim(_.get(insuranceData, "name." + this.language, "")) : _.trim(_.find(_.get(insuranceData, "name", {}), _.trim)))
+                        name: this._upperFirstAll(!!_.trim(_.get(insuranceData, "name." + this.language, "")) ? _.trim(_.get(insuranceData, "name." + this.language, "")) : _.trim(_.find(_.get(insuranceData, "name", {}), _.trim))),
+                        address: _.trim(_.get(insuranceData,"address.street","")),
+                        postalCode: _.trim(_.get(insuranceData,"address.postalCode","")),
+                        city: this._upperFirstAll(_.trim(_.get(insuranceData,"address.city",""))),
                     }))
                     .catch(()=>promResolve)
 
@@ -468,7 +499,38 @@
                     ), _.isEqual
                 )
 
-                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))))
+
+
+
+
+
+
+                // let prom = Promise.resolve([])
+                // const filteredCodesToResolve = _.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code")))
+                //
+                // return Promise.all(_.map(filteredCodesToResolve, it => {
+                //     prom = prom.then(filteredCodesToResolve => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code","")))
+                //         .then(foundCodes => _.map(foundCodes, singleCode => {
+                //             singleCode = _.merge({},singleCode,{
+                //                 labelHr: singleCode.type === "CD-TRANSACTION" ?
+                //                     _.upperFirst(_.trim(this.localize("cd-transaction-" + _.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                //                     singleCode.type === "CD-SEVERITY" ? _.upperFirst(_.trim(this.localize(_.trim(_.get(singleCode,"code")), _.trim(_.get(singleCode,"code")), this.language)).toLowerCase()) :
+                //                     singleCode.type === "CD-DAYPERIOD" ? _.upperFirst(_.trim(this.localize('ms_' + _.trim(_.get(singleCode,"code")), (_.trim(_.get(singleCode,"label." + this.language,"")) ? _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) : _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())), this.language)).toLowerCase()) :
+                //                     _.trim(_.get(singleCode,"label." + this.language,"")) ?
+                //                         _.upperFirst(_.trim(_.get(singleCode,"label." + this.language,"")).toLowerCase()) :
+                //                         _.upperFirst(_.trim(_.head(_.flatMap(_.get(singleCode,"label","")))).toLowerCase())
+                //             })
+                //             if(!resolvedCodes[singleCode.type]) { resolvedCodes[singleCode.type] = [singleCode] } else { resolvedCodes[singleCode.type].push(singleCode) }
+                //             return _.concat(filteredCodesToResolve,resolvedCodes)
+                //         }))
+                //     )
+                // }))
+
+
+
+
+
+                return Promise.all(_.map(_.filter(codesToResolve, x => !!_.trim(_.get(x,"type")) || !!_.trim(_.get(x,"code"))), it => this.api.code().findCodes("be",_.trim(_.get(it,"type","")),_.trim(_.get(it,"code",""))).catch(e=>{})))
                     .then(promResults => _.map(promResults, promResult => _.map(promResult, singleCode => {
                         singleCode = _.merge({},singleCode,{
                             labelHr: singleCode.type === "CD-TRANSACTION" ?
@@ -611,9 +673,11 @@
                     formatDate: (date) => this.api.moment(date).format('DD/MM/YYYY'),
                     user: _.get(this,"user",{}),
                     patient: _.get(this,"_data.currentPatient",{}),
-                    hcp: _.get(this,"_data.currentHcp",{}),
-                    currentContact: _.get(this,"currentContact",{}),
-                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.currentContact.openingDate","")),
+                    hcp: _.get(this,"_data.contactHcp",{}),
+                    mh: _.get(this,"_data.currentMh",{}),
+                    // currentContact: _.get(this,"currentContact",{}),
+                    currentContact: _.get(this,"_data.selectedContact",{}),
+                    contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.selectedContact.openingDate","")),
                     language: this.language,
                     formsAndDataProviders: _.get(this,"_data.formsAndDataProviders",{}),
                     dataProvider: _.get(this,"dataProvider",{}),
@@ -879,15 +943,15 @@
 
                         const messageObject = {
                             transportGuid: "OUTGOING-DOCUMENT:PATIENT:ARCHIVE",
-                            recipients: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
+                            recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
                             metas: {
                                 filename : fileName,
-                                hcpId: _.trim(_.get(this, "_data.currentHcp.id", "")),
+                                hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
                                 contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
                                 templateGuid: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.guid","")),
                                 templateVersion: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.group.guid","")),
                             },
-                            toAddresses: [_.trim(_.get(this, "_data.currentHcp.id", ""))],
+                            toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
                             subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
                         }
 
@@ -997,6 +1061,11 @@
                     "psy",
                     "placement-malades-mentaux",
                     "rapport-circonstancie-malades-mentaux",
+                    "itt-independant",
+                    "mm-inscription",
+                    "mm-desinscription",
+                    "mm-transfert",
+                    "mm-soins-abonnes-en-institution",
                 ]
 
                 return promResolve
@@ -1161,7 +1230,26 @@
                             {type: 'paragraph',content: [{type: 'text', text:" "}]},
                         ]
                     }]
-                },{
+                }];
+
+                // Add MH data
+                if(!!_.trim(_.get(this,"_data.currentMh.id"))) {
+                    staticVariables.push({
+                        type:'mh',
+                        name: this.localize('medicalHouseInformations', 'Medical house informations', this.language),
+                        subVars: [
+                            {name: this.localize('name', 'Name', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.name'}},{type:'text', text: ' '}]},
+                            {name: this.localize('inami', 'Nihii', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.nihiiHr'}},{type:'text', text: ' '}]},
+                            {name: this.localize('postalAddress', 'Address', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.address'}},{type:'text', text: ' '}]},
+                            {name: this.localize('postalCode', 'Zip', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.postalCode'}},{type:'text', text: ' '}]},
+                            {name: this.localize('city', 'City', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.city'}},{type:'text', text: ' '}]},
+                            {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'mh.email'}},{type:'text', text: ' '}]},
+                            {name: this.localize('phone', 'Phone', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.phone'}},{type:'text', text: ' '}]},
+                        ]
+                    })
+                }
+
+                staticVariables.push({
                     type:'hcp',
                     name: this.localize('physicianInformations', 'Physician informations', this.language),
                     subVars: [
@@ -1196,6 +1284,9 @@
                         {name: this.localize("job", "Job", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.profession'}},{type:'text', text: ' '}]},
                         {name: this.localize("adm_in", "Insurance", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},{type:'text', text: ' '}]},
                         {name: this.localize("insuranceCode", "Insurance code", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.code'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceAddress", "Insurance address", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.address'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceZip", "Insurance zip", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.postalCode'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceCity", "Insurance city", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.city'}},{type:'text', text: ' '}]},
                         {name: "CT1 - CT2", nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},{type:'text', text: ' '}]},
                         {name: this.localize("AFF", "Membership number", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},{type:'text', text: ' '}]},
                         {name: this.localize("husbandWife", "Partner", this.language), nodes: [
@@ -1204,7 +1295,7 @@
                             {type: 'variable', attrs: {expr: 'patient.partnerHr.ssinHr'}},{type:'text', text: ' '}
                         ]},
                     ]
-                }]
+                })
 
                 const healthElementVariables = {
                     type:'hes',
@@ -1520,6 +1611,8 @@
                     .then(() => { this.set("_isBusy", true); this.shadowRoot.querySelector('#outgoingDocumentDialog').open(); })
                     .then(() => this._getPrettifiedFormsAndDataProviders(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[]))).then(formsAndDataProviders => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders:formsAndDataProviders})))
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
+                    .then(() => this._getPrettifiedMh().then(hcp => _.assign(this._data, {currentMh:hcp})))
+                    .then(() => this._getPrettifiedContactHcp().then(hcps => _.assign(this._data, {contactHcp:hcps})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
                     .then(() => this._getCodesFromData().then(codes => _.assign(this._data, {codes:codes})))
                     .then(() => this._getPrettifiedHealthElements(_.get(this,"_data.allHealthElements",[])).then(x=>x))
@@ -1531,7 +1624,6 @@
                     .catch(e => console.log("[ERROR] outgoing document", e, inputData))
                     .finally(() => (this.set("_isBusy", false)||true) && console.log("--- this._data ---",this._data))
 
-                    // Todo: Close menu when clicking outside
                     // Todo: When using prose template object, can't write in it ? Cusor jumps after one char typed / render issue ?
                     // Todo: Handle incomplete dates with Julien's new method of icc-api
                     // Todo: With linking letters, create smart component to get recipient details using cobra

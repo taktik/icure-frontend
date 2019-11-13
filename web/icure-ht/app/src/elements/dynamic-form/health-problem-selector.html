@@ -7,7 +7,6 @@
 <link rel="import" href="../../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../../bower_components/iron-icon/iron-icon.html">
 <link rel="import" href="../../../bower_components/tk-token-field/tk-token-field.html">
-<link rel="import" href="../../../bower_components/vaadin-themes/material/vaadin-date-picker.html">
 <link rel="import" href="../../styles/vaadin-icure-theme.html">
 <link rel="import" href="../../../bower_components/vaadin-date-picker/vaadin-date-picker.html">
 <link rel="import" href="../../../bower_components/paper-dropdown-menu/paper-dropdown-menu-light.html">
@@ -28,8 +27,8 @@
 			paper-dialog {
 				width: 840px;
 				max-width: 1024px;
-				max-height:700px;
-				height: 609px;
+				max-height:750px;
+				height: 659px;
 				z-index: 300;
 			}
 
@@ -54,7 +53,7 @@
 					border-radius: 4px 4px 0 0;
 				};
 			}
-			
+
 			.grid {
 				display: grid;
 				grid-template-columns: 110px 1fr;
@@ -112,7 +111,7 @@
 			.content {
 				padding: 12px;
 			}
-			
+
 			.margin-left-right-6 {
 				margin-left: 6px;
     			margin-right: 6px;
@@ -123,7 +122,7 @@
 			}
 		</style>
 
-		<paper-dialog id="dialog">
+		<paper-dialog id="dialog" opened="{{opened}}">
 			<h2 class="modal-title">[[entityType]]</h2>
 			<div class="content">
 				<div class="grid">
@@ -154,11 +153,11 @@
 						<vaadin-combo-box id="entities-list" filtered-items="[[allergenItems]]" on-filter-changed="_allergenFilterChanged" item-label-path="descr" selected-item="{{allergenSelectedItem}}" item-value-path="id"></vaadin-combo-box>
 					</div>
 				</template>
-				
+
 				<template is="dom-if" if="[[searchDrug]]">
 					<div class="grid">
 						<div class="label">[[localize('drugs','Drugs',language)]]</div>
-						<vaadin-combo-box id="entities-list" filtered-items="[[drugItems]]" on-filter-changed="_drugFilterChanged" item-label-path="name" selected-item="{{drugSelectedItem}}" item-value-path="id.id"></vaadin-combo-box>
+						<vaadin-combo-box id="entities-list" filtered-items="[[drugItems]]" on-filter-changed="_drugFilterChanged" item-label-path="name" selected-item="{{drugSelectedItem}}" item-value-path="id"></vaadin-combo-box>
 					</div>
 				</template>
 				<template is="dom-if" if="[[searchFamilyLink]]">
@@ -210,14 +209,22 @@
 					</paper-radio-group>
 				</div>
 
+				<div class="grid">
+					<div class="label">[[localize('conf','Confidentiality',language)]]</div>
+					<paper-radio-group selected="[[_confidentiality(entity, entity.tags, entity.tags.*, entity.status, entity.closingDate)]]" class="flex" on-selected-changed="_confidentialityChanged">
+						<paper-radio-button name="notsecret">[[localize('no-conf','Non confidential',language)]]</paper-radio-button>
+						<paper-radio-button name="secret">[[localize('cond','Confidential',language)]]</paper-radio-button>
+					</paper-radio-group>
+				</div>
+
 				<div class="flex nowrap">
 					<div class="grid">
 						<div class="label">[[localize('st_da','Start Date',language)]] *</div>
-						<vaadin-date-picker i18n="[[i18n]]" value="{{_openingDateAsString}}"></vaadin-date-picker>
+						<vaadin-date-picker i18n="[[i18n]]" value="{{_openingDateAsString}}" need-full-date="[[fullDateMode]]" accuracy="{{accuracyOpening}}"></vaadin-date-picker>
 					</div>
 					<div class="grid margin-left-right-6">
 						<div class="label">[[localize('en_da','End Date',language)]]</div>
-						<vaadin-date-picker i18n="[[i18n]]" value="{{_closingDateAsString}}"></vaadin-date-picker>
+						<vaadin-date-picker i18n="[[i18n]]" value="{{_closingDateAsString}}" need-full-date="[[fullDateMode]]" accuracy="{{accuracyClosing}}"></vaadin-date-picker>
 					</div>
 
 					<div class="grid margin-left-right-6">
@@ -264,6 +271,10 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
 	static get properties() {
 		return {
+			opened:{
+				type: Boolean,
+				value:false
+			},
 			columns: {
 				type: Array,
 				value: function () {
@@ -390,6 +401,18 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			    type : Boolean,
 				value : false
 			},
+			fullDateMode : {
+				type: Boolean,
+				value : false
+			},
+			accuracyOpening:{
+				type:String,
+				value:'day'
+			},
+			accuracyClosing: {
+				type: String,
+				value: 'day'
+			},
 			locked: {
 			    type : Boolean,
 				value : false,
@@ -405,7 +428,7 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			'_selectedItemChanged(selectedItem)',
             '_allergenItemChanged(allergenSelectedItem)',
             '_familyRiskItemChanged(familyRiskSelectedItem)',
-            '_drugChanged(drugSelectedItem)',
+            '_drugChangedSamV2(drugSelectedItem)',
 			'_selectSurgerySelectedItem(surgerySelectedItem)',
 			'_updateDescription(selectedItem, allergenSelectedItem, familyRiskSelectedItem, surgerySelectedItem, drugSelectedItem)',
 			'_ehDateChanged(entity.openingDate, entity.closingDate)',
@@ -484,12 +507,76 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
             this._fillMedecineCodes(this.drugSelectedItem).then(() => {
                 this.api.code().getCodes(this.drugSelectedItem.codes.map(c => this.api.code().normalize(c).id).join(',')).then(codes => {
                     this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
+                    console.log("entity-codes", this.entity.codes);
                 });
             })
         }
     }
 
-    _fillMedecineCodes(med) {
+	_getValidAmpps(ampps) {
+		return ampps && ampps.filter(ampp => !ampp.to && ampp.atcs && ampp.atcs.length && ampp.dmpps && ampp.dmpps.length &&
+				ampp.dmpps.some(dmpp => dmpp.deliveryEnvironment === 'P' && dmpp.codeType === 'CNK' && !dmpp.to)
+		) || [];
+	}
+
+	_getAllDmpps(ampps) {
+		return ampps && ampps.reduce((allDmpps, ampp) => allDmpps.concat(ampp.dmpps && ampp.dmpps.find(dmpp => !dmpp.to && dmpp.deliveryEnvironment === 'P' && dmpp.codeType === 'CNK')), []) || [];
+	}
+
+    _getAtcCodes(ampps) {
+		return ampps.reduce((codes, ampp) => {
+			ampp.atcs.map(atc =>
+					codes.push({
+						type: "CD-ATC",
+						version: "0.0.1",
+						code: atc.code
+					})
+			);
+			return codes;
+		}, [])
+	}
+
+	_getCnkCodes(dmpps) {
+		return dmpps.reduce((codes, dmpp) => {
+			codes.push({
+				type: "CD-DRUG-CNK",
+				version: "0.0.1",
+				code: dmpp.code
+			});
+			return codes;
+		}, []);
+	}
+
+
+
+	_drugChangedSamV2() {
+		const mp = this.drugSelectedItem;
+		if (!mp) return;
+		new Promise(resolve => {
+			if (mp.ampps) {
+				const validAmpps = this._getValidAmpps(mp.ampps);
+				const codes = this._getAtcCodes(validAmpps);
+				const allDmpps = this._getAllDmpps(validAmpps);
+				return resolve(codes.concat(this._getCnkCodes(allDmpps)));
+			} else {
+				return this.api.besamv2().findPaginatedAmpsByGroupCode(mp.code, null, null, 100)
+						.then(results => (results && results.rows || []))
+						.then(amps => amps.reduce((ampps, amp) => ampps.concat(amp.ampps), []))
+						.then(ampps => {
+							const validAmpps = this._getValidAmpps(ampps);
+							return resolve(this._getAtcCodes(validAmpps))
+						})
+			}
+		})
+				.then(codes => codes.filter((e, i, a) => a.findIndex(x => x.code === e.code) === i))
+				.then(codes => this.api.code().getCodes(codes.map(c => this.api.code().normalize(c).id).join(',')))
+				.then(codes => {
+					this.set('entity.codes', _.union(this._stripCodesByTypes(this.entity.codes, ["CD-ATC", "CD-DRUG-CNK"]), codes));
+					console.log("entity-codes", this.entity.codes);
+				})
+	}
+
+	_fillMedecineCodes(med) {
         return Promise.resolve([]).then(()=> {
             //med.codes = [{type: "CD-ATC", code: 123213}];
             if (med.id && med.id.id) {
@@ -566,7 +653,7 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 		}
 
 
-		const search = this.dataProvider && (() => this.dataProvider.filterDrugs(latestSearchValue, 500, 0, 'name', false))
+		const search = this.dataProvider && (() => this.dataProvider.filterDrugsSamV2(latestSearchValue, 100, 0, 'name', false))
 
 		if(this.drugFilterTimeout) {
 			clearTimeout(this.drugFilterTimeout)
@@ -665,6 +752,11 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
         return code && code.code;
     }
 
+	_confidentiality(){
+		const code = this._tagForEntity(this.entity, 'org.taktik.icure.entities.embed.Confidentiality');
+		return code && code.code ? code.code : "notsecret";
+	}
+
 	_natureChanged(e) {
 		this._cdItemTagForEntity(this.entity, true).code = e.detail.value;
 
@@ -709,6 +801,10 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
     _certaintyChanged(e) {
         this._tagForEntity(this.entity, 'CD-CERTAINTY', 'probable').code = e.detail.value
+	}
+
+	_confidentialityChanged(e){
+		this._tagForEntity(this.entity, 'org.taktik.icure.entities.embed.Confidentiality', 'notsecret').code = e.detail.value
 	}
 
     _cellContent(item, column) {
@@ -775,6 +871,7 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	open() {
 		this.flushComboData()
 		this.set("isValid",false)
+
         this.api.code().findPaginatedCodes('be', 'CD-TEMPORALITY', '')
 			.then(c => this.set("temporalityList", c.rows.filter(c => c.code === "acute" || c.code === "subacute" || c.code === "chronic")))
 			.finally(() => {
@@ -796,9 +893,6 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 					this.dispatchEvent(new CustomEvent('open-health-problem', { bubbles: true, composed: true, detail: {entity: this.entity}}));
 					this._checkValidity();
 				})
-
-
-
 			})
 
 	}
@@ -817,24 +911,34 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 	}
 
 	_closingDateChanged(date) {
-		const dateString = date && this.api.moment(date).format('YYYY-MM-DD') || '';
-		if (dateString !== this._openingDateAsString) {
+		const dateString = date? this._formatDate(date) : "";
+		if (dateString !== this._closingDateAsString) {
 			this.set('_closingDateAsString', dateString);
 		}
 	}
 
+	_formatDate(date){
+		const tab =date? this.api.formatedMoment(date).split("/") : []
+		tab.reverse()
+		if(tab.length < 3)tab.push("00")
+		if(tab.length < 3)tab.push("00")
+		return tab.join("-")
+	}
+
 	_openingDateChanged(date) {
-		const dateString = date && this.api.moment(date).format('YYYY-MM-DD') || '';
+		const dateString = date ? this._formatDate(date) : '';
 		if (dateString !== this._openingDateAsString) {
 			this.set('_openingDateAsString', dateString);
 		}
 	}
 
 	_ehDateChanged(startingDate, closingDate){
-
 	    if(startingDate){
-	        let startingDateAsString = this.api.moment(startingDate).format('YYYY-MM-DD') || ''
-	        let closingDateAsString = closingDate ? this.api.moment(closingDate).format('YYYY-MM-DD') : closingDate = moment().format("YYYY-MM-DD")
+			startingDate && this.set("accuracyOpening",startingDate%100!==0 ? "day" : startingDate%10000!==0 ? "month" : "year");
+			closingDate && this.set("accuracyClosing",closingDate%100!==0 ? "day" : closingDate%10000!==0 ? "month" : "year");
+
+			let startingDateAsString = this.api.moment(startingDate,"ante").format("YYYY-MM-DD")
+	        let closingDateAsString = closingDate ? this.api.moment(closingDate,"post").format("YYYY-MM-DD") : closingDate = moment().format("YYYY-MM-DD")
 
             this._isChronical(startingDateAsString, closingDateAsString) === true ? this.set("temporalityItemIdx", this.temporalityList.indexOf(this.temporalityList.find(c => c.code === "chronic"))) :
                 this._isSubAcute(startingDateAsString, closingDateAsString) === true ? this.set("temporalityItemIdx", this.temporalityList.indexOf(this.temporalityList.find(c => c.code === "subacute"))) :
@@ -860,7 +964,7 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			this.entity && this.set('entity.closingDate', null);return;
 		}
 		const date = parseInt(dateAsString.replace(/(....)-(..)-(..)/, '$1$2$3')) * (this.displayTime ? 1000000 : 1);
-		if (date !== this.value) {
+		if (this.entity && date !== this.entity.closingDate) {
 			this.entity && this.set('entity.closingDate', date);
 		}
 	}
@@ -870,8 +974,8 @@ class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
 			this.entity && this.set('entity.openingDate', null);return;
 		}
 		const date = parseInt(dateAsString.replace(/(....)-(..)-(..)/, '$1$2$3')) * (this.displayTime ? 1000000 : 1);
-		if (date !== this.value) {
-			this.entity && this.set('entity.openingDate', date);
+		if (this.entity && date !== this.entity.openingDate) {
+			this.set('entity.openingDate', date);
 		}
 	}
 
