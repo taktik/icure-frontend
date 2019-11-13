@@ -232,6 +232,10 @@
                     _data: {
                         type: Object,
                         value: () => {return{
+                            currentMh: {
+                                type: Object,
+                                value: () => {}
+                            },
                             currentHcp: {
                                 type: Object,
                                 value: () => {}
@@ -357,6 +361,12 @@
 
             }
 
+            _getPrettifiedMh() {
+
+                return !_.trim(_.get(this,"_data.currentHcp.parentId","")) ? Promise.resolve() :  this._getPrettifiedHcp(_.trim(_.get(this,"_data.currentHcp.parentId","")))
+
+            }
+
             _getPrettifiedContactHcp() {
 
                 // Get from selected contact and not current contact / might be different
@@ -430,7 +440,10 @@
                 return !_.trim(insuranceId) ? promResolve : this.api.insurance().getInsurance(insuranceId)
                     .then(insuranceData => _.merge({}, {
                         code: _.trim(_.get(insuranceData, "code", "")),
-                        name: this._upperFirstAll(!!_.trim(_.get(insuranceData, "name." + this.language, "")) ? _.trim(_.get(insuranceData, "name." + this.language, "")) : _.trim(_.find(_.get(insuranceData, "name", {}), _.trim)))
+                        name: this._upperFirstAll(!!_.trim(_.get(insuranceData, "name." + this.language, "")) ? _.trim(_.get(insuranceData, "name." + this.language, "")) : _.trim(_.find(_.get(insuranceData, "name", {}), _.trim))),
+                        address: _.trim(_.get(insuranceData,"address.street","")),
+                        postalCode: _.trim(_.get(insuranceData,"address.postalCode","")),
+                        city: this._upperFirstAll(_.trim(_.get(insuranceData,"address.city",""))),
                     }))
                     .catch(()=>promResolve)
 
@@ -661,6 +674,7 @@
                     user: _.get(this,"user",{}),
                     patient: _.get(this,"_data.currentPatient",{}),
                     hcp: _.get(this,"_data.contactHcp",{}),
+                    mh: _.get(this,"_data.currentMh",{}),
                     // currentContact: _.get(this,"currentContact",{}),
                     currentContact: _.get(this,"_data.selectedContact",{}),
                     contactOpeningDate: this._YYYYMMDDHHmmssToDDMMYYYY(_.get(this,"_data.selectedContact.openingDate","")),
@@ -1048,6 +1062,10 @@
                     "placement-malades-mentaux",
                     "rapport-circonstancie-malades-mentaux",
                     "itt-independant",
+                    "mm-inscription",
+                    "mm-desinscription",
+                    "mm-transfert",
+                    "mm-soins-abonnes-en-institution",
                 ]
 
                 return promResolve
@@ -1212,7 +1230,26 @@
                             {type: 'paragraph',content: [{type: 'text', text:" "}]},
                         ]
                     }]
-                },{
+                }];
+
+                // Add MH data
+                if(!!_.trim(_.get(this,"_data.currentMh.id"))) {
+                    staticVariables.push({
+                        type:'mh',
+                        name: this.localize('medicalHouseInformations', 'Medical house informations', this.language),
+                        subVars: [
+                            {name: this.localize('name', 'Name', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.name'}},{type:'text', text: ' '}]},
+                            {name: this.localize('inami', 'Nihii', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.nihiiHr'}},{type:'text', text: ' '}]},
+                            {name: this.localize('postalAddress', 'Address', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.address'}},{type:'text', text: ' '}]},
+                            {name: this.localize('postalCode', 'Zip', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.postalCode'}},{type:'text', text: ' '}]},
+                            {name: this.localize('city', 'City', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.city'}},{type:'text', text: ' '}]},
+                            {name: "E-mail", nodes: [{type: 'variable', attrs: {expr: 'mh.email'}},{type:'text', text: ' '}]},
+                            {name: this.localize('phone', 'Phone', this.language), nodes: [{type: 'variable', attrs: {expr: 'mh.phone'}},{type:'text', text: ' '}]},
+                        ]
+                    })
+                }
+
+                staticVariables.push({
                     type:'hcp',
                     name: this.localize('physicianInformations', 'Physician informations', this.language),
                     subVars: [
@@ -1247,6 +1284,9 @@
                         {name: this.localize("job", "Job", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.profession'}},{type:'text', text: ' '}]},
                         {name: this.localize("adm_in", "Insurance", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.name'}},{type:'text', text: ' '}]},
                         {name: this.localize("insuranceCode", "Insurance code", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.code'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceAddress", "Insurance address", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.address'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceZip", "Insurance zip", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.postalCode'}},{type:'text', text: ' '}]},
+                        {name: this.localize("insuranceCity", "Insurance city", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.city'}},{type:'text', text: ' '}]},
                         {name: "CT1 - CT2", nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.tc1tc2'}},{type:'text', text: ' '}]},
                         {name: this.localize("AFF", "Membership number", this.language), nodes: [{type: 'variable', attrs: {expr: 'patient.insuranceData.identificationNumber'}},{type:'text', text: ' '}]},
                         {name: this.localize("husbandWife", "Partner", this.language), nodes: [
@@ -1255,7 +1295,7 @@
                             {type: 'variable', attrs: {expr: 'patient.partnerHr.ssinHr'}},{type:'text', text: ' '}
                         ]},
                     ]
-                }]
+                })
 
                 const healthElementVariables = {
                     type:'hes',
@@ -1571,6 +1611,7 @@
                     .then(() => { this.set("_isBusy", true); this.shadowRoot.querySelector('#outgoingDocumentDialog').open(); })
                     .then(() => this._getPrettifiedFormsAndDataProviders(_.cloneDeep(_.get(inputData, "formsAndDataProviders",[]))).then(formsAndDataProviders => _.assign(this._data, _.cloneDeep(inputData), {formsAndDataProviders:formsAndDataProviders})))
                     .then(() => this._getPrettifiedHcp().then(hcp => _.assign(this._data, {currentHcp:hcp})))
+                    .then(() => this._getPrettifiedMh().then(hcp => _.assign(this._data, {currentMh:hcp})))
                     .then(() => this._getPrettifiedContactHcp().then(hcps => _.assign(this._data, {contactHcp:hcps})))
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), patientId).then(patient => _.assign(this._data, {currentPatient:patient})))
                     .then(() => this._getCodesFromData().then(codes => _.assign(this._data, {codes:codes})))
