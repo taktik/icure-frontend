@@ -16,6 +16,7 @@
 <link rel="import" href="../../icons/medication-icons.html">
 <link rel="import" href="../../../styles/paper-tabs-style.html">
 
+<link rel="import" href="../../../elements/ht-spinner/ht-spinner.html">
 
 <dom-module id="medication-plan-dialog">
     <template>
@@ -704,7 +705,7 @@
 
             <h2 class="modal-title">[[_getModalTitle(selectedTab)]]
                 <paper-tabs selected="{{selectedTab}}">
-                    <paper-tab>[[localize('tab_hist','Historique',language)]]</paper-tab>
+                    <paper-tab>[[localize('pr_history','Historique',language)]]</paper-tab>
                     <paper-tab>[[localize('tab_pres','Present',language)]]</paper-tab>
                     <!--<paper-tab>[[localize('tab_hist','History',language)]]</paper-tab>-->
                     <paper-tab>[[localize('tab_pat','Patient',language)]]</paper-tab>
@@ -714,6 +715,7 @@
 
             <div class="content">
                 <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                    <ht-spinner class="center" active="[[isLoading]]"></ht-spinner>
                     <prescription-history id="prescription-history" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" on-print-prescription="onPrintPrescription"></prescription-history>
                 </template>
                 <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
@@ -1000,10 +1002,8 @@
 
 
             <div class="buttons">
-                <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('close','Close',language)]]</paper-button>
-
+                <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('clo','Close',language)]]</paper-button>
                 <!--<paper-button dialog-confirm autofocus on-tap="" class="button button--save">[[localize('add_medication','Add Medication',language)]]</paper-button>-->
-
             </div>
         </paper-dialog>
     </template>
@@ -1031,6 +1031,10 @@
                         type: Object,
                         value: null,
                         notify: true
+                    },
+                    isLoading: {
+                        type: Boolean,
+                        value: false
                     },
                     selectedTab: {
                         type: Number,
@@ -1300,6 +1304,7 @@
 
                 this.hcp = null;
                 if (this.patient.ssin && this.api.tokenId) {
+                    this.set("isLoading", true)
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
                         this.hcp = hcp;
                         return this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.patient.ssin, this.api.credentials.ehpassword).then(openPrescriptions => {
@@ -1318,14 +1323,14 @@
                                     status = STATUS_SENT | STATUS_PENDING;
                                 else if ((status & STATUS_SENT) && !(status & STATUS_REVOKED))
                                     status |= STATUS_DELIVERED;
+                                if (status & STATUS_DELIVERED)
+                                    status = STATUS_DELIVERED | STATUS_SENT;
+                                if (status & STATUS_REVOKED)
+                                    status = STATUS_REVOKED | STATUS_SENT;
                                 if (medicationValue.status != status) {
                                     medicationValue.status = status;
                                     prescription.update = true;
                                 }
-                                if (status & STATUS_NOT_SENT) prescription.status = "Non envoyée"
-                                else if (status & STATUS_PENDING) prescription.status = "En attente"
-                                else if (status & STATUS_DELIVERED) prescription.status = "Délivrée"
-                                else prescription.status = "Révoquée"
                             })
 
                             const contacts = prescriptions.filter(p => p.update).flatMap(p => p.contact).filter((c, i, a) => a.indexOf(c) === i);
@@ -1339,6 +1344,7 @@
                             return Promise.all(promises).then(() => {
                                 this.shadowRoot.querySelector("#prescription-history").hcp = this.hcp;
                                 this.shadowRoot.querySelector("#prescription-history").setPrescriptions(prescriptions);
+                                this.set("isLoading", false)
                             });
                         });
                     })

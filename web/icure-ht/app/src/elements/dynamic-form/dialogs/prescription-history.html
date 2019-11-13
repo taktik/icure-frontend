@@ -7,15 +7,20 @@
 <link rel="import" href="../../../../bower_components/paper-dialog/paper-dialog.html">
 <link rel="import" href="../../../../bower_components/paper-button/paper-button.html">
 <link rel="import" href="../../../../bower_components/paper-tabs/paper-tabs.html">
+<link rel="import" href="../../../../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../../../../bower_components/paper-input/paper-input-container.html">
 <link rel="import" href="../../../../bower_components/paper-tooltip/paper-tooltip.html">
 <link rel="import" href="../../../styles/dialog-style.html">
-<link rel="import" href="../../../styles/atc-styles.html">
+<link rel="import" href="../../../styles/paper-input-style.html">
+<link rel="import" href="../../../styles/buttons-style.html">
+<link rel="import" href="../../../styles/dropdown-style.html">
 <link rel="import" href="../../../styles/scrollbar-style.html">
+<link rel="import" href="../../../styles/atc-styles.html">
 <link rel="import" href="../../icons/medication-icons.html">
 
 <dom-module id="prescription-history">
     <template>
-        <style include="dialog-style atc-styles scrollbar-style">
+        <style include="dialog-style paper-input-style dropdown-style buttons-style scrollbar-style atc-styles">
 
             .table-container {
                 margin-bottom: 24px;
@@ -195,13 +200,17 @@
                 width: 16px;
             }
 
+            paper-input{
+                --paper-input-container-focus-color: var(--app-primary-color);
+            }
+
             .filter {
                 display: flex;
                 flex-flow: row nowrap;
             }
 
             .dateFilter {
-                mergin-left: 5px;
+                margin-left: 5px;
             }
 
             .content{
@@ -223,6 +232,14 @@
                 padding: 0px;
             }
 
+            .my-input {
+                margin-top: -5px;
+            }
+
+            .filter {
+                margin-left: 5px;
+            }
+
         </style>
         <div class="content">
 
@@ -231,6 +248,8 @@
                     value="{{dateMin}}" i18n="[[i18n]]"></vaadin-date-picker>
                 <vaadin-date-picker class="dateFilter" id="dateMax" on-value-changed="_onValueChanged" label="[[localize('to2','Au',language)]]"
                     value="{{dateMax}}" i18n="[[i18n]]"></vaadin-date-picker>
+                <paper-input id="filterRID" label="RID" value="{{filterRID}}" on-value-changed="_onValueChanged" class="my-input filter" always-float-label></paper-input>
+                <vaadin-combo-box id="filterStatus" class="filter" filtered-items="[[allStatus]]" item-label-path="label" item-value-path="value" label="[[localize('sta','Status',language)]]" value="{{filterStatus}}" on-value-changed="_onValueChanged"></vaadin-combo-box>
             </div>
 
             <div class="table">
@@ -239,7 +258,6 @@
                     <div class="td fg0" style="min-width: 140px">[[localize('co','Code',language)]]</div>
                     <div class="td fg2" style="min-width: 300px">[[localize('nam','Name',language)]]</div>
                     <div class="td fg1" style="min-width: 200px">[[localize('freq','Fréquence',language)]]</div>
-                    <!--<div class="td fg1" style="min-width: 200px">Drugs</div>-->
                     <div class="td fg0" style="min-width: 140px">[[localize('sta','Statut',language)]]</div>
                     <div class="td fg0" style="min-width: 100px">&nbsp;</div>
                 </div>
@@ -249,25 +267,15 @@
                         <div class="td fg0" style="min-width: 140px">[[item.rid]]</div>
                         <div class="td fg2" style="min-width: 300px">[[item.name]]</div>
                         <div class="td fg1" style="min-width: 200px">[[_frequency(item, refresher)]]</div>
-                        <!--
-                        <div class="td fg1" style="min-width: 200px">
-                            <div class="table">
-                                <template is="dom-repeat" items="[[item.cds]]" as="cd">
-                                <div class="tr">
-                                    <div class="td fg1" style="min-width: 200px">[[cd]]</div>
-                                </div>
-                                </template>
-                            </div>
-                        </div>
-                        -->
                         <div class="td fg0" style="min-width: 140px">
-                            <span class$="status status[[_getStatusClass(item, refresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon[[_getStatusClass(item, refresher)]]"></iron-icon>&nbsp;[[_getStatus(item, refresher)]]</span>
+                            <span class$="status status[[_getStatusClass(item, refresher)]]"><iron-icon icon="vaadin:circle" class$="statusIcon statusIcon[[_getStatusClass(item, refresher)]]"></iron-icon>&nbsp;[[_formatStatus(item, refresher)]]</span>
                         </div>
                         <div class="actions fg0" style="min-width: 100px">
                             <div class="action"><paper-icon-button data-id$="[[item.service.id]]" class="form-title-bar-btn"  icon="print" on-tap="_print"></paper-icon-button></div>
                             <template is="dom-if" if="[[item.rid]]">
-                                <div class="action"><paper-icon-button data-rid$="[[item.rid]]" class="form-title-bar-btn" icon="social:notifications" on-tap="_notify"></paper-icon-button></div>
-                                <div class="action"><paper-icon-button data-rid$="[[item.rid]]" class="form-title-bar-btn" icon="icons:block" on-tap="_revoke"></paper-icon-button></div>
+                                <template is="dom-if" if="[[!_isRevoked]]">
+                                    <div class="action"><paper-icon-button data-rid$="[[item.rid]]" class="form-title-bar-btn" icon="icons:block" on-tap="_revoke"></paper-icon-button></div>
+                                </template>
                             </template>
                         </div>
                     </div>
@@ -319,6 +327,18 @@
                         type: Number,
                         value: 0
                     },
+                    filterRID: {
+                        type: String,
+                        value: ""
+                    },
+                    filterStatus: {
+                        type: Number,
+                        value: 0
+                    },
+                    allStatus: {
+                        type: Array,
+                        value: () => []
+                    },
                     prescriptions: {
                         type: Array,
                         value: () => []
@@ -351,7 +371,33 @@
                 const max = this._tomorrow();
                 this.set("dateMin", min.format("YYYY-MM-DD"));
                 this.set("dateMax", max.format("YYYY-MM-DD"));
+                this.set("allStatus", [
+                    {
+                        value: STATUS_SENT,
+                        label: this.localize("pr_status_sent", "Envoyée")
+                    },
+                    {
+                        value: STATUS_NOT_SENT,
+                        label: this.localize("pr_status_not_sent", "Non envoyée")
+                    },
+                    {
+                        value: STATUS_PENDING,
+                        label: this.localize("pr_status_pending", "En attente")
+                    },
+                    {
+                        value: STATUS_DELIVERED,
+                        label: this.localize("pr_status_delivered", "Délivrée")
+                    },
+                    {
+                        value: STATUS_REVOKED,
+                        label: this.localize("pr_status_revoked", "Révoquée")
+                    },
+                ]);
                 this._filter();
+            }
+
+            _isRevoked(prescription) {
+                return prescription.service.status & STATUS_REVOKED;
             }
 
             _tomorrow() {
@@ -373,6 +419,10 @@
                 const min = this.dateMin ? parseInt(this.api.moment(this.dateMin).format('YYYYMMDDHHmmss')) : null;
                 const max = this.dateMax ? parseInt(this.api.moment(this.dateMax).format('YYYYMMDDHHmmss')) : null;
                 let prescriptions = this._prescriptions.filter(p => this._between(p.service.valueDate, min, max));
+                if (this.filterRID && this.filterRID.length > 0)
+                    prescriptions = prescriptions.filter(p => p.rid && p.rid.includes(this.filterRID));
+                if (this.filterStatus > 0)
+                    prescriptions = prescriptions.filter(p => this._getStatus(p.service) & this.filterStatus);
                 prescriptions = prescriptions.sort((a, b) => b.service.valueDate - a.service.valueDate);
                 this.set("prescriptions", prescriptions);
             }
@@ -381,6 +431,10 @@
                 console.log("change");
                 this.dateMin = this.$["dateMin"].value;
                 this.dateMax = this.$["dateMax"].value;
+                if (e.currentTarget.id === "filterRID")
+                    this.filterRID = e.detail.value;
+                if (e.currentTarget.id === "filterStatus")
+                    this.filterStatus = !!e.detail.value ? e.detail.value : 0;
                 this._filter();
             }
 
@@ -388,17 +442,30 @@
                 return this.api.contact().medication().frequencyToString((this.api.contact().preferredContent(item.service, this.language) || {}).medicationValue, this.language)
             }
 
-            _getStatus(item) {
-                return item.status;
+            _getContent(service) {
+                return this.api.contact().preferredContent(service, this.language)
+            }
+
+            _getStatus(service) {
+                return this._getContent(service).medicationValue.status;
             }
 
             _getStatusClass(item) {
-                const medicationValue = this.api.contact().preferredContent(item.service, this.language).medicationValue;
-                if (medicationValue.status & STATUS_DELIVERED )
+                const status = this._getStatus(item.service);
+                if (status & STATUS_DELIVERED )
                     return "Green";
-                if (medicationValue.status & STATUS_REVOKED )
+                if (status & STATUS_REVOKED )
                     return "Red";
                 return "Orange";
+            }
+
+            _formatStatus(item) {
+                const status = this._getStatus(item.service);
+                if (status & STATUS_REVOKED) return this.localize("pr_status_revoked", "Révoquée")
+                else if (status & STATUS_DELIVERED) return this.localize("pr_status_delivered", "Délivrée")
+                else if (status & STATUS_PENDING) return this.localize("pr_status_pending", "En attente")
+                else if (status & STATUS_SENT) return this.localize("pr_status_sent", "Envoyée")
+                return this.localize("pr_status_not_sent", "Non envoyée");
             }
 
             _updateFeedback(e) {
@@ -432,7 +499,7 @@
                 console.log("_revoke " + rid);
                 if (!this.hcp) return;
                 const prescription = this.prescriptions.find(p => p.rid === rid);
-                const content = this.api.contact().preferredContent(prescription.service, this.language)
+                const content = this._getContent(prescription.service);
                 content.medicationValue.status = STATUS_SENT | STATUS_REVOKED;
                 this.api.fhc().Recipecontroller().revokePrescriptionUsingDELETE(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid, "no reason specified")
                 .then(isDeleted => {
