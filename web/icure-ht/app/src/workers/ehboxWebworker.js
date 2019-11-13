@@ -416,7 +416,8 @@ onmessage = e => {
             const ehBoxAnnexes = _.get(fullMessageFromEHealthBox,"annex",[])
             const labResultHeaderRegExp = /A1\\.*\\.*([\\])*([.*])*/gi
             const a1HeadersByAnnexesKey = _.map(ehBoxAnnexes, singleAnnex => {
-                singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+                // singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+                singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!_.trim(_.get(singleAnnex,"content","")) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
                 return _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp)
             })
             const splittedEhBoxAnnexes = _.flatMap(_.map(ehBoxAnnexes, (singleAnnex,annexKey) => ( !_.size(a1HeadersByAnnexesKey[annexKey]) || _.size(a1HeadersByAnnexesKey[annexKey]) === 1 ) ?
