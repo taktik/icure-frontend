@@ -570,9 +570,9 @@
                                                         [[localize('hub_code','Code',language)]]
                                                     </template>
                                                     <template>
-                                                        <span id="codes_[[item.id]]">[[_baseCode(item)]]</span>
+                                                        <span id="codes_[[item.id]]">[[_baseCode2(item)]]</span>
                                                         <paper-tooltip for="codes_[[item.id]]" position="top">
-                                                            [[_allCodes(item)]]
+                                                            [[_allCodes2(item)]]
                                                         </paper-tooltip>
                                                     </template>
                                                 </vaadin-grid-column>
@@ -714,6 +714,7 @@
                                                     [[getItemDesc(item)]]
                                                 </template>
                                             </vaadin-grid-column>
+                                            <template is="dom-if" if="[[hubSumehr]]">
                                             <vaadin-grid-column>
                                                 <template class="header">
                                                     [[localize('exist-on-hub','Hub ?',language)]]
@@ -722,6 +723,7 @@
                                                     [[_hasMatchOnHub(item)]]
                                                 </template>
                                             </vaadin-grid-column>
+                                            </template>
                                         </vaadin-grid>
                                     </div>
                                 </template>
@@ -739,6 +741,7 @@
                                                     [[getItemDesc(item)]]
                                                 </template>
                                             </vaadin-grid-column>
+                                            <template is="dom-if" if="[[hubSumehr]]">
                                             <vaadin-grid-column>
                                                 <template class="header">
                                                     [[localize('exist-on-hub','Hub ?',language)]]
@@ -747,6 +750,7 @@
                                                     [[_hasMatchOnHub(item)]]
                                                 </template>
                                             </vaadin-grid-column>
+                                            </template>
                                         </vaadin-grid>
                                     </div>
                                 </template>
@@ -1549,12 +1553,24 @@
             }
 
             getServiceTitle(item) {
-                if(this._itemTypeFromTags(item) === "medication"){
+                if(this._itemTypeFromTags(item) === "medication") {
                     return this.getMedicationTitle(item.content);
+                } else if(this._itemTypeFromTags(item) === "patientwill"){
+                    return this.getPatientWillType(item);
                 } else {
                     const tmp = item.content ? _.flatMap(item.content)[0] : null;
                     return tmp && tmp.stringValue ? tmp.stringValue : (this.getMedicationTitle(item.content));
                 }
+            }
+
+            getPatientWillType(svc){
+                console.log("getPatientWillType", this.api.contact().preferredContent(svc, this.language), svc);
+                const cnt = this.api.contact().preferredContent(svc, this.language).stringValue;
+                let resp = cnt.split("|") && cnt.split("|").length && cnt.split("|").length > 1 ? cnt.split("|")[1] : ""
+                resp = resp.includes('hos') ? this.localize('cd-patientwill-hos-' + resp, resp, this.language)
+                    : (resp.includes('dnr') ? this.localize('cd-patientwill-res-' + resp, resp, this.language)
+                        : this.localize("patientwilldialog_" + resp, resp, this.language));
+                return resp ? resp : "";
             }
 
             isMedication(item){
@@ -1840,17 +1856,34 @@
                 return tg ? tg.code : "";
             }
 
-            _baseCode(item) {
-                return item.codes && item.codes[0] && item.codes[0].id ? item.codes[0].id : "";
-            }
+            // _baseCode(item) {
+            //     console.log("_baseCode", item.codes);
+            //     return item.codes && item.codes[0] && item.codes[0].id ? item.codes[0].id : "";
+            // }
 
             _allCodes(item) {
                 return item && item.codes ? item.codes.map(code => code.code).join(): "";
             }
 
-            _baseCode2(item) {
-                return item && item.codes && item.codes[0] && item.codes[0].code ? item.codes[0].type + " " + item.codes[0].code : "";
+            _baseCode(item){
+
             }
+
+            _baseCode2(item) {
+                console.log("_baseCode2", item.codes, item);
+                const icpc = item ? this.getCodeByType(item, ['ICPC','ICPC2']) : "";
+                const icd = item ? this.getCodeByType(item, ['ICD']) : "";
+                const atc = item ? this.getCodeByType(item, ['CD-ATC']) : "";
+                var will = item ? this.getCodeByType(item, ['CD-PATIENT-WILL', 'CD-PATIENT-WILL-HOS', 'CD-PATIENT-WILL-RES']) : "";
+                will = will ? this.localize("cd-patientwill-" + will, will, this.language) : "";
+                return icpc ? icpc : (icd ? icd : (atc ? atc : (will ? will : this._allCodes2(item))));
+            }
+
+            getCodeByType(he, types) {
+                const icpc = he.codes && he.codes.find(t=> types.includes(t.type)); //t.type==='ICPC' || t.type==='ICPC2')
+                return icpc && ((icpc.code || icpc.id.split('|')[1]))
+            }
+
 
             _allCodes2(item) {
                 return item && item.codes ? item.codes.map(code => code.type + " " + code.code).join() : "";
