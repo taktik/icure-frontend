@@ -946,6 +946,11 @@
                         value: () => []
                     },
 
+                    dayPeriodCodes: {
+                        type: Array,
+                        value: () => []
+                    },
+
                     reimbursementReason: {
                         type: Object,
                         value: () => {}
@@ -1418,43 +1423,48 @@
             // }
 
             init() {
-                return this.api.code().findCodes("be", "CD-DAYPERIOD")
-                    .then(dayPeriods => this.api.code().findCodes("be", "care.topaz.customDayPeriod")
-                        .then(customDayPeriods => dayPeriods.concat(customDayPeriods)))
-                    .then(dayPeriods => {
-                        return Promise.all(this.regimenConfig.map(reg => {
-                            let dayPeriod = dayPeriods.find(dayPeriod => dayPeriod.code === reg.id);
-                            if (!dayPeriod) {
-                                dayPeriod = {code: reg.id, type: "CD-DAYPERIOD"};
-                            }
-                            Object.assign(reg, {dayPeriod: dayPeriod});
-                            if (!dayPeriod.label || !dayPeriod.label[this.language]) {
-                                dayPeriod.label = _.fromPairs([[this.language, _.lowerCase(_.trim(this.localize(`ms_${reg.id}`, reg.id)))]]);
-                            }
-                        }))
+                return new Promise(resolve => {
+                    if (this.dayPeriodCodes && this.dayPeriodCodes.length) return resolve();
+                    else return this.api.code().findCodes("be", "CD-DAYPERIOD")
+                        .then(codes => this.api.code().findCodes("be", "care.topaz.customDayPeriod")
+                            .then(customCodes => this.push("dayPeriodCodes", ...codes.concat(customCodes))))
+                        .then(() => Promise.all(this.regimenConfig.map(reg => {
+                                let dayPeriod = this.dayPeriodCodes.find(dayPeriod => dayPeriod.code === reg.id);
+                                if (!dayPeriod) {
+                                    dayPeriod = {code: reg.id, type: "CD-DAYPERIOD"};
+                                }
+                                Object.assign(reg, {dayPeriod: dayPeriod});
+                                if (!dayPeriod.label || !dayPeriod.label[this.language]) {
+                                    dayPeriod.label = _.fromPairs([[this.language, _.lowerCase(_.trim(this.localize(`ms_${reg.id}`, reg.id)))]]);
+                                }
+                            }))
+                        )
+                        .then(() => resolve())
+                })
+                    .then(() => {
+                        if (this.weekdayCodes && this.weekdayCodes.length) return Promise.resolve();
+                        else return this.api.code().findCodes("be", "CD-WEEKDAY")
+                            .then(codes => this.push("weekdayCodes", ...codes.map(code => {
+                                const day = code.label[this.language] || "";
+                                const number = this.weekdayKeys.indexOf(code.code) || -1;
+                                return Object.assign(
+                                    code,
+                                    {
+                                        "weekday": day,
+                                        "weekNumber": (number > -1) && number || 0
+                                    });
+                            })
+                        ))
                     })
-                    .then(() => this.api.code().findCodes("be", "CD-WEEKDAY"))
-                    .then((weekdayCodes) => this.set("weekdayCodes", weekdayCodes
-                        .map(weekdayCode => {
-                            const day = weekdayCode.label[this.language] || "";
-                            const number = this.weekdayKeys.indexOf(weekdayCode.code) || -1;
-                            return Object.assign(
-                                weekdayCode,
-                                {
-                                    "weekday": day,
-                                    "weekNumber": (number > -1) && number || 0
-                                });
-                        })
-                    ))
                     .then (() => {
                         if (this.reimbursementCodeRecipe && this.reimbursementCodeRecipe.length) return Promise.resolve();
-                        return this.api.code().findPaginatedCodes('be', 'CD-REIMBURSEMENT-RECIPE', '')
-                            .then(reimb => this.push("reimbursementCodeRecipe", ..._.orderBy(reimb.rows, ['label.fr'], ['asc'])))
+                        return this.api.code().findCodes("be", "CD-REIMBURSEMENT-RECIPE")
+                            .then(reimb => this.push("reimbursementCodeRecipe", ..._.orderBy(reimb, ['label.fr'], ['asc'])))
                     })
                     .then(() => {
                         if (this.timeUnits && this.timeUnits.length) return Promise.resolve();
-                        return this.api.code().findPaginatedCodes('be', 'CD-TIMEUNIT', '')
-                            .then(timeUnits => this.push("timeUnits", ..._.orderBy(_.filter(_.get(timeUnits, "rows", []), i => ["ns", "us", "ms", "s", "min"].indexOf(_.trim(_.get(i, "code"))) === -1), ['label.fr'], 'asc')))
+                        return this.api.code().findCodes("be", "CD-TIMEUNIT")
+                            .then(timeUnits => this.push("timeUnits", ..._.orderBy(_.filter(timeUnits, i => ["ns", "us", "ms", "s", "min"].indexOf(_.trim(_.get(i, "code"))) === -1), ['label.fr'], 'asc')))
                     });
             }
 
