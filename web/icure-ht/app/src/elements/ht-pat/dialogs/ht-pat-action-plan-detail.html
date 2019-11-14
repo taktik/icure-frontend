@@ -69,6 +69,28 @@
                 color: var(--app-error-color);
             }
 
+            .form-title-bar-btn {
+                height: 20px;
+                width: 20px;
+                padding: 2px;
+            }
+
+            .form-title-bar-btn paper-listbox{
+                padding: 0;
+            }
+
+            .form-title-bar-btn paper-listbox paper-item{
+                padding: 0 8px;
+                font-size: var(--font-size-normal);
+            }
+
+            .form-title-bar-btn paper-listbox paper-item iron-icon{
+                height: 12px;
+                width: 12px;
+                padding: 0;
+                margin-right: 4px;
+            }
+
             paper-button[disabled] {
                 background-color: var(--app-secondary-color-dark);
                 color: var(--app-text-color-disabled);
@@ -95,18 +117,42 @@
             }
         </style>
 
-        <div>
-            <!--
-            <div class="links">
-                <template is="dom-if" if="[[!readonly]]">
-                    <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="linkToHealthElement" api="[[api]]" no-status></dynamic-link>
-                </template>
-                <div class="pills">
-                    <dynamic-pills health-elements="[[linkedHes]]"></dynamic-pills>
-                </div>
-            </div>
-            -->
+        <div id="actionPlanDetail">
             <div class="content">
+
+                <div class="links">
+                    <!--
+                    <template is="dom-if" if="[[!readonly]]">
+                        <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="linkToHealthElement" api="[[api]]" no-status></dynamic-link>
+                    </template>
+                    -->
+                    <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="linkToHealthElement" api="[[api]]" no-status></dynamic-link>
+                    <div class="pills">
+                        <dynamic-pills health-elements="[[linkedHes]]"></dynamic-pills>
+                    </div>
+                </div>
+
+                <paper-tooltip position="bottom" for="linkhe">[[localize('link_he','Link Health Element',language)]]</paper-tooltip>
+                <paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
+                    <paper-icon-button id="linkhe" class="form-title-bar-btn" icon="icons:link" slot="dropdown-trigger" alt="menu"></paper-icon-button>
+                    <paper-listbox slot="dropdown-content">
+                        <template is="dom-repeat" items="[[linkables]]" as="he">
+                            <template is="dom-if" if="[[he.id]]">
+                                <paper-item id="[[he.id]]" class$="link [[_isExcluded(he)]]" on-tap="_linkForm">
+                                    <label class$="colour-code [[he.colour]]">
+                                        <span></span>
+                                    </label>[[he.descr]]</paper-item>
+                            </template>
+                            <template is="dom-if" if="[[!he.id]]">
+                                <paper-item id="[[he.idService]]" class$="link [[he.colour]]" on-tap="_linkForm">
+                                    <label class="colour-code">
+                                        <span></span>
+                                    </label>[[he.descr]]</paper-item>
+                            </template>
+                        </template>
+                    </paper-listbox>
+                </paper-menu-button>
+
                 <vaadin-form-layout class="mh">
                     <vaadin-form-item  colspan="1">
                         <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
@@ -482,7 +528,6 @@
                         return Promise.all([this.api.code().findPaginatedCodesByLabel('be', 'BE-THESAURUS-PROCEDURES', 'fr', proceduresFilterValue, null, null)]).then(results => {
                             const procedureList = results[0];
                             let filtered = procedureList.rows
-
                             filtered = _.flatten(filtered.map(procedure => ({
                                 id: procedure.id,
                                 label: procedure.label,
@@ -519,8 +564,7 @@
 
             _drugsChanged(e) {
                 console.log("drug changed")
-                if (!e.detail.value || e.detail.value === "")
-                {
+                if (!e.detail.value || e.detail.value === "") {
                     this.set("selectedVaccineItem", null)
                     this.set("plannedAction.VaccineCommercialNameId", null)
                 }
@@ -529,18 +573,10 @@
             _drugsDataProvider() {
                 return {
                     filter: function (drugsFilterValue) {
-                        return Promise.resolve().then(() => {
-                            const drugsList = [
-                                { name: "product1", id: "1" },
-                                { name: "product2", id: "2" },
-                                { name: "product3", id: "3" },
-                            ];
-                            const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id}) ));
+                        return Promise.all([this.api.bedrugs().getMedecinePackages(drugsFilterValue, this.language, null, 0)]).then(results => {
+                            const drugsList = results[0];
+                            const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id.id}) ));
                             return { totalSize: filtered.length, rows: filtered };
-                            // return Promise.all([this.api.bedrugs().getMedecinePackages(drugsFilterValue, this.language, null, 0)]).then(results => {
-                            //     const drugsList = results[0];
-                            //     const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id.id}) ));
-                            //     return { totalSize: filtered.length, rows: filtered };
                         });
                     }.bind(this)
                 };
@@ -652,20 +688,10 @@
                 this.service.modified = +new Date()
                 this.service.responsible = responsible
                 this.service.content = {
-                    fr: {
-                        stringValue: action.ProcedureInfo.label.fr,
-                        medicationValue: medication
-                    },
-                    nl: {
-                        stringValue: action.ProcedureInfo.label.nl,
-                        medicationValue: medication
-                    },
-                    en: {
-                        stringValue: action.ProcedureInfo.label.nl,
-                        medicationValue: medication
-                    }
+                    fr: this._createContent(action.ProcedureInfo.label.fr, medication),
+                    nl: this._createContent(action.ProcedureInfo.label.nl, medication),
+                    en: this._createContent(action.ProcedureInfo.label.nl, medication)
                 }
-
                 if (!this.service.codes)
                     this.service.codes = []
                 this._assign(this.service.codes, action.ProcedureInfo);
@@ -708,13 +734,17 @@
                     else this._dispatchEvent("update-service", responsible);
                 }
 
-                if(!this.hasSurgical && action.isSurgical) {
-                }
-
                 if (this._detail && "caller" in this._detail)
                     this._detail.caller.onActionChanged(this._detail);
 
                 this.close()
+            }
+
+            _createContent(stringValue, medicationValue) {
+                return {
+                    stringValue: stringValue,
+                    medicationValue: medicationValue
+                }
             }
 
             _dispatchEvent(event, responsible) {
@@ -725,19 +755,24 @@
                 }))
             }
 
+            _linkForm(e) {
+                const healthElement = this.linkables.find(he => he.id === e.currentTarget.id);
+                this.push('linkedHes', healthElement)
+            }
+
             linkToHealthElement(e) {
                 this.push('linkedHes', e.detail.healthElement)
             }
 
             onWidthChange() {
-                const offsetWidth = this.$.dialog.offsetWidth;
-                const offsetHeight = this.$.dialog.offsetHeight;
+                const offsetWidth = this.$.actionPlanDetail.offsetWidth;
+                const offsetHeight = this.$.actionPlanDetail.offsetHeight;
                 if (!offsetWidth || !offsetHeight)
                     return;
                 this.set('qrCodeWidth', Math.min(offsetWidth - 32, offsetHeight - 160));
             }
 
-            open(svc,readonly, detail) {
+            open(svc, readonly, detail) {
                 this._detail = detail;
                 this.reset()
 
@@ -863,7 +898,6 @@
                     this.set("plannedAction.Deadline", moment().format('YYYY-MM-DD'))
                     this.set("plannedAction.Status", "pending")
                 }
-                this.$.dialog.open();
             }
 
             convertMedispringPlan(svc) {
@@ -877,10 +911,6 @@
                     svc.content[this.language].medicationValue = content.medication.medicationValue
                 _.remove(svc.tags, tag => tag.type == 'CD-ITEM-TASK')
                 svc.label="Actes"
-            }
-
-            close() {
-                this.$.dialog.close();
             }
 
             shortServiceDescription(svc, lng) {
@@ -904,11 +934,11 @@
             }
 
             _checkValidity(){
-                this.set("isValid",false);
                 console.log(this.plannedAction)
-                if(this.plannedAction.Deadline && this.plannedAction.Deadline!="" && this.plannedAction.ProcedureId && this.plannedAction.ProcedureId!="" && this.plannedAction.Status!='' && !this.readonly){
-                    this.set("isValid",true);
-                }
+                this.set("isValid",
+                    this.plannedAction.Deadline && this.plannedAction.Deadline != "" &&
+                    this.plannedAction.ProcedureId && this.plannedAction.ProcedureId!= "" &&
+                    this.plannedAction.Status!='' && !this.readonly);
             }
         }
         customElements.define(HtPatActionPlanDetail.is, HtPatActionPlanDetail);
