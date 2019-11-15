@@ -423,10 +423,11 @@
                             firstName: this._upperFirstAll(_.get(patient,"firstName","")),
                             lastName: this._upperFirstAll(_.get(patient,"lastName","")),
                             ssinHr: this.api.formatSsinNumber(_.trim(_.get(patient, "ssin", ""))),
-                            gender: _.trim(_.get(patient, "gender", "male")),
+                            gender: !!_.trim(_.get(patient, "gender", "")) && ["female","male","changed"].indexOf(_.trim(_.get(patient, "gender", "male"))) ? _.trim(_.get(patient, "gender", "male")) : "unknown",
                             genderHr: this._upperFirstAll(this.localize(_.trim(_.get(patient, "gender", "male")) + "GenderLong", "masculin")),
                             civilityHr: ( _.trim(_.get(patient, "gender", "")) === "female" ? this._upperFirstAll(this.localize("abrv_female", "Mrs.", this.language)) : this._upperFirstAll(this.localize("abrv_male", "Mr.", this.language))),
                             dateOfBirthHr: this._YYYYMMDDToDDMMYYYY(_.trim(_.get(patient, "dateOfBirth"))),
+                            dateOfBirthHyphenSplitted: _.trim(_.get(patient, "dateOfBirth")).substring(0,4) + "-" + _.trim(_.get(patient, "dateOfBirth")).substring(4,6) + "-" + _.trim(_.get(patient, "dateOfBirth")).substring(6,8),
                             age: this._dobToAge(_.trim(_.get(patient, "dateOfBirth"))),
                             insuranceData: _
                                 .chain(_.get(patient, "insurabilities",{}))
@@ -1021,7 +1022,7 @@
             _getPdfContent() {
 
                 const includedExcluded = !!_.trim(_.get(_.find(_.get(this,"_data.eMediattest.incapacityData",[]), {name:"inclus/exclus"}), "valueHr", "")) ? _.trim(_.get(_.find(_.get(this,"_data.eMediattest.incapacityData",[]), {name:"inclus/exclus"}), "valueHr", "")) : this.localize("included", "included", this.language)
-                const outdoorActivities = _.trim(_.get(_.find(_.get(this,"_data.eMediattest.incapacityData",[]), {name:"Sorties"}), "valueHr", "")) === "interdite" ? this.localize("no", "No", this.language) : this.localize("yes", "Yes", this.language)
+                const outdoorActivities = _.trim(_.get(_.find(_.get(this,"_data.eMediattest.incapacityData",[]), {name:"Sortie"}), "valueHr", "")) === "interdite" ? this.localize("no", "No", this.language) : this.localize("yes", "Yes", this.language)
 
 
                 return Promise.resolve(
@@ -1124,7 +1125,7 @@
                         this.api.contact().createContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {}))
                     )
                     .then(c=>this.api.register(c,'contact')).then(c => (this._data.currentContact.rev = c.rev) && c)
-                    .then(()=>this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}})))
+                    .then(()=> !_.get(inputConfig,"forceNoRefreshPatientFile",false) ? this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}})) : null )
 
             }
 
@@ -1824,11 +1825,30 @@
                     })
                     .then(diagnosticData => {
 
+                        let incapacityReason = null
+                        let outOfHomeAllowed = null
+                        let occuredOn = null
+                        let incapacityBegin = null
+                        let incapacityEnd = null
+
+                        const extensionData = typeof _.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content." + this.language + ".booleanValue", "") === "boolean" ? !!_.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content." + this.language + ".booleanValue", false) :
+                            typeof _.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content.fr.booleanValue", "") === "boolean" ? !!_.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content.fr.booleanValue", false) :
+                            typeof _.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content.nl.booleanValue", "") === "boolean" ? !!_.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content.nl.booleanValue", false) :
+                            typeof _.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content.en.booleanValue", "") === "boolean" ? !!_.get(this, "_data.eMediattestSubFormDp.servicesMap['extension'][0][0].svc.content.en.booleanValue", false) :
+                            false
+
                         const incapacityData = _.compact(_.map(_.get(this,"_data.eMediattestSubFormDp.servicesMap",[]), (v,k)=> {
 
-                            const valueObject = !!_.get(v, "[0][0].svc.content." + this.language, null) ? _.get(v, "[0][0].svc.content." + this.language, null) : _.get(v, "[0][0].svc.content." + "fr", "")
+                            const valueObject = !!_.get(v, "[0][0].svc.content." + this.language, null) ? _.get(v, "[0][0].svc.content." + this.language, null) : !!_.get(v, "[0][0].svc.content.fr", "") ? _.get(v, "[0][0].svc.content.fr", "") : !!_.get(v, "[0][0].svc.content.nl", "") ? _.get(v, "[0][0].svc.content.nl", "") : !!_.get(v, "[0][0].svc.content.en", "") ? _.get(v, "[0][0].svc.content.en", "") : null
                             const isIncapacity = !!_.trim(_.get(valueObject,"stringValue","")) && _.trim(_.get(valueObject,"stringValue","")).startsWith("CD-INCAPACITY|")
                             const isIncapacityReason = !!_.trim(_.get(valueObject,"stringValue","")) && _.trim(_.get(valueObject,"stringValue","")).startsWith("CD-INCAPACITYREASON|")
+
+                            if(k==="pour cause de") incapacityReason = !!_.trim(_.get(valueObject, "stringValue", "")) ? _.trim(_.get(valueObject, "stringValue", "")) : "CD-INCAPACITYREASON|illness|1"
+                            if(k==="Sortie") outOfHomeAllowed = !!_.trim(_.get(valueObject, "stringValue", "")) ? _.trim(_.get(valueObject, "stringValue", "")) : "interdite"
+
+                            if(k==="du") incapacityBegin = !!_.trim(_.get(valueObject, "fuzzyDateValue", "")) ? _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(0,4) + "-" + _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(4,6) + "-" + _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(6,8) : moment().format("YYYY-MM-DD")
+                            if(k==="au") incapacityEnd = !!_.trim(_.get(valueObject, "fuzzyDateValue", "")) ? _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(0,4) + "-" + _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(4,6) + "-" + _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(6,8) : moment().add(1, 'day').format("YYYY-MM-DD")
+                            if(k==="Accident suvenu le") occuredOn = !!_.trim(_.get(valueObject, "fuzzyDateValue", "")) ? _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(0,4) + "-" + _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(4,6) + "-" + _.trim(_.get(valueObject, "fuzzyDateValue", "")).substring(6,8) : incapacityBegin
 
                             return !_.size(v) ? false : {
                                 name: k,
@@ -1844,7 +1864,20 @@
                             }
                         }))
 
-                        return {diagnosticData:diagnosticData, incapacityData:incapacityData}
+                        return {
+                            diagnosticData:diagnosticData,
+                            incapacityData:incapacityData,
+                            khmerData: {
+                                incapacityOrIncapacityExtension:!!extensionData ? "incapacityextension" : "incapacity",
+                                certificateDate: !!parseInt(_.get(_.get(this,"_data.eMediattestSubFormDp.form")(),"created"))||0 ? moment(parseInt(_.get(_.get(this,"_data.eMediattestSubFormDp.form")(),"created"))).format('YYYY-MM-DD') : moment().format('YYYY-MM-DD'),
+                                certificateTime: !!parseInt(_.get(_.get(this,"_data.eMediattestSubFormDp.form")(),"created"))||0 ? moment(parseInt(_.get(_.get(this,"_data.eMediattestSubFormDp.form")(),"created"))).format('HH:mm:ss') : moment().format('HH:mm:ss'),
+                                incapacityReason: ["illness", "hospitalisation", "sickness", "pregnancy", "workaccident", "traveltofromworkaccident", "occupationaldisease"].indexOf(_.trim(_.get(_.trim(incapacityReason).split("|"),"[1]", "illness"))) > -1 ? _.trim(_.get(_.trim(incapacityReason).split("|"),"[1]", "illness")) : "illness",
+                                outOfHomeAllowed: _.trim(outOfHomeAllowed) === "interdite" ? "false" : "true",
+                                occuredOn: occuredOn,
+                                incapacityBegin: incapacityBegin,
+                                incapacityEnd: incapacityEnd,
+                            }
+                        }
 
                     })
 
@@ -1889,9 +1922,10 @@
                         originalContactId: _.trim(_.get(messageObject, "metas.originalContactId", "")),
                         messageObject: messageObject,
                         cdTransactionCode: "medical-certificate",
-                        isMedex: true
+                        isMedex: true,
+                        forceNoRefreshPatientFile: true, // Don't refresh now, refresh once we got the KHMER generated
                     }).then(()=>([createdMessage,createdDocument])))
-                    .catch(e => console.log("[ERROR] _saveMedexIttToPatFile", e))
+                    .catch(e => { console.log("[ERROR] _saveMedexIttToPatFile", e); return Promise.resolve(); })
 
             }
 
@@ -1919,7 +1953,7 @@
                     .then(([createdMessage,createdDocument]) => _.merge(this._data.pdf, {createdMessage:createdMessage,createdDocument:createdDocument}))
                     .then(() => this._data)
                     .catch(e => console.log("[ERROR] printMedexPdfItt", e, dataFromPatDetail,this._data))
-                    .finally(() => { console.log("--- this._data ---",this._data); this.set("_isBusy", false); })
+                    .finally(() => { console.log("[Outgoing document, printMedexPdfItt, _data]",this._data); this.set("_isBusy", false); return this._data; })
             }
 
             open(inputData) {
@@ -1944,7 +1978,7 @@
                     .then(() => this._getDataProvider().then(dataProvider => _.assign(this, {dataProvider:dataProvider})))
                     .then(() => !!_.trim(_.get(this,"_data.docTemplateId","")) ? this._applyProseEditorTemplate(null, _.find(_.get(this,"_data.proseEditorTemplates",[]), {id:_.trim(_.get(this,"_data.docTemplateId",""))})) : this._refreshProseEditorContext())
                     .catch(e => console.log("[ERROR] outgoing document", e, inputData))
-                    .finally(() => (this.set("_isBusy", false)||true) && console.log("--- this._data ---",this._data))
+                    .finally(() => (this.set("_isBusy", false)||true) && console.log("[Outgoing document, _data]",this._data))
 
                     // Todo: When using prose template object, can't write in it ? Cusor jumps after one char typed / render issue ?
                     // Todo: Handle incomplete dates with Julien's new method of icc-api

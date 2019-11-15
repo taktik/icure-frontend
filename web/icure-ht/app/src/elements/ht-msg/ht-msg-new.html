@@ -732,6 +732,7 @@
 
         import _ from 'lodash/lodash'
         import moment from 'moment/src/moment'
+        import mustache from "mustache/mustache.js"
 
         class HtMsgNew extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
@@ -871,6 +872,10 @@
                         value: false
                     },
                     patient: {
+                        type: Object,
+                        value: () => {}
+                    },
+                    _data: {
                         type: Object,
                         value: () => {}
                     }
@@ -1456,6 +1461,194 @@
                 this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}}))
             }
 
+            _getMedexKhmerTemplate(data) {
+
+                const khmerTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- eHealth platform - February 2016 -->
+<!-- Only designed for illustration purpose. No valuable medical content -->
+<kmehrmessage xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ehealth.fgov.be/standards/kmehr/schema/v1" xsi:schemaLocation="http://www.ehealth.fgov.be/standards/kmehr/schema/v1 kmehr_elements.xsd">
+	<header>
+		<standard>
+			<cd S="CD-STANDARD" SV="1.8">20121001</cd>
+		</standard>
+		<id S="ID-KMEHR" SV="1.0">{{currentHcp.nihii}}.{{nowMs}}</id>
+		<date>{{nowYYYYMMDD}}</date>
+		<time>{{nowHHMMSS}}</time>
+		<sender>
+			<hcparty>
+				<id S="LOCAL" SV="[AIV]{version}[/AIV]" SL="Topaz">Topaz-v[AIV]{version}[/AIV]</id>
+				<cd S="CD-HCPARTY" SV="1.0">application</cd>
+				<name>Topaz</name>
+			</hcparty>
+			<hcparty>
+				<id S="ID-HCPARTY" SV="1.0">{{currentHcp.nihii}}</id>
+				<id S="INSS" SV="1.0">{{currentHcp.ssin}}</id>
+				<cd S="CD-HCPARTY" SV="1.6">persphysician</cd>
+				<firstname>{{currentHcp.firstName}}</firstname>
+				<familyname>{{currentHcp.lastName}}</familyname>
+			</hcparty>
+		</sender>
+		<recipient>
+			<hcparty>
+				<cd S="CD-HCPARTY" SV="1.6">application</cd>
+				<name>medex</name>
+			</hcparty>
+		</recipient>
+	</header>
+	<folder>
+		<id S="ID-KMEHR" SV="1.0">1</id>
+		<patient>
+			<id S="ID-PATIENT" SV="1.0">{{currentPatient.ssin}}</id>
+			<firstname>{{currentPatient.firstName}}</firstname>
+			<familyname>{{currentPatient.lastName}}</familyname>
+			<birthdate>
+				<date>{{currentPatient.dateOfBirthHyphenSplitted}}</date>
+			</birthdate>
+			<sex>
+				<cd SV="1.0" S="CD-SEX">{{currentPatient.gender}}</cd>
+			</sex>
+			<usuallanguage>fr</usuallanguage>
+		</patient>
+		<transaction>
+			<id S="ID-KMEHR" SV="1.0">1</id>
+			<cd S="CD-TRANSACTION" SV="1.5">notification</cd>
+			<cd S="CD-TRANSACTION-TYPE" SV="1.1">{{eMediattest.khmerData.incapacityOrIncapacityExtension}}</cd>
+			<date>{{eMediattest.khmerData.certificateDate}}</date>
+			<time>{{eMediattest.khmerData.certificateTime}}</time>
+			<author>
+				<hcparty>
+					<id S="ID-HCPARTY" SV="1.0">{{currentHcp.nihii}}</id>
+					<id S="INSS" SV="1.0">{{currentHcp.ssin}}</id>
+					<cd S="CD-HCPARTY" SV="1.6">persphysician</cd>
+					<firstname>{{currentHcp.firstName}}</firstname>
+					<familyname>{{currentHcp.lastName}}</familyname>
+				</hcparty>
+			</author>
+			<iscomplete>true</iscomplete>
+			<isvalidated>true</isvalidated>
+			<item>
+				<id S="ID-KMEHR" SV="1.0">1</id>
+				<cd S="CD-ITEM" SV="1.6">incapacity</cd>
+				<content>
+					<incapacity>
+						<cd S="CD-INCAPACITY" SV="1.1">work</cd>
+						<incapacityreason>
+							<cd S="CD-INCAPACITYREASON" SV="1.1">{{eMediattest.khmerData.incapacityReason}}</cd>
+						</incapacityreason>
+						<outofhomeallowed>{{eMediattest.khmerData.outOfHomeAllowed}}</outofhomeallowed>
+					</incapacity>
+					<date>{{eMediattest.khmerData.occuredOn}}</date>
+				</content>
+				<beginmoment>
+					<date>{{eMediattest.khmerData.incapacityBegin}}</date>
+				</beginmoment>
+				<endmoment>
+					<date>{{eMediattest.khmerData.incapacityEnd}}</date>
+				</endmoment>
+			</item>
+			<item>
+				<id S="ID-KMEHR" SV="1.0">2</id>
+				<cd S="CD-ITEM" SV="1.6">diagnosis</cd>
+				<content>
+					<cd S="ICD" SV="10">{{eMediattest.diagnosticData.icd}}</cd>
+					<cd S="ICPC" SV="2">{{eMediattest.diagnosticData.icpc}}</cd>
+				</content>
+				<content>
+					<text L="{{language}}">{{eMediattest.diagnosticData.labelHr}}</text>
+				</content>
+			</item>
+		</transaction>
+	</folder>
+</kmehrmessage>`
+
+                return mustache.render(khmerTemplate, data)
+
+            }
+
+            _saveDocumentAsService(inputConfig) {
+
+                const promResolve = Promise.resolve()
+
+                const svc = this.api.contact().service().newInstance( _.get(this,"user",{}), {
+                    content: _.fromPairs([[this.language, { documentId: inputConfig.documentId, stringValue: inputConfig.stringValue }]]),
+                    label: _.trim(_.get(inputConfig, "messageObject.subject","")),
+                    contactId: inputConfig.contactId,
+                    tags: [
+                        { type: "isMedex", code: "true" },
+                        { type: "isKhmer", code: "true" },
+                        { type: "originalContactId", code: _.trim(_.get(inputConfig, "messageObject.metas.originalContactId","")) },
+                        { type: "formId", code: _.trim(_.get(inputConfig, "messageObject.metas.formId","")) },
+                        { type: "subFormId", code: _.trim(_.get(inputConfig, "messageObject.metas.subFormId","")) },
+                        { type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) },
+                        {type: 'CD-TRANSACTION', code: _.trim(_.get(inputConfig,"cdTransactionCode",""))},
+                    ]
+                })
+
+                if(false === _.get(this, "_data.currentContact.services", false)) this._data.currentContact.services = []
+                if(false === _.get(this, "_data.currentContact.subContacts", false)) this._data.currentContact.subContacts = []
+
+                this._data.currentContact.services.push(svc)
+                this._data.currentContact.subContacts.push({
+                    status: 64,
+                    services: [{serviceId: svc.id}],
+                    tags: svc.tags,
+                })
+
+                return promResolve
+                    .then(() => !!_.trim(_.get(this, "_data.currentContact.rev", "")) ?
+                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {})) :
+                        this.api.contact().createContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {}))
+                    )
+                    .then(c=>this.api.register(c,'contact')).then(c => (this._data.currentContact.rev = c.rev) && c)
+                    .then(()=> this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}})))
+
+            }
+
+            _saveMedexKhmerIttToPatFile() {
+
+                const messageObject = {
+                    transportGuid: "MEDEX:OUT:KHMER",
+                    recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                    metas: {
+                        filename : _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
+                        hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
+                        contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
+                        originalContactId : this._data.eMediattestParentFormDp.form().contactId,
+                        formId : _.trim(_.get(_.get(this, "_data.eMediattestParentFormDp.form")(),"id","")),
+                        subFormId : _.trim(_.get(_.get(this, "_data.eMediattestSubFormDp.form")(),"id","")),
+                    },
+                    toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                    subject: "[KHMER] " + this.localize("medicalCertificate","Medical certificate",this.language) + " Medex",
+                }
+
+                return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"_data.currentPatient",{}))
+                    .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
+                    .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {
+                        documentType: 'report',
+                        mainUti: this.api.document().uti("application/xml"),
+                        name: _.get(messageObject,"metas.filename"),
+                        tags: [
+                            {type: "medex", code: "true"},
+                            {type: "khmer", code: "true"},
+                            {type: "formId", code: _.trim(_.get(messageObject, "metas.formId",""))},
+                            {type: "subFormId", code: _.trim(_.get(messageObject, "metas.subFormId",""))}
+                        ]
+                    }).then(documentInstance=>([createdMessage, documentInstance])))
+                    .then(([createdMessage, documentInstance]) => this.api.document().createDocument(documentInstance).then(createdDocument=>([createdMessage, createdDocument])))
+                    .then(([createdMessage, createdDocument]) => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, this.api.crypto().utils.text2ua(_.get(this, "_data.eMediattest.khmerContent", ""))).then(encryptedFileContent => [createdMessage,createdDocument,encryptedFileContent]))
+                    .then(([createdMessage,createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => ([createdMessage,createdDocument])))
+                    .then(([createdMessage,createdDocument])=> this._saveDocumentAsService({
+                        documentId: _.trim(_.get(createdDocument, "id", "")),
+                        stringValue: _.trim(_.get(messageObject,"subject","")),
+                        contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
+                        originalContactId: _.trim(_.get(messageObject, "metas.originalContactId", "")),
+                        messageObject: messageObject,
+                        cdTransactionCode: "medical-certificate",
+                    }).then(()=>([createdMessage,createdDocument])))
+                    .catch(e => { console.log("[ERROR] _saveMedexKhmerIttToPatFile", e); return Promise.resolve(); })
+
+            }
+
 
 
 
@@ -1645,8 +1838,6 @@
 
             _prepareEMediattestMessage(dataFromPatDetail) {
 
-
-
                 // 1. Create message with transportGuid = MEDEX:OUT:KHMER + save db
                 // 2. Create KHMER/XML document for ITT + encrypt + save db
                 // 3. Link KHMER/XML document to message MEDEX:OUT:KHMER
@@ -1659,8 +1850,6 @@
                 const promResolve = Promise.resolve();
                 const outgoingDocumentComponent = this.shadowRoot.querySelector("#outgoingDocument")
                 const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
-
-
 
                 return promResolve
                     .then(() => {
@@ -1684,11 +1873,17 @@
                         setTimeout(()=>{ this.set("newMessage.document.title", _.compact(["eMediAtt - Medex", _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
                     })
                     .then(() => outgoingDocumentComponent.printMedexPdfItt(dataFromPatDetail))
-                    .then(medexPrintedPdfData => {
+                    .then(printMedexPdfIttData => _.merge(this._data, printMedexPdfIttData, {language:this.language, nowMs: moment().format('YYYYMMDDHHmmss0000'), nowYYYYMMDD: moment().format('YYYY-MM-DD'), nowHHMMSS: moment().format('HH:mm:ss'),}))
+                    // .then(() => _.merge(this._data.eMediattest, {khmerContent:this._getMedexKhmerTemplate(this._data)}))
+                    // .then(() => this._saveMedexKhmerIttToPatFile())
+                    // .then(([createdMessage,createdDocument]) => _.merge(this._data.eMediattest.khmerData, {createdMessage:createdMessage,createdDocument:createdDocument}))
+                    .then(() => {
 
-                        console.log("medexPrintedPdfData", medexPrintedPdfData);
+                        console.log("this._data", this._data);
 
                     })
+
+
                     // .then(({foundDocument, decryptedContent}) => {
                     //     const foundExtension = _.trim(_.get(foundDocument,"name","")).split(".").pop()
                     //     const fileExtension = _.trim(_.get( _.compact(_.map(this.api.document().utiExts, (v,k)=>_.trim(v).toLowerCase() ===_.trim(_.get(foundDocument,"mainUti","")).toLowerCase()?k:false)), "[0]", ( _.trim(_.get(foundDocument,"name","")).indexOf(".") > -1 && _.trim(foundExtension).length<5 && _.trim(foundExtension).length>2 ? foundExtension : "" ))).toLowerCase()
@@ -1707,15 +1902,8 @@
                     //     });
                     //     this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail') && this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail').render()
                     // })
-                    .catch(e=>{ console.log("ERROR getting attachment from pat detail: ", e); this.set("_bodyOverlay", true); this.$["unableToLinkPatDocument"].open(); })
-                    .finally(() => {
-
-                        console.log("_prepareEMediattestMessage", dataFromPatDetail);
-
-                        this._resetLoadingMessage();
-                        this.set('_isLoading', false );
-
-                    })
+                    .catch( e => { console.log("ERROR _prepareEMediattestMessage", e); this.set("_bodyOverlay", true); this.$["unableToLinkPatDocument"].open(); })
+                    .finally(() => { this._resetLoadingMessage(); this.set('_isLoading', false ); })
 
             }
 
