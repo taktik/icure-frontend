@@ -1113,6 +1113,9 @@
                                         <template is="dom-if" if="[[_ifStatusDateExist(item.sentDate)]]">
                                             <iron-icon icon="vaadin:paperplane" class="invoiceDateInfoIcon"></iron-icon> <span>[[_formatInvoiceDate(item.sentDate)]]</span>
                                         </template>
+                                        <template is="dom-if" if="[[_ifStatusDateExist(item.cancelDate)]]">
+                                            <iron-icon icon="vaadin:close" class="invoiceDateInfoIcon"></iron-icon> <span>[[_formatInvoiceDate(item.cancelDate)]]</span>
+                                        </template>
                                         <template is="dom-if" if="[[_ifEattestSaved(item,item.printedDate)]]">
                                             <div class="he-edit-btn-container">
                                                 <paper-icon-button id="he-edit-btn-open_[[item.id]]" class="he-edit-btn" icon="vaadin:chevron-left" on-tap="_toggleEditHE"></paper-icon-button>
@@ -4719,8 +4722,43 @@
 
                 const cancelDate=moment().format("YYYYMMDD")
                 this.api.fhc().Eattestv2controller().cancelAttestUsingDELETE(this.patient.ssin, this.api.keystoreId,this.api.tokenId,this.api.credentials.ehpassword,this.hcp.nihii,this.hcp.ssin,this.hcp.firstName,
-                    this.hcp.lastName,this.supervisor.cbe || this.hcp.cbe, _.padStart(_.get(this,"selectedInvoice.reason",""),4,'0'), this.patient.firstName, this.patient.lastName, this.patient.gender,
-                    this.selectedInvoice.invoiceReference,this.reason,cancelDate,this.supervisor.nihii || "",this.supervisor.ssin || "",this.supervisor.firstName || "", this.supervisor.lastName || "")
+                    this.hcp.lastName,this.supervisor.cbe || this.hcp.cbe, this.patient.firstName, this.patient.lastName, this.patient.gender,
+                    this.selectedInvoice.thirdPartyReference,this.reason,cancelDate,this.supervisor.nihii || "",this.supervisor.ssin || "",this.supervisor.firstName || "", this.supervisor.lastName || "")
+                    .then(fhcEattest => this.api.logMcn(fhcEattest, this.user, this.selectedInvoice.id, 'eattest', 'notify'))
+                    .then(fhcEattest => {
+                        if(_.get(fhcEattest,'acknowledge.errors',[]).length){
+                            let errorMsg="";
+                            if(fhcEattest.acknowledge && fhcEattest.acknowledge.errors && fhcEattest.acknowledge.errors.length!==0)
+                                fhcEattest.acknowledge.errors.map(error => {
+                                    console.log("Error :",error)
+                                    errorMsg+=error.code+" "+(this.language==="fr" ? error.msgFr : error.msgNl)+", "
+                                })
+                            else{
+                                errorMsg+="Error : pas de message d'erreur renvoyé."
+                            }
+                            this.set("errorMessage",errorMsg)
+                        }else{
+                            this.set("selectedInvoice.cancelDate",cancelDate);
+                            this.set("selectedInvoice.cancelReason",this.reason);
+                            this.set("errorMessage", null)
+                            this.api.invoice().modifyInvoice(this.selectedInvoice)
+                                .then(invoice => this.api.register(invoice,'invoice'))
+                                .then(invoice => {
+                                    this.api.tarification().getTarifications(new models.ListOfIdsDto({ids: invoice.invoicingCodes.map(tar => tar.tarificationId)})).then(nmcls =>
+                                        nmcls.map(nmcl =>{
+                                            let sns = invoice.invoicingCodes.filter(n => n.tarificationId === nmcl.id) || null
+                                            if(sns && sns.length){
+                                                sns.map(sn =>{
+                                                    sn.prescriberNeeded = nmcl.needsPrescriber
+                                                    sn.isRelativePrestation = nmcl.hasRelatedCode
+                                                })
+                                            }
+                                        })
+                                    ).finally(() => this.updateGui(invoice))
+                                    console.log("saved:",invoice)
+                                })
+                        }
+                    })
             }
 
             _isSelectedInvoiceEattest(){
