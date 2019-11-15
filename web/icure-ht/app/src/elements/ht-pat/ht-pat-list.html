@@ -1540,7 +1540,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         import _ from 'lodash/lodash'
         import { parse } from '../../../scripts/icure-reporting'
         import { filter as icrFilter } from '../../../scripts/filters'
-        import filterExParser from '../../../scripts/filterExParser'
         import {FilterExPrinter} from '../icc-x-api/filterExPrinter'
 
         // To generate download xlsx file
@@ -1892,16 +1891,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     let svcFilter = null
                     this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(currentHcp => {
                         if (this.selectedFilters && this.selectedFilters.length) {
-                            svcFilter = this.selectedFilters.length > 1 ? {
-                                "$type": "IntersectionFilter",
-                                filters: this.selectedFilters.map(f => f.filter)
-                            } : this.selectedFilters[0].filter
+                            svcFilter = parse(`PAT[${this._selectedFiltersAsString()}]`, {hcpId: currentHcp.parentId || this.user.healthcarePartyId})
                         } else {
                             try {
-                                //svcFilter = filterExParser.parse(latestSearchValue, {hcpId: currentHcp.parentId || this.user.healthcarePartyId})
-
                                 svcFilter = parse(`PAT[${latestSearchValue}]`, {hcpId: currentHcp.parentId || this.user.healthcarePartyId})
-
                             } catch (ignored) {}
                         }
 
@@ -2515,18 +2508,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     filtersProperty.typedValue.stringValue = '{}'
                 }
 
-                const key = this.filterName.length ? this.filterName : this.filterValue.substring(0,5)+'...'
+                const key = this.filterName.length ? this.filterName : this.filterValue.substring(0, 5) + '...'
 
                 const filters = JSON.parse(filtersProperty.typedValue.stringValue)
-                try {
-                    filters[key] = filterExParser.parse(this.filterValue, {hcpId: this.user.healthcarePartyId})
-                } catch (e) {
-                    filters[key] = {
-                        '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
-                        'healthcarePartyId': this.user.healthcarePartyId,
-                        'searchString': this.filterValue
-                    }
-                }
+                filters[key] = {searchString: this.filterValue}
 
                 filtersProperty.typedValue.stringValue = JSON.stringify(filters)
 
@@ -2599,10 +2584,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _selectedFiltersAsString() {
-                const filterPrinter = new FilterExPrinter()
-                return filterPrinter.print(this.selectedFilters.length > 1 ?
-                    {"$type": "IntersectionFilter", filters: this.selectedFilters.map(f => f.filter)} :
-                    this.selectedFilters[0].filter)
+                return this.selectedFilters.length>1 ? this.selectedFilters.map(f => `(${f.filter.searchString})`).join('&') : this.selectedFilters[0].filter.searchString
             }
 
             _filterValueChanged(filterValue, oldValue) {
