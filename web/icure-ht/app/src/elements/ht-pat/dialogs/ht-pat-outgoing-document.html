@@ -299,6 +299,14 @@
                                         type: String,
                                         value: ""
                                     },
+                                    createdMessage: {
+                                        type: Object,
+                                        value: () => {}
+                                    },
+                                    createdDocument: {
+                                        type: Object,
+                                        value: () => {}
+                                    },
                                 }}
                             },
                         }}
@@ -1091,6 +1099,15 @@
                     tags: [{ type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) }]
                 })
 
+                if(!!_.get(inputConfig,"isMedex","")) svc.tags = [
+                    { type: "isMedex", code: "true" },
+                    { type: "originalContactId", code: _.trim(_.get(inputConfig, "messageObject.metas.originalContactId","")) },
+                    { type: "formId", code: _.trim(_.get(inputConfig, "messageObject.metas.formId","")) },
+                    { type: "subFormId", code: _.trim(_.get(inputConfig, "messageObject.metas.subFormId","")) },
+                    { type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) },
+                    {type: 'CD-TRANSACTION', code: _.trim(_.get(inputConfig,"cdTransactionCode",""))},
+                ]
+
                 if(false === _.get(this, "_data.currentContact.services", false)) this._data.currentContact.services = []
                 if(false === _.get(this, "_data.currentContact.subContacts", false)) this._data.currentContact.subContacts = []
 
@@ -1835,54 +1852,46 @@
 
             _saveMedexIttToPatFile() {
 
-                const promResolve = Promise.resolve()
+                const messageObject = {
+                    transportGuid: "MEDEX:OUT:PDF",
+                    recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                    metas: {
+                        filename : _.trim(_.get(this, "_data.pdf.filename", "")),
+                        hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
+                        contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
+                        originalContactId : this._data.eMediattestParentFormDp.form().contactId,
+                        formId : _.trim(_.get(_.get(this, "_data.eMediattestParentFormDp.form")(),"id","")),
+                        subFormId : _.trim(_.get(_.get(this, "_data.eMediattestSubFormDp.form")(),"id","")),
+                    },
+                    toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                    subject: this.localize("medicalCertificate","Medical certificate",this.language) + " Medex",
+                }
 
-                return;
-
-                return promResolve
-                    .then(() => {
-
-                        const messageObject = {
-                            transportGuid: "MEDEX:OUT:PDF",
-                            recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
-                            metas: {
-                                filename : fileName,
-                                hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
-                                contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
-                                templateGuid: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.guid","")),
-                                templateVersion: _.trim(_.get(this,"_data.proseEditorSelectedTemplate.group.guid","")),
-                            },
-                            toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
-                            subject: !!_.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) ? _.trim(_.get(this,"_data.proseEditorSelectedTemplate.descr")) : this.localize("out-doc","Outgoing document",this.language)
-                        }
-
-                        return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"patient",{}))
-                            .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
-                            .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {
-                                documentType: 'report',
-                                mainUti: this.api.document().uti("application/pdf"),
-                                name: _.get(messageObject,"metas.filename"),
-                                tags: [
-                                    {type: "templateGuid", code: _.trim(_.get(messageObject, "metas.templateGuid",""))},
-                                    {type: "templateVersion", code: _.trim(_.get(messageObject, "metas.templateVersion",""))}
-                                ]
-                            }))
-                            .then(documentInstance => this.api.document().createDocument(documentInstance))
-                            .then(createdDocument => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, printedPdf).then(encryptedFileContent => [createdDocument,encryptedFileContent]))
-                            .then(([createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => createdDocument))
-                            .then(createdDocument=> this._saveDocumentAsService({
-                                documentId: _.trim(_.get(createdDocument, "id", "")),
-                                stringValue: _.trim(_.get(messageObject,"subject","")),
-                                contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
-                                messageObject: messageObject,
-                            }))
-                            .then(()=>this._flushProseEditorContent())
-                            .then(()=>this.set("_data.proseEditorSelectedTemplate",{}))
-                            .then(()=>this.shadowRoot.querySelector('#outgoingDocumentDialog').close())
-
-                    })
-                    .catch(e => console.log("[ERROR] _saveAndAddToPatFile", e))
-                    .finally(() => this.set("_isBusy", false))
+                return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"_data.currentPatient",{}))
+                    .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
+                    .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {
+                        documentType: 'report',
+                        mainUti: this.api.document().uti("application/pdf"),
+                        name: _.get(messageObject,"metas.filename"),
+                        tags: [
+                            {type: "medex", code: "true"},
+                            {type: "formId", code: _.trim(_.get(messageObject, "metas.formId",""))},
+                            {type: "subFormId", code: _.trim(_.get(messageObject, "metas.subFormId",""))}
+                        ]
+                    }).then(documentInstance=>([createdMessage, documentInstance])))
+                    .then(([createdMessage, documentInstance]) => this.api.document().createDocument(documentInstance).then(createdDocument=>([createdMessage, createdDocument])))
+                    .then(([createdMessage, createdDocument]) => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, _.get(this, "_data.pdf.data", "")).then(encryptedFileContent => [createdMessage,createdDocument,encryptedFileContent]))
+                    .then(([createdMessage,createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => ([createdMessage,createdDocument])))
+                    .then(([createdMessage,createdDocument])=> this._saveDocumentAsService({
+                        documentId: _.trim(_.get(createdDocument, "id", "")),
+                        stringValue: _.trim(_.get(messageObject,"subject","")),
+                        contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
+                        originalContactId: _.trim(_.get(messageObject, "metas.originalContactId", "")),
+                        messageObject: messageObject,
+                        cdTransactionCode: "medical-certificate",
+                        isMedex: true
+                    }).then(()=>([createdMessage,createdDocument])))
+                    .catch(e => console.log("[ERROR] _saveMedexIttToPatFile", e))
 
             }
 
@@ -1907,14 +1916,10 @@
                     .then(() => this.api.pdfReport(_.get(this,"_data.pdf.content",""),_.merge({completionEvent:"pdfDoneRenderingEvent"/*, printBackground:true*/})))
                     .then(printedPdf => _.merge(this._data.pdf, {data:printedPdf.pdf}))
                     .then(() => this._saveMedexIttToPatFile())
-
-                    .catch(e => console.log("[ERROR] outgoing document", e, dataFromPatDetail))
-                    .finally(() => {
-                        console.log("--- this._data ---",this._data)
-                        this.set("_isBusy", false)
-                        return this._data
-                    })
-
+                    .then(([createdMessage,createdDocument]) => _.merge(this._data.pdf, {createdMessage:createdMessage,createdDocument:createdDocument}))
+                    .then(() => this._data)
+                    .catch(e => console.log("[ERROR] printMedexPdfItt", e, dataFromPatDetail,this._data))
+                    .finally(() => { console.log("--- this._data ---",this._data); this.set("_isBusy", false); })
             }
 
             open(inputData) {
