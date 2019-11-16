@@ -11,10 +11,12 @@
 <link rel="import" href="../../../styles/dialog-style.html">
 <link rel="import" href="../../../styles/atc-styles.html">
 <link rel="import" href="../../../styles/scrollbar-style.html">
+<link rel="import" href="prescription-history.html">
 <link rel="import" href="../../ht-pat/dialogs/mycarenet/ht-pat-mcn-chapteriv-agreement.html">
 <link rel="import" href="../../icons/medication-icons.html">
 <link rel="import" href="../../../styles/paper-tabs-style.html">
 
+<link rel="import" href="../../../elements/ht-spinner/ht-spinner.html">
 
 <dom-module id="medication-plan-dialog">
     <template>
@@ -717,6 +719,7 @@
 
             <h2 class="modal-title">[[_getModalTitle(selectedTab)]]
                 <paper-tabs selected="{{selectedTab}}">
+                    <paper-tab>[[localize('pr_history','Historique',language)]]</paper-tab>
                     <paper-tab>[[localize('tab_pres','Present',language)]]</paper-tab>
                     <!--<paper-tab>[[localize('tab_hist','History',language)]]</paper-tab>-->
                     <paper-tab>[[localize('tab_pat','Patient',language)]]</paper-tab>
@@ -726,6 +729,10 @@
 
             <div class="content">
                 <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                    <ht-spinner class="center" active="[[isLoading]]"></ht-spinner>
+                    <prescription-history id="prescription-history" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" on-print-prescription="onPrintPrescription"></prescription-history>
+                </template>
+                <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <div class="header-content">
                         <paper-checkbox on-change="checkChanged" id="needPres" label="[[localize('need_display_presc','need Display Presc',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_presc','need Display Presc',language)]]</paper-checkbox>
                         <paper-checkbox checked on-change="checkChanged" id="needMedi" label="[[localize('need_display_medication','need display medication',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_medication','need display medication',language)]]</paper-checkbox>
@@ -953,7 +960,7 @@
                     </div>
                 </template>
 
-                <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
+                <template is="dom-if" if="{{_isEqual(selectedTab,2)}}">
                     <div class="patient">
                         <div class="general-infos">
                             <div class="infos-block">
@@ -1006,20 +1013,18 @@
                         </template>
                     </div>
                 </template>
-                <template is="dom-if" if="{{_isEqual(selectedTab,2)}}">
+                <template is="dom-if" if="{{_isEqual(selectedTab,3)}}">
                     <ht-pat-mcn-chapteriv-agreement id="chapterivdialog" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" medications="[[medications]]" on-create-service="_createService" on-update-services="_updateServices"></ht-pat-mcn-chapteriv-agreement>
                 </template>
             </div>
 
 
             <div class="buttons">
-                <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
+                <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <paper-button on-tap="print" class="button button--other">[[localize('print','Print',language)]]</paper-button>
                 </template>
-                <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('close','Close',language)]]</paper-button>
-
+                <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('clo','Close',language)]]</paper-button>
                 <!--<paper-button dialog-confirm autofocus on-tap="" class="button button--save">[[localize('add_medication','Add Medication',language)]]</paper-button>-->
-
             </div>
         </paper-dialog>
     </template>
@@ -1028,6 +1033,12 @@
         import _ from 'lodash/lodash'
         import moment from 'moment/src/moment'
         import mustache from "mustache/mustache.js";
+
+        const STATUS_NOT_SENT = 1;
+        const STATUS_SENT = 2;
+        const STATUS_PENDING = 4;
+        const STATUS_DELIVERED = 8;
+        const STATUS_REVOKED = 16;
 
         class MedicationPlanDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -1043,6 +1054,10 @@
                         type: Object,
                         value: null,
                         notify: true
+                    },
+                    isLoading: {
+                        type: Boolean,
+                        value: false
                     },
                     selectedTab: {
                         type: Number,
@@ -1301,6 +1316,104 @@
                 this.$['medication-plan'].open()
             }
 
+            _setStatus(service, status) {
+
+            }
+
+            setContacts(contacts) {
+
+                let prescriptions = [];
+
+                this._contacts = contacts;
+
+                this._contacts.forEach(contact => {
+                    contact.subContacts.forEach(subContact => {
+                        subContact.services.forEach(service => {
+                            this._getPrescription(prescriptions, service, contact);
+                        });
+                    });
+                    contact.services.forEach(service => {
+                        this._getPrescription(prescriptions, service, contact);
+                    });
+                })
+
+                this.hcp = null;
+                if (this.patient.ssin && this.api.tokenId) {
+                    this.set("isLoading", true)
+                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                        this.hcp = hcp;
+                        return this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.patient.ssin, this.api.credentials.ehpassword).then(openPrescriptions => {
+                            console.log(openPrescriptions);
+                            prescriptions.forEach(prescription => {
+                                const found = !!prescription.rid && openPrescriptions.some(p => p.rid === prescription.rid);
+                                const medicationValue = this.api.contact().preferredContent(prescription.service, this.language).medicationValue;
+                                if (!("status" in medicationValue)) {
+                                    const tag = prescription.service.tags.find(t => t.type === 'CD-LIFECYCLE')
+                                    const sent = found || (tag && tag.code === "ordered");
+                                    medicationValue.status = sent ? STATUS_SENT : STATUS_NOT_SENT;
+                                    prescription.update = true;
+                                }
+                                let status = medicationValue.status;
+                                if (found)
+                                    status = STATUS_SENT | STATUS_PENDING;
+                                else if ((status & STATUS_SENT) && !(status & STATUS_REVOKED))
+                                    status |= STATUS_DELIVERED;
+                                if (status & STATUS_DELIVERED)
+                                    status = STATUS_DELIVERED | STATUS_SENT;
+                                if (status & STATUS_REVOKED)
+                                    status = STATUS_REVOKED | STATUS_SENT;
+                                if (medicationValue.status != status) {
+                                    medicationValue.status = status;
+                                    prescription.update = true;
+                                }
+                            })
+
+                            const contacts = prescriptions.filter(p => p.update).flatMap(p => p.contact).filter((c, i, a) => a.indexOf(c) === i);
+                            const promises = contacts.map(contact => {
+                                return this.api.contact().modifyContactWithUser(this.user, contact)
+                            });
+
+                            //TODO: get feedback for every recip-e prescription
+                            //this.api.fhc().Recipecontroller().listFeedbacksUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid)
+
+                            return Promise.all(promises).then(() => {
+                                this.shadowRoot.querySelector("#prescription-history").hcp = this.hcp;
+                                this.shadowRoot.querySelector("#prescription-history").setPrescriptions(prescriptions);
+                                this.set("isLoading", false)
+                            });
+                        });
+                    })
+                };
+            }
+
+            onPrintPrescription(e) {
+                this.dispatchEvent(e);//new CustomEvent('print-prescription', e));
+            }
+
+            _getPrescription(prescriptions, service, contact) {
+                if (!service) return;
+                if (service.label === "Prescription" ||
+                    (service.tags && service.tags.some(t => t.type === "ICURE" && t.code === "PRESC"))) {
+                    const medicationValue = service.content.fr.medicationValue;
+                    const medicinalProduct = medicationValue ? medicationValue.medicinalProduct : null;
+                    if (medicinalProduct) {
+                        const prescription = {
+                            service: service,
+                            contact: contact,
+                            date: this.api.moment(service.valueDate).format("DD/MM/YYYY"),
+                            name: medicinalProduct ? medicinalProduct.intendedname : "unknown",
+                            rid: medicationValue.prescriptionRID ? medicationValue.prescriptionRID : null,
+                            atc: _.get(service.codes.find(c => c.type === "CD-ATC"), "code"),
+                            cnk: _.get(service.codes.find(c => c.type === "CD-DRUG-CNK"), "code"),
+                            cds: medicinalProduct ? medicinalProduct.intendedcds.map(c => c.code) : "unknown",
+                            status: "unknown",
+                            update: false
+                        }
+                        prescriptions.push(prescription);
+                    }
+                }
+            }
+
             _localize(s) {
                 return this.api.contact().medication().localize(s, this.language)
             }
@@ -1534,7 +1647,9 @@
             }
 
             _getModalTitle(){
-                return this.selectedTab === 3 ? this.localize('tab_chap','Chapter IV') : this.localize('med_plan','Medication plan')
+                // TODO: LDE: not sure
+                //return this.selectedTab === 3 ? this.localize('tab_chap','Chapter IV') : this.localize('med_plan','Medication plan')
+                return this.selectedTab === 4 ? this.localize('tab_chap','Chapter IV') : this.localize('med_plan','Medication plan')
             }
 
             _getMedicationQuantity(quantity){
