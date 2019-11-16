@@ -219,31 +219,45 @@
                 box-sizing: border-box;
             }
 
+            ht-spinner {
+                height: 42px;
+                width: 42px;
+                display: block;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%,-50%);
+            }
 
         </style>
 
         <div>
-
+            <ht-spinner active="[[isLoading]]"></ht-spinner>
             <template is="dom-if" if="[[!_isSucces(mdaResult.status, mdaResult.*)]]">
                 <div class="succesContainer">
                     <iron-icon icon="vaadin:warning" class="warningIcon"></iron-icon> <span class="p4">[[_getStatus(mdaResult.status)]]</span>
                 </div>
-
             </template>
 
             <template is="dom-if" if="[[_isErrors(mdaResult.errors, mdaResult.myCarenetErrors)]]">
                 <div class="mda-sub-container-error">
                     <div class="headerMasterTitleError headerLabel">[[localize('mda-error', 'Error', language)]]</div>
                     <div class="mda-container-error p4">
-                        <template is="dom-repeat" items="[[mdaResult.errors]]" as="error">
-                            <template is="dom-repeat" items="[[error.details.details]]" as="detail">
-                                <div>[[_getErrorMessage(detail.message)]]</div>
+
+                        <template is="dom-if" if="[[_isMcnError(mdaResult.myCarenetErrors)]]">
+                            <template is="dom-repeat" items="[[mdaResult.myCarenetErrors]]" as="mcnError">
+                                <div>[[_getMcnErrorMessage(mcnError)]]</div>
                             </template>
                         </template>
 
-                        <template is="dom-repeat" items="[[mdaResult.myCarenetErrors]]" as="mcnError">
-                            <div>[[_getMcnErrorMessage(mcnError)]]</div>
+                        <template is="dom-if" if="[[!_isMcnError(mdaResult.myCarenetErrors)]]">
+                            <template is="dom-repeat" items="[[mdaResult.errors]]" as="error">
+                                <template is="dom-repeat" items="[[error.details.details]]" as="detail">
+                                    <div>[[_getErrorMessage(detail)]]</div>
+                                </template>
+                            </template>
                         </template>
+
                     </div>
                 </div>
             </template>
@@ -362,14 +376,16 @@
                                     <div class="headerInfoField">
                                         <span class="headerLabel">[[localize('mda-nihii', 'Nihii', language)]]: &nbsp;</span> [[_formatNihiiNumber(hosp.hospitalisation.hospital.nihii)]]
                                     </div>
-                                    <div class="headerInfoField">
+                                    <div class="headerInfoField fw2">
                                         <span class="headerLabel">[[localize('mda-name', 'Name', language)]]: &nbsp;</span> [[hosp.hospitalisation.hospital.name]]
                                     </div>
-                                    <div class="headerInfoField">
-                                        <span class="headerLabel">[[localize('mda-service', 'Service', language)]]: &nbsp;</span> [[hosp.hospitalisation.service]]
-                                    </div>
+                                </div>
+                                <div class="headerInfoLine">
                                     <div class="headerInfoField">
                                         <span class="headerLabel">[[localize('mda-adm-date', 'Admission date', language)]]: &nbsp;</span> [[_formatDate(hosp.hospitalisation.admissionDate)]]
+                                    </div>
+                                    <div class="headerInfoField fw2">
+                                        <span class="headerLabel">[[localize('mda-service', 'Service', language)]]: &nbsp;</span> [[_getServiceInfo(hosp.hospitalisation.service)]]
                                     </div>
                                 </div>
                             </div>
@@ -575,6 +591,16 @@
                     mdaResult:{
                         type: Object,
                         value: () => {}
+                    },
+                    isLoading:{
+                        type: Boolean,
+                        value: false
+                    },
+                    hospitalServiceList: {
+                        type: Object,
+                        value: function () {
+                            return require('./rsrc/listOfHospitalService.json');
+                        }
                     }
                 };
             }
@@ -648,19 +674,29 @@
             }
 
             _isSucces(status){
-                return _.get(status, 'code1', null) ? _.get(status, 'code1', null) === "urn:oasis:names:tc:SAML:2.0:status:Success" : true
+                return _.get(status, 'code2', null) ? false : !!_.get(status, 'code1', null) && !(!!_.get(status, 'code2', null)) ? _.get(status, 'code1', null) === "urn:oasis:names:tc:SAML:2.0:status:Success" : false
             }
 
             _getStatus(status){
-                return _.get(status, 'code2', null) === "urn:be:cin:nippin:SAML:status:PartialAnswer" ? this.localize("mda-partialAnswer", "Partial answer", this.language)  : _.get(status, 'code2', null)
+                return _.get(status, 'code2', null) === "urn:be:cin:nippin:SAML:status:PartialAnswer" ? this.localize("mda-partialAnswer", "Partial answer", this.language)  :
+                    _.get(status, 'code2', null) === "urn:be:cin:nippin:SAML:status:AttributeQueryError" ? this.localize("mda-attributeError", "Attribute error", this.language) :
+                        _.get(status, 'code2', null)
             }
 
-            _getErrorMessage(message){
-                return _.get(message, "value", null)
+            _getErrorMessage(detail){
+                return _.get(detail, "detailCode", null) === "FACET_EXCEPTION" ? this.localize('mda-facet-expt-info-start', 'Information', this.language)+" "+_.toLower(_.get(detail, "detailSource", null))+" "+this.localize('mda-facet-expt-info-end', 'Information', this.language) : _.get(detail, "message.value", null)
             }
 
             _getMcnErrorMessage(errorMessage){
-                return _.get(errorMessage, "uid", null)+' - '+_.get(errorMessage, "msgEn", null)
+                return _.get(errorMessage, "uid", null)+' - '+(this.language === "fr" ? _.get(errorMessage, "msgFr", null) : this.language === "nl" ? _.get(errorMessage, "msgNl", null) : _.get(errorMessage, "msgEn", null))
+            }
+
+            _isMcnError(mcnErrors){
+                return !!_.size(mcnErrors)
+            }
+
+            _getServiceInfo(service){
+                return service ? service+" - "+_.get(_.get(this.hospitalServiceList, 'hospitalServiceList', []).find(s => s.code === service), 'description.'+this.language, null) : null
             }
 
         }

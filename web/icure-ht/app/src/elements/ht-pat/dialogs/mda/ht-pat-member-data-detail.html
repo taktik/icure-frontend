@@ -208,6 +208,30 @@
                 background: white;
             }
 
+            #htPatMemberDataTechnicalInfo{
+                height: 98%;
+                width: 100%;
+                max-height: 100%;
+            }
+
+            #htPatMemberDataTechnicalInfo{
+                height: 98%;
+                width: 100%;
+                max-height: 100%;
+            }
+
+            .page-content{
+                padding: 12px;
+                width: auto;
+                box-sizing: border-box;
+            }
+
+            iron-pages{
+                height: calc(100% - 48px);
+                width: auto;
+                overflow: auto;
+            }
+
 
         </style>
 
@@ -269,16 +293,22 @@
                                 <paper-tab>
                                     <iron-icon class="tabIcon" icon="vaadin:male"></iron-icon> [[localize('mda-response','Response',language)]]
                                 </paper-tab>
-                                <paper-tab>
-                                    <iron-icon class="tabIcon" icon="vaadin:tools"></iron-icon> [[localize('mda-technical-info','Technical info',language)]]
-                                </paper-tab>
+                                <template is="dom-if" if="[[_isTechnicalInfo(mdaResult, mdaResult.*)]]">
+                                    <paper-tab>
+                                        <iron-icon class="tabIcon" icon="vaadin:tools"></iron-icon> [[localize('mda-technical-info','Technical info',language)]]
+                                    </paper-tab>
+                                </template>
                             </paper-tabs>
                             <iron-pages selected="[[tabs]]">
                                 <page>
-                                    <ht-pat-member-data-response api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" hcp="[[hcp]]" mda-search="[[mdaSearch]]" i18n="[[i18n]]" resources="[[resources]]" selected-mda-contact-type="[[selectedMdaContactType]]" selected-mda-request-type="[[selectedMdaRequestType]]" mda-result="[[mdaResult]]"></ht-pat-member-data-response>
+                                    <div class="page-content">
+                                        <ht-pat-member-data-response id="htPatMemberDataResponse" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" hcp="[[hcp]]" mda-search="[[mdaSearch]]" i18n="[[i18n]]" resources="[[resources]]" selected-mda-contact-type="[[selectedMdaContactType]]" selected-mda-request-type="[[selectedMdaRequestType]]" mda-result="[[mdaResult]]" is-loading="[[isLoading]]"></ht-pat-member-data-response>
+                                    </div>
                                 </page>
                                 <page>
-                                    <ht-pat-member-data-technical-info api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" hcp="[[hcp]]" mda-search="[[mdaSearch]]" i18n="[[i18n]]" resources="[[resources]]" selected-mda-contact-type="[[selectedMdaContactType]]" selected-mda-request-type="[[selectedMdaRequestType]]" mda-result="[[mdaResult]]"></ht-pat-member-data-technical-info>
+                                    <div class="page-content">
+                                        <ht-pat-member-data-technical-info id="htPatMemberDataTechnicalInfo" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" hcp="[[hcp]]" mda-search="[[mdaSearch]]" i18n="[[i18n]]" resources="[[resources]]" selected-mda-contact-type="[[selectedMdaContactType]]" selected-mda-request-type="[[selectedMdaRequestType]]" mda-result="[[mdaResult]]"></ht-pat-member-data-technical-info>
+                                    </div>
                                 </page>
                             </iron-pages>
                         </div>
@@ -338,6 +368,11 @@
                         type: Number,
                         value: 0
                     },
+                    isLoading:{
+                        type: Boolean,
+                        value: false,
+                        noReset: true
+                    },
                     mdaConsultType:{
                         type: Array,
                         value: () => [
@@ -359,7 +394,8 @@
                             mutuality: null,
                             inscriptionNumber: null,
                             contactType: null,
-                            requestType: null
+                            requestType: null,
+                            consultType: null
                         })
                     },
                     mdaContactType: {
@@ -395,6 +431,10 @@
                         value: function () {
                             return require('./rsrc/listOfMedicalHouse.json');
                         }
+                    },
+                    patientInsurance: {
+                        type: Object,
+                        value: () => {}
                     }
                 };
             }
@@ -412,7 +452,9 @@
                     .then(() => this.api.hcparty().getHealthcareParty(_.get(this.user, 'healthcarePartyId', null)))
                     .then(hcp => {
                         this.set('hcp', hcp)
-                    }).finally(() => {
+                    }).then(() => _.get(_.head(_.get(this.patient, 'insurabilities', [])), "insuranceId", null) ? this.api.insurance().getInsurance(_.get(_.head(_.get(this.patient, 'insurabilities', [])), "insuranceId", null)) : Promise.resolve({}))
+                    .then(insuranceInfo => this.set('patientInsurance', insuranceInfo))
+                    .finally(() => {
                         this.set('tabs', 0)
                         this.set('selectedMdaConsultType', _.get(this.patient, 'ssin', null) ? _.get(this, 'mdaConsultType', []).find(t => t.type === "byNiss") : _.get(this, 'mdaConsultType', []).find(t => t.type === "byIo"))
                         this.set('selectedMdaContactType', _.get(this, 'mdaContactType', []).find(t => t.type === "other"))
@@ -421,10 +463,11 @@
                             ssin: _.get(this.patient, 'ssin', null),
                             startDate: this._isMedicalHouse() ? moment().startOf('month').format('YYYY-MM-DD') : moment().format('YYYY-MM-DD'),
                             endDate: this._isMedicalHouse() ? moment().endOf('month').format('YYYY-MM-DD') : null,
-                            mutuality: _.get(_.head(_.get(this.patient, 'insurabilities', [])), "insuranceId", null),
+                            mutuality: _.head(_.split(_.get(this.patientInsurance, 'code', null), ',')),
                             identificationNumber: _.get(_.head(_.get(this.patient, 'insurabilities', [])), "identificationNumber", null),
                             contactType: _.get(_.get(this, 'mdaContactType', []).find(t => t.type === "other"), "type", "other"),
-                            requestType: _.get(_.get(this, 'mdaRequestType', []).find(t => t.type === "information"), "type", "information")
+                            requestType: _.get(_.get(this, 'mdaRequestType', []).find(t => t.type === "information"), "type", "information"),
+                            consultType: _.get(this.patient, 'ssin', null) ? _.get(_.get(this, 'mdaConsultType', []).find(t => t.type === "byNiss"), 'type', null) : _.get(_.get(this, 'mdaConsultType', []).find(t => t.type === "byIo"), 'type', null)
                         })
                         this.$['mdaDetailDialog'].open()
                         _.get(this.patient, 'ssin', null) || (_.get(_.head(_.get(this.patient, 'insurabilities', [])), "insuranceId", null) && _.get(_.head(_.get(this.patient, 'insurabilities', [])), "identificationNumber", null)) ? this.consultMda() : null
@@ -447,8 +490,9 @@
 
             consultMda(){
                 this.set('isLoading',true)
+                this.set('tabs', 0)
                 this.set("mdaResult", {})
-                ;(_.get(this.patient, 'ssin', null) ? this.consultMdaBySsin() : this.consultMdaByMemberShip()).then(mdaResponse => {
+                ;(_.get(this.mdaSearch, 'ssin', null) && _.get(this.mdaSearch, 'consultType', null) === "byNiss"  ? this.consultMdaBySsin() : this.consultMdaByMemberShip()).then(mdaResponse => {
                     return _.assign(mdaResponse, {
                         formatedResponse: {
                             patientData: _.get(_.get(mdaResponse, 'assertions', []).find(assertion => _.get(assertion, 'advice.assertionType', null) === "urn:be:cin:nippin:insurability:patientData"), 'statementsAndAuthnStatementsAndAuthzDecisionStatements', []).map(stat => ({
@@ -566,6 +610,20 @@
                 .then(mdaResponse => {
                     this.set('mdaResult', mdaResponse)
                     console.log(this.mdaResult)
+                    !_.isEmpty(_.get(mdaResponse, 'commonOutput', {})) ? Promise.all([mdaResponse, this.api.receipticc.createReceipt({
+                        documentId: null,
+                        references: Object.values(_.get(mdaResponse, 'commonOutput', {})),
+                        category: "memberData",
+                        subCategory:"soapRequest"
+                    }), this.api.receipticc.createReceipt({
+                        documentId: null,
+                        references: Object.values(_.get(mdaResponse, 'commonOutput', {})),
+                        category: "memberData",
+                        subCategory:"soapResponse"
+                    })]).then(([mdaResponse, receiptRequest, receiptResponse]) => Promise.all([
+                        this.api.receipt().setAttachment(receiptRequest.id, "soapRequest", undefined, (this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(_.get(mdaResponse, 'mycarenetConversation.soapRequest', null))))),
+                        this.api.receipt().setAttachment(receiptResponse.id, "soapResponse", undefined, (this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(_.get(mdaResponse, 'mycarenetConversation.soapResponse', null)))))
+                    ])) : Promise.resolve({})
                 }).finally(() => {
                     this.set('isLoading',false)
                 })
@@ -616,15 +674,15 @@
             }
 
             consultMdaBySsin(){
-                return _.get(this.patient, "ssin", null) ? this.api.fhc().MemberDataController().getMemberDataUsingGET(this.cleanData(_.get(this.patient, "ssin", null)), _.get(this.api, "tokenId", null), _.get(this.api, "keystoreId", null), _.get(this.api, "credentials.ehpassword", null), this.cleanData(_.get(this.hcp, "nihii", null)), this.cleanData(_.get(this.hcp, "ssin", null)), _.get(this.hcp, "firstName", null), "doctor", _.get(this.mdaSearch, 'startDate', null) ? moment(_.get(this.mdaSearch, 'startDate', null), 'YYYYMMDD').valueOf() : null , this._isMedicalHouse() ? _.get(this.mdaSearch, 'endDate', null) ? moment(_.get(this.mdaSearch, 'endDate', null), 'YYYYMMDD').valueOf() : null : null, _.get(this.mdaSearch, 'contactType', "other") !== "other") : Promise.resolve({})
+                return _.get(this.mdaSearch, "ssin", null) ? this.api.fhc().MemberDataController().getMemberDataUsingGET(this.cleanData(_.get(this.patient, "ssin", null)), _.get(this.api, "tokenId", null), _.get(this.api, "keystoreId", null), _.get(this.api, "credentials.ehpassword", null), this.cleanData(_.get(this.hcp, "nihii", null)), this.cleanData(_.get(this.hcp, "ssin", null)), _.get(this.hcp, "firstName", null), "doctor", _.get(this.mdaSearch, 'startDate', null) ? moment(_.get(this.mdaSearch, 'startDate', null), 'YYYYMMDD').valueOf() : null , this._isMedicalHouse() ? _.get(this.mdaSearch, 'endDate', null) ? moment(_.get(this.mdaSearch, 'endDate', null), 'YYYYMMDD').valueOf() : null : null, _.get(this.mdaSearch, 'contactType', "other") !== "other") : Promise.resolve({})
             }
 
             consultMdaByMemberShip(){
-                return _.get(_.head(_.get(this.patient, 'insurabilities', [])), "insuranceId", null) && _.get(_.head(_.get(this.patient, 'insurabilities', []))) ? this.api.fhc().MemberDataController().getMemberDataByMembershipUsingGET("", "", _.get(this.api, "tokenId", null), _.get(this.api, "keystoreId", null), _.get(this.api, "credentials.ehpassword", null), this.cleanData(_.get(this.hcp, "nihii", null)), this.cleanData(_.get(this.hcp, "ssin", null)), _.get(this.hcp, "firstName", null), "doctor", _.get(this.mdaSearch, 'startDate', null) ? moment(_.get(this.mdaSearch, 'startDate', null), 'YYYYMMDD').valueOf() : null, this._isMedicalHouse() ? _.get(this.mdaSearch, 'endDate', null) ? moment(_.get(this.mdaSearch, 'endDate', null), 'YYYYMMDD').unix() : null : null, _.get(this.mdaSearch, 'contactType', "other") !== "other") : Promise.resolve({})
+                return _.get(this.mdaSearch, "identificationNumber", null) && _.get(this.mdaSearch, "mutuality", null)? this.api.fhc().MemberDataController().getMemberDataByMembershipUsingGET(_.get(this.mdaSearch, "mutuality", null), _.get(this.mdaSearch, "identificationNumber", null), _.get(this.api, "tokenId", null), _.get(this.api, "keystoreId", null), _.get(this.api, "credentials.ehpassword", null), this.cleanData(_.get(this.hcp, "nihii", null)), this.cleanData(_.get(this.hcp, "ssin", null)), _.get(this.hcp, "firstName", null), "doctor", _.get(this.mdaSearch, 'startDate', null) ? moment(_.get(this.mdaSearch, 'startDate', null), 'YYYYMMDD').valueOf() : null, this._isMedicalHouse() ? _.get(this.mdaSearch, 'endDate', null) ? moment(_.get(this.mdaSearch, 'endDate', null), 'YYYYMMDD').unix() : null : null, _.get(this.mdaSearch, 'contactType', "other") !== "other") : Promise.resolve({})
             }
 
             _selectedMdaConsultTypeChanged(){
-                this.set("mdaSearch.requestType", _.get(this.selectedMdaConsultType, 'type', "information"))
+                this.set("mdaSearch.consultType", _.get(this.selectedMdaConsultType, 'type', "byNiss"))
             }
 
             _selectedMdaContactTypeChanged(){
@@ -645,6 +703,10 @@
 
             cleanData(data){
                 return data && data.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
+            }
+
+            _isTechnicalInfo(mdaResponse){
+                return !!_.get(mdaResponse, 'status.code1', null)
             }
 
         }
