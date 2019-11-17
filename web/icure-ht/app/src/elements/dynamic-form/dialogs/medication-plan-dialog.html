@@ -713,13 +713,23 @@
                 height: 25px;
             }
 
+            ht-spinner {
+                height: 42px;
+                width: 42px;
+                display: block;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%,-50%);
+            }
+
         </style>
 
         <paper-dialog id="medication-plan" always-on-top="true" no-cancel-on-outside-click="true">
 
             <h2 class="modal-title">[[_getModalTitle(selectedTab)]]
                 <paper-tabs selected="{{selectedTab}}">
-                    <paper-tab>[[localize('pr_history','Historique',language)]]</paper-tab>
+                    <paper-tab>[[localize('pr_history','Prescription',language)]]</paper-tab>
                     <paper-tab>[[localize('tab_pres','Present',language)]]</paper-tab>
                     <!--<paper-tab>[[localize('tab_hist','History',language)]]</paper-tab>-->
                     <paper-tab>[[localize('tab_pat','Patient',language)]]</paper-tab>
@@ -729,8 +739,7 @@
 
             <div class="content">
                 <template is="dom-if" if="{{_isEqual(selectedTab,0)}}">
-                    <ht-spinner class="center" active="[[isLoading]]"></ht-spinner>
-                    <prescription-history id="prescription-history" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" on-print-prescription="onPrintPrescription"></prescription-history>
+                    <prescription-history id="prescription-history" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" on-print-prescription="onPrintPrescription" is-loading="[[isLoading]]"></prescription-history>
                 </template>
                 <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <div class="header-content">
@@ -1327,63 +1336,60 @@
                 this._contacts = contacts;
 
                 this._contacts.forEach(contact => {
-                    contact.subContacts.forEach(subContact => {
-                        subContact.services.forEach(service => {
+                    _.get(contact, 'subContacts', []).forEach(subContact => {
+                        _.get(subContact, 'services', []).forEach(service => {
                             this._getPrescription(prescriptions, service, contact);
                         });
                     });
-                    contact.services.forEach(service => {
+                    _.get(contact, 'services', []).forEach(service => {
                         this._getPrescription(prescriptions, service, contact);
                     });
                 })
 
-                this.hcp = null;
-                if (this.patient.ssin && this.api.tokenId) {
-                    this.set("isLoading", true)
-                    this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
-                        this.hcp = hcp;
-                        return this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", hcp.nihii, hcp.ssin, hcp.lastName, this.patient.ssin, this.api.credentials.ehpassword).then(openPrescriptions => {
-                            console.log(openPrescriptions);
-                            prescriptions.forEach(prescription => {
-                                const found = !!prescription.rid && openPrescriptions.some(p => p.rid === prescription.rid);
-                                const medicationValue = this.api.contact().preferredContent(prescription.service, this.language).medicationValue;
-                                if (!("status" in medicationValue)) {
-                                    const tag = prescription.service.tags.find(t => t.type === 'CD-LIFECYCLE')
-                                    const sent = found || (tag && tag.code === "ordered");
-                                    medicationValue.status = sent ? STATUS_SENT : STATUS_NOT_SENT;
-                                    prescription.update = true;
-                                }
-                                let status = medicationValue.status;
-                                if (found)
-                                    status = STATUS_SENT | STATUS_PENDING;
-                                else if ((status & STATUS_SENT) && !(status & STATUS_REVOKED))
-                                    status |= STATUS_DELIVERED;
-                                if (status & STATUS_DELIVERED)
-                                    status = STATUS_DELIVERED | STATUS_SENT;
-                                if (status & STATUS_REVOKED)
-                                    status = STATUS_REVOKED | STATUS_SENT;
-                                if (medicationValue.status != status) {
-                                    medicationValue.status = status;
-                                    prescription.update = true;
-                                }
-                            })
+                this.set("isLoading", true)
+                this.api.hcparty().getHealthcareParty(_.get(this.user, 'healthcarePartyId', null))
+                    .then(hcp => this.set("hcp", hcp))
+                    .then(() => (_.get(this.api, "tokenId", null) && _.get(this.patient, 'ssin', null) ? this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), "persphysician", _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'lastName', null), _.get(this.patient, 'ssin', null), _.get(this.api, 'credentials.ehpassword', null)) : Promise.resolve([])))
+                    .then(openPrescriptions => {
+                        console.log(openPrescriptions);
+                        prescriptions.forEach(prescription => {
+                            const found = !!_.get(prescription, 'rid', null) && openPrescriptions.some(p => p.rid === _.get(prescription, 'rid', null));
+                            const medicationValue = this.api.contact().preferredContent(prescription.service, this.language).medicationValue;
+                            if (!("status" in medicationValue)) {
+                                const tag = _.get(prescription, 'service.tags', []).find(t => t.type === 'CD-LIFECYCLE')
+                                const sent = found || (_.get(tag, 'code', null) === "ordered");
+                                medicationValue.status = sent ? STATUS_SENT : STATUS_NOT_SENT;
+                                prescription.update = true;
+                            }
+                            let status = _.get(medicationValue, 'status', null)
+                            if (found)
+                                status = STATUS_SENT | STATUS_PENDING;
+                            else if ((status & STATUS_SENT) && !(status & STATUS_REVOKED))
+                                status |= STATUS_DELIVERED;
+                            if (status & STATUS_DELIVERED)
+                                status = STATUS_DELIVERED | STATUS_SENT;
+                            if (status & STATUS_REVOKED)
+                                status = STATUS_REVOKED | STATUS_SENT;
+                            if (medicationValue.status != status) {
+                                medicationValue.status = status;
+                                prescription.update = true;
+                            }
+                        })
 
-                            const contacts = prescriptions.filter(p => p.update).flatMap(p => p.contact).filter((c, i, a) => a.indexOf(c) === i);
-                            const promises = contacts.map(contact => {
-                                return this.api.contact().modifyContactWithUser(this.user, contact)
-                            });
+                        const contacts = prescriptions.filter(p => p.update).flatMap(p => p.contact).filter((c, i, a) => a.indexOf(c) === i);
+                        const promises = contacts.map(contact => {
+                            return this.api.contact().modifyContactWithUser(this.user, contact)
+                        });
 
-                            //TODO: get feedback for every recip-e prescription
-                            //this.api.fhc().Recipecontroller().listFeedbacksUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid)
+                        //TODO: get feedback for every recip-e prescription
+                        //this.api.fhc().Recipecontroller().listFeedbacksUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid)
 
-                            return Promise.all(promises).then(() => {
-                                this.shadowRoot.querySelector("#prescription-history").hcp = this.hcp;
-                                this.shadowRoot.querySelector("#prescription-history").setPrescriptions(prescriptions);
-                                this.set("isLoading", false)
-                            });
+                        return Promise.all(promises).then(() => {
+                            this.shadowRoot.querySelector("#prescription-history").hcp = this.hcp;
+                            this.shadowRoot.querySelector("#prescription-history").setPrescriptions(prescriptions);
+                            this.set("isLoading", false)
                         });
                     })
-                };
             }
 
             onPrintPrescription(e) {
