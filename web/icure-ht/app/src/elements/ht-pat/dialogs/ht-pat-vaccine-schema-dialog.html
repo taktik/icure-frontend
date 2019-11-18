@@ -109,8 +109,9 @@
                 </template>
             </div>
             <div class="buttons">
-                <paper-button class="button" on-tap="_clean">Clean</paper-button>
-                <!--<paper-button class="button" on-tap="_close"><iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon> [[localize('clo','Close',language)]]</paper-button>-->
+                <!--<paper-button class="button" on-tap="_clean">Clean</paper-button> -->
+                <paper-button class="button" on-tap="_close"><iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_toggle">[[toggle]]</paper-button>
                 <paper-button class="button button--other" on-tap="_print"><iron-icon icon="vaadin:print" class="mr5 smallIcon"></iron-icon> [[localize('print','Print',language)]]</paper-button>
                 <paper-button class="button button--save" on-tap="_createMedicationSchema"><iron-icon icon="icons:save" class="mr5 smallIcon" ></iron-icon> [[localize('save','Save',language)]]</paper-button>
             </div>
@@ -145,6 +146,9 @@
                         type: Number,
                         value: 0
                     },
+                    toggle: {
+                        type: String
+                    },
                     hasSchema: {
                         type: Boolean,
                         value: false
@@ -166,6 +170,7 @@
                 this._schemas = {
                     fr: {
                         id: "care.topaz.procedurepackage|schéma-de-vaccination-wallonie|1",
+                        code: "wallonia",
                         periods: [
                             {name: {fr: "2 mois", nl: "", en: ""}, code: "MT", months: 2},
                             {name: {fr: "3 mois", nl: "", en: ""}, code: "MD", months: 3},
@@ -182,6 +187,7 @@
                     },
                     nl: {
                         id: "care.topaz.procedurepackage|vlaams-vaccinatieschema|1",
+                        code: "flanders",
                         periods: [
                             {name: {fr: "2 mois", nl: "", en: ""}, code: "MT", months: 2},
                             {name: {fr: "3 mois", nl: "", en: ""}, code: "MD", months: 3},
@@ -223,14 +229,28 @@
                         console.log("resolve nl");
                     }).then(() => {
                         console.log("resolve all");
-                        const ids = this._services.map(s => _.get(s.codes.find(c=> c.type == "BE-THESAURUS-PROCEDURES"), "id", null));
-                        this._schemas.fr.detected = this._schemas.fr.procedures.some(p => ids.some(id => id == p.id));
-                        this._schemas.nl.detected = this._schemas.nl.procedures.some(p => ids.some(id => id == p.id));
-                        this.set("hasSchema", this._schemas.fr.detected || this._schemas.nl.detected);
-                        this.$['schema'].initialize(this.hasSchema ? this._schemas.fr : null, this._services);
+                        const schema =
+                            this._detect(this._schemas.fr) ? this._schemas.fr :
+                            this._detect(this._schemas.nl) ? this._schemas.nl : null;
+                        this._setSchema(schema);
+                        this.$['schema'].initialize(this._schema, this._services);
                         this.$['history'].initialize(this._schemas, this._services);
                         this.set("isLoading", false);
                     })
+            }
+
+            _detect(schema) {
+                return this._services.some(s => s.tags.some(t => t.type === "care.topaz.vaccineschema" && t.code === schema.code));
+            }
+
+            _setSchema(schema) {
+                this.set("hasSchema", !!schema);
+                this._schema = schema;
+                if (!this._schema) return;
+                if (this._schema !== this._schemas.fr)
+                    this.set("toggle", this.localize("vacc_toggle_wallonia", "Basculer vers le schéma wallon"));
+                else
+                    this.set("toggle", this.localize("vacc_toggle_flanders", "Basculer vers le schéma flamand"));
             }
 
             _createSchema(e) {
@@ -287,6 +307,14 @@
                 this.$['schema'].clean()
                 this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
                 this._close();
+            }
+
+            _toggle(){
+                this._setSchema(this._schema != this._schemas.fr ?
+                    this._schemas.fr :
+                    this._schemas.nl);
+                this.$['schema'].toggle(this._schema, this._services);
+                this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
             }
 
             _close(){

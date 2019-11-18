@@ -258,6 +258,7 @@
                 this._periodicities = [];
                 this._newServices = [];
                 this._oldServices = [];
+                this._schema = schema;
 
                 this.set("statuses", [
                     { code: "aborted", value: this.localize("vacc_aborted", "aborted", this.language) },
@@ -289,12 +290,15 @@
                             row.services = services.filter(s => s.codes.some(c => c.type === "BE-THESAURUS-PROCEDURES" && c.code === row.procedure.code));
                             row.services = row.services.sort((a, b) => this.api.moment(a.valueDate).isBefore(this.api.moment(b.valueDate)) ? -1 : 0);
                             row.periods.filter(p => p.used).forEach(period => {
-                                const candidates = row.services.filter(s => s.tags.some(t => t.type === "CD-PERIODICITY" && t.code === period.code));
+                                let candidates = row.services.filter(s => s.tags.some(t => t.type === "CD-PERIODICITY" && t.code === period.code));
+                                if (candidates.length < 1) {
+                                    const assigned = row.periods.map(p => p.service);
+                                    candidates = row.services.filter(s => !assigned.includes(s));
+                                }
                                 if (candidates.length > 0) {
                                     candidates.forEach(s => this._resetPeriodicity(s));
                                     period.service = candidates[0];
                                 } else {
-                                    // TODO: search for another candidate before creating a new service
                                     period.service = this._createService(row.procedure, period);
                                     row.services.push(period.service);
                                 }
@@ -320,6 +324,20 @@
 
             _update() {
                 this._oldServices.forEach(service => {
+                    const tag = service.tags.find(t => t.type == "care.topaz.vaccineschema");
+                    if (tag) {
+                        tag.id = "care.topaz.vaccineschema|" + this._schema.code + "|1";
+                        tag.code = this._schema.code;
+                        tag.version = "1";
+                    }
+                    else service.tags.push({
+                        id: "care.topaz.vaccineschema|" + this._schema.code + "|1",
+                        type: "care.topaz.vaccineschema",
+                        code: this._schema.code,
+                        version: "1"
+                    })
+                })
+                this._oldServices.forEach(service => {
                     if (!service.tags.find(t => t.type == "CD-ITEM" && t.code == "vaccine"))
                         service.tags.push({ type: "CD-ITEM", code: "vaccine" })
                 })
@@ -338,26 +356,16 @@
             _setDoseNumber(content, doseNumber) {
                 if ((typeof content) == "string")
                     content = { stringValue: content };
-                if (!content.medicationValue)
-                    content.medicationValue = {};
-                if (!content.medicationValue.options)
-                    content.medicationValue.options = {};
-                if (!content.medicationValue.options.doseNumber)
-                    content.medicationValue.options.doseNumber = {}
-                content.medicationValue.options.doseNumber.stringValue = doseNumber.toString();
+                _.set(content, 'medicationValue.options.doseNumber.stringValue', doseNumber.toString());
                 return content;
             }
 
             _setMedication(content, product) {
                 if ((typeof content) == "string")
                     content = { stringValue: content };
-                if (!content.medicationValue)
-                    content.medicationValue = {};
-                if (!content.medicationValue.medicinalProduct)
-                    content.medicationValue.medicinalProduct = {}
                 const cds = product.code ? [{ type: "CD-DRUG-CNK", code: product.code }] : []
-                content.medicationValue.medicinalProduct.intendedcds = cds;
-                content.medicationValue.medicinalProduct.intendedname = product.name;
+                _.set(content, 'medicationValue.medicinalProduct.intendedcds', cds);
+                _.set(content, 'medicationValue.medicinalProduct.intendedname', product.name);
                 return content;
             }
 
@@ -509,12 +517,8 @@
             }
 
             _getProduct(svc) {
-                const content = this._getContent(svc);
-                if (content &&
-                    content.medicationValue &&
-                    content.medicationValue.medicinalProduct &&
-                    content.medicationValue.medicinalProduct.intendedname)
-                    return content.medicationValue.medicinalProduct.intendedname;
+                const name = _.get(this._getContent(svc), 'medicationValue.medicinalProduct.intendedname', null);
+                if (name) return name;
                 return svc.comment ? svc.comment : this.localize('not_specified', 'n/a', this.language)
             }
 
@@ -561,8 +565,14 @@
                             code: "primaryprevention",
                             version: "1"
                         },
-                        { type: 'CD-ITEM', code:'vaccine' },
-                        { type: 'CD-LIFECYCLE', code:'pending' },
+                        { type: 'CD-ITEM', code: 'vaccine' },
+                        { type: 'CD-LIFECYCLE', code: 'pending' },
+                        {
+                            id: "care.topaz.vaccineschema|" + this._schema.code + "|1",
+                            type: 'care.topaz.vaccineschema',
+                            code: this._schema.code,
+                            version: "1"
+                        }
                     ]
                 }
             }
@@ -606,6 +616,13 @@
                         });
                     });
                 });
+            }
+
+            toggle(schema, services) {
+                // TODO: LDE: remove these two lines for production
+                //const clean = this.rows.flatMap(r => r.periods.filter(p => p.service).map(p => p.service));
+                //clean.forEach(s => this._resetPeriodicity(s));
+                this.initialize(schema, services);
             }
 
             clean() {
