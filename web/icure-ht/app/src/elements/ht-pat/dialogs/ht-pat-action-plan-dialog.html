@@ -114,7 +114,7 @@
             <div class="content">
                 <vaadin-form-layout class="mh">
                     <vaadin-form-item  colspan="1">
-                        <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
+                        <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
                     </vaadin-form-item >
                     <vaadin-form-item  colspan="1">
                         <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
@@ -371,6 +371,14 @@
                     isValid: {
                         type: Boolean,
                         value : false
+                    },
+                    fullDateMode :{
+                        type: Boolean,
+                        value: false
+                    },
+                    accuracy:{
+                        type: String,
+                        value: "day"
                     }
                 };
             }
@@ -415,6 +423,7 @@
                 this.set("isExistingSvc",false)
                 this.set("hasSurgical",false)
                 this.set("isVaccineProcedure",false)
+                this.set("accuracy","day")
             }
 
             attached() {
@@ -512,6 +521,7 @@
                         return Promise.all([this.api.code().findPaginatedCodesByLabel('be', 'BE-THESAURUS-PROCEDURES', 'fr', proceduresFilterValue, null, null)]).then(results => {
                             const procedureList = results[0];
                             let filtered = procedureList.rows
+
                             filtered = _.flatten(filtered.map(procedure => ({
                                 id: procedure.id,
                                 label: procedure.label,
@@ -558,18 +568,10 @@
             _drugsDataProvider() {
                 return {
                     filter: function (drugsFilterValue) {
-                        return Promise.resolve().then(() => {
-                            const drugsList = [
-                                { name: "product1", id: "1" },
-                                { name: "product2", id: "2" },
-                                { name: "product3", id: "3" },
-                            ];
-                            const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id}) ));
-                            return { totalSize: filtered.length, rows: filtered };
-                            // return Promise.all([this.api.bedrugs().getMedecinePackages(drugsFilterValue, this.language, null, 0)]).then(results => {
-                            //     const drugsList = results[0];
-                            //     const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id.id}) ));
-                            //     return { totalSize: filtered.length, rows: filtered };
+                            return Promise.all([this.api.bedrugs().getMedecinePackages(drugsFilterValue, this.language, null, 0)]).then(results => {
+                                const drugsList = results[0];
+                                const filtered = _.flatten(drugsList.map(drugs => ({name: drugs.name, id: drugs.id.id}) ));
+                                return { totalSize: filtered.length, rows: filtered };
                         });
                     }.bind(this)
                 };
@@ -646,7 +648,7 @@
                 const action = this.plannedAction
                 const contactId = this.currentContact.id
                 const responsible = action.HcpId && action.HcpId !== "" ? action.HcpId : this.user.healthcarePartyId
-                const valueDate = action.Deadline && action.Deadline !== "" ? this.api.moment(action.Deadline).format('YYYYMMDD') : ""
+                const valueDate = action.Deadline && action.Deadline !== "" ? action.Deadline.split("-").join("") : ""
 
                 if (!action || !contactId || !valueDate) {
                     this.set('errMsg',this.localize('some_mandat_fields','Some fields are mandatory',this.language))
@@ -809,7 +811,18 @@
                     ]).then(([hcp, resultProced, resultProf]) => {
                         this.push("hcpListItem", {id: hcp.id, name: hcp.lastName + ' ' + hcp.firstName});
 
-                        const date = this.api.moment(service.valueDate).format("YYYY-MM-DD");
+                        const tab = this.api.formatedMoment(service.valueDate).split("/").reverse();
+                        if(service.valueDate%100!==0){
+                            this.set("accuracy","day")
+                        }else if(service.valueDate%10000!==0){
+                            tab.push("00")
+                            this.set("accuracy","month")
+                        }else{
+                            tab.push("00")
+                            tab.push("00")
+                            this.set("accuracy","year")
+                        }
+                        const date = tab.join("-")
 
                         this.set("proceduresListItem", [resultProced])
                         this.procedureChanged({detail: {value: (codeProcedure && codeProcedure.code) }})
