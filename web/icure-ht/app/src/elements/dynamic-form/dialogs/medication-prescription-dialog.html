@@ -41,13 +41,18 @@
                 margin-left: 40px;
             }
 
-            paper-dialog {
+            #medication-prescription {
                 min-height: 480px;
                 min-width: 600px;
                 max-height: calc(100% - 64px - 48px - 20px);
                 height: calc(98% - 12vh);
                 width: 98%;
                 top: 64px;
+            }
+
+            #compound-dialog {
+                width: 30%;
+                height: 25%;
             }
 
             .no-grid {
@@ -88,6 +93,16 @@
                 justify-content: space-around;
                 align-items: flex-start;
                 overflow: hidden;
+            }
+            .compound-container {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 12px;
+            }
+            .compound-container paper-input-container {
+                margin: 0;
+                --paper-input-container-input_-_height: unset;
             }
 
             .add-btn--compound {
@@ -272,7 +287,8 @@
             }
 
             .button-group {
-                margin-left: 12px;
+                margin-left: 8px;
+                padding: 6px;
             }
 
             vaadin-grid {
@@ -731,16 +747,14 @@
                         <paper-input id="search" label="[[localize('sch_med','Search a medicine',language)]]"
                                         autofocus
                                         value="{{filterValue}}" on-keydown="refresh" always-float-label></paper-input>
-                        
-                        <template is="dom-if" if="[[devShow]]">
-                            <div class="button-group">
+                        <div class="button-group">
+                            <template is="dom-if" if="[[devShow]]">
                                 <paper-icon-button icon="vaadin:file-process" class="button--icon-btn small" on-tap=""
-                                                   id="action-medication-scheme"></paper-icon-button>
-                                <paper-icon-button icon="medication-svg-icons:add-flask" class="button--icon-btn small" on-tap=""
-                                                   id="action-create-masterly"></paper-icon-button>
-                            </div>
-                        </template>
-                        
+                                               id="action-medication-scheme"></paper-icon-button>
+                            </template>
+                            <paper-icon-button icon="medication-svg-icons:add-flask" class="button--icon-btn small" on-tap="_createCompound"
+                                               id="action-create-masterly"></paper-icon-button>
+                        </div>
                         <paper-icon-button icon="vaadin:alarm"
                                             class$="filters-bar--small-icon [[_activeIconClass('chronic', trigger)]]"
                                             id="chronic" on-tap="_toggleFilter" toggles></paper-icon-button>
@@ -754,8 +768,8 @@
                                             class$="filters-bar--small-icon [[_activeIconClass('ingredient', trigger)]]"
                                             id="ingredient" on-tap="_toggleFilter" toggles></paper-icon-button>
                         <paper-icon-button icon="vaadin:flask"
-                                            class$="filters-bar--small-icon [[_activeIconClass('masterly', trigger)]]"
-                                            id="masterly" on-tap="_toggleFilter" toggles></paper-icon-button>
+                                            class$="filters-bar--small-icon [[_activeIconClass('compound', trigger)]]"
+                                            id="compound" on-tap="_toggleFilter" toggles></paper-icon-button>
                         
                     </div>
                     <div class="search-results">
@@ -1413,30 +1427,22 @@
 
                         </vaadin-grid>
 
-                        <div class$="sub-header [[_activeIconClass('masterly', trigger)]]" id="masterly" on-tap="_toggleFilter" toggles>
+                        <div class$="sub-header [[_activeIconClass('compound', trigger)]]" id="compound" on-tap="_toggleFilter" toggles>
                             <paper-icon-button icon="vaadin:flask"
                                                class="filters-bar--small-icon"></paper-icon-button>
                             <span class="sub-header-title">[[localize('compound','Magistrale',language)]] / [[localize('template','Modèle',language)]]</span>
                             <iron-icon icon="hardware:keyboard-arrow-down"></iron-icon>
                         </div>
 
-<!--                        <div class$="[[_oneActiveListClass('masterly', trigger)]]">-->
-<!--                            <paper-icon-button id="addCompound" class="list-item-icon&#45;&#45;add" icon="icons:add" on-tap="_addCompound"></paper-icon-button>-->
-<!--                            <paper-input-container always-float-label="true" class="compoundText">-->
-<!--                                <label slot="label" class="color-status">[[localize('compound','Magistrale',language)]]</label>-->
-<!--                                <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{medicationContent.medicationValue.commentForDelivery}}"></iron-autogrow-textarea>-->
-<!--                            </paper-input-container>-->
-<!--                        </div>-->
-
-                        <vaadin-grid id="masterly-list" class$="sub-list [[_activeListClass('masterly', trigger)]]"
-                                     active-item="{{masterly}}">
+                        <vaadin-grid id="compound-list" class$="sub-list [[_activeListClass('compound', trigger)]]"
+                                     active-item="{{selectedCompound}}">
 
                             <!-- ADD-->
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
                                     <paper-icon-button id="[[item.id]]" class="list-item-icon--add" icon="icons:add"
-                                                       on-tap="_addChron"></paper-icon-button>
+                                                       on-tap="_addCompound"></paper-icon-button>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1444,12 +1450,8 @@
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
-                                    <template is="dom-if" if="[[_isMasterly(item.preparation)]]">
-                                        <iron-icon icon="medication:masterly"></iron-icon>
-                                    </template>
-                                    <template is="dom-if" if="[[_isTemplate(item.preparation)]]">
-                                        <iron-icon icon="medication:template"></iron-icon>
-                                    </template>
+                                    <paper-icon-button id="[[item.id]]" class="list-item-icon--add" icon="icons:more-vert"
+                                                       on-tap="_compoundMenu"></paper-icon-button>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1462,111 +1464,111 @@
                                 </template>
                             </vaadin-grid-column>
 
-                            <!-- ATC CLASS -->
+<!--                            &lt;!&ndash; ATC CLASS &ndash;&gt;-->
 
-                            <vaadin-grid-column width="40px" flex-grow="0">
-                                <template>
-                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">
-                                        <span class="dot"></span>
-                                    </div>
-                                    <paper-tooltip z-index="1000" id="tt_[[item.atcCat]]_[[item.id]]"
-                                                   for="[[item.atcCat]]_[[item.id]]">[[_atcTooltip(item.atcCat)]]
-                                    </paper-tooltip>
-                                </template>
+<!--                            <vaadin-grid-column width="40px" flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div class$="[[_getStyle('ATC', item.atcCat)]]" id="[[item.atcCat]]_[[item.id]]">-->
+<!--                                        <span class="dot"></span>-->
+<!--                                    </div>-->
+<!--                                    <paper-tooltip z-index="1000" id="tt_[[item.atcCat]]_[[item.id]]"-->
+<!--                                                   for="[[item.atcCat]]_[[item.id]]">[[_atcTooltip(item.atcCat)]]-->
+<!--                                    </paper-tooltip>-->
+<!--                                </template>-->
 
-                            </vaadin-grid-column>
+<!--                            </vaadin-grid-column>-->
 
-                            <!-- TYPE -->
+<!--                            &lt;!&ndash; TYPE &ndash;&gt;-->
 
-                            <vaadin-grid-column width="54px" flex-grow="0">
-                                <template>
-                                    <div class="icon-type-group">
-                                        <iron-icon icon="medication-svg-icons:[[item.compProhibIcon]]"
-                                                   class="table-icon"></iron-icon>
-                                        <iron-icon icon="medication-svg-icons:[[item.narcoticIcon]]"
-                                                   class="table-icon"></iron-icon>
-                                        <iron-icon icon="medication-svg-icons:[[item.reinfPharmaVigiIcon]]"
-                                                   class="table-icon"></iron-icon>
-                                    </div>
-                                </template>
-                            </vaadin-grid-column>
+<!--                            <vaadin-grid-column width="54px" flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div class="icon-type-group">-->
+<!--                                        <iron-icon icon="medication-svg-icons:[[item.compProhibIcon]]"-->
+<!--                                                   class="table-icon"></iron-icon>-->
+<!--                                        <iron-icon icon="medication-svg-icons:[[item.narcoticIcon]]"-->
+<!--                                                   class="table-icon"></iron-icon>-->
+<!--                                        <iron-icon icon="medication-svg-icons:[[item.reinfPharmaVigiIcon]]"-->
+<!--                                                   class="table-icon"></iron-icon>-->
+<!--                                    </div>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
 
-                            <!-- CHAP IV -->
+<!--                            &lt;!&ndash; CHAP IV &ndash;&gt;-->
 
-                            <vaadin-grid-column width="40px" flex-grow="0">
-                                <template>
-                                    <div class$="[[_getStyle('CHAP4', item.chap4Status)]]"
-                                         id="[[item.chap4Status]]_[[item.id]]">
-                                        <span class="dot"></span>
-                                    </div>
-                                    <paper-tooltip z-index="1000" id="tt_[[item.chap4Status]]_[[item.id]]"
-                                                   for="[[item.chap4Status]]_[[item.id]]">
-                                        [[_chap4Tooltip(item.chap4Status)]]
-                                    </paper-tooltip>
-                                </template>
-                            </vaadin-grid-column>
+<!--                            <vaadin-grid-column width="40px" flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div class$="[[_getStyle('CHAP4', item.chap4Status)]]"-->
+<!--                                         id="[[item.chap4Status]]_[[item.id]]">-->
+<!--                                        <span class="dot"></span>-->
+<!--                                    </div>-->
+<!--                                    <paper-tooltip z-index="1000" id="tt_[[item.chap4Status]]_[[item.id]]"-->
+<!--                                                   for="[[item.chap4Status]]_[[item.id]]">-->
+<!--                                        [[_chap4Tooltip(item.chap4Status)]]-->
+<!--                                    </paper-tooltip>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
 
-                            <!-- DELIVERED -->
+<!--                            &lt;!&ndash; DELIVERED &ndash;&gt;-->
 
-                            <vaadin-grid-column width="40px" flex-grow="0">
-                                <template>
-                                    <div class$="[[_getStyle('DELIVERY', item.deliveryStatus)]]"
-                                         id="[[item.deliveryStatus]]_[[item.id]]">
-                                        <span class="dot"></span>
-                                    </div>
-                                    <paper-tooltip z-index="1000" id="tt_[[item.deliveryStatus]]_[[item.id]]"
-                                                   for="[[item.deliveryStatus]]_[[item.id]]">
-                                        [[_deliveryTooltip(item.deliveryStatus)]]
-                                    </paper-tooltip>
-                                </template>
-                            </vaadin-grid-column>
+<!--                            <vaadin-grid-column width="40px" flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div class$="[[_getStyle('DELIVERY', item.deliveryStatus)]]"-->
+<!--                                         id="[[item.deliveryStatus]]_[[item.id]]">-->
+<!--                                        <span class="dot"></span>-->
+<!--                                    </div>-->
+<!--                                    <paper-tooltip z-index="1000" id="tt_[[item.deliveryStatus]]_[[item.id]]"-->
+<!--                                                   for="[[item.deliveryStatus]]_[[item.id]]">-->
+<!--                                        [[_deliveryTooltip(item.deliveryStatus)]]-->
+<!--                                    </paper-tooltip>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
 
-                            <!-- CATEGORY -->
+<!--                            &lt;!&ndash; CATEGORY &ndash;&gt;-->
 
-                            <vaadin-grid-column width="40px" flex-grow="0">
-                                <template>
-                                    <iron-icon icon="medication-svg-icons:[[item.catIcon]]"
-                                               class="table-icon"></iron-icon>
-                                </template>
-                            </vaadin-grid-column>
+<!--                            <vaadin-grid-column width="40px" flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <iron-icon icon="medication-svg-icons:[[item.catIcon]]"-->
+<!--                                               class="table-icon"></iron-icon>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
 
-                            <!-- PRICE -->
-
-
-                            <!-- PRICE: PAT -->
-
-                            <vaadin-grid-column flex-grow="0">
-                                <template>
-                                    <div class="price">[[item.patientPrice]]</div>
-                                </template>
-                            </vaadin-grid-column>
-
-                            <!-- PRICE: PUBLIC -->
-
-                            <vaadin-grid-column flex-grow="0">
-                                <template>
-                                    <div class="price">[[item.publicPrice]]</div>
-                                </template>
-                            </vaadin-grid-column>
-
-                            <!-- DURATION -->
+<!--                            &lt;!&ndash; PRICE &ndash;&gt;-->
 
 
-                            <!-- DURATION: START -->
+<!--                            &lt;!&ndash; PRICE: PAT &ndash;&gt;-->
 
-                            <vaadin-grid-column flex-grow="0">
-                                <template>
-                                    <div>[[item.startDate]]</div>
-                                </template>
-                            </vaadin-grid-column>
+<!--                            <vaadin-grid-column flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div class="price">[[item.patientPrice]]</div>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
 
-                            <!-- DURATION: END -->
+<!--                            &lt;!&ndash; PRICE: PUBLIC &ndash;&gt;-->
 
-                            <vaadin-grid-column flex-grow="0">
-                                <template>
-                                    <div>[[item.endDate]]</div>
-                                </template>
-                            </vaadin-grid-column>
+<!--                            <vaadin-grid-column flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div class="price">[[item.publicPrice]]</div>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
+
+<!--                            &lt;!&ndash; DURATION &ndash;&gt;-->
+
+
+<!--                            &lt;!&ndash; DURATION: START &ndash;&gt;-->
+
+<!--                            <vaadin-grid-column flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div>[[item.startDate]]</div>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
+
+<!--                            &lt;!&ndash; DURATION: END &ndash;&gt;-->
+
+<!--                            <vaadin-grid-column flex-grow="0">-->
+<!--                                <template>-->
+<!--                                    <div>[[item.endDate]]</div>-->
+<!--                                </template>-->
+<!--                            </vaadin-grid-column>-->
 
                         </vaadin-grid>
                     </div>
@@ -1585,6 +1587,20 @@
 <!--                <paper-button class="button button&#45;&#45;save" dialog-confirm autofocus on-tap="saveMedications"-->
 <!--                              disabled="[[!medicationAccumulator.length]]">[[localize('valid','Validate',language)]]-->
 <!--                </paper-button>-->
+            </div>
+        </paper-dialog>
+        <paper-dialog id="compound-dialog" always-on-top no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title">[[localize('compound', 'Magistrale', language)]]</h2>
+            <div class="content compound-container">
+                <paper-input always-float-label label="[[localize('compound_name','Nom de la préparation',language)]]" value="{{compoundName}}"></paper-input>
+                <paper-input-container always-float-label="true" class="comment">
+                    <label slot="label" class="color-status">[[localize('composition','Composition',language)]]</label>
+                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{compoundText}}" rows="3"></iron-autogrow-textarea>
+                </paper-input-container>
+            </div>
+            <div class="buttons">
+                <paper-button class="button button--other" dialog-dismiss on-tap="_closeCompound">[[localize('can','Annuler',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_saveCompound" disabled="[[!_canSaveCompound(compoundName, compoundText)]]">[[_compoundButtonName()]]</paper-button>
             </div>
         </paper-dialog>
     </template>
@@ -1618,8 +1634,13 @@
                         type: String,
                         value: 'medicinalProduct'
                     },
-                    compoundPrescriptionText: {
-                        type: String
+                    compoundText: {
+                        type: String,
+                        value: ""
+                    },
+                    compoundName: {
+                        type: String,
+                        value: ""
                     },
                     columnsDefinition: {
                         type: Object,
@@ -1655,6 +1676,10 @@
                         value: () => []
                     },
                     prescriptions: {
+                        type: Array,
+                        value: () => []
+                    },
+                    compounds: {
                         type: Array,
                         value: () => []
                     },
@@ -1785,12 +1810,49 @@
 
             static get observers() {
                 return [
-                    '_medicationChanged(selectedMedicationFromAccumulator)'
+                    '_medicationChanged(selectedMedicationFromAccumulator)',
+                    '_compoundsChanged(compounds)'
                 ];
             }
 
             constructor() {
                 super()
+            }
+
+            _compoundsChanged() {
+                let grid = this.$['compound-list'];
+                if (grid && grid.drugsCache) {
+                    grid.drugsCache = null;
+                    grid.drugsCacheUpperSearchIndex = 0;
+                    grid.clearCache();
+                }
+            }
+
+            _createCompound() {
+                // ((this.selectedCompound || (this.selectedCompound = {})).medicationValue || (this.selectedCompound.medicationValue = {})).compoundPrescription = this.compoundPrescriptionText
+                // if (!this.selectedCompound.id) { this.selectedCompound.id = this.compoundPrescriptionText }
+                // this.set('selectedCompound', null)
+                this.set("selectedCompound", "");
+                this.set("compoundText", "");
+                this.set("compoundName","");
+                this.$["compound-dialog"].open();
+            }
+
+            _saveCompound() {
+                const newMedication = (this.selectedCompound || (this.selectedCompound = {})).medicationValue
+                ((this.selectedCompound || (this.selectedCompound = {})).medicationValue || (this.selectedCompound.medicationValue = {})).content = _.fromPairs([[this.language, {compoundPrescription: {title: this.compoundName, composition: this.compoundText}}]]);
+                this.dispatchEvent(new CustomEvent('create-compound', {
+                    detail: {newMedication: this.selectedCompound},
+                    bubbles: true,
+                    composed: true
+                }))
+            }
+            _canSaveCompound() {
+                return this.compoundName && this.compoundText;
+            }
+
+            _compoundButtonName() {
+                return this.selectedCompound ? this.localize("update", "Mise à jour") : this.localize("cre", "Créer");
             }
 
             _saveButtonName() {
@@ -1941,7 +2003,7 @@
                         this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), '_servicesSearch_prescriptions', this._serviceAdapter.bind(this));
                         this._initList('medicine-package-list', this._medicinePackageHierarchicalSearchSamV2.bind(this), '_medicinePackageHierarchicalSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
                         this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), '_ingredientSearchSamV2', this._ingredientAdapterSamV2.bind(this));
-                        this._initList('masterly-list', this._compoundPrescriptionsSearch.bind(this), '_compoundPrescriptionsSearch', this._serviceAdapter.bind(this));
+                        this._initList('compound-list', this._compoundPrescriptionsSearch.bind(this, this.compounds), '_compoundPrescriptionsSearch', this._compoundPrescriptionAdapter.bind(this));
                         this._showPane('search');
                     });
             }
@@ -2466,23 +2528,77 @@
                     }));
             }
 
-            _compoundPrescriptionsSearch(searchValue, language, type, first, count) {
+            _compoundPrescriptionsSearch(source, searchValue, language, type, first, count) {
                 const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 return new Promise(resolve => {
-                    // let results = [];
-                    resolve(this.prescriptions.reduce((results, m) => {
-                        const contentValue = m.content.fr.medicationValue || '';
-                        const intendedName = contentValue.compoundPrescription || '';
-                        if (!intendedName) return results;
-                        const normIntendedName = intendedName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
-                        if (!searchValue || searchValue.length < 2 || normIntendedName.includes(normSearchValue)) {
-                            m.intendedName = intendedName;
-                            results.push(m);
+                    resolve(source.reduce((results, service) => {
+                        const medicationValue = this.api.contact().medicationValue(service, this.language) || {};
+                        const composition = _.get(medicationValue, "compoundPrescription.composition", "");
+                        const title = _.get(medicationValue, "compoundPrescription.title", "");
+                        if (!title && !composition) return results;
+                        const normTitle = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                        if (!searchValue || searchValue.length < 2 || normTitle.includes(normSearchValue)) {
+                            const type = "compoundPrescription";
+                            const id = service.id;
+                            const medication = {
+                                id: id,
+                                intendedName: title,
+                                posology: composition,
+                                // posology: this.api.contact().medication().frequencyToString(medicationValue, this.language),
+                                type: type,
+                                // startDate: medicationValue.beginMoment && this.api.moment(medicationValue.beginMoment).format('DD/MM/YYYY') || "",
+                                // endDate: medicationValue.endMoment && this.api.moment(medicationValue.endMoment).format('DD/MM/YYYY') || "",
+                                service: service
+                            };
+                            results.push(medication);
                         }
                         return results;
-                    }, []));
+                    }, []).filter(res => !res.id.includes(":")));
                 });
             }
+
+            _compoundPrescriptionAdapter(results) {
+                if (results && results.length) {
+                    return Promise.all(results.map(result => {
+                        const item = {
+                            "id": result.id,
+                            "intendedName": result.intendedName,
+                            "posology": result.composition,
+                            "service": result.service,
+                            "type": result.type
+                        };
+                        console.log("service item: ", item);
+                        return item;
+                    }));
+                } else {
+                    return Promise.resolve([]);
+                }
+
+
+                // let data = [];
+                // if (results && results.length) {
+                //     let data = [];
+                //     return Promise.all(results.map(result => {
+                //         let id = ((result.codes || (result.codes = [])).find(c => c.type === 'CD-DRUG-CNK') || {code: ''}).code;
+                //         if (id && !id.includes(':')) {
+                //             return this.api.bedrugs().getMppInfos(id, this.language === 'en' ? 'fr' : this.language || 'fr')
+                //                 .then(mppInfos => this._buildListItem(mppInfos, result));
+                //         } else {
+                //             return {
+                //                 "id": result.id,
+                //                 "intendedName": result.name,
+                //                 "pos": this.api.contact().medication().frequencyToString((this.api.contact().preferredContent(result, this.language) || {}).medicationValue, this.language)
+                //             };
+                //         }}))
+                //         .catch(err => {
+                //             console.log("error:", err);
+                //             return [];
+                //         });
+                // } else {
+                //     return Promise.resolve([]);
+                // }
+            }
+
 
             _initList(list, search, domain, adapter) {
                 this._list = list;
@@ -2566,7 +2682,7 @@
                     'history': false,
                     'medicine-package': false,
                     'ingredient': false,
-                    'masterly': false
+                    'compound': false
                 };
 
                 this.panes = {
@@ -2580,7 +2696,7 @@
                     'history-list',
                     'medicine-package-list',
                     'ingredient-list',
-                    'masterly-list'
+                    'compound-list'
                 ];
 
                 this._init();
@@ -3215,6 +3331,10 @@
             _activeListClass(key, trigger) {
                 if (Object.values(this.filters).every(f => !f)) return '';
                 return this.filters[key] ? '' : 'sub-list-collapse';
+            }
+
+            _oneActiveListClass(key, trigger) {
+                return this.filters[key] ? '' : 'sub-control-collapse';
             }
 
             _toggleFilter(e) {
