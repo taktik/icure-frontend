@@ -1132,7 +1132,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             </div>
                             <template is="dom-if" if="[[btnSelectionPatient]]">
                                 <div class="add-elem-mobile" on-tap="_sharePatient">[[localize('share_pat','Share patients',language)]]</div>
-                                <div class="add-elem-mobile" on-tap="_exportPatient">[[localize('export_pat','Export patients',language)]]</div>
+                                <div class="add-elem-mobile" on-tap="_exportPatientAsPMF">[[localize('export_pat_pmf','Export patients (PMF)',language)]]</div>
+                                <div class="add-elem-mobile" on-tap="_exportPatient">[[localize('export_pat_smf','Export patients (SMF)',language)]]</div>
                                 <div class="add-elem-mobile" on-tap="_fusionPatient">[[localize('fus_pat','Fusion patients',language)]]</div>
                                 <!--<div class="add-elem-mobile" on-tap="_preventionPatient">[[localize('prim_prev','Primary prevention',language)]]</div>-->
                             </template>
@@ -1181,7 +1182,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     <div class="exports-container">
                                         <paper-button class="button button--other" on-tap="_exportAllPatientListToXls">[[localize('export_all_pat_xls','Export all patients to XLS',language)]]</paper-button>
                                         <template is="dom-if" if="[[btnSelectionPatient]]">
-                                            <paper-button class="button button--other" on-tap="_exportPatient">[[localize('export_pat','Export patients',language)]]</paper-button>
+                                            <paper-button class="button button--other" on-tap="_exportPatientAsPMF">[[localize('export_pat_pmf','Export patients',language)]]</paper-button>
+                                            <paper-button class="button button--other" on-tap="_exportPatient">[[localize('export_pat_smf','Export patients',language)]]</paper-button>
                                             <paper-button class="button button--other" on-tap="_exportFilteredPatientListToXls">[[localize('export_xls','Export to XLS',language)]]</paper-button>
                                         </template>
                                     </div>
@@ -1742,6 +1744,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Boolean,
                         value: false
                     },
+                    exportAsPMF: {
+                        type: Boolean,
+                        value: false
+                    },
                     fusionOption: {
                         type: Boolean,
                         value: false
@@ -1856,7 +1862,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         value: [
                             {name: {fr: "Cancer du sein", nl: "Borst kanker", en: "Breast cancer"}, id: 'breastCancer', filter: {searchString: '((gender == "female") & age>50y & age<69y) - (SVC[ICPC == X76] | SVC[ICPC == X41.006] | SVC[ICPC == X41.007] | SVC[ICPC == X41.008] | SVC[ICPC == X41.009] | SVC[ICPC == X41.010] | SVC[ICPC == X41.011])'}},
                             {name: {fr: "Cancer colo-rectal", nl: "Colorectale kanker", en: "Colorectal cancer"}, id:"colorectalCancer", filter: {searchString: '((gender == "female" | gender == "male") & (age>50y & age<74y)) - (SVC[ICPC == D40.001])'}},
-                            {name: {fr: "Frottis de col", nl: "Kraag uitstrijkje", en: "Collar smear"}, id: 'collarSmear', filter: {searchString: 'gender=="female & age>25y & age<65y"'}}
+                            {name: {fr: "Frottis de col", nl: "Kraag uitstrijkje", en: "Collar smear"}, id: 'collarSmear', filter: {searchString: '(gender=="female" & age>25y & age<65y) - SVC[ICPC==X75] - SVC[BE-THESAURUS-PROCEDURES==X37.003{<3y}] - SVC[BE-THESAURUS-PROCEDURES==X37.002{<3y}]'}}
                         ]
                     },
                     showExportContainer: {
@@ -2669,9 +2675,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 e.stopPropagation()
                 this.set('hideSpinner', true)
                 this.set('exportOption', true)
+                this.set('exportAsPMF', false)
                 this.set('shareOption', false)
                 this.set('fusionOption', false)
                 this.set('preventionOption', false)
+            }
+
+            _exportPatientAsPMF(e) {
+                e.stopPropagation()
+                this.set('hideSpinner', true)
+                this.set('exportOption', true)
+                this.set('exportAsPMF', true)
+                this.set('shareOption', false)
+                this.set('fusionOption', false)
             }
 
             _fusionPatient(e) {
@@ -2770,7 +2786,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     return this.api.crypto()
                                         .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
                                         .then(secretForeignKeys => {
+                                            console.log("exportAsPMF", this.exportAsPMF)
                                             return this.api.bekmehr().generateSmfExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                                exportAsPMF: this.exportAsPMF,
                                                 secretForeignKeys: secretForeignKeys.extractedKeys,
                                                 comment: null
                                             }, (progress) => this.set('taskProgress', (pidx + progress) / selectedPatientsForExport.length), this.api.sessionId).then(output => {
