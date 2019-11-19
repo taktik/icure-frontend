@@ -1847,15 +1847,42 @@
                 this.$["compound-dialog"].open();
             }
 
+            // _saveCompound() {
+            //     const newMedication = (this.selectedCompound || (this.selectedCompound = {})).medicationValue
+            //     ((this.selectedCompound || (this.selectedCompound = {})).medicationValue || (this.selectedCompound.medicationValue = {})).content = _.fromPairs([[this.language, {compoundPrescription: {title: this.compoundName, formula: this.compoundText}}]]);
+            //     this.dispatchEvent(new CustomEvent('new-compound', {
+            //         detail: {newMedication: this.selectedCompound},
+            //         bubbles: true,
+            //         composed: true
+            //     }))
+            // }
+
+            _createNewCompound(e) {
+                // this.api.crypto().randomUuid()
+                const newCompound = e.detail.compound;
+                if (!newCompound) return;
+                const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
+                let compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
+                ((compounds.find(comp => comp.title === newCompound.title)) || (compounds[compounds.length] = {title: newCompound.title})).formula = newCompound.formula;
+                const compoundsJSON = JSON.stringify(compounds);
+                if (propCompounds) {
+                    propCompounds.typedValue.stringValue = compoundsJSON;
+                } else {
+                    this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
+                }
+                this.api.user.modifyUser(this.user)
+            }
+
+
+
             _saveCompound() {
-                const newMedication = (this.selectedCompound || (this.selectedCompound = {})).medicationValue
-                ((this.selectedCompound || (this.selectedCompound = {})).medicationValue || (this.selectedCompound.medicationValue = {})).content = _.fromPairs([[this.language, {compoundPrescription: {title: this.compoundName, composition: this.compoundText}}]]);
-                this.dispatchEvent(new CustomEvent('create-compound', {
-                    detail: {newMedication: this.selectedCompound},
+                this.dispatchEvent(new CustomEvent('new-compound', {
+                    detail: {compound: {title: this.compoundName, formula: this.compoundText}},
                     bubbles: true,
                     composed: true
                 }))
             }
+
             _canSaveCompound() {
                 return this.compoundName && this.compoundText;
             }
@@ -1976,6 +2003,11 @@
                             })
                             .filter(allergy => allergy.atcCode && allergy.type);
                         this.set("allergies", allergies);
+                    })
+                    .then(() => {
+                        const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
+                        const compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
+                        this.push("compounds", ...compounds);
                     })
                     // .then (() => {
                     //     if (this.reimbursementCodeRecipe && this.reimbursementCodeRecipe.length) return Promise.resolve();
@@ -2537,27 +2569,46 @@
                     }));
             }
 
+            // _compoundPrescriptionsSearch(source, searchValue, language, type, first, count) {
+            //     const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+            //     return new Promise(resolve => {
+            //         resolve(source.reduce((results, service) => {
+            //             const medicationValue = this.api.contact().medicationValue(service, this.language) || {};
+            //             const composition = _.get(medicationValue, "compoundPrescription.composition", "");
+            //             const title = _.get(medicationValue, "compoundPrescription.title", "");
+            //             if (!title && !composition) return results;
+            //             const normTitle = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+            //             if (!searchValue || searchValue.length < 2 || normTitle.includes(normSearchValue)) {
+            //                 const type = "compoundPrescription";
+            //                 const id = service.id;
+            //                 const medication = {
+            //                     id: id,
+            //                     intendedName: title,
+            //                     posology: composition,
+            //                     // posology: this.api.contact().medication().frequencyToString(medicationValue, this.language),
+            //                     type: type,
+            //                     // startDate: medicationValue.beginMoment && this.api.moment(medicationValue.beginMoment).format('DD/MM/YYYY') || "",
+            //                     // endDate: medicationValue.endMoment && this.api.moment(medicationValue.endMoment).format('DD/MM/YYYY') || "",
+            //                     service: service
+            //                 };
+            //                 results.push(medication);
+            //             }
+            //             return results;
+            //         }, []).filter(res => !res.id.includes(":")));
+            //     });
+            // }
             _compoundPrescriptionsSearch(source, searchValue, language, type, first, count) {
                 const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 return new Promise(resolve => {
-                    resolve(source.reduce((results, service) => {
-                        const medicationValue = this.api.contact().medicationValue(service, this.language) || {};
-                        const composition = _.get(medicationValue, "compoundPrescription.composition", "");
-                        const title = _.get(medicationValue, "compoundPrescription.title", "");
-                        if (!title && !composition) return results;
+                    resolve(source.reduce((results, compound) => {
+                        if (!compound.title && !compound.formula) return results;
                         const normTitle = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                         if (!searchValue || searchValue.length < 2 || normTitle.includes(normSearchValue)) {
-                            const type = "compoundPrescription";
-                            const id = service.id;
                             const medication = {
-                                id: id,
-                                intendedName: title,
-                                posology: composition,
-                                // posology: this.api.contact().medication().frequencyToString(medicationValue, this.language),
-                                type: type,
-                                // startDate: medicationValue.beginMoment && this.api.moment(medicationValue.beginMoment).format('DD/MM/YYYY') || "",
-                                // endDate: medicationValue.endMoment && this.api.moment(medicationValue.endMoment).format('DD/MM/YYYY') || "",
-                                service: service
+                                id: compound.id,
+                                intendedName: compound.title,
+                                posology: compound.formula,
+                                type: "compound"
                             };
                             results.push(medication);
                         }
