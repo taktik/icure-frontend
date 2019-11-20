@@ -443,6 +443,44 @@
                         ]
                     },
                     {
+                        id: "cholesterol",
+                        name: "Cholestérol",
+                        regex: /^CHO-LDL|CHOLESTASE|CHOLESTEROL|CHOLEST,ROL|CHOLESTÚROL/,
+                        series: [
+                            {
+                                label: "value",
+                                value: "value",
+                                backgroundColor: "rgba(255,99,132,0.2)",
+                                borderColor: "rgba(254,99,132,2)"
+                            }
+                        ],
+                        samples: [
+                            "CHO-LDL / CHO-HDL",
+                            "CHOLESTASE",
+                            "CHOLESTEROL",
+                            "CHOLESTEROL HDL",
+                            "CHOLESTEROL LDL",
+                            "CHOLESTEROL LDL CALCULE",
+                            "CHOLESTEROL LIE AUX L.D.L",
+                            "CHOLESTEROL LIE AUX VLDL",
+                            "CHOLESTEROL NON HDL",
+                            "CHOLESTEROL TOTAL",
+                            "CHOLESTEROL TOTAL/HDL",
+                            "CHOLESTEROL TOT./HDL",
+                            "CHOLEST,ROL",
+                            "CHOLEST,ROL HDL",
+                            "CHOLEST,ROL LDL",
+                            "CHOLEST,ROL LDL CALCUL,",
+                            "CHOLESTÚROL",
+                            "CHOLESTÚROL HDL",
+                            "CHOLESTÚROL LDL",
+                            "CHOLESTÚROL LDL CALCULÚ",
+                            "CHOLESTÚROL TOTAL",
+                            "CHOLESTÚROL TOTAL/HDL",
+                            "CHOLESTUROL NON HDL"
+                        ]
+                    },
+                    {
                         id: "hba1c",
                         name: "Hemoglobine glyquée",
                         regex: /^HB(81|\sA1C|C\sANTICORPS|\sGLYCOSYLEE|\sGLYCOSYL,E|\sGLYCOSYLÚE|\sGLYQUEE|S\sAG|S\sANTICORPS)]/,
@@ -579,16 +617,15 @@
                 this.async(this.notifyResize());
             }
 
-            open() {
+            open(code) {
+                this._code = code ? code : 'bmi';
                 this.$['chartsDialog'].open();
-                this.isLoading = true;
+                this.set("isLoading", true);
                 setTimeout(()=> {
                     this._refresh();
-                    if (!this.selectedItem)
-                        this.select('bmi');
-                    this.isLoading = false;
+                    this.set("isLoading", false);
+                    this.select(this._code);
                 }, 1000);
-
             }
 
             _initializeCharts2() {
@@ -619,6 +656,23 @@
                 return (label.match(labResult.regex) || labResult.samples.includes(label));
             }
 
+            _hasMeasureValue(s) {
+                return !!this._getMeasureValue(s);
+            }
+
+            _getMeasureValue(s) {
+                return _.get(s, 'content.fr.measureValue.value',
+                    _.get(s, 'content.measure.measureValue.value', null));
+            }
+
+            _getMeasureLabels(code) {
+                return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) && this._hasMeasureValue(s) ? this.api.moment(_.get(s, 'valueDate', null)).format('DD/MM/YYYY') : null)) || [];
+            }
+
+            _getMeasureValues(code) {
+                return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) ? this._getMeasureValue(s) : null)) || [];
+            }
+
             _initializeChartsDataProvider() {
                 let charts = [
                     {
@@ -627,7 +681,7 @@
                         info: {
                             type: 'line',
                             data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "bmi" && _.get(s, 'content.'+this.language+'.numberValue', null)) ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)) || [],
+                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "bmi" && _.get(s, 'content.'+this.language+'.numberValue', null)) ? this.api.moment(_.get(s, 'valueDate', null)).format('DD/MM/YYYY') : null)) || [],
                                 datasets: [{
                                     label: "BMI",
                                     fillColor: "transparent",
@@ -646,11 +700,11 @@
                         info: {
                             type: 'line',
                             data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "weight") ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)) || [],
+                                labels: this._getMeasureLabels("weight"),
                                 datasets: [{
                                     label: this.localize('chart-weight', 'Weight', this.language),
                                     fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "weight") ? _.get(s, 'content.fr.measureValue.value', null) ? _.get(s, 'content.fr.measureValue.value', null) : _.get(s, 'content.measure.measureValue.value', null) ? _.get(s, 'content.measure.measureValue.value', null) : null : null)) || [],
+                                    data: this._getMeasureValues("weight"),
                                     lineTension: 0.1,
                                     backgroundColor: "rgba(255,99,132,0.2)",
                                     borderColor: "rgba(254,99,132,2)"
@@ -665,11 +719,11 @@
                         info: {
                             type: 'line',
                             data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "height") ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)) || [],
+                                labels: this._getMeasureLabels("height"),
                                 datasets: [{
                                     label: this.localize('chart-height', 'Taille', this.language),
                                     fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "height") ? _.get(s, 'content.fr.measureValue.value', null) ?  _.get(s, 'content.fr.measureValue.value', null) :  _.get(s, 'content.measure.measureValue.value', null) ? _.get(s, 'content.measure.measureValue.value', null) : null : null)) || [],
+                                    data: this._getMeasureValues("height"),
                                     lineTension: 0.1,
                                     backgroundColor: "rgba(255,99,132,0.2)",
                                     borderColor: "rgba(254,99,132,2)"
@@ -684,7 +738,7 @@
                         info: {
                             type: 'line',
                             data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "dbp") ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)),
+                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "dbp") ? this.api.moment(_.get(s, 'valueDate', null)).format('DD/MM/YYYY') : null)),
                                 datasets: [{
                                     label: this.localize('chart-sys', 'Systolic blood pressure', this.language),
                                     fillColor: "transparent",
@@ -712,6 +766,9 @@
                     const services = contacts.flatMap(c => c.services.filter(s => this._match(s, labResult)));
                     console.log(labResult.name + " " + services.length);
                     if (services.length > 0) {
+
+                        services.sort((a,b) => a.valueDate - b.valueDate);
+
                         charts.push({
                             id: labResult.id,
                             name: labResult.name,

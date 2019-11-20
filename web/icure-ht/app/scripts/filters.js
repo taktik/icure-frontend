@@ -113,7 +113,7 @@ function filter(parsedInput, api, hcpartyId, debug) {
 							if (debug)
 								console.log('Subtract');
 							const left = yield rewriteFilter(filter.left, first, mainEntity, subEntity);
-							const right = yield rewriteFilter(filter.right, first, mainEntity, subEntity);
+							const right = filter.right.length > 1 ? { $type: 'UnionFilter', filters: yield Promise.all(filter.right.map((f) => rewriteFilter(f, first, mainEntity, subEntity))) } : yield rewriteFilter(filter.right[0], first, mainEntity, subEntity);
 							return { $type: 'ComplementFilter', superSet: left, subSet: right };
 						}
 						const rewritten = yield rewriteFilter(filter.filter, first, mainEntity, filter.entity);
