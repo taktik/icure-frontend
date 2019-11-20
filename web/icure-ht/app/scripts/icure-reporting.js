@@ -2001,10 +2001,14 @@ function peg$parse(input, options) {
 			let startDate = rightMost[0]
 			if (startDate.length > 0) {
 				filter.startDate = startDate
+			} else {
+				filter.startDate = '0'
 			}
 			let endDate = rightMost[1]
 			if (endDate.length > 0) {
 				filter.endDate = endDate
+			} else {
+				filter.endDate = '99990101'
 			}
 		}
 		return filter
@@ -2012,9 +2016,12 @@ function peg$parse(input, options) {
 	let monthsToBirthDate = (months) => {
 		let birthDate = new Date()
 		birthDate.setMonth(new Date().getMonth() - months)
-		var y = birthDate.getFullYear();
-		var m = birthDate.getMonth() + 1;
-		var d = birthDate.getDate();
+		return formatDate(birthDate)
+	}
+	let formatDate = (date) => {
+		var y = date.getFullYear();
+		var m = date.getMonth() + 1;
+		var d = date.getDate();
 		let formattedDate = '' + y + (m < 10 ? '0' : '') + m + (d < 10 ? '0' : '') + d;
 		return formattedDate
 	}
@@ -2043,3 +2050,4 @@ module.exports = {
 	SyntaxError: peg$SyntaxError,
 	parse:       peg$parse
 };
+

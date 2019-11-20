@@ -997,12 +997,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     <div id="saved-filters" class="saved-filters">
                         <paper-listbox id="filters" selectable="paper-button" multi toggle-shift selected-values="{{selectedFilterIndexes}}">
                             <template is="dom-repeat" items="[[_activeFilters(user.properties.*)]]" as="filter" id="filterMenu">
-                                <paper-button class="filter-tag" id="[[filter.name]]" api="[[api]]" user="[[user]]" language="[[language]]">
+                                <paper-button class="filter-tag" id="[[filter.id]]" api="[[api]]" user="[[user]]" language="[[language]]">
                                     <div class="one-line-menu list-title">
-                                        [[filter.name]]
+                                        [[_localizeFilterName(filter.name)]]
                                     </div>
                                     <div>
-                                        <iron-icon class="del-filter" icon="vaadin:trash" id="[[filter.name]]" on-tap="deleteFilter"></iron-icon>
+                                        <template is="dom-if" if="[[_isCustomFilter(filter)]]">
+                                            <iron-icon class="del-filter" icon="vaadin:trash" id="[[filter.id]]" on-tap="deleteFilter"></iron-icon>
+                                        </template>
                                     </div>
                                 </paper-button>
                             </template>
@@ -1860,9 +1862,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     primaryPreventionFilters:{
                         type: Array,
                         value: [
-                            {name: {fr: "Cancer du sein", nl: "Borst kanker", en: "Breast cancer"}, id: 'breastCancer', filter: {searchString: '((gender == "female") & age>50y & age<69y) - (SVC[ICPC == X76] | SVC[ICPC == X41.006] | SVC[ICPC == X41.007] | SVC[ICPC == X41.008] | SVC[ICPC == X41.009] | SVC[ICPC == X41.010] | SVC[ICPC == X41.011])'}},
-                            {name: {fr: "Cancer colo-rectal", nl: "Colorectale kanker", en: "Colorectal cancer"}, id:"colorectalCancer", filter: {searchString: '((gender == "female" | gender == "male") & (age>50y & age<74y)) - (SVC[ICPC == D40.001])'}},
-                            {name: {fr: "Frottis de col", nl: "Kraag uitstrijkje", en: "Collar smear"}, id: 'collarSmear', filter: {searchString: '(gender=="female" & age>25y & age<65y) - SVC[ICPC==X75] - SVC[BE-THESAURUS-PROCEDURES==X37.003{<3y}] - SVC[BE-THESAURUS-PROCEDURES==X37.002{<3y}]'}}
+                            {name: {fr: "Mammotest", nl: "Mammotest", en: "Mammotest"}, type: 'breastCancer', filter: {searchString: '((gender == "female") & age>50y & age<69y) - SVC[ICPC == X76] - SVC[BE-THESAURUS-PROCEDURES == X41.004{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)] - SVC[BE-THESAURUS-PROCEDURES == X41.006{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)] - SVC[BE-THESAURUS-PROCEDURES == X41.007{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)] - SVC[BE-THESAURUS-PROCEDURES == X41.008{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)] - SVC[BE-THESAURUS-PROCEDURES == X41.009{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)] - SVC[BE-THESAURUS-PROCEDURES == X41.010{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)] - SVC[BE-THESAURUS-PROCEDURES == X41.011{>2y} & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)]'}},
+                            {name: {fr: "Cancer colo-rectal", nl: "Colorectale kanker", en: "Colorectal cancer"}, type:"colorectalCancer", filter: {searchString: '((gender == "female" | gender == "male") & (age>50y & age<74y)) - SVC[ICPC == D75] - SVC[BE-THESAURUS-PROCEDURES == D40.001{>5y & :CD-LIFECYCLE == completed}] - SVC[BE-THESAURUS-PROCEDURES == D36.002{>2y & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)}]'}},
+                            {name: {fr: "Frottis de col", nl: "Kraag uitstrijkje", en: "Collar smear"}, type: 'collarSmear', filter: {searchString: '(gender=="female" & age>25y & age<65y) - SVC[ICPC == X75] - SVC[BE-THESAURUS-PROCEDURES == X37.003{>3y & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)}] - SVC[BE-THESAURUS-PROCEDURES == X37.002{>3y & (:CD-LIFECYCLE == completed | :CD-LIFECYCLE == cancelled | :CD-LIFECYCLE == aborted)}]'}}
                         ]
                     },
                     showExportContainer: {
@@ -2625,10 +2627,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _activeFilters() {
-                const filters = this.user && this.user.properties.find(p => p.type && p.type.identifier === 'org.taktik.icure.datafilters')
+                const filters =  _.get(this.user, 'properties', []).find(p => _.get(p, 'type.identifier', null) === 'org.taktik.icure.datafilters')
+
                 if (filters) {
-                    const parsedFilters = JSON.parse(filters.typedValue.stringValue)
-                    return _.sortBy(Object.keys(parsedFilters).map(k => ({name: k, filter: parsedFilters[k]})))
+                    const parsedFilters = _.get(filters, 'typedValue.stringValue', null) ? JSON.parse(filters.typedValue.stringValue) : {}
+                    return _.concat(_.get(this, 'primaryPreventionFilters', []).map(f => ({name: f.name, filter: f.filter, id: this.api.crypto().randomUuid(), type: f.type})), Object.keys(JSON.parse(filters.typedValue.stringValue)).map(k => ({name: {[this.language] : k}, filter: JSON.parse(filters.typedValue.stringValue)[k], id: this.api.crypto().randomUuid(), type: "custom"})))
                 }
                 return []
             }
@@ -2642,11 +2645,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     grid.innerCache = []
                     grid.clearCache()
                 }
-            }
-
-            _selectedFilterIndexes() {
-                const activeFilters = this._activeFilters()
-                return this.selectedFilters ? this.selectedFilters.map(f => activeFilters.map(ff => ff.name).indexOf(f.name)) : []
             }
 
             _selectedFiltersAsString() {
@@ -3395,6 +3393,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _toggleShareActions() {
                 this.showShareContainer = !this.showShareContainer;
+            }
+
+            _localizeFilterName(name){
+                return _.get(name, this.language, null)
+            }
+
+            _isCustomFilter(filter){
+                return _.get(filter, "type", null) === "custom"
             }
 
         }
