@@ -46,6 +46,9 @@
 
 
 <dom-module id="ht-msg-new">
+
+
+
     <template>
 
 
@@ -496,7 +499,9 @@
                     <div class="horizontal mt10">
                         <div class="cell">
                             <div class="vertical">
-                                <div class="cell">
+
+                                <template is="dom-if" if="[[!_isMedex]]">
+                                    <div class="cell">
                                     <div class="horizontal">
                                         <div class="modal-subtitle p-t-7 mw120">[[localize('recipient_s','Recipient(s)',language)]]:</div>
                                         <div class="cell">
@@ -516,13 +521,15 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="cell">
+                                    <div class="cell">
                                     <div class="horizontal">
                                         <div class="modal-subtitle patLabel mw120">[[localize('pati','Patient',language)]]:</div>
                                         <div class="cell"><vaadin-combo-box id="linkedPatientComboxBox" label="[[localize('inputYourSearchQuery','What are you looking for ?',language)]]" filter="{{patientFilter}}" filtered-items="[[filteredPatientsList]]" item-label-path="displayName" allow-custom-value on-selected-item-changed="_setLinkedPatient"><template>[[item.displayName]]</template></vaadin-combo-box>
                                         </div>
                                     </div>
                                 </div>
+                                </template>
+
                                 <div class="cell mt10">
                                     <div class="horizontal">
                                         <div class="modal-subtitle mw120">[[localize('options','Options',language)]]:</div>
@@ -544,10 +551,12 @@
                         </div>
                     </div>
 
-                    <div class="messageContainer m-t-30">
-                        <div class="modal-subtitle">[[localize('msg','Message',language)]]:</div>
-                        <div class="bordered"><paper-input-container alway-float-label="true"><iron-autogrow-textarea slot="input" class="paper-input-input" id="messageBodyText" placeholder="[[localize('writeYourMessage', 'Write your message', language)]]" value="{{newMessage.document.textContent}}"></iron-autogrow-textarea></paper-input-container></div>
-                    </div>
+                    <template is="dom-if" if="[[!_isMedex]]">
+                        <div class="messageContainer m-t-30">
+                            <div class="modal-subtitle">[[localize('msg','Message',language)]]:</div>
+                            <div class="bordered"><paper-input-container alway-float-label="true"><iron-autogrow-textarea slot="input" class="paper-input-input" id="messageBodyText" placeholder="[[localize('writeYourMessage', 'Write your message', language)]]" value="{{newMessage.document.textContent}}"></iron-autogrow-textarea></paper-input-container></div>
+                        </div>
+                    </template>
 
                     <template is="dom-if" if="[[_hasAdditionalAnnexesFromPatDetail]]">
                         <div class="additionalAttachmentFromPatDetails m-t-50">
@@ -728,6 +737,8 @@
 
     </template>
 
+
+
     <script>
 
         import _ from 'lodash/lodash'
@@ -882,6 +893,10 @@
                     medexData: {
                         type: Object,
                         value: () => {}
+                    },
+                    _isMedex: {
+                        type: Boolean,
+                        value: false
                     },
                 }
             }
@@ -1653,13 +1668,100 @@
 
             }
 
+            _prepareEMediattestMessage(dataFromPatDetail) {
 
+                const promResolve = Promise.resolve();
+                const outgoingDocumentComponent = this.shadowRoot.querySelector("#outgoingDocument")
+                const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
 
+                return promResolve
+                    .then(() => {
+                        this.set('_isMedex', true );
+                        this.set('newMessage.useReceivedReceipt', true );
+                        this.set('newMessage.useReadReceipt', true );
+                        this.set('newMessage.usePublicationReceipt', true );
+                        this._resetLoadingMessage();
+                        this.$['new-msg'].open()
+                        this.set('_isLoading', true );
+                        this._setLoadingMessage({ message:this.localize('please_wait',this.language), icon:"arrow-forward"});
+                        this.set('medexData', {
+                            recipient: {
+                                type: "EHP",
+                                quality: "INSTITUTION_EHP",
+                                id: "1990002015",
+                            },
+                            customMetas: {
+                                MessageType:"IncapacityNotification",
+                                MessageVersion:"1.0",
+                                MessageFormat:"FPS HFCSE",
+                            }
 
+                        });
+                    })
+                    .then(() => {
+                        // Linked patient & subject line
+                        dataFromPatDetail.patient = _.assign({displayName: _.compact([
+                                _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                _.map( _.trim(_.get(dataFromPatDetail, "patient.firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                ( !!_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) + ")" : "" ),
+                                ( !_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) && !!_.trim(_.get(dataFromPatDetail, "patient.dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(dataFromPatDetail,"patient.dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" : "" )
+                            ]).join(" ")},dataFromPatDetail.patient)
 
+                        // Changing value / selectedItem will call this._setLinkedPatient
+                        if(linkedPatientComboxBox && !!_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.selectedItem = _.get(dataFromPatDetail, "patient", {})
+                        if(linkedPatientComboxBox && !_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.value = _.get(dataFromPatDetail, "patient.displayName", "")
+                        setTimeout(()=>{ this.set("newMessage.document.title", _.compact(["eMediAtt - Medex", _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
+                    })
+                    .then(() => outgoingDocumentComponent.printMedexPdfItt(dataFromPatDetail))
+                    .then(printMedexPdfIttData => this.set("_data",_.merge(printMedexPdfIttData, {language:this.language, nowMs: moment().format('YYYYMMDDHHmmss0000'), nowYYYYMMDD: moment().format('YYYY-MM-DD'), nowHHMMSS: moment().format('HH:mm:ss'),})))
+                    .then(() => _.merge(this._data.eMediattest, {khmerContent:this._getMedexKhmerTemplate(this._data)}))
+                    .then(() => this._saveMedexKhmerIttToPatFile())
+                    .then(([createdMessage,createdDocument]) => _.merge(this._data.eMediattest.khmerData, {createdMessage:createdMessage,createdDocument:createdDocument}))
+                    .then(() => {
 
+                        this.set("_hasAnnexesFromForward", true)
+                        this.set("_forwardOrReplyAction", "- " + this.localize("medicalCertificate", "Medical certificate",this.language) +" Medex")
+                        this.push('newMessage.recipients', { type:_.get(this,"medexData.recipient.type"), ehp:_.get(this,"medexData.recipient.id"), quality:_.get(this,"medexData.recipient.quality"), lastName: "Medex", firstName: "Medex"})
+                        // this.push('newMessage.recipients', { type:"NIHII", nihii:"15561768004", quality:"DOCTOR", lastName: "Jocqué", firstName: "Samuël"})
 
+                        // PDF FILE
+                        const attachmentSizePdf = _.get(_.get(this,"_data.pdf.data",""),"byteLength",0)
+                        const attachmentSizePdfPow = attachmentSizePdf > (1024**2) ? 2 : attachmentSizePdf > 1024 ? 1 : 0
+                        this.push("_additionalAnnexesFromForward", {
+                            content: _.get(this,"_data.pdf.data",""),
+                            filename: _.trim(_.get(this,"_data.pdf.filename","")),
+                            fileExtension: "pdf",
+                            fileExtensionUppercase: "PDF",
+                            mimeType: "application/pdf",
+                            title: _.trim(_.get(this,"_data.pdf.filename","")),
+                            size: this.api._powRoundFloatByPrecision( attachmentSizePdf / (1024**attachmentSizePdfPow) ,2) + " " + _.trim(attachmentSizePdfPow === 2 ? "Mb" : attachmentSizePdfPow === 1 ? "Kb" : "Bytes"),
+                            documentId: _.trim(_.get(this,"_data.pdf.createdDocument.id",""))
+                        });
 
+                        // KHMER FILE
+                        const attachmentSizeKhmer = _.get(this.api.crypto().utils.text2ua(_.get(this,"_data.eMediattest.khmerContent","")),"byteLength",0)
+                        const attachmentSizeKhmerPow = attachmentSizeKhmer > (1024**2) ? 2 : attachmentSizeKhmer > 1024 ? 1 : 0
+                        this.push("_additionalAnnexesFromForward", {
+                            content: this.api.crypto().utils.text2ua(_.get(this,"_data.eMediattest.khmerContent","")),
+                            filename: _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
+                            fileExtension: "xml",
+                            fileExtensionUppercase: "XML",
+                            mimeType: "application/xml",
+                            title: _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
+                            size: this.api._powRoundFloatByPrecision( attachmentSizeKhmer / (1024**attachmentSizeKhmerPow) ,2) + " " + _.trim(attachmentSizeKhmerPow === 2 ? "Mb" : attachmentSizeKhmerPow === 1 ? "Kb" : "Bytes"),
+                            documentId: _.trim(_.get(this,"_data.eMediattest.khmerData.createdDocument.id",""))
+                        });
+
+                        setTimeout(()=>{
+                            this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsList') && this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsList').render()
+                            this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsPreview') && this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsPreview').render()
+                        },100)
+
+                    })
+                    .catch( e => { console.log("ERROR _prepareEMediattestMessage", e); this.set("_bodyOverlay", true); this.$["unableToLinkPatDocument"].open(); })
+                    .finally(() => { this._resetLoadingMessage(); this.set('_isLoading', false ); })
+
+            }
 
             _addRecipient(){
 
@@ -1671,11 +1773,11 @@
 
                 const recipientType = !!_.trim(_.get(newMsgTo,"selectedItem.cbe")) ? "CBE" :
                     !!_.trim(_.get(newMsgTo,"selectedItem.ehp")) ? "EHP" :
-                    !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" :
-                    "NIHII"
+                        !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" :
+                            "NIHII"
 
-                    // Need NIHII-HOSPITAL ?
-                    // Need NIHII-PHARMACY ?
+                // Need NIHII-HOSPITAL ?
+                // Need NIHII-PHARMACY ?
 
                 this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:recipientType}))
 
@@ -1688,7 +1790,7 @@
                     identifierType: { type:
                         // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-pharmacy" ? "PHARMACY" :
                         // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-hospital" ? "HOSPITAL" :
-                        _.trim(_.get(recipientObject,"type",""))
+                            _.trim(_.get(recipientObject,"type",""))
                     },
                     id: (
                         !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
@@ -1704,6 +1806,14 @@
                     personInOrganisation: ""
                 }
             }
+
+
+
+
+
+
+
+
 
             _doSendMessageWithEhBox(){
 
@@ -1736,7 +1846,6 @@
                             size: _singleAdditionalAnnex.size
                         }
                     })||[]))
-
 
                     const isImportant = !!_.get(this,"newMessage.important",false)
                     const isEncrypted = !!_.get(this,"newMessage.encrypted",false)
@@ -1834,117 +1943,12 @@
                         })
 
                 })
-                    .catch(e=>{
-                        this._resetLoadingMessage();
-                        this.set('_isLoading', false );
-                        this.$["failed"].classList.add('displayNotification')
-                        console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
-                    })
-
-            }
-
-            _prepareEMediattestMessage(dataFromPatDetail) {
-
-                // 1. Create message with transportGuid = MEDEX:OUT:KHMER + save db
-                // 2. Create KHMER/XML document for ITT + encrypt + save db
-                // 3. Link KHMER/XML document to message MEDEX:OUT:KHMER
-                // 4. Link KHMER/XML document as attachment to this EHBOX message
-                // 5. Repeat whole operation for PDF file (visual representation), transportGuid = MEDEX:OUT:PDF
-                // 6. Create in current contact document ID = PDF ==> so that appears under "ht-pat-documents-directory-dialog"
-
-
-
-                const promResolve = Promise.resolve();
-                const outgoingDocumentComponent = this.shadowRoot.querySelector("#outgoingDocument")
-                const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
-
-                return promResolve
-                    .then(() => {
-                        this._resetLoadingMessage();
-                        this.$['new-msg'].open()
-                        this.set('_isLoading', true );
-                        this._setLoadingMessage({ message:this.localize('please_wait',this.language), icon:"arrow-forward"});
-                        this.set('medexData', {
-                           recipient: {
-                               type: "EHP",
-                               quality: "INSTITUTION_EHP",
-                               id: "1990002015",
-                           },
-                           customMetas: {
-                               MessageType:"IncapacityNotification",
-                               MessageVersion:"1.0",
-                               MessageFormat:"FPS HFCSE",
-                           }
-
-                        });
-                    })
-                    .then(() => {
-                        // Linked patient & subject line
-                        dataFromPatDetail.patient = _.assign({displayName: _.compact([
-                            _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                            _.map( _.trim(_.get(dataFromPatDetail, "patient.firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                            ( !!_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) + ")" : "" ),
-                            ( !_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) && !!_.trim(_.get(dataFromPatDetail, "patient.dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(dataFromPatDetail,"patient.dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" : "" )
-                        ]).join(" ")},dataFromPatDetail.patient)
-
-                        // Changing value / selectedItem will call this._setLinkedPatient
-                        if(linkedPatientComboxBox && !!_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.selectedItem = _.get(dataFromPatDetail, "patient", {})
-                        if(linkedPatientComboxBox && !_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.value = _.get(dataFromPatDetail, "patient.displayName", "")
-                        setTimeout(()=>{ this.set("newMessage.document.title", _.compact(["eMediAtt - Medex", _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
-                    })
-                    .then(() => outgoingDocumentComponent.printMedexPdfItt(dataFromPatDetail))
-                    .then(printMedexPdfIttData => this.set("_data",_.merge(printMedexPdfIttData, {language:this.language, nowMs: moment().format('YYYYMMDDHHmmss0000'), nowYYYYMMDD: moment().format('YYYY-MM-DD'), nowHHMMSS: moment().format('HH:mm:ss'),})))
-                    .then(() => _.merge(this._data.eMediattest, {khmerContent:this._getMedexKhmerTemplate(this._data)}))
-                    .then(() => this._saveMedexKhmerIttToPatFile())
-                    .then(([createdMessage,createdDocument]) => _.merge(this._data.eMediattest.khmerData, {createdMessage:createdMessage,createdDocument:createdDocument}))
-                    .then(() => {
-                        this.set("_assignRecipientValueWhenReplyingToMessage", true)
-                        this.set("recipientType",_.get(this,"medexData.recipient.type"))
-                        this.set("recipientFilter",_.get(this,"medexData.recipient.id"))
-                    })
-                    .then(() => {
-
-                        this.set("_hasAnnexesFromForward", true)
-
-                        // PDF FILE
-                        this.push("_additionalAnnexesFromForward", {
-                            content: _.get(this,"_data.pdf.data",""),
-                            filename: _.trim(_.get(this,"_data.pdf.filename","")),
-                            fileExtension: "pdf",
-                            fileExtensionUppercase: "PDF",
-                            mimeType: "application/pdf",
-                            title: _.trim(_.get(this,"_data.pdf.filename","")),
-                            size: _.get(_.get(this,"_data.pdf.data",""),"byteLength",0),
-                            documentId: _.trim(_.get(this,"_data.pdf.createdDocument.id",""))
-                        });
-
-                        // KHMER FILE
-                        this.push("_additionalAnnexesFromForward", {
-                            content: this.api.crypto().utils.text2ua(_.get(this,"_data.eMediattest.khmerContent","")),
-                            filename: _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
-                            fileExtension: "xml",
-                            fileExtensionUppercase: "XML",
-                            mimeType: "application/xml",
-                            title: _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
-                            size: _.get(this.api.crypto().utils.text2ua(_.get(this,"_data.eMediattest.khmerContent","")),"byteLength",0),
-                            documentId: _.trim(_.get(this,"_data.eMediattest.khmerData.createdDocument.id",""))
-                        });
-
-                        setTimeout(()=>{
-                            this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsList') && this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsList').render()
-                            this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsPreview') && this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsPreview').render()
-                        },100)
-
-                    })
-                    .then(() => {
-
-                        console.log("this.recipientType", this.recipientType);
-                        console.log("this.recipientFilter", this.recipientFilter);
-                        console.log("this._data", this._data);
-
-                    })
-                    .catch( e => { console.log("ERROR _prepareEMediattestMessage", e); this.set("_bodyOverlay", true); this.$["unableToLinkPatDocument"].open(); })
-                    .finally(() => { this._resetLoadingMessage(); this.set('_isLoading', false ); })
+                .catch(e=>{
+                    this._resetLoadingMessage();
+                    this.set('_isLoading', false );
+                    this.$["failed"].classList.add('displayNotification')
+                    console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
+                })
 
             }
 
