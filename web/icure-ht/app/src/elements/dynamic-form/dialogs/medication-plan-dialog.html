@@ -743,8 +743,6 @@
                 </template>
                 <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <div class="header-content">
-                        <paper-checkbox on-change="checkChanged" id="needPres" label="[[localize('need_display_presc','need Display Presc',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_presc','need Display Presc',language)]]</paper-checkbox>
-                        <paper-checkbox checked on-change="checkChanged" id="needMedi" label="[[localize('need_display_medication','need display medication',language)]]" always-float-label style="margin-right:30px">[[localize('need_display_medication','need display medication',language)]]</paper-checkbox>
                     </div>
                     <div class="present">
                         <div class="table">
@@ -823,7 +821,7 @@
                             </div>
                             <!-- END HEADER -->
                             <!-- START BODY -->
-                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*,needDisplayPresc,needDisplayMedication)]]" as="medicationsWithPosology">
+                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*)]]" as="medicationsWithPosology">
                                 <div class="tr category">
                                     <div class="td"></div>
                                     <div class="td td--category" style="flex-grow: 5;">
@@ -844,7 +842,7 @@
                                     <div class="td" style="flex-grow: 4;"></div>
                                 </div>
                                 <template is="dom-repeat" items="[[medicationsWithPosology.meds]]" as="m">
-                                <div class$="tr [[_medicationClass(m.medication)]]">
+                                <div class$="tr [[_medicationClass(m.medication,medicationsWithPosology.letter)]]">
                                     <div class="td reimbursed">
                                         <iron-icon id="reimbursedStatus" icon="icons:euro-symbol" class$="reimbursed-status [[_hasValidChap4Class(m.medication)]]"></iron-icon>
                                         <paper-tooltip for="reimbursedStatus">[[_chap4Status(m.medication)]]</paper-tooltip>
@@ -1207,14 +1205,6 @@
                     prescriptions:{
                         type: Array,
                         value: []
-                    },
-                    needDisplayPresc:{
-                      type: Boolean,
-                      value: false
-                    },
-                    needDisplayMedication:{
-                        type: Boolean,
-                        value : true
                     }
                 }
             }
@@ -1522,18 +1512,13 @@
                 return regsTable
             }
 
-            checkChanged(e){
-                this.set("needDisplayPresc",this.shadowRoot.querySelector("#needPres").checked)
-                this.set("needDisplayMedication",this.shadowRoot.querySelector("#needMedi").checked)
-            }
-
             _getPrescrMed(){
                 const prescTab =this.medicationClassesWithPosology.map(val => this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
                 const medTab =this.prescriptionsClassesWithPosology.map(val => this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
                 return _.zipWith(medTab, prescTab,(med,presc) =>{
                     return {
                         "letter" : _.get(med, 'letter', null),
-                        "meds" : _.uniq(_.concat(this.needDisplayMedication ? _.get(med, 'meds', []) : [],this.needDisplayPresc? _.get(presc, 'meds', []) :[]))
+                        "meds" : _.uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', [])))
                     };
                 });
             }
@@ -1627,8 +1612,8 @@
                 return !!(((this.api.contact().preferredContent(s, this.language) || {}).medicationValue || {}).agreements || []).length
             }
 
-            _medicationClass(m) {
-                return (m.colour && (m.colour + '-back'))|| "ATC--"+_.get(m.codes.find(c=> c.type==="CD-ATC"), 'code', ' ').charAt(0)+"-back"
+            _medicationClass(m,letter = null) {
+                return (letter && "ATC--"+letter+"-back") || (m.colour && (m.colour + '-back'))|| "ATC--"+_.get(m.codes.find(c=> c.type==="CD-ATC"), 'code', ' ').charAt(0)+"-back"
             }
 
             _localizedTitle(medicationsWithPosology) {
