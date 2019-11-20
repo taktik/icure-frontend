@@ -1459,8 +1459,13 @@
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
-                                    <paper-icon-button id="[[item.id]]" class="list-item-icon--add" icon="icons:more-vert"
-                                                       on-tap="_compoundMenu"></paper-icon-button>
+                                    <paper-menu-button>
+                                        <paper-icon-button icon="icons:more-vert" slot="dropdown-trigger"></paper-icon-button>
+                                        <paper-listbox slot="dropdown-content">
+                                            <paper-item id="compound-edit_[[item.id]]" on-tap="_editCompound">[[localize('edi','Editer',language)]]</paper-item>
+                                            <paper-item id="compound-delete_[[item.id]]" on-tap="_deleteCompound">[[localize('del','Supprimer',language)]]</paper-item>
+                                        </paper-listbox>
+                                    </paper-menu-button>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1468,8 +1473,8 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
+                                    <div>[[item.title]]</div>
                                     <div>[[item.intendedName]]</div>
-                                    <div>[[item.posology]]</div>
                                 </template>
                             </vaadin-grid-column>
 
@@ -1601,15 +1606,15 @@
         <paper-dialog id="compound-dialog" always-on-top no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title">[[localize('compound', 'Magistrale', language)]]</h2>
             <div class="content compound-container">
-                <paper-input always-float-label label="[[localize('compound_name','Nom de la préparation',language)]]" value="{{compoundName}}"></paper-input>
+                <paper-input always-float-label label="[[localize('compound_name','Nom de la préparation',language)]]" value="{{selectedCompound.title}}"></paper-input>
                 <paper-input-container always-float-label="true" class="comment">
                     <label slot="label" class="color-status">[[localize('composition','Composition',language)]]</label>
-                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{compoundText}}" rows="3"></iron-autogrow-textarea>
+                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedCompound.intendedName}}" rows="3"></iron-autogrow-textarea>
                 </paper-input-container>
             </div>
             <div class="buttons">
                 <paper-button class="button button--other" dialog-dismiss on-tap="_closeCompound">[[localize('can','Annuler',language)]]</paper-button>
-                <paper-button class="button button--save" on-tap="_saveCompound" disabled="[[!_canSaveCompound(compoundName, compoundText)]]">[[_compoundButtonName(selectedCompound)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_saveCompound" disabled="[[!_canSaveCompound(selectedCompound.*)]]">[[_compoundButtonName(selectedCompound)]]</paper-button>
             </div>
         </paper-dialog>
     </template>
@@ -1820,7 +1825,7 @@
             static get observers() {
                 return [
                     '_medicationChanged(selectedMedicationFromAccumulator)',
-                    '_compoundsChanged(compounds)'
+                    '_compoundsChanged(compounds.*)'
                 ];
             }
 
@@ -1838,33 +1843,47 @@
             }
 
             _createCompound() {
-                // ((this.selectedCompound || (this.selectedCompound = {})).medicationValue || (this.selectedCompound.medicationValue = {})).compoundPrescription = this.compoundPrescriptionText
-                // if (!this.selectedCompound.id) { this.selectedCompound.id = this.compoundPrescriptionText }
-                // this.set('selectedCompound', null)
-                this.set("selectedCompound", "");
-                this.set("compoundText", "");
-                this.set("compoundName","");
+                this.set("selectedCompound", {});
                 this.$["compound-dialog"].open();
             }
 
-            // _saveCompound() {
-            //     const newMedication = (this.selectedCompound || (this.selectedCompound = {})).medicationValue
-            //     ((this.selectedCompound || (this.selectedCompound = {})).medicationValue || (this.selectedCompound.medicationValue = {})).content = _.fromPairs([[this.language, {compoundPrescription: {title: this.compoundName, formula: this.compoundText}}]]);
-            //     this.dispatchEvent(new CustomEvent('new-compound', {
-            //         detail: {newMedication: this.selectedCompound},
-            //         bubbles: true,
-            //         composed: true
-            //     }))
-            // }
+            _saveCompound() {
+                if (!this.selectedCompound) return;
+                const newCompound = this.selectedCompound;
+                if (newCompound.id) {
+                    const index = this.compounds.findIndex(compound => compound.id === newCompound.id);
+                    if (index > -1) this.splice("compounds", index, 1)
+                } else {
+                    newCompound.id = this.api.crypto().randomUuid();
+                }
+                this.push("compounds", newCompound);
 
-            _createNewCompound(e) {
-                // this.api.crypto().randomUuid()
-                const newCompound = e.detail.compound;
-                if (!newCompound) return;
                 const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                 let compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
-                ((compounds.find(comp => comp.title === newCompound.title)) || (compounds[compounds.length] = {title: newCompound.title})).formula = newCompound.formula;
+                ((compounds.find(comp => comp.title === newCompound.title)) || (compounds[compounds.length] = {id: newCompound.id, title: newCompound.title})).intendedName = newCompound.intendedName;
                 const compoundsJSON = JSON.stringify(compounds);
+                if (propCompounds) {
+                    propCompounds.typedValue.stringValue = compoundsJSON;
+                } else {
+                    this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
+                }
+                this.api.user().modifyUser(this.user);
+            }
+
+            _canSaveCompound() {
+                return this.selectedCompound.title && this.selectedCompound.intendedName;
+            }
+
+            _deleteCompound(e) {
+                if (!this.selectedCompound) return;
+                const index = this.compounds.findIndex(compound => compound.id === this.selectedCompound.id);
+                if (index < 0) return;
+                this.splice("compounds", index, 1);
+
+                const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
+                const compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
+
+                const compoundsJSON = JSON.stringify(compounds.filter(compound => compound.id !== this.selectedCompound.id));
                 if (propCompounds) {
                     propCompounds.typedValue.stringValue = compoundsJSON;
                 } else {
@@ -1873,22 +1892,8 @@
                 this.api.user.modifyUser(this.user)
             }
 
-
-
-            _saveCompound() {
-                this.dispatchEvent(new CustomEvent('new-compound', {
-                    detail: {compound: {title: this.compoundName, formula: this.compoundText}},
-                    bubbles: true,
-                    composed: true
-                }))
-            }
-
-            _canSaveCompound() {
-                return this.compoundName && this.compoundText;
-            }
-
             _compoundButtonName() {
-                return this.selectedCompound ? this.localize("update", "Mise à jour") : this.localize("cre", "Créer");
+                return this.selectedCompound.id ? this.localize("update", "Mise à jour") : this.localize("cre", "Créer");
             }
 
             _saveButtonName() {
@@ -2007,7 +2012,8 @@
                     .then(() => {
                         const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                         const compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
-                        this.push("compounds", ...compounds);
+                        if (compounds) this.push("compounds", ...compounds);
+                        else this.set("compounds", []);
                     })
                     // .then (() => {
                     //     if (this.reimbursementCodeRecipe && this.reimbursementCodeRecipe.length) return Promise.resolve();
@@ -2601,14 +2607,14 @@
                 const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 return new Promise(resolve => {
                     resolve(source.reduce((results, compound) => {
-                        if (!compound.title && !compound.formula) return results;
-                        const normTitle = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+                        if (!compound.title && !compound.intendedName) return results;
+                        const normTitle = compound.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                         if (!searchValue || searchValue.length < 2 || normTitle.includes(normSearchValue)) {
                             const medication = {
                                 id: compound.id,
-                                intendedName: compound.title,
-                                posology: compound.formula,
-                                type: "compound"
+                                title: compound.title,
+                                intendedName: compound.intendedName,
+                                type: "compoundPrescription"
                             };
                             results.push(medication);
                         }
@@ -2622,9 +2628,8 @@
                     return Promise.all(results.map(result => {
                         const item = {
                             "id": result.id,
+                            "title": result.title,
                             "intendedName": result.intendedName,
-                            "posology": result.composition,
-                            "service": result.service,
                             "type": result.type
                         };
                         console.log("service item: ", item);
