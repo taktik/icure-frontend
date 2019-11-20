@@ -17,6 +17,8 @@
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-column.html">
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-sorter.html">
 <link rel="import" href="../../../../bower_components/vaadin-grid/vaadin-grid-tree-toggle.html">
+<link rel="import" href="../../../../bower_components/paper-menu-button/paper-menu-button.html">
+
 
 <link rel="import" href="../../../styles/atc-styles.html">
 <link rel="import" href="../../../styles/dialog-style.html">
@@ -690,6 +692,27 @@
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
+            }
+
+            .compound-control-line {
+                display: flex;
+                flex-direction: row;
+            }
+
+            .compound-control paper-icon-button {
+                padding: 2px;
+                margin-left: 4px;
+            }
+
+            .compound-control paper-icon-button {
+                height: 20px;
+                width: 20px;
+                border-radius: 50%;
+                padding: 2px;
+                box-sizing: border-box;
+                --paper-icon-button-hover_-_background: var(--app-background-color-dark);
+                --paper-icon-button-hover_-_box-shadow: initial;
+                --paper-icon-button-hover_-_color: initial;
             }
 
         </style>
@@ -1459,13 +1482,13 @@
 
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
-                                    <paper-menu-button>
-                                        <paper-icon-button icon="icons:more-vert" slot="dropdown-trigger"></paper-icon-button>
-                                        <paper-listbox slot="dropdown-content">
-                                            <paper-item id="compound-edit_[[item.id]]" on-tap="_editCompound">[[localize('edi','Editer',language)]]</paper-item>
-                                            <paper-item id="compound-delete_[[item.id]]" on-tap="_deleteCompound">[[localize('del','Supprimer',language)]]</paper-item>
-                                        </paper-listbox>
-                                    </paper-menu-button>
+<!--                                    <paper-menu-button>-->
+<!--                                        <paper-icon-button class="list-item-icon&#45;&#45;add" icon="icons:more-vert" slot="dropdown-trigger"></paper-icon-button>-->
+<!--                                        <paper-listbox slot="dropdown-content">-->
+<!--                                            <paper-item id="compound-edit_[[item.id]]" on-tap="_editCompound">[[localize('edi','Editer',language)]]</paper-item>-->
+<!--                                            <paper-item id="compound-delete_[[item.id]]" on-tap="_deleteCompound">[[localize('del','Supprimer',language)]]</paper-item>-->
+<!--                                        </paper-listbox>-->
+<!--                                    </paper-menu-button>-->
                                 </template>
                             </vaadin-grid-column>
 
@@ -1576,13 +1599,20 @@
 <!--                                </template>-->
 <!--                            </vaadin-grid-column>-->
 
-<!--                            &lt;!&ndash; DURATION: END &ndash;&gt;-->
+                            <!-- DURATION: END -->
 
-<!--                            <vaadin-grid-column flex-grow="0">-->
-<!--                                <template>-->
-<!--                                    <div>[[item.endDate]]</div>-->
-<!--                                </template>-->
-<!--                            </vaadin-grid-column>-->
+                            <vaadin-grid-column flex-grow="0">
+                                <template>
+                                    <div class="compound-control-line">
+                                        <div class="compound-control">
+                                            <paper-icon-button id="[[item.id]]" icon="create" on-tap="_editCompound"></paper-icon-button>
+                                        </div>
+                                        <div class="compound-control">
+                                            <paper-icon-button id="[[item.id]]" icon="clear" on-tap="_deleteCompound"></paper-icon-button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </vaadin-grid-column>
 
                         </vaadin-grid>
                     </div>
@@ -1848,15 +1878,21 @@
             }
 
             _saveCompound() {
+                // if (!this.selectedCompound) return;
+                // const newCompound = this.selectedCompound;
+                // if (newCompound.id) {
+                //     const index = this.compounds.findIndex(compound => compound.id === newCompound.id);
+                //     if (index > -1) this.splice("compounds", index, 1)
+                // } else {
+                //     newCompound.id = this.api.crypto().randomUuid();
+                // }
+
+
                 if (!this.selectedCompound) return;
                 const newCompound = this.selectedCompound;
-                if (newCompound.id) {
-                    const index = this.compounds.findIndex(compound => compound.id === newCompound.id);
-                    if (index > -1) this.splice("compounds", index, 1)
-                } else {
+                if (!newCompound.id) {
                     newCompound.id = this.api.crypto().randomUuid();
                 }
-                this.push("compounds", newCompound);
 
                 const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                 let compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
@@ -1867,7 +1903,20 @@
                 } else {
                     this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
                 }
-                this.api.user().modifyUser(this.user);
+                return this.api.user().modifyUser(this.user).then(() => this._synchronizeList()).finally(() => this.$["compound-dialog"].close());
+            }
+
+            _synchronizeList() {
+                return this.api.user().getCurrentUser()
+                    .then(user => {
+                        const propCompounds = user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
+                        const sourceList = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
+                        sourceList.filter(value => !this.compounds.some(comp => comp.id === value.id)).forEach(toAdd => this.push("compounds", toAdd));
+                        this.compounds.filter(value => !sourceList.some(comp => comp.id === value.id)).map(value => this.compounds.findIndex(comp => comp.id === value.id)).filter(index => index > -1).forEach(indexToDelete => this.splice("compounds", indexToDelete, 1))
+                        sourceList.filter(value => this.compounds.some(comp => comp.id === value.id)).map(value => [this.compounds.findIndex(comp => comp.id === value.id), value]).filter(pair => pair[0] > -1).forEach(pair => this.splice("compounds", pair[0], 1, pair[1]));
+                        return user;
+                    })
+                    .then(user => this.set("user", user));
             }
 
             _canSaveCompound() {
@@ -1875,11 +1924,8 @@
             }
 
             _deleteCompound(e) {
-                if (!this.selectedCompound) return;
-                const index = this.compounds.findIndex(compound => compound.id === this.selectedCompound.id);
-                if (index < 0) return;
-                this.splice("compounds", index, 1);
-
+                const id = e.target.id;
+                if (!id) return;
                 const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                 const compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
 
@@ -1889,8 +1935,16 @@
                 } else {
                     this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
                 }
-                this.api.user.modifyUser(this.user)
+                this.api.user().modifyUser(this.user).then(() => this._synchronizeList());
             }
+
+            _editCompound(e) {
+                const id = e.target.id;
+                if (!id) return;
+                this.set("selectedCompound", this.compounds.find(compound => compound.id === id));
+                this.$["compound-dialog"].open();
+            }
+
 
             _compoundButtonName() {
                 return this.selectedCompound.id ? this.localize("update", "Mise à jour") : this.localize("cre", "Créer");
@@ -2009,8 +2063,9 @@
                             .filter(allergy => allergy.atcCode && allergy.type);
                         this.set("allergies", allergies);
                     })
-                    .then(() => {
-                        const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
+                    .then(() => this.api.user().getCurrentUser())
+                    .then(user => {
+                        const propCompounds = user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                         const compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
                         if (compounds) this.push("compounds", ...compounds);
                         else this.set("compounds", []);
