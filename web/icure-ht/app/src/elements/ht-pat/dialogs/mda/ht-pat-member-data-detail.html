@@ -232,6 +232,10 @@
                 overflow: auto;
             }
 
+            .mr1{
+                margin-right: 1%;
+            }
+
 
         </style>
 
@@ -277,8 +281,8 @@
                                 </template>
                                 <template is="dom-if" if="[[!_isMedicalHouse(hcp)]]">
                                     <div class="mda-menu-search-line">
-                                        <dynamic-date-field label="[[localize('mda-startDate', 'Start date', language)]]" value="{{mdaSearch.startDate}}" i18n="[[i18n]]"></dynamic-date-field>
-                                        <vaadin-combo-box id="contactType" class="w40" label="[[localize('mda-contactType', 'Contact type', language)]]" filter="{{mdaContactTypeFilter}}" selected-item="{{selectedMdaContactType}}"  filtered-items="[[mdaContactType]]" item-label-path="label.fr" >
+                                        <vaadin-date-picker class="w100 mtm2 mw0 mr1" label="[[localize('mda-startDate', 'Start date', language)]]" value="{{mdaSearch.startDate}}" i18n="[[i18n]]" min="[[dateRange.minDate]]" max="[[dateRange.maxDate]]"></vaadin-date-picker>
+                                        <vaadin-combo-box id="contactType" class="w100 mtm2 mw0" label="[[localize('mda-contactType', 'Contact type', language)]]" filter="{{mdaContactTypeFilter}}" selected-item="{{selectedMdaContactType}}"  filtered-items="[[mdaContactType]]" item-label-path="label.fr" >
                                             <template>[[_getLabel(item.label)]]</template>
                                         </vaadin-combo-box>
                                     </div>
@@ -302,7 +306,7 @@
                             <iron-pages selected="[[tabs]]">
                                 <page>
                                     <div class="page-content">
-                                        <ht-pat-member-data-response id="htPatMemberDataResponse" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" hcp="[[hcp]]" mda-search="[[mdaSearch]]" i18n="[[i18n]]" resources="[[resources]]" selected-mda-contact-type="[[selectedMdaContactType]]" selected-mda-request-type="[[selectedMdaRequestType]]" mda-result="[[mdaResult]]" is-loading="[[isLoading]]"></ht-pat-member-data-response>
+                                        <ht-pat-member-data-response id="htPatMemberDataResponse" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" hcp="[[hcp]]" mda-search="[[mdaSearch]]" i18n="[[i18n]]" resources="[[resources]]" selected-mda-contact-type="[[selectedMdaContactType]]" selected-mda-request-type="[[selectedMdaRequestType]]" mda-result="[[mdaResult]]" is-loading="[[isLoading]]" general-error="[[generalError]]"></ht-pat-member-data-response>
                                     </div>
                                 </page>
                                 <page>
@@ -435,6 +439,14 @@
                     patientInsurance: {
                         type: Object,
                         value: () => {}
+                    },
+                    dateRange:{
+                        type: Object,
+                        value: () => {}
+                    },
+                    generalError:{
+                        type: Boolean,
+                        value: false
                     }
 
                 };
@@ -457,6 +469,10 @@
                     .then(insuranceInfo => this.set('patientInsurance', insuranceInfo))
                     .finally(() => {
                         this.set('tabs', 0)
+                        this.set('dateRange', {
+                            minDate : moment().subtract(5, 'years').format("YYYY-MM-DD"),
+                            maxDate: moment().format("YYYY-MM-DD")
+                        })
                         this.set('selectedMdaConsultType', _.get(this.patient, 'ssin', null) ? _.get(this, 'mdaConsultType', []).find(t => t.type === "byNiss") : _.get(this, 'mdaConsultType', []).find(t => t.type === "byIo"))
                         this.set('selectedMdaContactType', _.get(this, 'mdaContactType', []).find(t => t.type === "other"))
                         this.set('selectedMdaRequestType', _.get(this, 'mdaRequestType', []).find(t => t.type === "information"))
@@ -493,6 +509,7 @@
                 this.set('isLoading',true)
                 this.set('tabs', 0)
                 this.set("mdaResult", {})
+                this.set('generalError', false)
                 ;(_.get(this.mdaSearch, 'ssin', null) && _.get(this.mdaSearch, 'consultType', null) === "byNiss"  ? this.consultMdaBySsin() : this.consultMdaByMemberShip()).then(mdaResponse => {
                     return _.assign(mdaResponse, {
                         formatedResponse: {
@@ -637,7 +654,14 @@
                         bubbles: true,
                         composed: true
                     }))
-                })
+                    _.size(_.get(this.mdaResult, 'formatedResponse.carePath', [])) === 0 &&
+                    _.size(_.get(this.mdaResult, 'formatedResponse.medicalHouse', [])) === 0 &&
+                    _.size(_.get(this.mdaResult, 'formatedResponse.chronicCondition', [])) === 0 &&
+                    _.size(_.get(this.mdaResult, 'formatedResponse.generalSituation', [])) === 0 &&
+                    _.size(_.get(this.mdaResult, 'formatedResponse.period', [])) === 0 &&
+                    _.size(_.get(this.mdaResult, 'formatedResponse.payment', [])) === 0 &&
+                    _.size(_.get(this.mdaResult, 'formatedResponse.patientData', [])) === 0  ? this.set('generalError', true) : this.set('generalError', false)
+                 })
             }
 
             _consultAddressBook(mdaResponse){
