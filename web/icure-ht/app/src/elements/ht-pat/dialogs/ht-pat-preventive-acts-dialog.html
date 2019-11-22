@@ -90,19 +90,6 @@
                 position: relative;
             }
 
-            .sidebar-header {
-                height: 48px;
-                width: 100%;
-                border-bottom: 1px solid var(--app-background-color-darker);
-                background-color: var(--app-background-color-dark);
-                padding: 0 12px;
-                display: flex;
-                flex-flow: row wrap;
-                justify-content: flex-start;
-                align-items: center;
-                box-sizing: border-box;
-            }
-
             .sidebar-content{
                 margin: 4px;
             }
@@ -192,19 +179,34 @@
 
             .col-1 {
                 border-right: 1px solid var(--app-background-color-dark);
-                width: 25%;
+                width: 30%;
             }
 
             .col-2 {
                 border-right: 1px solid var(--app-background-color-dark);
-                width: 55%;
+                width: 50%;
             }
 
             .col-3 {
                 width: 20%;
             }
 
-            .col-lg-4 { width: 5%; }
+            .sidebar-filter {
+                display: flex;
+                flex-flow: row nowrap;
+            }
+
+            .sidebar-filter-date {
+                width: 30%;
+            }
+
+            .sidebar-filter-label {
+                width: 50%;
+            }
+
+            .sidebar-filter-status {
+                width: 20%;
+            }
 
         </style>
 
@@ -213,11 +215,26 @@
             <div class="content">
                 <div class="splitPanel">
                     <div class="sidebar">
+
                         <!--
-                        <div class="sidebar-header">
-                            [[localize('preventive_acts', 'Actes préventifs', language)]]
+                        <div class="sidebar-filter">
+                            <div class="sidebar-filter-date">
+                                <vaadin-date-picker id="filterDateFrom" label="[[localize('dat','Date',language)]]" value="{{filterDateFrom}}" i18n="[[i18n]]" on-value-changed="_filter" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+                            </div>
+                            <div class="sidebar-filter-label">
+                                <paper-input label="[[localize('lab','Label',language)]]" value="{{filterLabel}}" on-value-changed="_filter"></paper-input>
+                            </div>
+                            <div class="sidebar-filter-status">
+                                <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" label="[[localize('sta','Status',language)]]" value="{{filterStatus}}" on-value-changed="_filter"></vaadin-combo-box>
+                            </div>
+                        </div>
+                        <div class="sidebar-filter">
+                            <div class="sidebar-filter-date">
+                                <vaadin-date-picker id="filterDateTo" label="[[localize('dat','Date',language)]]" value="{{filterDate}}" i18n="[[i18n]]" on-value-changed="_filter" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+                            </div>
                         </div>
                         -->
+
                         <div class="sidebar-content">
                             <div class="header">
                                 <div class="col-1 col hdr">[[localize('dat','Date',language)]]</div>
@@ -262,6 +279,8 @@
     </template>
     <script>
 
+        const procedureStatus = [ "aborted", "error", "refused", "pending", "planned", "completed", "proposed", "cancelled" ];
+
         class HtPatPreventiveActsDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
             static get is() {
                 return 'ht-pat-preventive-acts-dialog';
@@ -288,9 +307,19 @@
                     language: {
                         type: String
                     },
-                    opened: {
-                        type: Boolean,
-                        value: false
+                    filterDate: {
+                        type: String
+                    },
+                    filterLabel: {
+                        type: String
+                    },
+                    filterStatus: {
+                        type: Object,
+                        value: null
+                    },
+                    comboStatus: {
+                        type: Array,
+                        value : () => []
                     },
                     selectedItem: {
                         type:  String,
@@ -303,10 +332,6 @@
                     error: {
                         type: String,
                         value: ''
-                    },
-                    canSave: {
-                        type: Boolean,
-                        value: false
                     },
                     refresher: {
                         type: Number,
@@ -343,12 +368,20 @@
                 }
                 this.api.contact().filterServices(this.contacts,s => s.label==='Actes' || (s.tags.some(t => t.type == "SOAP" && t.code == "Plan") && s.tags.some(t => t.type == 'CD-ITEM-TASK')))
                     .then(services =>{
+                        this._services = services;
                         this.set("services",_.orderBy(services,["valueDate", "created"],['asc', 'asc']))
                     })
             }
 
             isIronSelected(selected) {
                 return selected ? 'iron-selected' : '';
+            }
+
+            _filter(e) {
+                //this.set("services",_.orderBy(services,["valueDate", "created"],['asc', 'asc']))
+
+                const date = this.api.moment(filterDate);
+
             }
 
             _getContent(svc){
@@ -362,7 +395,7 @@
 
             _formatStatus(svc) {
                 const status = this._getStatus(svc);
-                return this.localize('vacc_' + status, status, this.language);
+                return this.localize('proc_status_' + status, status, this.language);
             }
 
             _getStatus(svc) {
@@ -402,6 +435,11 @@
 
             _show(service) {
                 const id = service.id;
+
+                this.set("comboStatus", procedureStatus.map(id => {
+                    return { id : id, label: this.localize("proc_status_" + id, id) }
+                }));
+
                 this.services.forEach(service => {
                     const item = this.shadowRoot.querySelector("#id_" + service.id);
                     if (item) {
@@ -418,6 +456,8 @@
 
             _select(e) {
                 console.log("_select");
+                if (this.changed)
+                    this._save();
                 this._show(this.services.find(s => "id_" + s.id === e.currentTarget.id));
             }
 
