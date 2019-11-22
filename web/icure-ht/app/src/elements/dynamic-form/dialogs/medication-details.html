@@ -677,7 +677,13 @@
                 <div class="regimen-line display-type-regimen">
                     <paper-input-container always-float-label="true" class="comment">
                         <label slot="label" class="color-status">[[localize('pos','Posology',language)]]</label>
-                        <iron-autogrow-textarea class="paper-input-input" slot="input" on-keydown="_instructionOverride" value="{{medicationContent.medicationValue.instructionForPatient}}"></iron-autogrow-textarea>
+                        <iron-autogrow-textarea class="paper-input-input" readonly slot="input" value="{{medicationDetail.posology}}"></iron-autogrow-textarea>
+                    </paper-input-container>
+                </div>
+                <div class="regimen-line display-type-regimen">
+                    <paper-input-container always-float-label="true" class="comment">
+                        <label slot="label" class="color-status">[[localize('instructions-for-patient','Instructions pour le patient',language)]]</label>
+                        <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{medicationDetail.commentForPatient}}"></iron-autogrow-textarea>
                     </paper-input-container>
                 </div>
                 <div class="regimen-line display-type-regimen">
@@ -1002,6 +1008,10 @@
                     initializingDate: {
                         type: Boolean,
                         value: false,
+                    },
+                    commentSeparator: {
+                        type: String,
+                        value: " - "
                     }
                 }
             }
@@ -1011,7 +1021,7 @@
                     '_changeBeginMoment(medicationDetail.beginMomentAsString)',
                     '_changeEndMoment(medicationDetail.endMomentAsString)',
                     '_changeDuration(duration)',
-                    '_regimenChanged(medicationContent.medicationValue, medicationContent.medicationValue.regimen.*)',
+                    '_regimenChanged(medicationContent.medicationValue, medicationDetail.commentForPatient, medicationContent.medicationValue.regimen.*)',
                     '_medicationChanged(medication, medication.*)',
                     '_quantityFactorChanged(quantityFactor)',
                     '_periodChanged(periodConfig)',
@@ -1037,12 +1047,14 @@
             }
 
             _isConfidentialChanged() {
+                if (!this.medicationDetail || !this.medicationDetail.newMedication) return;
                 const newMed = this.medicationDetail.newMedication;
                 const confType = "org.taktik.icure.entities.embed.Confidentiality";
                 ((newMed.tags || (newMed.tags = [])).find(tag => tag.type === confType) || (newMed.tags[newMed.tags.length] = {type: confType, version: "1"})).code = (this.medicationDetail.isConfidential ? "secret" : "notsecret");
             }
 
             _substitutionAllowedChanged() {
+                if (!this.medicationDetail) return;
                 this.set("medicationContent.medicationValue.substitutionAllowed", (this.medicationDetail.substitutionAllowed === "true"));
             }
 
@@ -1067,6 +1079,7 @@
             }
 
             _renewalChanged() {
+                if (!this.medicationDetail || !this.medicationContent) return;
                 if (this.medicationDetail.renewal === "allowed") {
                     const renewal = this.medicationContent.medicationValue.renewal || {
                         decimal: 1,
@@ -1139,9 +1152,23 @@
             }
 
             _regimenChanged() {
+                if (!this.medicationContent || !this.medicationContent.medicationValue || !this.medicationDetail) return;
                 this._updateStats();
-                this.set("medicationContent.medicationValue.instructionForPatient", "");
-                this.set("medicationContent.medicationValue.instructionForPatient",this.api.contact().medication().posologyToString(this.medicationContent && this.medicationContent.medicationValue || {}, this.language))
+                this.medicationContent.medicationValue.instructionForPatient = "";
+                const posology = this.api.contact().medication().posologyToString(this.medicationContent.medicationValue || {}, this.language);
+                this.set("medicationDetail.posology", posology);
+                const separator = posology && this.commentSeparator || "";
+                this.medicationContent.medicationValue.instructionForPatient = posology + separator + this.medicationDetail.commentForPatient;
+            }
+
+            _extractCommentForPatient() {
+                if (!this.medicationContent || !this.medicationContent.medicationValue) return;
+                const instructionForPatient = this.medicationContent.medicationValue.instructionForPatient;
+                this.medicationContent.medicationValue.instructionForPatient = "";
+                const posology = this.api.contact().medication().posologyToString(this.medicationContent.medicationValue || {}, this.language);
+                const comment = instructionForPatient && instructionForPatient.replace(posology, "") || "";
+                const index =  comment ? comment.indexOf(this.commentSeparator) : -1;
+                return (index < 0) ? comment : comment.slice(this.commentSeparator.length);
             }
 
             _updateStats() {
@@ -1276,11 +1303,18 @@
                 }
                 this.cachedBoxes = medication.boxes;
 
+                this.set("medicationDetail", null);
+
                 const content = this.content || this.extractContentWithIdFromMedicationService(medication.newMedication, medication.options.isNew, medication.options.isPrescription);
                 this.set("medicationContent", content);
+
                 this._initmedicationContent();
+
                 const today = this.api.moment(Date.now());
                 this.set("initializingDate", true);
+
+                const commentForPatient = this._extractCommentForPatient();
+
                 this.set("medicationDetail", Object.assign(
                     medication,
                     {
@@ -1294,7 +1328,8 @@
                         medicPriority : this.medicationContent.medicationValue.priority === "high" ? 2 : this.medicationContent.medicationValue.priority === "middle" ? 1 : 0,
                         renewal: !!this.medicationContent.medicationValue.renewal ? "allowed" : "forbidden",
                         isConfidential: ((medication.newMedication.tags || []).find(tag => tag.type === "org.taktik.icure.entities.embed.Confidentiality") || {code: ""}).code === "secret",
-                        substitutionAllowed: this.medicationContent.medicationValue.substitutionAllowed ? "true" : "false"
+                        substitutionAllowed: this.medicationContent.medicationValue.substitutionAllowed ? "true" : "false",
+                        commentForPatient: commentForPatient
                     }
                 ));
                 this.set("initializingDate", false);
@@ -1358,6 +1393,7 @@
                     }
                 }
             }
+
             _canAddRegimen() {
                 // @ todo
                 // return (this.periodConfig.id === "weeklyPosology") || (this.periodConfig.id === "monthlyPosology");
@@ -1511,7 +1547,7 @@
 
             _copyPosologyNote() {
                 this._resetAll();
-                this.set("medicationContent.medicationValue.instructionForPatient", this.medicationDetail.posologyNote);
+                this.set("medicationDetail.commentForPatient", this.medicationDetail.posologyNote);
             }
 
             _initmedicationContent(){
