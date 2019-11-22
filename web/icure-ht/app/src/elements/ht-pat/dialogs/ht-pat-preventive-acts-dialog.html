@@ -194,21 +194,71 @@
             .sidebar-filter {
                 display: flex;
                 flex-flow: row nowrap;
+                height: 40px;
             }
 
-            .sidebar-filter-date {
-                width: 30%;
+            .sidebar-filter-date-min {
+                width: 50%;
+                margin-left: 4px;
+            }
+
+            .sidebar-filter-date-max {
+                width: 50%;
+                margin-left: 4px;
             }
 
             .sidebar-filter-label {
                 width: 50%;
+                margin-left: 4px;
             }
 
             .sidebar-filter-status {
-                width: 20%;
+                width: 140px;
+                margin-left: 4px;
+            }
+
+            vaadin-date-picker {
+                margin-top: 0px;
+            }
+
+            paper-input {
+                --paper-input-container-focus-color: var(--app-primary-color);
+                width: 140px;
+                margin-top: -12px;
+                margin-bottom: 10px;
+            }
+
+            vaadin-combo-box {
+                width: 140px;
+            }
+
+            vaadin-combo-box [part=text-field] {
+                width: 140px;
             }
 
         </style>
+
+        <!--
+        <dom-module id="vaadin-combo-box-style" theme-for="vaadin-combo-box">
+            <template>
+                <style>
+                    :host {
+                        height: 40px;
+                    }
+                    :host(:focus) {
+                        outline: 0;
+                    }
+
+                    :host [part=text-field] {
+                        height: 40px;
+                        padding: 0;
+                        font-size: var(--font-size-normal);
+                        z-index: 0;
+                    }
+                </style>
+            </template>
+        </dom-module>
+        -->
 
         <paper-dialog id="preventiveActsDialog">
             <h2 class="modal-title">[[localize('preventive_acts', 'Actes préventifs', language)]]</h2>
@@ -216,24 +266,24 @@
                 <div class="splitPanel">
                     <div class="sidebar">
 
-                        <!--
                         <div class="sidebar-filter">
-                            <div class="sidebar-filter-date">
-                                <vaadin-date-picker id="filterDateFrom" label="[[localize('dat','Date',language)]]" value="{{filterDateFrom}}" i18n="[[i18n]]" on-value-changed="_filter" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+                            <div class="sidebar-filter-date-min">
+                                <vaadin-date-picker class="dateFilter" id="filterDateMin" on-value-changed="_valueChanged" label="[[localize('from2','Du',language)]]"
+                                                    value="{{filterDateMin}}" i18n="[[i18n]]"></vaadin-date-picker>
                             </div>
+                            <div class="sidebar-filter-date-max">
+                                <vaadin-date-picker class="dateFilter" id="filterDateMax" on-value-changed="_valueChanged" label="[[localize('to2','Au',language)]]"
+                                                    value="{{filterDateMax}}" i18n="[[i18n]]"></vaadin-date-picker>
+                            </div>
+                        </div>
+                        <div class="sidebar-filter">
                             <div class="sidebar-filter-label">
-                                <paper-input label="[[localize('lab','Label',language)]]" value="{{filterLabel}}" on-value-changed="_filter"></paper-input>
+                                <paper-input id="filterLabel" label="[[localize('lab','Label',language)]]" value="{{filterLabel}}" on-value-changed="_valueChanged"></paper-input>
                             </div>
                             <div class="sidebar-filter-status">
-                                <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" label="[[localize('sta','Status',language)]]" value="{{filterStatus}}" on-value-changed="_filter"></vaadin-combo-box>
+                                <vaadin-combo-box id="filterStatus" filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" label="[[localize('sta','Status',language)]]" value="{{filterStatus}}" on-value-changed="_valueChanged"></vaadin-combo-box>
                             </div>
                         </div>
-                        <div class="sidebar-filter">
-                            <div class="sidebar-filter-date">
-                                <vaadin-date-picker id="filterDateTo" label="[[localize('dat','Date',language)]]" value="{{filterDate}}" i18n="[[i18n]]" on-value-changed="_filter" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
-                            </div>
-                        </div>
-                        -->
 
                         <div class="sidebar-content">
                             <div class="header">
@@ -377,11 +427,45 @@
                 return selected ? 'iron-selected' : '';
             }
 
-            _filter(e) {
-                //this.set("services",_.orderBy(services,["valueDate", "created"],['asc', 'asc']))
+            _tomorrow() {
+                return this.api.moment(Date.now()).add(1, 'd');
+            }
 
-                const date = this.api.moment(filterDate);
+            _compareDate(a, b) {
+                return this.api.moment(a).diff(this.api.moment(b));
+            }
 
+            _between(date, min, max) {
+                if (min && max) return this._compareDate(date, min) >= 0 && this._compareDate(date, max) <= 0;
+                if (min) return this._compareDate(date, min) >= 0;
+                if (max) return this._compareDate(date, max) <= 0;
+                return true;
+            }
+
+            _valueChanged(e) {
+                this.filterDateMin = this.$["filterDateMin"].value;
+                this.filterDateMax = this.$["filterDateMax"].value;
+                if (e.currentTarget.id === "filterLabel")
+                    this.filterLabel = e.detail.value;
+                if (e.currentTarget.id === "filterStatus")
+                    this.filterStatus = !!e.detail.value ? e.detail.value : null;
+                this._filter();
+            }
+
+            _filter() {
+                if (!this._services) return;
+                this.$["filterDateMin"].max = this.$["filterDateMax"].value;
+                this.$["filterDateMax"].min = this.$["filterDateMin"].value;
+                //this.$["filterDateMax"].max = this._tomorrow().format("YYYY-MM-DD");
+                const min = this.filterDateMin ? parseInt(this.api.moment(this.filterDateMin).format('YYYYMMDDHHmmss')) : null;
+                const max = this.filterDateMax ? parseInt(this.api.moment(this.filterDateMax).format('YYYYMMDDHHmmss')) : null;
+                let services = this._services.filter(s => this._between(s.valueDate, min, max));
+                if (this.filterLabel && this.filterLabel.length > 0)
+                    services = services.filter(s => this._getContent(s).includes(this.filterLabel));
+                if (this.filterStatus)
+                    services = services.filter(s => this._getStatus(s) === this.filterStatus.id);
+                services = services.sort((a, b) => this._compareDate(a.valueDate, b.valueDate));
+                this.set("services", services);
             }
 
             _getContent(svc){
@@ -428,6 +512,7 @@
                 this.isLoading = true;
                 setTimeout(()=> {
                     this.isLoading = false;
+                    this._filter();
                     if (this.services.length > 0)
                         this._show(this.services[0]);
                 }, 1000);
