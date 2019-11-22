@@ -149,6 +149,10 @@
                 --dynamic-field-width-percent: 0!important;
                 max-width: 130px;
             }
+
+            .deliveryDate{
+                width: 200px;
+            }
         </style>
 
         <paper-dialog id="loading" modal>
@@ -207,9 +211,10 @@
 
         <paper-dialog id="dialog">
             <paper-tabs selected="{{prescriptionTab}}" attr-for-selected="name">
+                <!--
                 <paper-tab name="sent" on-tap="_entitiesNotifyResize">
                     <span class="names-nomobile">[[localize('prescription_sent','Prescriptions envoyées',language)]]</span>
-                </paper-tab>
+                </paper-tab>-->
                 <paper-tab name="toSend">
                     <span class="names-nomobile">[[localize('prescription_to_send','Prescriptions à envoyer',language)]]</span>
                 </paper-tab>
@@ -334,7 +339,7 @@
                 </div>
                 <div class="buttons">
                     <!-- <vaadin-date-picker id="deliveryDate" label="Date de délivrance" value="{{deliveryDateString}}" i18n="[[i18n]]"></vaadin-date-picker> -->
-                    <dynamic-date-field id="deliveryDate" label="Date de délivrance" value="{{deliveryDateString}}" i18n="[[i18n]]"></dynamic-date-field>
+                    <dynamic-date-field id="deliveryDate" class="deliveryDate" label="Date de délivrance" value="{{deliveryDateString}}" i18n="[[i18n]]"></dynamic-date-field>
                     <div>
                         <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
                         <paper-button class="button button--save" dialog-confirm autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumns)]]">[[localize('pri','Print',language)]]</paper-button>
@@ -772,6 +777,25 @@
                 this.dispatchEvent(new CustomEvent("open-utility", {composed: true, bubbles: true, detail: {panel:'my-profile', tab:1}}))
             }
 
+
+            _convertCustomDayPeriod(medications) {
+                // @todo: use code api
+                const medsDup = _.cloneDeep(medications);
+                medsDup.forEach(med => (this.api.contact().preferredContent(med, this.language) || (med.content[this.language] = {medicationValue: {regimen: []}})).medicationValue.regimen.forEach(reg => {
+                        if (reg.dayPeriod && reg.dayPeriod.type === "care.topaz.customDayPeriod") {
+                            if (reg.dayPeriod.code === "midday") {
+                                delete reg.dayPeriod;
+                                reg.timeOfDay = "120000";
+                            } else if (reg.dayPeriod.code === "afterwakingup") {
+                                delete reg.dayPeriod;
+                                reg.timeOfDay = "63000";
+                            }
+                        }
+                    })
+                );
+                return medsDup;
+            }
+
             _printPrescriptions(e) {
                 if(!this._printEnabled()) {
                     console.log("nothing to print")
@@ -794,7 +818,7 @@
                                     patient: this.patient,
                                     hcp: hcp,
                                     feedback: false,
-                                    medications: drugsToBePrescribed.filter(s => c.drugIds.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
+                                    medications: this._convertCustomDayPeriod(drugsToBePrescribed).filter(s => c.drugIds.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
                                     deliveryDate: this.api.moment(this.deliveryDateString).format("YYYYMMDD")
                                 }).then(prescri => {
                                     c.rid = prescri.rid
@@ -877,6 +901,7 @@
                 const splitColumns = this._splitColumns.filter(c => c && c.drugIds && c.drugIds.length > 0)
                 const drugsToBePrescribed = this._drugsSelectedAndToBePrescribed();
                 this.set('selectedFormat', (this.patient.ssin && this.api.tokenId) ? this.selectedFormat : 'presc')
+                const element = this.root.querySelector("#barCode");
 
                 const toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),moment(this.endDateForExecutionString+"").format("DD/MM/YYYY"),element)
                 this._pdfReport(drugsToBePrescribed,toPrint,this.selectedFormat)
