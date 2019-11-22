@@ -105,7 +105,7 @@
             paper-checkbox{
                 --paper-checkbox-checked-color: var(--app-secondary-color);
             }
-            
+
         </style>
         <paper-dialog id="dialog" opened="{{opened}}">
             <h2 class="modal-title">Access log</h2>
@@ -230,12 +230,21 @@
                     exportLogList:{
                         type:Array,
                         value: []
+                    },
+                    users:{
+                        type: Array,
+                        value: []
+                    },
+                    documentPatients:{
+                        type: String,
+                        value: ""
                     }
                 };
             }
 
             open() {
                 this.$.dialog.open();
+                this.api.list().user().then(users=> this.set('users',users))
             }
 
             close() {
@@ -246,11 +255,22 @@
                 return date ? this.api.moment(date).format("DD/MM/YYYY HH:mm:ss") : "inconnu"
             }
 
-            updateList(){
+            updateList() {
                 if (!this.user) return
 
-                this.set('selected',null)
+                this.set('selected', null)
+                //patients
+                this.set("documentPatients",null)
+                this.set("needMorePatient",true)
 
+
+                this.set("logList",[])
+                this.listingPatients()
+                    .then(()=> this.listingAccessByPatients())
+                    .then(() => this.listingAccessByUsers())
+            }
+
+            listingPatients(){
                 let latestSearchValue = this.filterValue
                 this.latestSearchValue = latestSearchValue
 
@@ -261,7 +281,7 @@
                 } : /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(latestSearchValue) ? {
                     '$type': 'PatientByHcPartyDateOfBirthFilter',
                     'healthcarePartyId': this.user.healthcarePartyId,
-                    'dateOfBirth': latestSearchValue.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3, decalage, chaine )=>(p3.length===4 ? p3 : (p3 >20) ? "19"+p3 : "20"+p3)+(p2.length===2 ? p2 : "0"+p2)+(p1.length===2 ? p1 : "0"+p1))
+                    'dateOfBirth': latestSearchValue.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3, decalage, chaine) => (p3.length === 4 ? p3 : (p3 > 20) ? "19" + p3 : "20" + p3) + (p2.length === 2 ? p2 : "0" + p2) + (p1.length === 2 ? p1 : "0" + p1))
                 } : {
                     '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
                     'healthcarePartyId': this.user.healthcarePartyId,
@@ -270,57 +290,49 @@
 
                 console.log(filter)
 
-                Promise.all([this.api.patient().filterByWithUser(this.user, null, null, 1000, 0, 'lastName', true, {filter: filter}), this.api.user().listUsers()]).then(([patients,users]) => {
-                    let promises = [];
-                    let logListTemp = [];
-                    let listIdUser =[];
-                    patients.rows.map(patient =>{
-                        Object.keys(patient.delegations).map(id =>{
-                            let temp = users.rows.find(user => user.healthcarePartyId===id)
-                            if(!listIdUser.find(userId => userId===temp.id)){
-                                listIdUser.push(temp.id)
+                return this.api.patient().filterByWithUser(this.user, null, this.documentPatients, 1000, 0, 'lastName', true, {filter: filter}).then(patients =>{
+                    if(patients.rows.length<1000){
+                        this.set("documentPatients",null)
+                        this.set("needMorePatient",false)
+                    }else{
+                        this.set("documentPatients",_.last(patients.rows).id)
+                        this.set("needMorePatient",true)
+                    }
+                    this.set("patientsList",patients.rows)
+                })
+            }
+
+            listingAccessByPatients(){
+                this.patientsList.map(pat=>{
+                    this.api.accesslog().findBy(this.user.healthcarePartyId,pat).then(accessLogs=>{
+                        const logListTemp=accessLogs.map(log => {
+                            return  {
+                                userId : log.user,
+                                patientId : log.patientId,
+                                date : log.date,
+                                detail : log.detail
                             }
                         })
-                    })
-                    listIdUser.map(id =>{
 
-                        promises.push(this.api.accesslog().findByUserAfterDate(id, 'USER_ACCESS', +new Date() - 1000 * 3600 * 24 * 7, null, null, 1000, true).then(results => {
-                                results.rows.map(result => {
-                                    let patient = patients.rows.find(pat => result.patientId===pat.id)
-                                    if(patient)
-                                        logListTemp.push({
-                                            date: result.date,
-                                            patient: patient.lastName + " " + patient.firstName,
-                                            user: users.rows.find(user => user.id===id).name,
-                                            detail : result.detail,
-                                            userId : result.user,
-                                            patientId : result.patientId
-                                        })
-                                })
-                            }))
-                    })
-
-                    Promise.all(promises).then(responses => {
-                        logListTemp.sort( (a,b) =>{
-                            return b.date -a.date;
-                        })
                         const logByUser=_.groupBy(logListTemp,log=> log.userId)
-                        this.set("logList",_.flatMapDeep(Object.keys(logByUser).map(userId =>{
-                            const logByPatient=_.groupBy(logByUser[userId],log=> log.patientId)
-                            return Object.keys(logByPatient).map(patient =>{
-                                const logByDate = _.groupBy(logByPatient[patient],log => this.api.moment(log.date).format("DD/MM/YYYY"))
-                                return Object.keys(logByDate).map(date =>{
-                                    return{
-                                        logs : logByDate[date],
-                                        date : date,
-                                        userId : userId,
-                                        patientId : patient,
-                                        patient : _.first(logByDate[date]).patient,
-                                        user :_.first(logByDate[date]).user
-                                    }
-                                })
+                        this.set("logList",this.logList.concat(_.flatMapDeep(Object.keys(logByUser).map(userId =>{
+                            const logByDate = _.groupBy(logByUser[userId],log => this.api.moment(log.date).format("DD/MM/YYYY"))
+                            return Object.keys(logByDate).map(date =>{
+                                return{
+                                    logs : logByDate[date].map(log => {
+                                        return {
+                                            detail : log.detail,
+                                            date: log.date
+                                        }
+                                    }),
+                                    date : date,
+                                    userId : userId,
+                                    patientId : patient,
+                                    patient : pat.lastName + " " + pat.firstName,
+                                    user : this.users.find(user=> log.user===userId)
+                                }
                             })
-                        })))
+                        }))))
                     })
                 })
             }
@@ -360,7 +372,7 @@
 
 
             getMore(){
-
+                this.listing();
             }
 
             export(){
