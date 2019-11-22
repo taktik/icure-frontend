@@ -2651,7 +2651,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
-        <ht-pat-preventive-acts-dialog id="preventiveActs" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" linkables="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" contacts="[[contacts]]" on-open-action="openActionDialog" services-refresher="[[servicesRefresher]]"></ht-pat-preventive-acts-dialog>
+        <ht-pat-preventive-acts-dialog id="preventiveActs" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" linkables="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" contacts="[[contacts]]" on-open-action="openActionDialog" on-create-service="_createService" on-update-service="_updateServices" services-refresher="[[servicesRefresher]]"></ht-pat-preventive-acts-dialog>
         <ht-pat-list-plan-dialog id="listActions" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" contacts="[[contacts]]" on-open-action="openActionDialog" services-refresher="[[servicesRefresher]]"></ht-pat-list-plan-dialog>
         <ht-pat-action-plan-dialog id="planActionForm" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" linkables="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" current-contact="[[currentContact]]" on-create-service="_createService" on-update-service="_updateServices" readonly="false"></ht-pat-action-plan-dialog>
         <ht-pat-vaccine-history-dialog id="vaccineHistory" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" contacts="[[contacts]]" services-refresher="[[servicesRefresher]]"></ht-pat-vaccine-history-dialog>
@@ -3798,9 +3798,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _createService(e) {
-                if (!this.currentContact) {
-                    return;
-                }
+                if (!this.currentContact) return;
                 const hes = e.detail.hes || []
                 const allContacts = (this.currentContact ? [this.currentContact] : []).concat(this.contacts)
                 Promise.all(hes.map(he => he.id ? Promise.resolve(he) : this.contact().promoteServiceToHealthElement(he))).then(hes =>
@@ -3809,12 +3807,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _updateServices(e) {
-                if (!this.currentContact) {
-                    return;
-                }
+                if (!this.currentContact) return;
                 const allContacts = (this.currentContact ? [this.currentContact] : []).concat(this.contacts)
                 const services = (e.detail.services || (e.detail.service && [e.detail.service]) || [] )
-                services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, [],e.detail.function || undefined))
+                const heIds = e.detail.hes ? e.detail.hes.map(he => he.id) : [];
+                if (this.currentContact.subContacts && e.detail.hes)
+                    this.currentContact.subContacts = this.currentContact.subContacts.filter(c => !c.healthElementId || heIds.includes(c.healthElementId));
+                services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, heIds, e.detail.function || undefined))
                 this.saveContact(this.currentContact)
             }
 
@@ -3829,9 +3828,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     sc.services.push({ serviceId: svc.id });
                 }
                 const oldSvcIdx = this.currentContact.services.findIndex(s => s.id === svc.id);
-                if (oldSvcIdx > -1) {
+                if (oldSvcIdx > -1)
                     this.currentContact.services.splice(oldSvcIdx, 1);
-                }
                 this.currentContact.services.push(svc);
                 return this.saveCurrentContact();
             }
