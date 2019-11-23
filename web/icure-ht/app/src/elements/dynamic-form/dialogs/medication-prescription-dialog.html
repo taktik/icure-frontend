@@ -54,7 +54,7 @@
 
             #compound-dialog {
                 width: 30%;
-                height: 25%;
+                height: 30%;
             }
 
             .no-grid {
@@ -96,17 +96,6 @@
                 align-items: flex-start;
                 overflow: hidden;
             }
-            .compound-container {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-                padding: 12px;
-            }
-            .compound-container paper-input-container {
-                margin: 0;
-                --paper-input-container-input_-_height: unset;
-            }
-
             .add-btn--compound {
                 position: absolute;
                 left: 0;
@@ -723,6 +712,25 @@
                 --paper-icon-button-hover_-_background: var(--app-background-color-dark);
                 --paper-icon-button-hover_-_box-shadow: initial;
                 --paper-icon-button-hover_-_color: initial;
+            }
+
+            .compound-container {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 12px;
+            }
+            .compound-line paper-input-container {
+                margin: 0;
+                height: auto;
+                --paper-input-container-input_-_height: unset;
+            }
+            .compound-line {
+                display: flex;
+                flex-flow: row nowrap;
+                align-items: center;
+                justify-content: flex-start;
+                height: 46px;
             }
 
             #busySpinner {
@@ -1506,7 +1514,7 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.title]]</div>
+                                    <div>[[item.formularyName]]</div>
                                     <div>[[item.intendedName]]</div>
                                 </template>
                             </vaadin-grid-column>
@@ -1514,7 +1522,7 @@
                                 <template>
                                     <div class="compound-control-line">
                                         <div class="compound-control">
-                                            <paper-icon-button id="[[item.id]]" icon="create" on-tap="_editCompound"></paper-icon-button>
+                                            <paper-icon-button id="[[item.id]]" data-item$="[[item]]" icon="create" on-tap="_editCompound"></paper-icon-button>
                                         </div>
                                         <div class="compound-control">
                                             <paper-icon-button id="[[item.id]]" icon="clear" on-tap="_deleteCompound"></paper-icon-button>
@@ -1528,7 +1536,7 @@
                 </div>
                 <div id="dosage-pane" class$="right-pane [[_activePaneClass('dosage', trigger)]]">
                     <medication-details id="medication-details" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
-                                        medication="[[selectedMedicationFromAccumulator]]" on-close="_showSearchPane" closable>
+                                        medication="[[selectedMedicationFromAccumulator]]" on-close="_showSearchPane" on-edit-compound="_editCompound" closable>
                     </medication-details>
                 </div>
             </div>
@@ -1545,15 +1553,26 @@
         <paper-dialog id="compound-dialog" always-on-top no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title">[[localize('compound', 'Magistrale', language)]]</h2>
             <div class="content compound-container">
-                <paper-input always-float-label label="[[localize('compound_name','Nom de la préparation',language)]]" value="{{selectedCompound.title}}"></paper-input>
-                <paper-input-container always-float-label="true" class="comment">
-                    <label slot="label" class="color-status">[[localize('formula','Formule',language)]]</label>
-                    <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedCompound.formula}}" rows="3"></iron-autogrow-textarea>
-                </paper-input-container>
+                <div class="compound-line">
+                    <paper-input always-float-label label="[[localize('compound_name','Nom de la préparation',language)]]" value="{{selectedCompound.title}}"></paper-input>
+                </div>
+                <div class="compound-line">
+                    <paper-input-container always-float-label="true">
+                        <label slot="label" class="color-status">[[localize('formula','Formule',language)]]</label>
+                        <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedCompound.formula}}" rows="3"></iron-autogrow-textarea>
+                    </paper-input-container>
+                </div>
+                <template is="dom-if" if="[[selectedCompound.fromPrescription]]">
+                    <div class="compound-line">
+                        <vaadin-checkbox checked="{{selectedCompound.fromPrescription.update}}" id="updateCompound">
+                            [[localize('updated_compound', 'Mettre à jour la magistrale', language)]]
+                        </vaadin-checkbox>
+                    </div>
+                </template>
             </div>
             <div class="buttons">
                 <paper-button class="button button--other" dialog-dismiss on-tap="_closeCompound">[[localize('can','Annuler',language)]]</paper-button>
-                <paper-button class="button button--save" on-tap="_saveCompound" disabled="[[!_canSaveCompound(selectedCompound.*)]]">[[_compoundButtonName(selectedCompound)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_saveCompound" disabled="[[!_canSaveCompound(selectedCompound.*)]]">[[localize('save', 'Enregistrer', language)]]</paper-button>
             </div>
         </paper-dialog>
         <template is="dom-if" if="[[busySpinner]]">
@@ -1788,34 +1807,48 @@
             }
 
             _createCompound() {
-                this.set("selectedCompound", {});
+                this.set("selectedCompound", null);
                 this.$["compound-dialog"].open();
             }
 
             _editCompound(e) {
-                const id = e.target.id;
-                if (!id) return;
-                this.set("selectedCompound", this.compounds.find(compound => compound.id === id));
+                // const id = e.target.id;
+                // if (!id) return;
+                // this.set("selectedCompound", _.cloneDeep(this.compounds.find(compound => compound.id === id)));
+
+                const item = _.get(e, "detail.item", JSON.parse(_.get(e, "target.dataset.item", "")));
+                this.set("selectedCompound", item || null);
                 this.$["compound-dialog"].open();
             }
 
-            _saveCompound() {
-                if (!this.selectedCompound) return;
-                this.set("busySpinner", true);
-                const newCompound = this.selectedCompound;
-                if (!newCompound.id) {
-                    newCompound.id = this.api.crypto().randomUuid();
-                }
+            // _editCompoundFromPrescription(e) {
+            //     const formularyName = _.get(e, "detail.formularyName", "");
+            //     if (!formularyName) return;
+            //     const compound = this.compounds.find(compound => compound.title === formularyName);
+            //     if (!compound) return;
+            //     compound.fromPrescription = {update: false};
+            //     this.set("selectedCompound", _.cloneDeep(compound));
+            //     this.$["compound-dialog"].open();
+            // }
 
+            _saveCompound() {
+                const compound = this.selectedCompound;
+                if (!compound) return;
+                if (compound.fromPrescription) {
+                    compound.fromPrescription && compound.fromPrescription.onChange(compound);
+                    // @todo otherwise
+                    this.set("selectedMedicationFromAccumulator.newMedication.content.fr.medicationValue.compoundPrescription.magistralText", compound.formula);
+                    if (!compound.fromPrescription.update) {
+                        this.$["compound-dialog"].close();
+                        return;
+                    }
+                }
+                this.set("busySpinner", true);
                 const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                 let compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
-                ((compounds.find(comp => comp.title === newCompound.title)) || (compounds[compounds.length] = {id: newCompound.id, title: newCompound.title})).formula = newCompound.formula;
+                ((compounds.find(comp => comp.title === compound.title)) || (compounds[compounds.length] = {id: this.api.crypto().randomUuid(), title: compound.title})).formula = compound.formula;
                 const compoundsJSON = JSON.stringify(compounds);
-                if (propCompounds) {
-                    propCompounds.typedValue.stringValue = compoundsJSON;
-                } else {
-                    this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
-                }
+                propCompounds && (propCompounds.typedValue.stringValue = compoundsJSON) || this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
                 return this.api.user().modifyUser(this.user).then(() => this._synchronizeList()).finally(() => {
                     this.set("busySpinner", false);
                     this.$["compound-dialog"].close();
@@ -1828,13 +1861,8 @@
                 this.set("busySpinner", true);
                 const propCompounds = this.user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                 const compounds = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
-
-                const compoundsJSON = JSON.stringify(compounds.filter(compound => compound.id !== this.selectedCompound.id));
-                if (propCompounds) {
-                    propCompounds.typedValue.stringValue = compoundsJSON;
-                } else {
-                    this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
-                }
+                const compoundsJSON = JSON.stringify(compounds.filter(compound => compound.id !== id));
+                propCompounds && (propCompounds.typedValue.stringValue = compoundsJSON) || this.user.properties.push({type: {identifier: "org.taktik.icure.user.compounds"}, typedValue: {type: "JSON", stringValue: compoundsJSON}});
                 this.api.user().modifyUser(this.user).then(() => this._synchronizeList()).finally(() => this.set("busySpinner", false));
             }
 
@@ -1852,12 +1880,10 @@
             }
 
             _canSaveCompound() {
-                return this.selectedCompound.title && this.selectedCompound.formula &&
-                    !this.compounds.some(comp => comp.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "") === this.selectedCompound.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ""));
-            }
-
-            _compoundButtonName() {
-                return this.selectedCompound.id ? this.localize("update", "Mise à jour") : this.localize("cre", "Créer");
+                if (!this.selectedCompound.title || !this.selectedCompound.formula) return false;
+                const currentCompound = this.compounds.find(comp => comp.title === this.selectedCompound.title);
+                if (!currentCompound) return true;
+                return this.selectedCompound.formula !== currentCompound.formula;
             }
 
             _saveButtonName() {
@@ -2556,7 +2582,7 @@
                     return Promise.all(results.map(result => {
                         const item = {
                             "id": result.id,
-                            "title": result.title,
+                            "formularyName": result.formularyName,
                             "intendedName": result.intendedName,
                             "type": result.type
                         };
@@ -2743,8 +2769,6 @@
             _addCompound(e) {
                 this._add("compound-list", _.get(e, "target.id", ""));
             }
-
-
 
             _isIngredient(med) {
                 return med && med.drugType === "CD-INNCLUSTER";
