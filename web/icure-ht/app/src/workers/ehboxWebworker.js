@@ -154,13 +154,6 @@ onmessage = e => {
 
                         if (!!_.get(singleAssignResult,"assigned",false)) {
                             assignedMap[_.trim(_.get(singleAssignResult,"contactId",""))] = _.trim(_.get(singleAssignResult,"protocolId",""))
-                            accesslogApi.createAccessLog({
-                                id: iccCryptoXApi.randomUuid(),
-                                patientId: _.trim(_.get(singleAssignResult,"patientId","")),
-                                user: _.trim(_.get(user,"id","")),
-                                date: +new Date(),
-                                accessType: 'USER_ACCESS'
-                            }).catch(e=>console.log("ERROR with createAccessLog: ", e))
                         } else {
                             unassignedList.push(singleAssignResult.protocolId)
                         }
@@ -278,6 +271,17 @@ onmessage = e => {
 
                     const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
+
+                    if(_.size(candidates) === 1){
+                        accesslogApi.createAccessLog({
+                            id: iccCryptoXApi.randomUuid(),
+                            patientId: candidates[0].id,
+                            user: _.trim(_.get(user,"id","")),
+                            date: +new Date(),
+                            accessType: 'SYSTEM_ACCESS',
+                            detail : "Save Assignment in Message panel"
+                        }).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    }
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
@@ -412,7 +416,8 @@ onmessage = e => {
             const ehBoxAnnexes = _.get(fullMessageFromEHealthBox,"annex",[])
             const labResultHeaderRegExp = /A1\\.*\\.*([\\])*([.*])*/gi
             const a1HeadersByAnnexesKey = _.map(ehBoxAnnexes, singleAnnex => {
-                singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+                // singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+                singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!_.trim(_.get(singleAnnex,"content","")) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
                 return _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp)
             })
             const splittedEhBoxAnnexes = _.flatMap(_.map(ehBoxAnnexes, (singleAnnex,annexKey) => ( !_.size(a1HeadersByAnnexesKey[annexKey]) || _.size(a1HeadersByAnnexesKey[annexKey]) === 1 ) ?

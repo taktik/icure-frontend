@@ -149,6 +149,10 @@
                 --dynamic-field-width-percent: 0!important;
                 max-width: 130px;
             }
+
+            .deliveryDate{
+                width: 200px;
+            }
         </style>
 
         <paper-dialog id="loading" modal>
@@ -207,9 +211,10 @@
 
         <paper-dialog id="dialog">
             <paper-tabs selected="{{prescriptionTab}}" attr-for-selected="name">
+                <!--
                 <paper-tab name="sent" on-tap="_entitiesNotifyResize">
                     <span class="names-nomobile">[[localize('prescription_sent','Prescriptions envoyées',language)]]</span>
-                </paper-tab>
+                </paper-tab>-->
                 <paper-tab name="toSend">
                     <span class="names-nomobile">[[localize('prescription_to_send','Prescriptions à envoyer',language)]]</span>
                 </paper-tab>
@@ -334,7 +339,7 @@
                 </div>
                 <div class="buttons">
                     <!-- <vaadin-date-picker id="deliveryDate" label="Date de délivrance" value="{{deliveryDateString}}" i18n="[[i18n]]"></vaadin-date-picker> -->
-                    <dynamic-date-field id="deliveryDate" label="Date de délivrance" value="{{deliveryDateString}}" i18n="[[i18n]]"></dynamic-date-field>
+                    <dynamic-date-field id="deliveryDate" class="deliveryDate" label="Date de délivrance" value="{{deliveryDateString}}" i18n="[[i18n]]"></dynamic-date-field>
                     <div>
                         <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
                         <paper-button class="button button--save" dialog-confirm autofocus on-tap="_printPrescriptions" disabled="[[!_printEnabled(_drugsOnPrescriptions,_drugsOnPrescriptions.*,_splitColumns)]]">[[localize('pri','Print',language)]]</paper-button>
@@ -352,6 +357,9 @@
         import JsBarcode from 'JsBarcode';
         import mustache from "mustache/mustache.js";
         import moment from 'moment/src/moment';
+
+        const STATUS_NOT_SENT = 1;
+        const STATUS_SENT = 2;
 
         class HtPatPrescriptionDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
 
@@ -385,6 +393,10 @@
                     deliveryDateString: {
                         type: String,
                         value: moment().format("YYYY-MM-DD")
+                    },
+                    endDateForExecutionString: {
+                        type: String,
+                        value: moment().add(3, "M").subtract(1, "d").format("YYYY-MM-DD")
                     },
                     globalHcp: {
                         type: Object
@@ -600,7 +612,7 @@
                 const ridDrugs = this.ridSentList.find(group=> group.rid === rid).drugs
                 const splitCols = [{rid: rid, drugIds: ridDrugs.map(d => d.id)}]
                 const element = this.root.querySelector("#barCode");
-                const toPrint = this._formatPrescriptionsBody(splitCols,ridDrugs,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
+                const toPrint = this._formatPrescriptionsBody(splitCols,ridDrugs,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),moment(this.endDateForExecutionString+"").format("DD/MM/YYYY"),element)
                 this._pdfReport(ridDrugs,toPrint,this.selectedFormat)
             }
 
@@ -765,6 +777,25 @@
                 this.dispatchEvent(new CustomEvent("open-utility", {composed: true, bubbles: true, detail: {panel:'my-profile', tab:1}}))
             }
 
+
+            _convertCustomDayPeriod(medications) {
+                // @todo: use code api
+                const medsDup = _.cloneDeep(medications);
+                medsDup.forEach(med => (this.api.contact().preferredContent(med, this.language) || (med.content[this.language] = {medicationValue: {regimen: []}})).medicationValue.regimen.forEach(reg => {
+                        if (reg.dayPeriod && reg.dayPeriod.type === "care.topaz.customDayPeriod") {
+                            if (reg.dayPeriod.code === "midday") {
+                                delete reg.dayPeriod;
+                                reg.timeOfDay = "120000";
+                            } else if (reg.dayPeriod.code === "afterwakingup") {
+                                delete reg.dayPeriod;
+                                reg.timeOfDay = "63000";
+                            }
+                        }
+                    })
+                );
+                return medsDup;
+            }
+
             _printPrescriptions(e) {
                 if(!this._printEnabled()) {
                     console.log("nothing to print")
@@ -787,7 +818,7 @@
                                     patient: this.patient,
                                     hcp: hcp,
                                     feedback: false,
-                                    medications: drugsToBePrescribed.filter(s => c.drugIds.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
+                                    medications: this._convertCustomDayPeriod(drugsToBePrescribed).filter(s => c.drugIds.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
                                     deliveryDate: this.api.moment(this.deliveryDateString).format("YYYYMMDD")
                                 }).then(prescri => {
                                     c.rid = prescri.rid
@@ -809,7 +840,7 @@
                             this._markDrugsAsSent(drugsToBePrescribed)
                         })
                         .then(()=>{
-                            toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
+                            toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),moment(this.endDateForExecutionString+"").format("DD/MM/YYYY"),element)
                             this._pdfReport(drugsToBePrescribed,toPrint,this.selectedFormat)
                             this.$.loading.close();
                         })
@@ -835,9 +866,31 @@
                 if(mv.instructionForPatient || mv.regimen && mv.regimen.length > 0){
                     return mv
                 } else {
-                    mv.instructionForPatient = this.localize('not_applicable','not applicable',this.language);//"pas d'application";
+                    mv.instructionForPatient = this.localize('known_use','Known use',this.language);//"pas d'application";
                     return mv;
                 }
+            }
+
+            _formatBody(ids, drugs) {
+                const element = this.root.querySelector("#barCode");
+                return this._formatPrescriptionsBody(ids, drugs, this.patient, this.globalHcp, moment(this.deliveryDateString + "").format("DD/MM/YYYY"), moment(this.endDateForExecutionString+"").format("DD/MM/YYYY"), element)
+            }
+
+            _print(e) {
+                const service = e.detail.service;
+                const medicationValue = service ?
+                    _.get(this.api.contact().preferredContent(service, this.language), "medicationValue", null) : null;
+                const rid = _.get(medicationValue, "prescriptionRID", null);
+                const ids = ((medicationValue.status & STATUS_SENT) && rid) ?
+                    [{ drugIds: service.id, rid: rid }] :
+                    [{ drugIds: service.id }];
+                const drugs = [service];
+                const toPrint = this._formatBody(ids, drugs);
+                this._pdfReport(drugs, toPrint, 'presc')
+                    .then(() => {
+                        console.log("printed")
+                        //this._markDrugsAsSent(drugsToBePrescribed)
+                    })
             }
 
             _printPrescriptionNoRecipe(e) {
@@ -847,18 +900,17 @@
                 }
                 const splitColumns = this._splitColumns.filter(c => c && c.drugIds && c.drugIds.length > 0)
                 const drugsToBePrescribed = this._drugsSelectedAndToBePrescribed();
-                const element = this.root.querySelector("#barCode");
-                let toPrint = undefined
                 this.set('selectedFormat', (this.patient.ssin && this.api.tokenId) ? this.selectedFormat : 'presc')
+                const element = this.root.querySelector("#barCode");
 
-                toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),element)
+                const toPrint = this._formatPrescriptionsBody(splitColumns,drugsToBePrescribed,this.patient,this.globalHcp,moment(this.deliveryDateString+"").format("DD/MM/YYYY"),moment(this.endDateForExecutionString+"").format("DD/MM/YYYY"),element)
                 this._pdfReport(drugsToBePrescribed,toPrint,this.selectedFormat)
                     .then(()=>{
                         this._markDrugsAsSent(drugsToBePrescribed)
                     })
             }
 
-            _formatPrescriptionsBody(splitColumns,drugsToBePrescribed,patient,hcp,deliveryDate,element) {
+            _formatPrescriptionsBody(splitColumns,drugsToBePrescribed,patient,hcp,deliveryDate, endDateForExecution, element) {
                 // console.log('_formatPrescriptionsBody, hello hcp is : ',hcp)
                 let prescriToPrint = [], allPages = []
                 let prescNum = 0, pageNum = 1
@@ -947,6 +999,9 @@
                             <hr>
                             <small class="center">${this.localize('deliv_from','Deliverable from',this.language)}&nbsp;:</small>
                             <p class="center">${deliveryDate}</p>
+                            <hr>
+                            <small class="center">${this.localize('EndDateForExecution','End date for execution',this.language)}&nbsp;:</small>
+                            <p class="center">${endDateForExecution}</p>
                         </footer>
                     </article>` : prescriContent; // create single prescription body
 
@@ -1050,12 +1105,19 @@
 													<p class="center">${this.localize('deliv_date','Deliverable from the specified date or from',this.language)}&nbsp;:</p>
 													<p class="signdate center bold w100">${deliveryDate}</p>
 												</div>
+												<div class="cell">
+													<p class="center">${this.localize('EndDateForExecution','End date for execution',this.language)}&nbsp;:</p>
+													<p class="signdate center bold w100">${endDateForExecution}</p>
+												</div>
 											</div>
 										</div>
 									</footer>
 									<aside>
 										<div class="horiz">
 											<p class="big uppercase center w100 bold fs1">${this.localize('presc_of_med','Prescription of drugs',this.language)}</p>
+    									</div>
+										<div class="horiz">
+											<p class="big uppercase center w100 bold fs1">${this.localize('presc_of_med_20191101','Application from November 1st 2019',this.language)}</p>
 										</div>
 									</aside>
 								</div>`
@@ -1200,37 +1262,36 @@
                 })
             }
 
-            _markDrugsAsSent(drugsToBePrescribed) {
-                drugsToBePrescribed.forEach(s => {
-                    const tag = s.tags.find(t => t.type === 'CD-LIFECYCLE')
+            _markDrugsAs(drugs, code, status) {
+                drugs.forEach(service => {
+                    const id = "CD-LIFECYCLE" + code + "|1";
+                    const tag = service.tags.find(t => t.type === 'CD-LIFECYCLE')
                     if (tag) {
-                        tag.id = 'CD-LIFECYCLE|ordered|1';
-                        tag.code = 'ordered'
-                    } else {
-                        s.tags.push(this.api.code().normalize({id: 'CD-LIFECYCLE|ordered|1'}))
+                        tag.id = id;
+                        tag.code = code
+                    } else
+                        service.tags.push(this.api.code().normalize({id: id}))
+                    const content = this.api.contact().preferredContent(service, this.language)
+                    if (content && content.medicationValue) {
+                        if ("status" in content.medicationValue) {
+                            content.medicationValue.status &= STATUS_SENT | STATUS_NOT_SENT;
+                            content.medicationValue.status |= status;
+                        } else
+                            content.medicationValue.status = status;
                     }
                 })
                 this._refreshDrugsToBePrescribed()
-
                 this.dispatchEvent(new CustomEvent('pdf-report',{detail: {loading: false, success: true}}))
                 this.dispatchEvent(new CustomEvent("save-contact", {composed: true, bubbles: true}))
             }
 
-            _markDrugsAsNotSent(drugsToBePrescribed) {
-                drugsToBePrescribed.forEach(s => {
-                    this.api.contact().medicationValue(s, this.language).prescriptionRID = null
-                    const tag = s.tags.find(t => t.type === 'CD-LIFECYCLE')
-                    if (tag) {
-                        tag.id = 'CD-LIFECYCLE|active|1';
-                        tag.code = 'active'
-                    } else {
-                        s.tags.push(this.api.code().normalize({id: 'CD-LIFECYCLE|active|1'}))
-                    }
-                })
-                this._refreshDrugsToBePrescribed()
 
-                this.dispatchEvent(new CustomEvent('pdf-report',{detail: {loading: false, success: true}}))
-                this.dispatchEvent(new CustomEvent("save-contact", {composed: true, bubbles: true}))
+            _markDrugsAsSent(drugsToBePrescribed) {
+                this._markDrugsAs(drugsToBePrescribed, "ordered", STATUS_SENT);
+            }
+
+            _markDrugsAsNotSent(drugsToBePrescribed) {
+                this._markDrugsAs(drugsToBePrescribed, "active", STATUS_NOT_SENT);
             }
 
             _populateDrugsOnPrescriptions() {
