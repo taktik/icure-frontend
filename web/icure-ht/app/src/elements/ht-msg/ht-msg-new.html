@@ -759,7 +759,7 @@
                         value: [
                             {id: "CBE", label: "BCE"},
                             {id: "EHP", label: "EHP (eHealth Partner)"},
-                            {id: "INSS", label: "INSS"},
+                            {id: "SSIN", label: "INSS"},
                             {id: "NIHII", label: "NIHII"},
                             {id: "NIHII-HOSPITAL", label: "NIHII-HOSPITAL"},
                             {id: "NIHII-PHARMACY", label: "NIHII-PHARMACY"}
@@ -881,7 +881,7 @@
 
                 let cbe = this.recipientTypes.find(i=>i.id==="CBE")
                 let ehp = this.recipientTypes.find(i=>i.id==="EHP")
-                let inss = this.recipientTypes.find(i=>i.id==="INSS")
+                let inss = this.recipientTypes.find(i=>i.id==="SSIN")
                 let nihii = this.recipientTypes.find(i=>i.id==="NIHII")
                 let nihiiHospital = this.recipientTypes.find(i=>i.id==="NIHII-HOSPITAL")
                 let nihiiPharmacy = this.recipientTypes.find(i=>i.id==="NIHII-PHARMACY")
@@ -897,131 +897,12 @@
 
             }
 
-            _recipientsFilterChanged(recipientType, recipientFilter) {
-
-                if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
-                const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
-
-                setTimeout(() => {
-                    if (reqIdx !== this.recipientReqIdx) return;
-                    this.set('busySpinner', true)
-
-                    const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
-                    const numericSearchQuery = _.trim(_.trim(recipientFilter).replace( /([^\d]*)/gi, '' ))
-                    const patternsValidation = {
-                        heightDigits: /^([0-9]){8}$/i,
-                        tenDigits: /^([0-9]){10}$/i,
-                        elevenDigits: /^([0-9]){11}$/i
-                    }
-
-                    const isValidNihii = !!patternsValidation.heightDigits.test(numericSearchQuery) || !!patternsValidation.elevenDigits.test(numericSearchQuery)
-                    const isValidBce = !!patternsValidation.tenDigits.test(numericSearchQuery)
-                    const isValidEhp = !!patternsValidation.tenDigits.test(numericSearchQuery)
-                    const isValidSsin = !!patternsValidation.elevenDigits.test(numericSearchQuery)
-
-                    let searchProm = recipientType.id === 'CBE' ?
-                        Promise.all([
-                            !isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'cbe',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
-                        ]) :
-                        recipientType.id === 'EHP' ? Promise.all([
-                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
-                        ]) :
-                        recipientType.id === 'INSS' ? Promise.all([
-                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
-                        ]) :
-                        (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'ehp',false)).uniqBy('ehp').value())
-                        ]) :
-                        // Default type = NIHII
-                        Promise.all([
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false)).uniqBy('nihii').value())
-                        ])
-
-                    searchProm
-                        .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
-                            this.set("filteredRecipientsList", _
-                                .chain(searchResults)
-                                .flatMap()
-                                .filter( singleSearchResult => { return (
-                                    ( !!_.get(singleSearchResult, "ehp", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ehp)))).indexOf(_.trim(_.get(singleSearchResult, "ehp", ""))) === -1 ) ||
-                                    ( !!_.get(singleSearchResult, "ssin", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ssin)))).indexOf(_.trim(_.get(singleSearchResult, "ssin", ""))) === -1 ) ||
-                                    ( !!_.get(singleSearchResult, "cbe", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.cbe)))).indexOf(_.trim(_.get(singleSearchResult, "cbe", ""))) === -1 ) ||
-                                    ( !!_.get(singleSearchResult, "nihii", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.nihii)))).indexOf(_.trim(_.get(singleSearchResult, "nihii", ""))) === -1 )
-                                )})
-                                .map(singleRecipient => _.assign({displayName : _.compact([
-                                    _.map( _.trim(_.get(singleRecipient, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                    _.map( _.trim(_.get(singleRecipient, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                    ( ( !_.trim(_.get(singleRecipient, "lastName", "")) && !_.trim(_.get(singleRecipient, "firstName", "")) ) ? _.map( _.trim(_.get(singleRecipient, "name", "")).split(" "),i=> _.capitalize(i)).join(" ") : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "nihii", "")) ? "(" + this.localize('nihii', 'INAMI', this.language) + ": " + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")" : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "ssin", "")) ? "(" + this.localize('ssin', 'Registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(singleRecipient, "ssin", ""))) + ")" : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "ehp", "")) ? "(EHP: " + _.trim(_.get(singleRecipient, "ehp", "")) + ")" : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "cbe", "")) ? "(BCE: " + _.trim(_.get(singleRecipient, "cbe", "")) + ")" : "" )
-                                ]).join(" ")},singleRecipient))
-                                .orderBy(['displayName','nihii', 'ssin', 'ehp', 'cbe'],['asc','asc','asc','asc','asc'])
-                                .value()
-                            )
-
-                            if(!!_.get(this,"_assignRecipientValueWhenReplyingToMessage") && _.size(_.get(this, "filteredRecipientsList[0]",{})) && !!newMsgTo) {
-                                this.set("_assignRecipientValueWhenReplyingToMessage",false)
-                                newMsgTo.selectedItem = _.get(this, "filteredRecipientsList[0]",{})
-                                setTimeout(()=>{this._addRecipient()},100)
-                                setTimeout(()=>{newMsgTo.close()},200)
-                            }
-
-                        }})
-                        .catch(e=>{console.log("ERROR with _recipientsFilterChanged: ", e);})
-                        .finally(() => this.set('busySpinner', false))
-
-                }, 300)
-            }
-
-            _addRecipient(){
-                const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
-                return (!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) ? false : ( this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:_.get(this,"recipientType.id", "NIHII")})) && newMsgTo._clear() );
-            }
-
             _removeRecipient(e){
                 return !_.size(this,"newMessage.recipients",[]) ? false : ( this.newMessage.recipients.splice(parseInt( _.get(e, "target.dataset.recipientIndex",0)), 1) && this.shadowRoot.querySelector('#recipientsList') && this.shadowRoot.querySelector('#recipientsList').render() )
             }
 
             _closeComponent() {
                 this.$['new-msg'] && this.$['new-msg'].close()
-            }
-
-            _wrapRecipientData(recipientObject){
-                return {
-                    identifierType: {type: _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-pharmacy" ? "PHARMACY" :
-                            _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-hospital" ? "HOSPITAL" :
-                                _.trim(_.get(recipientObject,"type",""))
-                    },
-                    // id: (
-                    //     _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'cbe' ? ( !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) : _.trim( _.get(recipientObject, "nihii", "")) ) :
-                    //     _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'ehp' ? ( !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) : _.trim( _.get(recipientObject, "nihii", "")) ) :
-                    //     _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'nihii-pharmacy' ? ( !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) : _.trim( _.get(recipientObject, "nihii", "")) ) :
-                    //     _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'nihii-hospital' ? ( !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) : _.trim( _.get(recipientObject, "nihii", "")) ) :
-                    //     _.trim(_.get(recipientObject,"type","")).toLowerCase() === 'inss' ? ( !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) : _.trim( _.get(recipientObject, "nihii", "")) ) :
-                    //     _.trim( _.get(recipientObject, "nihii", ""))
-                    // ),
-                    id: (
-                        !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
-                            !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) :
-                                !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) :
-                                    _.trim( _.get(recipientObject, "nihii", ""))
-                    ),
-                    quality: _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase(),
-                    applicationId: _.trim(_.get(recipientObject,"applicationID","")),
-                    lastName: _.trim(_.get(recipientObject,"lastName","")),
-                    firstName: _.trim(_.get(recipientObject,"firstName","")),
-                    organizationName: (!_.trim(_.get(recipientObject,"lastName","")) && !_.trim(_.get(recipientObject,"firstName",""))) ? _.trim(_.get(recipientObject, "name", _.get(recipientObject, "companyName", ""))) : "",
-                    personInOrganisation: ""
-                }
             }
 
             _patientFilterChanged(patientSearchValue) {
@@ -1289,141 +1170,6 @@
 
             }
 
-            _doSendMessageWithEhBox(){
-
-                // Error scenarii
-                const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
-                    !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
-                    !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
-                    ( !_.trim(_.get(this,"newMessage.document.textContent", "")) && !_.size(_.get(this,"newMessage.annex", [])) && !_.size(_.get(this,"_additionalAnnexesFromPatDetail", [])) && !_.size(_.get(this,"_additionalAnnexesFromForward", []))) ? "missingContentDialog" :
-                    ""
-                if( _.trim(errorScenarioDialog) ) { this.set("_bodyOverlay", true); this.$[errorScenarioDialog].open(); return; }
-
-                this._showSendingMessagePreload()
-                this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotification')
-                this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotification')
-
-                this.api.hcparty().getCurrentHealthcareParty().then(currentHcp =>{
-
-                    let sendMessageResponse = false
-                    const publicationId = +new Date
-                    const messageSubject = _.trim(_.get(this,"newMessage.document.title",""))
-                    const mainRecipient = this._wrapRecipientData(_.head(_.get(this,"newMessage.recipients", [])))
-
-                    const annexes = _.compact( _.concat(_.flatMap(_.get(this,"newMessage.annex",[])), _.map(_.compact(_.concat(_.get(this,"_additionalAnnexesFromPatDetail",[]), _.get(this,"_additionalAnnexesFromForward",[]))), _singleAdditionalAnnex => {
-                        return {
-                            content: this._arrayBufferToByteArray( typeof _singleAdditionalAnnex.content !== "string" ? _singleAdditionalAnnex.content : this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(_singleAdditionalAnnex.content)) ),
-                            documentId: _singleAdditionalAnnex.documentId,
-                            filename: _singleAdditionalAnnex.filename,
-                            mimeType: _.trim(_.get(_singleAdditionalAnnex,"mimeType", "")) ? _.trim(_.get(_singleAdditionalAnnex,"mimeType", "")) : "text/plain",
-                            title: _singleAdditionalAnnex.title,
-                            size: _singleAdditionalAnnex.size
-                        }
-                    })||[]))
-
-
-                    const isImportant = !!_.get(this,"newMessage.important",false)
-                    const isEncrypted = !!_.get(this,"newMessage.encrypted",false)
-
-                    let customMetas = {
-                        "CM-AuthorID": _.trim(_.get(currentHcp, "nihii", _.get(currentHcp, "ssin", ""))),
-                        "CM-AuthorIDType": _.trim(_.get(currentHcp, "nihii", "")) ? "NIHII" : "SSIN",
-                        "CM-AuthorType": _.trim(_.get(currentHcp, "civility", "doctor")).toUpperCase(),
-                        "CM-AuthorLastName": _.trim(_.get(currentHcp, "lastName", "")).toUpperCase(),
-                        "CM-AuthorFirstName": _.trim(_.get(currentHcp, "firstName", "")),
-                        "CM-AuthorName": (!_.trim(_.get(currentHcp, "lastName", "")) && !_.trim(_.get(currentHcp, "firstName", ""))) ? _.trim(_.get(currentHcp, "name", _.get(currentHcp, "companyName", ""))) : "",
-
-                        "CM-RecipientID": _.trim(_.get(mainRecipient, "id", "")),
-                        "CM-RecipientIDType": _.trim(_.get(mainRecipient, "identifierType.type", "NIHII")),
-                        "CM-RecipientLastName": _.trim(_.get(mainRecipient, "lastName", "")).toUpperCase(),
-                        "CM-RecipientFirstName": _.trim(_.get(mainRecipient, "firstName", "")),
-                        "CM-RecipientName": (!_.trim(_.get(mainRecipient, "lastName", "")) && !_.trim(_.get(mainRecipient, "firstName", ""))) ? _.trim(_.get(mainRecipient, "name", _.get(mainRecipient, "companyName", ""))) : "",
-
-                        "CM-EhrMessage": false,
-                        "CM-EhrMessageType": "Functionnal",
-                        "CM-EtkApplicationID": _.trim(_.get(this, "api.tokenId", "")),
-                        "CM-Requestnumber": publicationId,
-                        "CM-SendDateTime": moment().format('YYYY-MM-DD HH:mm:ss'),
-                    }
-
-                    // Sender = author
-                    customMetas = _.merge({
-                        "CM-SenderID": _.get(customMetas, "CM-AuthorID",""),
-                        "CM-SenderIDType": _.get(customMetas, "CM-AuthorIDType",""),
-                        "CM-SenderType": _.get(customMetas, "CM-AuthorType",""),
-                        "CM-SenderLastName": _.get(customMetas, "CM-AuthorLastName",""),
-                        "CM-SenderFirstName": _.get(customMetas, "CM-AuthorFirstName",""),
-                        "CM-SenderName": _.get(customMetas, "CM-AuthorName",""),
-                    },customMetas)
-
-                    // EhBox won't allow for empty values
-                    Object.keys(customMetas).forEach(k =>{ if(!_.trim(customMetas[k])) try { delete customMetas[k] } catch(e){} })
-
-                    // Unread by default, then eval important, cyrpted & has annexes statuses
-                    let messageStatus = 1<<1
-                    messageStatus = isImportant ? messageStatus|1<<2 : messageStatus
-                    messageStatus = isEncrypted ? messageStatus|1<<3 : messageStatus
-                    messageStatus = !!_.size(annexes) ? messageStatus|1<<4 : messageStatus
-
-                    // The envelope itself
-                    const messageToBeSentWithEhbox = {
-                        id : this.api.crypto().randomUuid(),
-                        publicationId : publicationId,
-                        publicationDateTime : parseInt(moment().format('YYYYMMDD')),
-                        expirationDateTime : parseInt(moment().add(1,"years").format('YYYYMMDD')),
-                        customMetas : customMetas,
-                        document : { title: messageSubject, textContent: _.get(this,"newMessage.document.textContent",""), mimeType: 'text/plain', filename: messageSubject },
-                        freeText : _.get(this,"newMessage.document.textContent",""),
-                        freeInformationTableTitle : null,
-                        freeInformationTableRows : {},
-                        patientInss : _.get(this,"newMessage.patientInss",null),
-                        annex : annexes,
-                        copyMailTo : [],
-                        documentTitle : messageSubject,
-                        annexList : annexes,
-                        useReceivedReceipt : !!_.get(this,"newMessage.useReceivedReceipt",false),
-                        useReadReceipt : !!_.get(this,"newMessage.useReadReceipt",false),
-                        usePublicationReceipt : !!_.get(this,"newMessage.usePublicationReceipt",false),
-                        hasAnnex : !!_.size(annexes),
-                        hasFreeInformations : false,
-                        important : isImportant,
-                        encrypted : isEncrypted,
-                        destinations : _.map(_.get(this,"newMessage.recipients",[]), singleRecipient => this._wrapRecipientData(singleRecipient)),
-                        sender : {
-                            identifierType: "NIHII",
-                            id: _.trim(_.get(currentHcp, "nihii", "")),
-                            quality: _.trim(_.get(currentHcp,"quality","doctor")).toUpperCase(),
-                            applicationId: "",
-                            lastName: _.trim(_.get(currentHcp,"lastName","")),
-                            firstName: _.trim(_.get(currentHcp,"firstName","")),
-                            organizationName: (!_.trim(_.get(currentHcp,"lastName","")) && !_.trim(_.get(currentHcp,"firstName",""))) ? _.trim(_.get(currentHcp, "name", _.get(currentHcp, "companyName", ""))) : "",
-                            personInOrganisation: ""
-                        },
-                        fromHealthcarePartyId: _.get(currentHcp,"id",""),
-                        status: messageStatus
-                    };
-
-                    this.api.fhc().Ehboxcontroller().sendMessageUsingPOST( this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, messageToBeSentWithEhbox, messageToBeSentWithEhbox.usePublicationReceipt, messageToBeSentWithEhbox.useReceivedReceipt, messageToBeSentWithEhbox.useReadReceipt )
-                        .then(x=>sendMessageResponse=x)
-                        .catch(x=>sendMessageResponse=x)
-                        .finally(()=>{
-                            this._resetLoadingMessage();
-                            this.set('_isLoading', false );
-                            if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
-                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
-                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.remove('displayNotification'); },8000);
-                        })
-
-                })
-                    .catch(e=>{
-                        this._resetLoadingMessage();
-                        this.set('_isLoading', false );
-                        this.$["failed"].classList.add('displayNotification')
-                        console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
-                    })
-
-            }
-
             saveCurrentContact() {
                 this.currentContact.id = !_.trim(_.get(this, "currentContact.id", "")) ? this.api.crypto().randomUuid() : this.currentContact.id
                 return (!!_.trim(_.get(this, "currentContact.rev", "")) ? this.api.contact().modifyContactWithUser(this.user, this.currentContact) : this.api.contact().createContactWithUser(this.user, this.currentContact)).then(c=>this.api.register(c,'contact')).then(c => (this.currentContact.rev = c.rev) && c);
@@ -1592,6 +1338,280 @@
                 console.log(this._additionalAnnexesFromForward);
                 console.log(this._additionalAnnexesFromPatDetail);
                 return;
+
+            }
+
+            _recipientsFilterChanged(recipientType, recipientFilter) {
+
+                if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
+                const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
+
+                setTimeout(() => {
+                    if (reqIdx !== this.recipientReqIdx) return;
+                    this.set('busySpinner', true)
+
+                    const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
+                    const numericSearchQuery = _.trim(_.trim(recipientFilter).replace( /([^\d]*)/gi, '' ))
+                    const patternsValidation = {
+                        heightDigits: /^([0-9]){8}$/i,
+                        tenDigits: /^([0-9]){10}$/i,
+                        elevenDigits: /^([0-9]){11}$/i
+                    }
+
+                    const isValidNihii = !!patternsValidation.heightDigits.test(numericSearchQuery) || !!patternsValidation.elevenDigits.test(numericSearchQuery)
+                    const isValidBce = !!patternsValidation.tenDigits.test(numericSearchQuery)
+                    const isValidEhp = !!patternsValidation.tenDigits.test(numericSearchQuery)
+                    const isValidSsin = !!patternsValidation.elevenDigits.test(numericSearchQuery)
+
+                    let searchProm = recipientType.id === 'CBE' ?
+                        Promise.all([
+                            !isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'cbe',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType.id === 'EHP' ? Promise.all([
+                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType.id === 'SSIN' ? Promise.all([
+                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
+                        ]) :
+                        (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
+                        ]) :
+                        // Default type = NIHII
+                        Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
+                        ])
+
+                    searchProm
+                        .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
+                            this.set("filteredRecipientsList", _
+                                .chain(searchResults)
+                                .flatMap()
+                                .filter( singleSearchResult => { return (
+                                    ( !!_.get(singleSearchResult, "ehp", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ehp)))).indexOf(_.trim(_.get(singleSearchResult, "ehp", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "ssin", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ssin)))).indexOf(_.trim(_.get(singleSearchResult, "ssin", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "cbe", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.cbe)))).indexOf(_.trim(_.get(singleSearchResult, "cbe", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "nihii", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.nihii)))).indexOf(_.trim(_.get(singleSearchResult, "nihii", ""))) === -1 )
+                                )})
+                                .map(singleRecipient => _.assign({displayName : _.compact([
+                                    _.map( _.trim(_.get(singleRecipient, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                    _.map( _.trim(_.get(singleRecipient, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                    ( ( !_.trim(_.get(singleRecipient, "lastName", "")) && !_.trim(_.get(singleRecipient, "firstName", "")) ) ? _.map( _.trim(_.get(singleRecipient, "name", "")).split(" "),i=> _.capitalize(i)).join(" ") : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "nihii", "")) ? "(" + this.localize('nihii', 'INAMI', this.language) + ": " + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "ssin", "")) ? "(" + this.localize('ssin', 'Registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(singleRecipient, "ssin", ""))) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "ehp", "")) ? "(EHP: " + _.trim(_.get(singleRecipient, "ehp", "")) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "cbe", "")) ? "(BCE: " + _.trim(_.get(singleRecipient, "cbe", "")) + ")" : "" )
+                                ]).join(" ")},singleRecipient))
+                                .orderBy(['displayName','nihii', 'ssin', 'ehp', 'cbe'],['asc','asc','asc','asc','asc'])
+                                .value()
+                            )
+
+                            if(!!_.get(this,"_assignRecipientValueWhenReplyingToMessage") && _.size(_.get(this, "filteredRecipientsList[0]",{})) && !!newMsgTo) {
+                                this.set("_assignRecipientValueWhenReplyingToMessage",false)
+                                newMsgTo.selectedItem = _.get(this, "filteredRecipientsList[0]",{})
+                                setTimeout(()=>{this._addRecipient()},100)
+                                setTimeout(()=>{newMsgTo.close()},200)
+                            }
+
+                        }})
+                        .catch(e=>{console.log("ERROR with _recipientsFilterChanged: ", e);})
+                        .finally(() => this.set('busySpinner', false))
+
+                }, 300)
+            }
+
+
+
+
+
+
+
+
+
+
+
+            _addRecipient(){
+
+                const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
+
+                // return (!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) ? false : ( this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:_.get(this,"recipientType.id", "NIHII")})) && newMsgTo._clear() );
+
+                if(!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) return false
+
+                const recipientType = !!_.trim(_.get(newMsgTo,"selectedItem.cbe")) ? "CBE" :
+                    !!_.trim(_.get(newMsgTo,"selectedItem.ehp")) ? "EHP" :
+                    !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" :
+                    "NIHII"
+
+                    // Need NIHII-HOSPITAL ?
+                    // Need NIHII-PHARMACY ?
+
+                this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:recipientType}))
+
+                newMsgTo._clear()
+
+            }
+
+            _wrapRecipientData(recipientObject){
+                return {
+                    identifierType: { type:
+                        // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-pharmacy" ? "PHARMACY" :
+                        // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-hospital" ? "HOSPITAL" :
+                        _.trim(_.get(recipientObject,"type",""))
+                    },
+                    id: (
+                        !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
+                        !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) :
+                        !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) :
+                        _.trim( _.get(recipientObject, "nihii", ""))
+                    ),
+                    quality: _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase(),
+                    applicationId: _.trim(_.get(recipientObject,"applicationID","")),
+                    lastName: _.trim(_.get(recipientObject,"lastName","")),
+                    firstName: _.trim(_.get(recipientObject,"firstName","")),
+                    organizationName: (!_.trim(_.get(recipientObject,"lastName","")) && !_.trim(_.get(recipientObject,"firstName",""))) ? _.trim(_.get(recipientObject, "name", _.get(recipientObject, "companyName", ""))) : "",
+                    personInOrganisation: ""
+                }
+            }
+
+            _doSendMessageWithEhBox(){
+
+                // Error scenarii
+                const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
+                    !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
+                    !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
+                    ( !_.trim(_.get(this,"newMessage.document.textContent", "")) && !_.size(_.get(this,"newMessage.annex", [])) && !_.size(_.get(this,"_additionalAnnexesFromPatDetail", [])) && !_.size(_.get(this,"_additionalAnnexesFromForward", []))) ? "missingContentDialog" :
+                    ""
+                if( _.trim(errorScenarioDialog) ) { this.set("_bodyOverlay", true); this.$[errorScenarioDialog].open(); return; }
+
+                this._showSendingMessagePreload()
+                this.$['success'] && this.$['success'].classList && this.$['success'].classList.remove('displayNotification')
+                this.$['failed'] && this.$['failed'].classList && this.$['failed'].classList.remove('displayNotification')
+
+                this.api.hcparty().getCurrentHealthcareParty().then(currentHcp =>{
+
+                    let sendMessageResponse = false
+                    const publicationId = +new Date
+                    const messageSubject = _.trim(_.get(this,"newMessage.document.title",""))
+                    const mainRecipient = this._wrapRecipientData(_.head(_.get(this,"newMessage.recipients", [])))
+
+                    const annexes = _.compact( _.concat(_.flatMap(_.get(this,"newMessage.annex",[])), _.map(_.compact(_.concat(_.get(this,"_additionalAnnexesFromPatDetail",[]), _.get(this,"_additionalAnnexesFromForward",[]))), _singleAdditionalAnnex => {
+                        return {
+                            content: this._arrayBufferToByteArray( typeof _singleAdditionalAnnex.content !== "string" ? _singleAdditionalAnnex.content : this.api.crypto().utils.ua2ArrayBuffer(this.api.crypto().utils.text2ua(_singleAdditionalAnnex.content)) ),
+                            documentId: _singleAdditionalAnnex.documentId,
+                            filename: _singleAdditionalAnnex.filename,
+                            mimeType: _.trim(_.get(_singleAdditionalAnnex,"mimeType", "")) ? _.trim(_.get(_singleAdditionalAnnex,"mimeType", "")) : "text/plain",
+                            title: _singleAdditionalAnnex.title,
+                            size: _singleAdditionalAnnex.size
+                        }
+                    })||[]))
+
+
+                    const isImportant = !!_.get(this,"newMessage.important",false)
+                    const isEncrypted = !!_.get(this,"newMessage.encrypted",false)
+
+                    let customMetas = {
+                        "CM-AuthorID": _.trim(_.get(currentHcp, "nihii", _.get(currentHcp, "ssin", ""))),
+                        "CM-AuthorIDType": _.trim(_.get(currentHcp, "nihii", "")) ? "NIHII" : "SSIN",
+                        "CM-AuthorType": _.trim(_.get(currentHcp, "civility", "doctor")).toUpperCase(),
+                        "CM-AuthorLastName": _.trim(_.get(currentHcp, "lastName", "")).toUpperCase(),
+                        "CM-AuthorFirstName": _.trim(_.get(currentHcp, "firstName", "")),
+                        "CM-AuthorName": (!_.trim(_.get(currentHcp, "lastName", "")) && !_.trim(_.get(currentHcp, "firstName", ""))) ? _.trim(_.get(currentHcp, "name", _.get(currentHcp, "companyName", ""))) : "",
+
+                        "CM-RecipientID": _.trim(_.get(mainRecipient, "id", "")),
+                        "CM-RecipientIDType": _.trim(_.get(mainRecipient, "identifierType.type", "NIHII")),
+                        "CM-RecipientLastName": _.trim(_.get(mainRecipient, "lastName", "")).toUpperCase(),
+                        "CM-RecipientFirstName": _.trim(_.get(mainRecipient, "firstName", "")),
+                        "CM-RecipientName": (!_.trim(_.get(mainRecipient, "lastName", "")) && !_.trim(_.get(mainRecipient, "firstName", ""))) ? _.trim(_.get(mainRecipient, "name", _.get(mainRecipient, "companyName", ""))) : "",
+
+                        "CM-EhrMessage": false,
+                        "CM-EhrMessageType": "Functionnal",
+                        "CM-EtkApplicationID": _.trim(_.get(this, "api.tokenId", "")),
+                        "CM-Requestnumber": publicationId,
+                        "CM-SendDateTime": moment().format('YYYY-MM-DD HH:mm:ss'),
+                    }
+
+                    // Sender = author
+                    customMetas = _.merge({
+                        "CM-SenderID": _.get(customMetas, "CM-AuthorID",""),
+                        "CM-SenderIDType": _.get(customMetas, "CM-AuthorIDType",""),
+                        "CM-SenderType": _.get(customMetas, "CM-AuthorType",""),
+                        "CM-SenderLastName": _.get(customMetas, "CM-AuthorLastName",""),
+                        "CM-SenderFirstName": _.get(customMetas, "CM-AuthorFirstName",""),
+                        "CM-SenderName": _.get(customMetas, "CM-AuthorName",""),
+                    },customMetas)
+
+                    // EhBox won't allow for empty values
+                    Object.keys(customMetas).forEach(k =>{ if(!_.trim(customMetas[k])) try { delete customMetas[k] } catch(e){} })
+
+                    // Unread by default, then eval important, cyrpted & has annexes statuses
+                    let messageStatus = 1<<1
+                    messageStatus = isImportant ? messageStatus|1<<2 : messageStatus
+                    messageStatus = isEncrypted ? messageStatus|1<<3 : messageStatus
+                    messageStatus = !!_.size(annexes) ? messageStatus|1<<4 : messageStatus
+
+                    // The envelope itself
+                    const messageToBeSentWithEhbox = {
+                        id : this.api.crypto().randomUuid(),
+                        publicationId : publicationId,
+                        publicationDateTime : parseInt(moment().format('YYYYMMDD')),
+                        expirationDateTime : parseInt(moment().add(1,"years").format('YYYYMMDD')),
+                        customMetas : customMetas,
+                        document : { title: messageSubject, textContent: _.get(this,"newMessage.document.textContent",""), mimeType: 'text/plain', filename: messageSubject },
+                        freeText : _.get(this,"newMessage.document.textContent",""),
+                        freeInformationTableTitle : null,
+                        freeInformationTableRows : {},
+                        patientInss : _.get(this,"newMessage.patientInss",null),
+                        annex : annexes,
+                        copyMailTo : [],
+                        documentTitle : messageSubject,
+                        annexList : annexes,
+                        useReceivedReceipt : !!_.get(this,"newMessage.useReceivedReceipt",false),
+                        useReadReceipt : !!_.get(this,"newMessage.useReadReceipt",false),
+                        usePublicationReceipt : !!_.get(this,"newMessage.usePublicationReceipt",false),
+                        hasAnnex : !!_.size(annexes),
+                        hasFreeInformations : false,
+                        important : isImportant,
+                        encrypted : isEncrypted,
+                        destinations : _.map(_.get(this,"newMessage.recipients",[]), singleRecipient => this._wrapRecipientData(singleRecipient)),
+                        sender : {
+                            identifierType: "NIHII",
+                            id: _.trim(_.get(currentHcp, "nihii", "")),
+                            quality: _.trim(_.get(currentHcp,"quality","doctor")).toUpperCase(),
+                            applicationId: "",
+                            lastName: _.trim(_.get(currentHcp,"lastName","")),
+                            firstName: _.trim(_.get(currentHcp,"firstName","")),
+                            organizationName: (!_.trim(_.get(currentHcp,"lastName","")) && !_.trim(_.get(currentHcp,"firstName",""))) ? _.trim(_.get(currentHcp, "name", _.get(currentHcp, "companyName", ""))) : "",
+                            personInOrganisation: ""
+                        },
+                        fromHealthcarePartyId: _.get(currentHcp,"id",""),
+                        status: messageStatus
+                    };
+
+                    this.api.fhc().Ehboxcontroller().sendMessageUsingPOST( this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, messageToBeSentWithEhbox, messageToBeSentWithEhbox.usePublicationReceipt, messageToBeSentWithEhbox.useReceivedReceipt, messageToBeSentWithEhbox.useReadReceipt )
+                        .then(x=>sendMessageResponse=x)
+                        .catch(x=>sendMessageResponse=x)
+                        .finally(()=>{
+                            this._resetLoadingMessage();
+                            this.set('_isLoading', false );
+                            if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
+                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
+                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.remove('displayNotification'); },8000);
+                        })
+
+                })
+                    .catch(e=>{
+                        this._resetLoadingMessage();
+                        this.set('_isLoading', false );
+                        this.$["failed"].classList.add('displayNotification')
+                        console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
+                    })
 
             }
 
