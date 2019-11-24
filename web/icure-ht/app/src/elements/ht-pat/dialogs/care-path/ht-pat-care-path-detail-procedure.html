@@ -587,24 +587,46 @@
                     const proc = JSON.parse(_.get(e, 'currentTarget.dataset.item', null))
                     const period = this.periodicityConverter.find(period => period.code === _.get(_.get(proc, "periodicity", []).find(p => _.get(p, "relatedCode.id", null) === e.currentTarget.id), "relatedPeriodicity.code", null))
 
-                    this.push('selectedCarePath.linkedProcedures', this.api.contact().service().newInstance(this.user, {
-                        label: "Actes",
-                        content: _.fromPairs([[this.language,{stringValue:_.trim(_.get(proc, 'label.'+this.language, null))}]]),
-                        valueDate: _.get(period, "numberToAdd", null) && _.get(period, "periodToAdd", null) ? moment(moment().add(_.get(period, "numberToAdd", null), _.get(period, "periodToAdd", null))).format("YYYYMMDDhhmmss") : null,
-                        codes: [
-                            {
-                                id: _.trim(_.get(proc, 'id', null)),
-                                type: _.trim(_.get(proc, 'type', null)),
-                                code:  _.trim(_.get(proc, 'code', null)),
-                                version:  _.trim(_.get(proc, 'version', null))
-                            }
-                        ],
-                        tags: [
-                            { type: 'CD-LIFECYCLE', code:'planned'}
-                        ]
-                    }))
+                    this.api.contact().getContactWithUser(this.user ,_.get(this.selectedCarePath, 'idOpeningContact', null)).then(ctc => {
 
-                    this.shadowRoot.querySelector('#linkedProcList') && this.shadowRoot.querySelector('#linkedProcList').render()
+                        let sbc = _.get(ctc,"subContacts",[]).find(sbc => sbc.status !== 64)
+
+                        if (_.isEmpty(sbc)) {
+                            ctc.subContacts.push({ services: [] })
+                            sbc = _.get(ctc,"subContacts",[]).find(sbc => sbc.status !== 64)
+                        }
+
+                        const svc = this.api.contact().service().newInstance(this.user, {
+                            label: "Actes",
+                            content: _.fromPairs([[this.language,{stringValue:_.trim(_.get(proc, 'label.'+this.language, null))}]]),
+                            valueDate: _.get(period, "numberToAdd", null) && _.get(period, "periodToAdd", null) ? parseInt(moment(moment().add(_.get(period, "numberToAdd", null), _.get(period, "periodToAdd", null))).format("YYYYMMDD")+'000000') : null,
+                            codes: [
+                                {
+                                    id: _.trim(_.get(proc, 'id', null)),
+                                    type: _.trim(_.get(proc, 'type', null)),
+                                    code:  _.trim(_.get(proc, 'code', null)),
+                                    version:  _.trim(_.get(proc, 'version', null))
+                                }
+                            ],
+                            tags: [
+                                { type: 'CD-LIFECYCLE', code:'planned'}
+                            ]
+                        })
+
+                        ctc.services.push(svc)
+                        sbc.services.push({ serviceId: svc.id })
+
+                        return ctc
+
+                    })
+                    .then(ctc => this.api.contact().modifyContactWithUser(this.user, ctc))
+                    .then(ctc => {
+                        console.log(ctc)
+                        this.set('selectedCarePath.linkedProcedures', _.get(ctc, 'services', []).filter(s => s.label === "Actes"))
+                     })
+                    .finally(() => {
+                        this.shadowRoot.querySelector('#linkedProcList') && this.shadowRoot.querySelector('#linkedProcList').render()
+                    })
                 }
             }
         }
