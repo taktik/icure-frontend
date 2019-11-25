@@ -1528,6 +1528,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             .table-line-menu .bio-sort {
                 display: flex;
                 flex-flow: row nowrap;
+                cursor: pointer;
             }
 
             .table-line-menu .bio-sort-button {
@@ -2141,7 +2142,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <template is="dom-if" if="[[biometrics.length]]">
                                             <div class="items-number"><span>[[biometrics.length]]</span></div>
                                         </template>
-                                        <paper-icon-button class="bio-button-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu" hover="none"></paper-icon-button>
+                                        <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu" hover="none"></paper-icon-button>
                                     </div>
                                 </paper-item>
                                 <paper-listbox class="menu-content sublist">
@@ -2149,19 +2150,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <div id="bio-date" class="bio-sort bio-date" on-tap="_sortBy" >
                                             <div>[[localize('dat', 'Date', language)]]</div>
                                             <template is="dom-if" if="[[_isSortedBy('bio-date', bioSort)]]">
-                                                <paper-icon-button id="bioSortDate" class="bio-sort-button" icon="[[_sortIcon('bio-date')]]" hover="none"></paper-icon-button>
+                                                <paper-icon-button id="bioSortDate" class="bio-sort-button" icon="[[_sortIcon('bio-date', bioSort)]]" hover="none"></paper-icon-button>
                                             </template>
                                         </div>
                                         <div id="bio-label" class="bio-sort bio-label" on-tap="_sortBy" >
                                             <div>[[localize('lab', 'Libellé', language)]]</div>
                                             <template is="dom-if" if="[[_isSortedBy('bio-label', bioSort)]]">
-                                                <paper-icon-button id="bioSortLabel" class="bio-sort-button" icon="[[_sortIcon('bio-label')]]" hover="none"></paper-icon-button>
+                                                <paper-icon-button id="bioSortLabel" class="bio-sort-button" icon="[[_sortIcon('bio-label', bioSort)]]" hover="none"></paper-icon-button>
                                             </template>
                                         </div>
                                         <div class="bio-value">[[localize('val', 'Value', language)]]</div>
                                         <div class="bio-button2">&nbsp;</div>
                                     </div>
-                                    <template is="dom-repeat" items="[[biometrics]]">
+                                    <template id="biometricsList" is="dom-repeat" items="[[biometrics]]">
                                         <collapse-button>
                                             <paper-item slot="sublist-collapse-item" id="[[getHeId(he)]]" aria-selected="[[selected]]" class$="menu-trigger menu-item [[isIronSelected(selected)]]" on-tap="select">
                                                 <div class="table-line-menu">
@@ -3259,7 +3260,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         value: () => []
                     },
                     biometrics: {
-                        type: Object
+                        type: Array,
+                        value: () => [],
+                        notify: true
                     },
                     bioSort: {
                         type: String,
@@ -3268,7 +3271,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     prescriptions:{
                         type : Array,
                         value: [],
-                        notify:true
+                        notify: true
                     }
                 };
             }
@@ -4077,14 +4080,32 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _sortBy(e) {
                 const label = e.currentTarget.id;
                 if (this._isSortedBy(label)) {
-                    this.set("bioSort", !this.bioSort.endsWith("-desc") ? label + "-desc" : label)
+                    this._sortBiometrics(!this.bioSort.endsWith("-desc") ? label + "-desc" : label)
                     return;
                 }
-                this.set("bioSort", label)
+                this._sortBiometrics(label)
             }
 
             _compareValueDates(a, b) {
-                return this.api.moment(b).diff(this.api.moment(a), "minutes");
+                return this.api.moment(b).diff(this.api.moment(a), "days");
+            }
+
+            _compareBiometrics(order, a, b) {
+                if (order.startsWith("bio-date")) {
+                    if (order.endsWith("-desc"))
+                        return this._compareValueDates(a.date, b.date);
+                    return this._compareValueDates(b.date, a.date);
+                }
+                const compare = order.endsWith("-desc") ?
+                    b.label.localeCompare(a.label) :
+                    a.label.localeCompare(b.label);
+                return compare != 0 ? compare : this._compareValueDates(a.date, b.date);
+            }
+
+            _sortBiometrics(order) {
+                this.set("bioSort", order)
+                this.set("biometrics", this._biometrics.sort((a, b) => this._compareBiometrics(order, a, b)));
+                this.shadowRoot.querySelector('#biometricsList').render() ;
             }
 
             _getBiometrics() {
@@ -4109,7 +4130,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     }})
                 );
 
-                this.set("biometrics", values.sort((a, b) => this._compareValueDates(a.date, b.date)));
+                this._biometrics = values;
+
+                this._sortBiometrics("bio-label");
             }
 
             _getBiometricFromService(biometrics, service) {
