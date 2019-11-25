@@ -538,6 +538,7 @@
                                             <paper-checkbox checked="{{newMessage.useReceivedReceipt}}">[[localize('aknReception','Reception acknowledge',language)]]</paper-checkbox>
                                             <paper-checkbox checked="{{newMessage.useReadReceipt}}">[[localize('aknRead','Read acknowledge',language)]]</paper-checkbox>
                                             <paper-checkbox checked="{{newMessage.usePublicationReceipt}}">[[localize('aknPublication','Publication acknowledge',language)]]</paper-checkbox>
+                                            <paper-checkbox checked="{{newMessage.encrypted}}">[[localize('encryptedMessage','Encrypted message',language)]]</paper-checkbox>
                                         </div>
                                     </div>
                                 </div>
@@ -711,6 +712,18 @@
                     </div>
                 </paper-dialog>
 
+                <paper-dialog class="modalDialog" id="errorDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                    <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                    <div class="content textaligncenter">
+                        <p class="fw700">[[errorDialogLine1]]</p>
+                        <p class="">[[errorDialogLine2]]</p>
+                        <p class="">[[errorDialogLine3]]</p>
+                    </div>
+                    <div class="buttons">
+                        <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                    </div>
+                </paper-dialog>
+
 
             </div>
         </paper-dialog>
@@ -831,7 +844,19 @@
                     },
                     recipientFilter: {
                         type: String,
-                        value: ''
+                        value: ""
+                    },
+                    errorDialogLine1: {
+                        type: String,
+                        value: ""
+                    },
+                    errorDialogLine2: {
+                        type: String,
+                        value: ""
+                    },
+                    errorDialogLine3: {
+                        type: String,
+                        value: ""
                     },
                     recipientType: {
                         type: Object,
@@ -1668,6 +1693,19 @@
 
             }
 
+            _confirmMessageSuccessfullySent() {
+
+                this._resetComponentData();
+
+                this.$['new-msg'].close();
+
+                setTimeout(() => { this.$["success"].classList.add('displayNotification'); },100);
+                setTimeout(() => { this.$["success"].classList.remove('displayNotification'); },8000);
+
+                return null;
+
+            }
+
             _prepareEMediattestMessage(dataFromPatDetail) {
 
                 const promResolve = Promise.resolve();
@@ -1677,9 +1715,6 @@
                 return promResolve
                     .then(() => {
                         this.set('_isMedex', true );
-                        this.set('newMessage.useReceivedReceipt', true );
-                        this.set('newMessage.useReadReceipt', true );
-                        this.set('newMessage.usePublicationReceipt', true );
                         this._resetLoadingMessage();
                         this.$['new-msg'].open()
                         this.set('_isLoading', true );
@@ -1689,6 +1724,8 @@
                                 type: "EHP",
                                 quality: "INSTITUTION_EHP",
                                 id: "1990002015",
+                                firstName: "Medex",
+                                lastName: "Medex",
                             },
                             customMetas: {
                                 MessageType:"IncapacityNotification",
@@ -1720,9 +1757,12 @@
                     .then(() => {
 
                         this.set("_hasAnnexesFromForward", true)
+                        this.set("newMessage.useReceivedReceipt", true)
+                        this.set("newMessage.useReadReceipt", true)
+                        this.set("newMessage.usePublicationReceipt", true)
+                        this.set("newMessage.encrypted", true)
                         this.set("_forwardOrReplyAction", "- " + this.localize("medicalCertificate", "Medical certificate",this.language) +" Medex")
                         this.push('newMessage.recipients', { type:_.get(this,"medexData.recipient.type"), ehp:_.get(this,"medexData.recipient.id"), quality:_.get(this,"medexData.recipient.quality"), lastName: "Medex", firstName: "Medex"})
-                        // this.push('newMessage.recipients', { type:"NIHII", nihii:"15561768004", quality:"DOCTOR", lastName: "Jocqué", firstName: "Samuël"})
 
                         // PDF FILE
                         const attachmentSizePdf = _.get(_.get(this,"_data.pdf.data",""),"byteLength",0)
@@ -1767,17 +1807,18 @@
 
                 const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
 
-                // return (!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) ? false : ( this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:_.get(this,"recipientType.id", "NIHII")})) && newMsgTo._clear() );
-
                 if(!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) return false
 
                 const recipientType = !!_.trim(_.get(newMsgTo,"selectedItem.cbe")) ? "CBE" :
                     !!_.trim(_.get(newMsgTo,"selectedItem.ehp")) ? "EHP" :
-                        !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" :
-                            "NIHII"
+                    !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" :
+                    "NIHII"
 
                 // Need NIHII-HOSPITAL ?
                 // Need NIHII-PHARMACY ?
+
+                const keysToClean = ["cbe","ehp","nihii","ssin"]
+                _.map(keysToClean, k => !_.trim(_.get(newMsgTo.selectedItem, k, "")) ? false : newMsgTo.selectedItem[k] = newMsgTo.selectedItem[k].replace(/[^0-9]*/g,""))
 
                 this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:recipientType}))
 
@@ -1785,26 +1826,42 @@
 
             }
 
-            _wrapRecipientData(recipientObject){
+            _wrapRecipientData(recipientObject) {
+
+                const recipientId = !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
+                    !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) :
+                    !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) :
+                    _.trim( _.get(recipientObject, "nihii", ""))
+
                 return {
                     identifierType: { type:
                         // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-pharmacy" ? "PHARMACY" :
                         // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-hospital" ? "HOSPITAL" :
                             _.trim(_.get(recipientObject,"type",""))
                     },
-                    id: (
-                        !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
-                        !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) :
-                        !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) :
-                        _.trim( _.get(recipientObject, "nihii", ""))
-                    ),
-                    quality: _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase(),
+                    id:recipientId,
+                    quality: !!_.trim(_.get(recipientObject,"quality","")) ? _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase() : "DOCTOR",
                     applicationId: _.trim(_.get(recipientObject,"applicationID","")),
-                    lastName: _.trim(_.get(recipientObject,"lastName","")),
-                    firstName: _.trim(_.get(recipientObject,"firstName","")),
+                    lastName: !!_.trim(_.get(recipientObject,"lastName","")) ? _.trim(_.get(recipientObject,"lastName","")) : recipientId,
+                    firstName: !!_.trim(_.get(recipientObject,"firstName","")) ? _.trim(_.get(recipientObject,"firstName","")) : recipientId,
                     organizationName: (!_.trim(_.get(recipientObject,"lastName","")) && !_.trim(_.get(recipientObject,"firstName",""))) ? _.trim(_.get(recipientObject, "name", _.get(recipientObject, "companyName", ""))) : "",
                     personInOrganisation: ""
                 }
+
+            }
+
+            _etkNotRetrieved() {
+
+                this.set("_bodyOverlay", true);
+
+                this.set("errorDialogLine1", "TEST line 1");
+                this.set("errorDialogLine2", "TEST line 2");
+                this.set("errorDialogLine3", "TEST line 3");
+
+                this.$["errorDialog"].open();
+
+                return null;
+
             }
 
 
@@ -1904,7 +1961,7 @@
                         freeText : _.get(this,"newMessage.document.textContent",""),
                         freeInformationTableTitle : null,
                         freeInformationTableRows : {},
-                        patientInss : _.get(this,"newMessage.patientInss",null),
+                        patientInss : !!_.trim(_.get(this,"newMessage.patientInss","")) ? _.trim(_.get(this,"newMessage.patientInss",null)) : null,
                         annex : annexes,
                         copyMailTo : [],
                         documentTitle : messageSubject,
@@ -1935,11 +1992,17 @@
                         .then(x=>sendMessageResponse=x)
                         .catch(x=>sendMessageResponse=x)
                         .finally(()=>{
+
                             this._resetLoadingMessage();
                             this.set('_isLoading', false );
-                            if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
-                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
-                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.remove('displayNotification'); },8000);
+
+                            // if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
+                            // setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
+                            // setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.remove('displayNotification'); },8000);
+
+                            // Either went well [OR] couldn't find ETK (missing recipient public key) - when crypting message [OR] (hardcoded) -> "successfull" (labellisation)
+                            return sendMessageResponse===true ? this._confirmMessageSuccessfullySent() : _.trim(_.get(sendMessageResponse,"message","")) === "api-error403" ? this._etkNotRetrieved() : this._confirmMessageSuccessfullySent()
+
                         })
 
                 })
