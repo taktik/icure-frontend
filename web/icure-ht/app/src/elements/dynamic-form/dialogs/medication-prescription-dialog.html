@@ -1498,8 +1498,8 @@
                             <iron-icon icon="hardware:keyboard-arrow-down"></iron-icon>
                         </div>
 
-                        <vaadin-grid id="compound-list" class$="sub-list [[_activeListClass('compound', trigger)]]"
-                                     active-item="{{selectedCompound}}">
+<!--                        <vaadin-grid id="compound-list" class$="sub-list [[_activeListClass('compound', trigger)]]" active-item="{{selectedCompound}}">-->
+                        <vaadin-grid id="compound-list" class$="sub-list [[_activeListClass('compound', trigger)]]">
 
                             <!-- ADD-->
 
@@ -1514,7 +1514,7 @@
 
                             <vaadin-grid-column flex-grow="1">
                                 <template>
-                                    <div>[[item.formularyName]]</div>
+                                    <div>[[item.compoundTitle]]</div>
                                     <div>[[item.intendedName]]</div>
                                 </template>
                             </vaadin-grid-column>
@@ -1811,7 +1811,7 @@
             }
 
             _createCompound() {
-                this.set("selectedCompound", null);
+                this.set("selectedCompound", {});
                 this.$["compound-dialog"].open();
             }
 
@@ -1821,25 +1821,21 @@
                 // this.set("selectedCompound", _.cloneDeep(this.compounds.find(compound => compound.id === id)));
 
                 const item = _.get(e, "detail.item", "") || _.cloneDeep(this.compounds.find(compound => compound.id === _.get(e, "target.id", "")));
-                this.set("selectedCompound", item || null);
+                this.set("selectedCompound", item || {});
                 this.$["compound-dialog"].open();
             }
 
-            // _editCompoundFromPrescription(e) {
-            //     const formularyName = _.get(e, "detail.formularyName", "");
-            //     if (!formularyName) return;
-            //     const compound = this.compounds.find(compound => compound.title === formularyName);
-            //     if (!compound) return;
-            //     compound.fromPrescription = {update: false};
-            //     this.set("selectedCompound", _.cloneDeep(compound));
-            //     this.$["compound-dialog"].open();
-            // }
+            _cleanCompound(compound) {
+                const fields = ["title", "formula"];
+                Object.entries(compound).forEach(pair => fields.includes(pair.key) && (compound[pair.key] = pair.value && pair.value.replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g,' ').trim()));
+            }
 
             _saveCompound() {
                 const compound = this.selectedCompound;
                 if (!compound) return;
                 if (compound.fromPrescription) {
-                    compound.fromPrescription && compound.fromPrescription.onChange(compound);
+                    this._cleanCompound(compound);
+                    compound.fromPrescription.onChange && compound.fromPrescription.onChange(compound);
                     this.set("refreshDescription", compound.formula);
                     if (!compound.fromPrescription.update) {
                         this.$["compound-dialog"].close();
@@ -1872,18 +1868,20 @@
             _synchronizeList() {
                 return this.api.user().getCurrentUser()
                     .then(user => {
+                        console.log("compound list:", this.compounds);
                         const propCompounds = user.properties.find(p => p.type && p.type.identifier === "org.taktik.icure.user.compounds");
                         const sourceList = propCompounds && propCompounds.typedValue && propCompounds.typedValue.stringValue && JSON.parse(propCompounds.typedValue.stringValue) || [];
-                        sourceList.filter(value => !this.compounds.some(comp => comp.id === value.id)).forEach(toAdd => this.push("compounds", toAdd));
-                        this.compounds.filter(value => !sourceList.some(comp => comp.id === value.id)).map(value => this.compounds.findIndex(comp => comp.id === value.id)).filter(index => index > -1).forEach(indexToDelete => this.splice("compounds", indexToDelete, 1));
-                        sourceList.filter(value => this.compounds.some(comp => comp.id === value.id)).map(value => [this.compounds.findIndex(comp => comp.id === value.id), value]).filter(pair => pair[0] > -1).forEach(pair => this.splice("compounds", pair[0], 1, pair[1]));
+                        this.splice("compounds", 0, this.compounds.length, ...sourceList);
+                        // sourceList.filter(value => !this.compounds.some(comp => comp.id === value.id)).forEach(toAdd => this.push("compounds", toAdd));
+                        // this.compounds.filter(value => !sourceList.some(comp => comp.id === value.id)).map(value => this.compounds.findIndex(comp => comp.id === value.id)).filter(index => index > -1).forEach(indexToDelete => this.splice("compounds", indexToDelete, 1));
+                        // sourceList.filter(value => this.compounds.some(comp => comp.id === value.id)).map(value => [this.compounds.findIndex(comp => comp.id === value.id), value]).filter(pair => pair[0] > -1).forEach(pair => this.splice("compounds", pair[0], 1, pair[1]));
                         return user;
                     })
                     .then(user => this.set("user", user));
             }
 
             _canSaveCompound() {
-                if (!this.selectedCompound.title || !this.selectedCompound.formula) return false;
+                if (!this.selectedCompound || !this.selectedCompound.title || !this.selectedCompound.formula) return false;
                 const currentCompound = this.compounds.find(comp => comp.title === this.selectedCompound.title);
                 if (!currentCompound) return true;
                 return this.selectedCompound.formula !== currentCompound.formula;
@@ -2305,8 +2303,8 @@
                         if (!intendedName) return results;
                         const normIntendedName = intendedName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                         if (!searchValue || searchValue.length < 2 || normIntendedName.includes(normSearchValue)) {
-                            const type = service.codes.some(c => c.type === "CD-INNCLUSTER") && "substance" || "medicine";
-                            const id = (service.codes.find(c => c.type === "CD-INNCLUSTER") || service.codes.find(c => c.type === "CD-DRUG-CNK") || {code: ""}).code;
+                            const type = service.codes.some(c => c.type === "CD-INNCLUSTER" || c.type === "CD-VMPGROUP") && "substance" || "medicine";
+                            const id = (service.codes.find(c =>  ["CD-INNCLUSTER", "CD-VMPGROUP", "CD-DRUG-CNK"].includes(c.type)) || {code: ""}).code;
                             const atcCodes = service.codes.filter(c => c.type === "CD-ATC").map(code => code.code) || [];
                             const allergies = this.allergies.filter(allergy => (allergy.cnk && (id === allergy.cnk)) || (atcCodes && atcCodes.some(atcCode => atcCode === allergy.atcCode) || ""));
                             const medication = {
@@ -2567,9 +2565,10 @@
                         if (!compound.title && !compound.formula) return results;
                         const normTitle = compound.title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                         if (!searchValue || searchValue.length < 2 || normTitle.includes(normSearchValue)) {
+                            this._cleanCompound(compound);
                             const medication = {
                                 id: compound.id,
-                                formularyName: compound.title,
+                                compoundTitle: compound.title,
                                 intendedName: compound.formula,
                                 type: "compoundPrescription"
                             };
@@ -2585,7 +2584,7 @@
                     return Promise.all(results.map(result => {
                         const item = {
                             "id": result.id,
-                            "formularyName": result.formularyName,
+                            "compoundTitle": result.compoundTitle,
                             "intendedName": result.intendedName,
                             "type": result.type
                         };
@@ -2774,7 +2773,7 @@
             }
 
             _isIngredient(med) {
-                return med && med.drugType === "CD-INNCLUSTER";
+                return med && (med.drugType === "CD-INNCLUSTER" || med.drugType === "CD-VMPGROUP");
             }
 
             _isMedicinePackage(med) {
@@ -2794,7 +2793,7 @@
                 } else {
                     console.log(med.type);
                     const drugType = med.type === "medicine" ? "CD-DRUG-CNK" :
-                        med.type === "substance" ? "CD-INNCLUSTER" : "compoundPrescription";
+                        med.type === "substance" ? "CD-VMPGROUP" : "compoundPrescription";
 
                     let newMed = med.service;
                     const medicationValue = newMed && this.api.contact().medicationValue(newMed, this.language);
@@ -2815,12 +2814,7 @@
 
                         if (drugType === "compoundPrescription") {
                             Object.assign(newMedicationContent.medicationValue, {
-                                compoundPrescription: {
-                                    magistralText: med.intendedName,
-                                    formularyReference: {
-                                        formularyName: med.formularyName
-                                    }
-                                }
+                                compoundPrescription: med.compoundTitle + "\r\n" + med.intendedName
                             });
                         } else {
                             const product = {
@@ -2829,7 +2823,7 @@
                                 priority: "low"
                             };
 
-                            Object.assign(newMedicationContent.medicationValue, drugType === "CD-INNCLUSTER" ? {substanceProduct: product} : {medicinalProduct: product});
+                            Object.assign(newMedicationContent.medicationValue, drugType === "CD-VMPGROUP" ? {substanceProduct: product} : {medicinalProduct: product});
                             // newMedicationContent.medicationUnit = newMedicationContent.regimen[0].administratedQuantity.unit = med.unit;
 
                             ((newMed.codes || (newMed.codes = [])).find(code => code.type === drugType) || (newMed.codes[newMed.codes.length] = {
@@ -3176,8 +3170,21 @@
                 //                                                     cat === 'V' ? this.localize('various', 'Various') : this.localize('unk', 'Unknown')
             }
 
+            _getCompoundPrescriptionFields(compoundPrescription) {
+                if (!compoundPrescription) return {title: "", formula: ""};
+                const fields = compoundPrescription.split(/\r?\n/);
+                return {title: fields.length > 1 ? fields[0] : "", formula: fields.length > 1 ? fields[1] : fields.length > 0 ? fields[0] : ""};
+            }
+
             _serviceDescription(s) {
-                return this.api.contact().medication().medicationNameToString((this.api.contact().preferredContent(s, this.language) || {}).medicationValue, this.language)
+                const medicationValue = this.api.contact().medicationValue(s, this.language);
+                if (!medicationValue) return "";
+                if (medicationValue.compoundPrescription) {
+                    const fields = this._getCompoundPrescriptionFields(medicationValue.compoundPrescription);
+                    return fields.title + ": " + fields.formula;
+                } else {
+                    return this.api.contact().medication().medicationNameToString((this.api.contact().preferredContent(s, this.language) || {}).medicationValue, this.language);
+                }
             }
 
             _servicePosology(s) {
