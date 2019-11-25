@@ -1756,6 +1756,35 @@
                     .then(([createdMessage,createdDocument]) => _.merge(this._data.eMediattest.khmerData, {createdMessage:createdMessage,createdDocument:createdDocument}))
                     .then(() => {
 
+                        // Error scenarios
+                        const errorScenario = _.trim(_.get(this,"_data.currentPatient.ssin","")).length < 11 ? 1 :
+                            _.trim(_.get(this,"_data.currentPatient.ssin","")).length > 11 ? 2 :
+                            !this.api.patient().isValidSsin(_.trim(_.get(this,"_data.currentPatient.ssin",""))) ? 3 :
+                            !_.trim(_.get(this,"_data.currentPatient.firstName","")) ? 4 :
+                            !_.trim(_.get(this,"_data.currentPatient.lastName","")) ? 5 :
+                            (_.trim(_.get(this,"_data.currentPatient.dateOfBirth","")).length !== 8 || !parseInt(_.trim(_.get(this,"_data.currentPatient.dateOfBirth","")))) ? 6 :
+                            // !_.size(_.get(this,"_data.currentPatient.languages",[])) ? 7 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"incapacité de"}), "valueHr")) ? 8 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"pour cause de"}), "valueHr")) ? 9 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"Sortie"}), "valueHr")) ? 10 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"Accident suvenu le"}), "valueHr")) ? 11 :
+                            !_.trim(_.get(_.get(this,"_data.eMediattestSubFormDp.form")(),"created")) ? 12 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"du"}), "valueHr")) ? 13 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"au"}), "valueHr")) ? 14 :
+                            (parseInt(_.get(_.find(this._data.eMediattest.incapacityData, {name:"du"}), "valueObject.fuzzyDateValue","")) > parseInt(_.get(_.find(this._data.eMediattest.incapacityData, {name:"au"}), "valueObject.fuzzyDateValue",""))) ? 15 :
+                            _.trim(_.get(this,"_data.currentHcp.ssin","")).length < 11 ? 16 :
+                            _.trim(_.get(this,"_data.currentHcp.ssin","")).length > 11 ? 17 :
+                            !this.api.patient().isValidSsin(_.trim(_.get(this,"_data.currentHcp.ssin",""))) ? 18 :
+                            !_.trim(_.get(this,"_data.currentHcp.nihii","")) ? 19 :
+                            0
+
+                        return !parseInt(errorScenario) ? false : this._toggleMedexErrorScenario(errorScenario)
+
+                    })
+                    .then(hasError => {
+
+                        if(!!hasError) return false;
+
                         this.set("_hasAnnexesFromForward", true)
                         this.set("newMessage.useReceivedReceipt", true)
                         this.set("newMessage.useReadReceipt", true)
@@ -1800,6 +1829,38 @@
                     })
                     .catch( e => { console.log("ERROR _prepareEMediattestMessage", e); this.set("_bodyOverlay", true); this.$["unableToLinkPatDocument"].open(); })
                     .finally(() => { this._resetLoadingMessage(); this.set('_isLoading', false ); })
+
+            }
+
+            _toggleMedexErrorScenario(errorScenario) {
+
+                // 1) Pat ssin < 11
+                // 2) Pat ssin > 11
+                // 3) Invalid pat ssin
+                // 4) Missing pat fn
+                // 5) Missing pat ln
+                // 6) Invalid pat dateOfBirth
+                // 7) Pat has no language
+                // 8) No incapacity
+                // 9) No incapacity reason
+                // 10) No "out of house" flag (allowed/disallowed)
+                // 11) No accident date
+                // 12) No accident report date
+                // 13) No incapacity begin date
+                // 14) No incapacity end date
+                // 15) Incapacity end date before begin date
+                // 16) Hcp ssin < 11
+                // 17) Hcp ssin > 11
+                // 18) Invalid hcp ssin
+                // 19) No hcp nihii
+
+                this.set("_bodyOverlay", true);
+                this.set("errorDialogLine1", this.localize("ehboxMedexErrorScenario_" + _.trim(errorScenario), "Error with validation " + errorScenario,this.language));
+                this.set("errorDialogLine2", this.localize("pleaseCorrectAndTryAgain", "Please correct the information and try again.",this.language));
+                this.set("errorDialogLine3", "");
+                this.$["errorDialog"].open();
+
+                return true;
 
             }
 
@@ -1854,13 +1915,11 @@
 
                 this.set("_bodyOverlay", true);
 
-                this.set("errorDialogLine1", "TEST line 1");
-                this.set("errorDialogLine2", "TEST line 2");
-                this.set("errorDialogLine3", "TEST line 3");
+                this.set("errorDialogLine1", this.localize("ehboxMissingEtkLine1", "Your recipient does not support message encryption.",this.language));
+                this.set("errorDialogLine2", this.localize("ehboxMissingEtkLine2", "Its ETK could not be found within the public keys repository.",this.language));
+                this.set("errorDialogLine3", this.localize("ehboxMissingEtkLine3", "Please get in touch with the support and/or with your recipient.",this.language));
 
-                this.$["errorDialog"].open();
-
-                return null;
+                return this.$["errorDialog"].open();
 
             }
 
@@ -1874,7 +1933,7 @@
 
             _doSendMessageWithEhBox(){
 
-                // Error scenarii
+                // Error scenarios
                 const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
                     !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
                     !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
