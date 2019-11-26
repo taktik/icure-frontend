@@ -575,6 +575,15 @@
                 margin: 0;
                 position: absolute;
                 bottom: -4px;
+                display: flex;
+            }
+
+            .title-item {
+                margin-right: 4px;
+            }
+
+            .extra-space {
+                margin-right: 24px;
             }
 
             .title-header {
@@ -592,6 +601,12 @@
                 flex-direction: row;
                 justify-content: flex-start;
             }
+
+            .strikeOut {
+                text-decoration-line: line-through;
+            }
+
+
         </style>
         <div class$="container [[_customContainer(closable)]]">
             <div class="title-header">
@@ -601,7 +616,16 @@
                 <div class="title">
                     <h2><template is="dom-if" if="[[medicationDetail.compoundTitle]]">[[medicationDetail.compoundTitle]]: </template>[[medicationDetail.intendedName]]</h2>
                     <template is="dom-if" if="[[medicationDetail.samCode]]">
-                        <h5>[[medicationDetail.samCode]]</h5>
+                        <h5>
+                            <div class="title-item extra-space">[[medicationDetail.samCode]] [[medicationDetail.samDate]]</div>
+                            <div class="title-item">
+                                <template is="dom-if" if="[[!medicationDetail.oldCnk]]">[[_formatCnk(medicationDetail.id)]]</template>
+                                <template is="dom-if" if="[[medicationDetail.oldCnk]]">
+                                    <iron-icon class="alert-icon" icon="icons:warning"></iron-icon>
+                                    [[localize('', 'Attention', language)]] <span class="strikeOut">[[_formatCnk(medicationDetail.oldCnk)]]</span> [[localize('', 'devient', language)]] [[_formatCnk(medicationDetail.id)]]
+                                </template>
+                            </div>
+                        </h5>
                     </template>
                 </div>
                 <template is="dom-if" if="[[closable]]">
@@ -610,6 +634,10 @@
                 </template>
             </div>
             <div class="content">
+                <div class="allergy-alert">
+                    <div class="allergy-title">
+                    </div>
+                </div>
                 <template is="dom-if" if="[[_hasAllergies(medicationDetail)]]">
                     <div class="allergy-alert">
                         <div class="allergy-title">
@@ -1041,6 +1069,10 @@
                 super.ready();
             }
 
+            _formatCnk(id) {
+                return "CNK-" + id;
+            }
+
             _customContainer() {
                 return this.closable ? "container-prescription" : "container-standalone";
             }
@@ -1308,6 +1340,18 @@
                 return this.medicationDetail && this.medicationDetail.type === "compound";
             }
 
+            _setSpinnerBusy() {
+                this.dispatchEvent(new CustomEvent('spinner-busy', {
+                    detail: {}, bubbles: true, composed: true
+                }));
+            }
+
+            _setSpinnerIdle() {
+                this.dispatchEvent(new CustomEvent('spinner-idle', {
+                    detail: {}, bubbles: true, composed: true
+                }));
+            }
+
             extractContentWithIdFromMedicationService(m, isNew, isPres) {
                 const content = this.api.contact().preferredContent(m, this.language)  || (m.content[this.language] = {
                     medicationValue: {regimen: []}
@@ -1322,59 +1366,114 @@
                 };
             }
 
+            _checkCnk(medication) {
+                if (medication.type === "medicine" && medication.id && !medication.samCode) {
+                    return this.api.besamv2().findAmpsByDmppCode(medication.id)
+                        .then(amps => {
+                            // get the latest version and compare cnk
+                            const now = moment().valueOf();
+                            const validAmpps = amps && amps.length && amps.reduce((validAmpps, amp) => {
+                                if ((amp.status === "AUTHORIZED") && amp.ampps && amp.ampps.length) {
+                                    return validAmpps.concat(amp.ampps.map(ampp => {
+                                        return Object.assign(ampp, {
+                                            amp: amp,
+                                            publicDmpp: ampp.dmpps.find(dmpp => dmpp.deliveryEnvironment === "P" && dmpp.codeType === "CNK" && dmpp.from < now && (!dmpp.to || dmpp.to > now))
+                                        });
+                                    }));
+                                } else {
+                                    return validAmpps;
+                                }
+                            }, []);
+
+                            const lastAmpps = validAmpps && validAmpps.filter(ampp => ampp.publicDmpp);
+                            const updatedAmpp = lastAmpps && lastAmpps.length && lastAmpps.sort((a, b) => b.publicDmpp.from - a.publicDmpp.from)[0];
+                            const samDate = updatedAmpp && updatedAmpp.publicDmpp && moment(updatedAmpp.publicDmpp.from).format("DD/MM/YYYY");
+                            Object.assign(medication, {
+                                ctiExtended: updatedAmpp && updatedAmpp.ctiExtended,
+                                posologyNote: updatedAmpp && updatedAmpp.posologyNote,
+                                dividable: updatedAmpp && updatedAmpp.dividable,
+                                packDisplayValue: updatedAmpp && updatedAmpp.packDisplayValue,
+                                samCode: _.get(updatedAmpp, "amp.code", ""),
+                                samDate: samDate,
+                            });
+                            if (lastAmpps.some(ampp => ampp.publicDmpp.code === medication.id)) {
+                                console.log("CNK ok");
+                            } else {
+                                const updatedCnk = updatedAmpp.publicDmpp.code;
+                                const oldCnk = medication.id;
+                                console.log("CNK too old: current CNK: " + oldCnk + "; latest: " + updatedCnk);
+                                Object.assign(medication, {
+                                    oldCnk: oldCnk,
+                                    id: updatedCnk
+                                })
+                            }
+                            // @ todo also retrieve the current ampp to update data like displayPackage
+                            medication.updatedAmpp = updatedAmpp;
+                            return medication;
+                        });
+                } else {
+                    return Promise.resolve(medication);
+                }
+            }
+
             _medicationChanged(medication) {
                 if (!medication) return;
 
-                if (this.cachedBoxes && this.cachedBoxes !== medication.boxes) {
-                    this._updateStats();
-                }
-                this.cachedBoxes = medication.boxes;
+                this._setSpinnerBusy();
+                this._checkCnk(medication)
+                    .then(medication => {
+                        if (this.cachedBoxes && this.cachedBoxes !== medication.boxes) {
+                            this._updateStats();
+                        }
+                        this.cachedBoxes = medication.boxes;
 
-                this.set("medicationDetail", null);
+                        this.set("medicationDetail", null);
 
-                const content = this.content || this.extractContentWithIdFromMedicationService(medication.newMedication, medication.options.isNew, medication.options.isPrescription);
-                this.set("medicationContent", content);
+                        const content = this.content || this.extractContentWithIdFromMedicationService(medication.newMedication, medication.options.isNew, medication.options.isPrescription);
+                        this.set("medicationContent", content);
 
-                this._initmedicationContent();
+                        this._initmedicationContent();
 
-                const today = this.api.moment(Date.now());
-                this.set("initializingDate", true);
+                        const today = this.api.moment(Date.now());
+                        this.set("initializingDate", true);
 
-                const commentForPatient = this._extractCommentForPatient();
+                        const commentForPatient = this._extractCommentForPatient();
 
-                this.set("medicationDetail", Object.assign(
-                    medication,
-                    {
-                        beginMomentAsString : this.api.moment((content && content.medicationValue && content.medicationValue.beginMoment) || (medication.newMedication && medication.newMedication.valueDate) || (medication.newMedication && medication.newMedication.openingDate) || Date.now()).format('YYYY-MM-DD') || null,
-                        endMomentAsString: this.api.moment((content && content.medicationValue && content.medicationValue.endMoment) || (medication.newMedication && medication.newMedication.closingDate)) ? this.api.moment(content.medicationValue.endMoment || (medication.newMedication && medication.newMedication.closingDate)).format("YYYY-MM-DD") : null,
-                        deliveryMomentAsString: today.format("YYYY-MM-DD"),
-                        endExecMomentAsString: today.add(3, "months").subtract(1, "days").format("YYYY-MM-DD"),
-                        dividable: medication.dividable === undefined ? true : medication.dividable,
-                        packDisplayValue: medication.packDisplayValue || 0,
-                        medicPriority : this.medicationContent.medicationValue.priority === "high" ? 2 : this.medicationContent.medicationValue.priority === "middle" ? 1 : 0,
-                        renewal: !!this.medicationContent.medicationValue.renewal ? "allowed" : "forbidden",
-                        isConfidential: ((medication.newMedication.tags || []).find(tag => tag.type === "org.taktik.icure.entities.embed.Confidentiality") || {code: ""}).code === "secret",
-                        substitutionAllowed: this.medicationContent.medicationValue.substitutionAllowed ? "true" : "false",
-                        commentForPatient: commentForPatient
-                    }
-                ));
-                this.set("initializingDate", false);
+                        this.set("medicationDetail", Object.assign(
+                            medication,
+                            {
+                                beginMomentAsString : this.api.moment((content && content.medicationValue && content.medicationValue.beginMoment) || (medication.newMedication && medication.newMedication.valueDate) || (medication.newMedication && medication.newMedication.openingDate) || Date.now()).format('YYYY-MM-DD') || null,
+                                endMomentAsString: this.api.moment((content && content.medicationValue && content.medicationValue.endMoment) || (medication.newMedication && medication.newMedication.closingDate)) ? this.api.moment(content.medicationValue.endMoment || (medication.newMedication && medication.newMedication.closingDate)).format("YYYY-MM-DD") : null,
+                                deliveryMomentAsString: today.format("YYYY-MM-DD"),
+                                endExecMomentAsString: today.add(3, "months").subtract(1, "days").format("YYYY-MM-DD"),
+                                dividable: medication.dividable === undefined ? true : medication.dividable,
+                                packDisplayValue: medication.packDisplayValue || 0,
+                                medicPriority : this.medicationContent.medicationValue.priority === "high" ? 2 : this.medicationContent.medicationValue.priority === "middle" ? 1 : 0,
+                                renewal: !!this.medicationContent.medicationValue.renewal ? "allowed" : "forbidden",
+                                isConfidential: ((medication.newMedication.tags || []).find(tag => tag.type === "org.taktik.icure.entities.embed.Confidentiality") || {code: ""}).code === "secret",
+                                substitutionAllowed: this.medicationContent.medicationValue.substitutionAllowed ? "true" : "false",
+                                commentForPatient: commentForPatient
+                            }
+                        ));
+                        this.set("initializingDate", false);
 
-                // this.set("renewalTimeUnit", this.medicationContent.medicationValue.renewal && this.medicationContent.medicationValue.renewal.duration.unit || this.timeUnits.find(timeUnit => timeUnit.code === "mo"));
-                const reimb = this.medicationContent.medicationValue.reimbursementReason;
-                this.set("reimbursementReason", reimb && this.reimbursementCodeRecipe.find(item => item.code === reimb.code) || this.reimbursementCodeRecipe.find(item => item.code === "notreimbursable"));
+                        // this.set("renewalTimeUnit", this.medicationContent.medicationValue.renewal && this.medicationContent.medicationValue.renewal.duration.unit || this.timeUnits.find(timeUnit => timeUnit.code === "mo"));
+                        const reimb = this.medicationContent.medicationValue.reimbursementReason;
+                        this.set("reimbursementReason", reimb && this.reimbursementCodeRecipe.find(item => item.code === reimb.code) || this.reimbursementCodeRecipe.find(item => item.code === "notreimbursable"));
 
-                const quantitySample = _.get(this.medicationContent, "medicationValue.regimen[0].administratedQuantity.quantity", "");
-                this.set("quantityFactor", quantitySample && !parseInt(quantitySample, 10) && this.quantityFactors.find(q => q.numLabel === quantitySample) || this.quantityFactors[0]);
+                        const quantitySample = _.get(this.medicationContent, "medicationValue.regimen[0].administratedQuantity.quantity", "");
+                        this.set("quantityFactor", quantitySample && !parseInt(quantitySample, 10) && this.quantityFactors.find(q => q.numLabel === quantitySample) || this.quantityFactors[0]);
 
-                // @todo: month (dayNumber) and date
-                const period = _.has(this.medicationContent, "medicationValue.regimen[0].weekday") ? "weeklyPosology" : "dailyPosology" ;
-                if (this.periodConfig.id !== period) {
-                    this.set("periodConfig", this.periodConfigs.find(config => config.id === period));
-                } else {
-                    this._periodChanged();
-                }
-                this._updateStats();
+                        // @todo: month (dayNumber) and date
+                        const period = _.has(this.medicationContent, "medicationValue.regimen[0].weekday") ? "weeklyPosology" : "dailyPosology" ;
+                        if (this.periodConfig.id !== period) {
+                            this.set("periodConfig", this.periodConfigs.find(config => config.id === period));
+                        } else {
+                            this._periodChanged();
+                        }
+                        this._updateStats();
+                    })
+                    .finally(() => this._setSpinnerIdle());
             }
 
             _periodChanged() {
