@@ -778,10 +778,10 @@
             }
 
 
-            _convertCustomDayPeriod(medications) {
+            _convertForRecipe(medications) {
                 // @todo: use code api
                 const medsDup = _.cloneDeep(medications);
-                medsDup.forEach(med => (this.api.contact().preferredContent(med, this.language) || (med.content[this.language] = {medicationValue: {regimen: []}})).medicationValue.regimen.forEach(reg => {
+                medsDup.forEach(med => (this.api.contact().preferredContent(med, this.language) || {medicationValue: {regimen: []}}).medicationValue.regimen.forEach(reg => {
                         if (reg.dayPeriod && reg.dayPeriod.type === "care.topaz.customDayPeriod") {
                             if (reg.dayPeriod.code === "midday") {
                                 delete reg.dayPeriod;
@@ -793,6 +793,12 @@
                         }
                     })
                 );
+                medsDup.forEach(med => {
+                    const substanceProduct = _.get(this.api.contact().medicationValue(med, this.language), "substanceProduct", "");
+                    if (substanceProduct.intendedcds && substanceProduct.intendedcds.some(intendedcd => intendedcd.type === "CD-VMPGROUP")) {
+                        substanceProduct.intendedcds = [];
+                    }
+                });
                 return medsDup;
             }
 
@@ -818,7 +824,7 @@
                                     patient: this.patient,
                                     hcp: hcp,
                                     feedback: false,
-                                    medications: this._convertCustomDayPeriod(drugsToBePrescribed).filter(s => c.drugIds.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
+                                    medications: this._convertForRecipe(drugsToBePrescribed).filter(s => c.drugIds.includes(s.id)).map(s => this.addEmptyPosologyIfNeeded(this.api.contact().medicationValue(s, this.language))),
                                     deliveryDate: this.api.moment(this.deliveryDateString).format("YYYYMMDD")
                                 }).then(prescri => {
                                     c.rid = prescri.rid
@@ -935,7 +941,7 @@
                         const medR = medicationApi.medicationNameToString(med, this.language)
                         const medS = medicationApi.posologyToString(med, this.language)
                         const thisMed = {'S': medS, 'R': medR, 'poso':medPoso};
-                        const medC = null;//medicationApi.reimbursementReasonToString(med, this.language);
+                        const medC = medicationApi.reimbursementReasonToString(med, this.language);
                         if (medC) {
                             Object.assign(thisMed, {'C': medC});
                         }
