@@ -41,9 +41,14 @@
 <link rel="import" href="../../styles/dropdown-style.html">
 <link rel="import" href="../../styles/paper-tabs-style.html">
 
+<link rel="import" href="../ht-pat/dialogs/ht-pat-outgoing-document.html">
+
 
 
 <dom-module id="ht-msg-new">
+
+
+
     <template>
 
 
@@ -494,7 +499,9 @@
                     <div class="horizontal mt10">
                         <div class="cell">
                             <div class="vertical">
-                                <div class="cell">
+
+                                <template is="dom-if" if="[[!_isMedex]]">
+                                    <div class="cell">
                                     <div class="horizontal">
                                         <div class="modal-subtitle p-t-7 mw120">[[localize('recipient_s','Recipient(s)',language)]]:</div>
                                         <div class="cell">
@@ -514,13 +521,15 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="cell">
+                                    <div class="cell">
                                     <div class="horizontal">
                                         <div class="modal-subtitle patLabel mw120">[[localize('pati','Patient',language)]]:</div>
                                         <div class="cell"><vaadin-combo-box id="linkedPatientComboxBox" label="[[localize('inputYourSearchQuery','What are you looking for ?',language)]]" filter="{{patientFilter}}" filtered-items="[[filteredPatientsList]]" item-label-path="displayName" allow-custom-value on-selected-item-changed="_setLinkedPatient"><template>[[item.displayName]]</template></vaadin-combo-box>
                                         </div>
                                     </div>
                                 </div>
+                                </template>
+
                                 <div class="cell mt10">
                                     <div class="horizontal">
                                         <div class="modal-subtitle mw120">[[localize('options','Options',language)]]:</div>
@@ -529,6 +538,7 @@
                                             <paper-checkbox checked="{{newMessage.useReceivedReceipt}}">[[localize('aknReception','Reception acknowledge',language)]]</paper-checkbox>
                                             <paper-checkbox checked="{{newMessage.useReadReceipt}}">[[localize('aknRead','Read acknowledge',language)]]</paper-checkbox>
                                             <paper-checkbox checked="{{newMessage.usePublicationReceipt}}">[[localize('aknPublication','Publication acknowledge',language)]]</paper-checkbox>
+                                            <paper-checkbox checked="{{newMessage.encrypted}}">[[localize('encryptedMessage','Encrypted message',language)]]</paper-checkbox>
                                         </div>
                                     </div>
                                 </div>
@@ -542,10 +552,12 @@
                         </div>
                     </div>
 
-                    <div class="messageContainer m-t-30">
-                        <div class="modal-subtitle">[[localize('msg','Message',language)]]:</div>
-                        <div class="bordered"><paper-input-container alway-float-label="true"><iron-autogrow-textarea slot="input" class="paper-input-input" id="messageBodyText" placeholder="[[localize('writeYourMessage', 'Write your message', language)]]" value="{{newMessage.document.textContent}}"></iron-autogrow-textarea></paper-input-container></div>
-                    </div>
+                    <template is="dom-if" if="[[!_isMedex]]">
+                        <div class="messageContainer m-t-30">
+                            <div class="modal-subtitle">[[localize('msg','Message',language)]]:</div>
+                            <div class="bordered"><paper-input-container alway-float-label="true"><iron-autogrow-textarea slot="input" class="paper-input-input" id="messageBodyText" placeholder="[[localize('writeYourMessage', 'Write your message', language)]]" value="{{newMessage.document.textContent}}"></iron-autogrow-textarea></paper-input-container></div>
+                        </div>
+                    </template>
 
                     <template is="dom-if" if="[[_hasAdditionalAnnexesFromPatDetail]]">
                         <div class="additionalAttachmentFromPatDetails m-t-50">
@@ -700,19 +712,51 @@
                     </div>
                 </paper-dialog>
 
+                <paper-dialog class="modalDialog" id="errorDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                    <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                    <div class="content textaligncenter">
+                        <p class="fw700">[[errorDialogLine1]]</p>
+                        <p class="">[[errorDialogLine2]]</p>
+                        <p class="">[[errorDialogLine3]]</p>
+                    </div>
+                    <div class="buttons">
+                        <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                    </div>
+                </paper-dialog>
+
 
             </div>
         </paper-dialog>
 
+
+
         <div id="success"><iron-icon icon="check"></iron-icon> [[localize('sen_succ','Success',language)]]</div>
         <div id="failed"><iron-icon icon="clear"></iron-icon> [[localize('sen_error','Error',language)]]</div>
 
+
+
+        <ht-pat-outgoing-document
+            id="outgoingDocument"
+            api="[[api]]"
+            i18n="[[i18n]]"
+            user="[[user]]"
+            patient="[[patient]]"
+            language="[[language]]"
+            resources="[[resources]]"
+            on-refresh-patient="_refreshPatientAndServices"
+		></ht-pat-outgoing-document>
+
+
+
     </template>
+
+
 
     <script>
 
         import _ from 'lodash/lodash'
         import moment from 'moment/src/moment'
+        import mustache from "mustache/mustache.js"
 
         class HtMsgNew extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
@@ -800,7 +844,19 @@
                     },
                     recipientFilter: {
                         type: String,
-                        value: ''
+                        value: ""
+                    },
+                    errorDialogLine1: {
+                        type: String,
+                        value: ""
+                    },
+                    errorDialogLine2: {
+                        type: String,
+                        value: ""
+                    },
+                    errorDialogLine3: {
+                        type: String,
+                        value: ""
                     },
                     recipientType: {
                         type: Object,
@@ -850,7 +906,23 @@
                     _assignRecipientValueWhenReplyingToMessage: {
                         type: Boolean,
                         value: false
-                    }
+                    },
+                    patient: {
+                        type: Object,
+                        value: () => {}
+                    },
+                    _data: {
+                        type: Object,
+                        value: () => {}
+                    },
+                    medexData: {
+                        type: Object,
+                        value: () => {}
+                    },
+                    _isMedex: {
+                        type: Boolean,
+                        value: false
+                    },
                 }
             }
 
@@ -1189,6 +1261,292 @@
                         .catch(e=>{console.log("ERROR with findByNameBirthSsinAutoWithUser: ", e); return Promise.resolve();})
             }
 
+            _debugMessage() {
+
+                console.log(this.newMessage);
+                console.log(this._additionalAnnexesFromForward);
+                console.log(this._additionalAnnexesFromPatDetail);
+                return;
+
+            }
+
+            _recipientsFilterChanged(recipientType, recipientFilter) {
+
+                if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
+                const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
+
+                setTimeout(() => {
+                    if (reqIdx !== this.recipientReqIdx) return;
+                    this.set('busySpinner', true)
+
+                    const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
+                    const numericSearchQuery = _.trim(_.trim(recipientFilter).replace( /([^\d]*)/gi, '' ))
+                    const patternsValidation = {
+                        heightDigits: /^([0-9]){8}$/i,
+                        tenDigits: /^([0-9]){10}$/i,
+                        elevenDigits: /^([0-9]){11}$/i
+                    }
+
+                    const isValidNihii = !!patternsValidation.heightDigits.test(numericSearchQuery) || !!patternsValidation.elevenDigits.test(numericSearchQuery)
+                    const isValidBce = !!patternsValidation.tenDigits.test(numericSearchQuery)
+                    const isValidEhp = !!patternsValidation.tenDigits.test(numericSearchQuery)
+                    const isValidSsin = !!patternsValidation.elevenDigits.test(numericSearchQuery)
+
+                    let searchProm = recipientType.id === 'CBE' ?
+                        Promise.all([
+                            !isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'cbe',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType.id === 'EHP' ? Promise.all([
+                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
+                        ]) :
+                        recipientType.id === 'SSIN' ? Promise.all([
+                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
+                        ]) :
+                        (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
+                        ]) :
+                        // Default type = NIHII
+                        Promise.all([
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
+                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
+                        ])
+
+                    searchProm
+                        .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
+                            this.set("filteredRecipientsList", _
+                                .chain(searchResults)
+                                .flatMap()
+                                .filter( singleSearchResult => { return (
+                                    ( !!_.get(singleSearchResult, "ehp", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ehp)))).indexOf(_.trim(_.get(singleSearchResult, "ehp", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "ssin", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ssin)))).indexOf(_.trim(_.get(singleSearchResult, "ssin", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "cbe", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.cbe)))).indexOf(_.trim(_.get(singleSearchResult, "cbe", ""))) === -1 ) ||
+                                    ( !!_.get(singleSearchResult, "nihii", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.nihii)))).indexOf(_.trim(_.get(singleSearchResult, "nihii", ""))) === -1 )
+                                )})
+                                .map(singleRecipient => _.assign({displayName : _.compact([
+                                    _.map( _.trim(_.get(singleRecipient, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                    _.map( _.trim(_.get(singleRecipient, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                    ( ( !_.trim(_.get(singleRecipient, "lastName", "")) && !_.trim(_.get(singleRecipient, "firstName", "")) ) ? _.map( _.trim(_.get(singleRecipient, "name", "")).split(" "),i=> _.capitalize(i)).join(" ") : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "nihii", "")) ? "(" + this.localize('nihii', 'INAMI', this.language) + ": " + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "ssin", "")) ? "(" + this.localize('ssin', 'Registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(singleRecipient, "ssin", ""))) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "ehp", "")) ? "(EHP: " + _.trim(_.get(singleRecipient, "ehp", "")) + ")" : "" ),
+                                    ( !! _.trim(_.get(singleRecipient, "cbe", "")) ? "(BCE: " + _.trim(_.get(singleRecipient, "cbe", "")) + ")" : "" )
+                                ]).join(" ")},singleRecipient))
+                                .orderBy(['displayName','nihii', 'ssin', 'ehp', 'cbe'],['asc','asc','asc','asc','asc'])
+                                .value()
+                            )
+
+                            if(!!_.get(this,"_assignRecipientValueWhenReplyingToMessage") && _.size(_.get(this, "filteredRecipientsList[0]",{})) && !!newMsgTo) {
+                                this.set("_assignRecipientValueWhenReplyingToMessage",false)
+                                newMsgTo.selectedItem = _.get(this, "filteredRecipientsList[0]",{})
+                                setTimeout(()=>{this._addRecipient()},100)
+                                setTimeout(()=>{newMsgTo.close()},200)
+                            }
+
+                        }})
+                        .catch(e=>{console.log("ERROR with _recipientsFilterChanged: ", e);})
+                        .finally(() => this.set('busySpinner', false))
+
+                }, 300)
+            }
+
+            _refreshPatientAndServices() {
+                this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}}))
+            }
+
+            _getMedexKhmerTemplate(data) {
+
+                const khmerTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- eHealth platform - February 2016 -->
+<!-- Only designed for illustration purpose. No valuable medical content -->
+<kmehrmessage xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ehealth.fgov.be/standards/kmehr/schema/v1" xsi:schemaLocation="http://www.ehealth.fgov.be/standards/kmehr/schema/v1 kmehr_elements.xsd">
+	<header>
+		<standard>
+			<cd S="CD-STANDARD" SV="1.8">20121001</cd>
+		</standard>
+		<id S="ID-KMEHR" SV="1.0">{{currentHcp.nihii}}.{{nowMs}}</id>
+		<date>{{nowYYYYMMDD}}</date>
+		<time>{{nowHHMMSS}}</time>
+		<sender>
+			<hcparty>
+				<id S="LOCAL" SV="[AIV]{version}[/AIV]" SL="Topaz">Topaz-v[AIV]{version}[/AIV]</id>
+				<cd S="CD-HCPARTY" SV="1.0">application</cd>
+				<name>Topaz</name>
+			</hcparty>
+			<hcparty>
+				<id S="ID-HCPARTY" SV="1.0">{{currentHcp.nihii}}</id>
+				<id S="INSS" SV="1.0">{{currentHcp.ssin}}</id>
+				<cd S="CD-HCPARTY" SV="1.6">persphysician</cd>
+				<firstname>{{currentHcp.firstName}}</firstname>
+				<familyname>{{currentHcp.lastName}}</familyname>
+			</hcparty>
+		</sender>
+		<recipient>
+			<hcparty>
+				<cd S="CD-HCPARTY" SV="1.6">application</cd>
+				<name>medex</name>
+			</hcparty>
+		</recipient>
+	</header>
+	<folder>
+		<id S="ID-KMEHR" SV="1.0">1</id>
+		<patient>
+			<id S="ID-PATIENT" SV="1.0">{{currentPatient.ssin}}</id>
+			<firstname>{{currentPatient.firstName}}</firstname>
+			<familyname>{{currentPatient.lastName}}</familyname>
+			<birthdate>
+				<date>{{currentPatient.dateOfBirthHyphenSplitted}}</date>
+			</birthdate>
+			<sex>
+				<cd SV="1.0" S="CD-SEX">{{currentPatient.gender}}</cd>
+			</sex>
+			<usuallanguage>fr</usuallanguage>
+		</patient>
+		<transaction>
+			<id S="ID-KMEHR" SV="1.0">1</id>
+			<cd S="CD-TRANSACTION" SV="1.5">notification</cd>
+			<cd S="CD-TRANSACTION-TYPE" SV="1.1">{{eMediattest.khmerData.incapacityOrIncapacityExtension}}</cd>
+			<date>{{eMediattest.khmerData.certificateDate}}</date>
+			<time>{{eMediattest.khmerData.certificateTime}}</time>
+			<author>
+				<hcparty>
+					<id S="ID-HCPARTY" SV="1.0">{{currentHcp.nihii}}</id>
+					<id S="INSS" SV="1.0">{{currentHcp.ssin}}</id>
+					<cd S="CD-HCPARTY" SV="1.6">persphysician</cd>
+					<firstname>{{currentHcp.firstName}}</firstname>
+					<familyname>{{currentHcp.lastName}}</familyname>
+				</hcparty>
+			</author>
+			<iscomplete>true</iscomplete>
+			<isvalidated>true</isvalidated>
+			<item>
+				<id S="ID-KMEHR" SV="1.0">1</id>
+				<cd S="CD-ITEM" SV="1.6">incapacity</cd>
+				<content>
+					<incapacity>
+						<cd S="CD-INCAPACITY" SV="1.1">work</cd>
+						<incapacityreason>
+							<cd S="CD-INCAPACITYREASON" SV="1.1">{{eMediattest.khmerData.incapacityReason}}</cd>
+						</incapacityreason>
+						<outofhomeallowed>{{eMediattest.khmerData.outOfHomeAllowed}}</outofhomeallowed>
+					</incapacity>
+					<date>{{eMediattest.khmerData.occuredOn}}</date>
+				</content>
+				<beginmoment>
+					<date>{{eMediattest.khmerData.incapacityBegin}}</date>
+				</beginmoment>
+				<endmoment>
+					<date>{{eMediattest.khmerData.incapacityEnd}}</date>
+				</endmoment>
+			</item>
+			<item>
+				<id S="ID-KMEHR" SV="1.0">2</id>
+				<cd S="CD-ITEM" SV="1.6">diagnosis</cd>
+				<content>
+					<cd S="ICD" SV="10">{{eMediattest.diagnosticData.icd}}</cd>
+					<cd S="ICPC" SV="2">{{eMediattest.diagnosticData.icpc}}</cd>
+				</content>
+				<content>
+					<text L="{{language}}">{{eMediattest.diagnosticData.labelHr}}</text>
+				</content>
+			</item>
+		</transaction>
+	</folder>
+</kmehrmessage>`
+
+                return mustache.render(khmerTemplate, data)
+
+            }
+
+            _saveDocumentAsService(inputConfig) {
+
+                const promResolve = Promise.resolve()
+
+                const svc = this.api.contact().service().newInstance( _.get(this,"user",{}), {
+                    content: _.fromPairs([[this.language, { documentId: inputConfig.documentId, stringValue: inputConfig.stringValue }]]),
+                    label: _.trim(_.get(inputConfig, "messageObject.subject","")),
+                    contactId: inputConfig.contactId,
+                    tags: [
+                        { type: "isMedex", code: "true" },
+                        { type: "isKhmer", code: "true" },
+                        { type: "originalContactId", code: _.trim(_.get(inputConfig, "messageObject.metas.originalContactId","")) },
+                        { type: "formId", code: _.trim(_.get(inputConfig, "messageObject.metas.formId","")) },
+                        { type: "subFormId", code: _.trim(_.get(inputConfig, "messageObject.metas.subFormId","")) },
+                        { type: "outgoingDocument", code: _.trim(_.get(inputConfig, "messageObject.subject","")) },
+                        {type: 'CD-TRANSACTION', code: _.trim(_.get(inputConfig,"cdTransactionCode",""))},
+                    ]
+                })
+
+                if(false === _.get(this, "_data.currentContact.services", false)) this._data.currentContact.services = []
+                if(false === _.get(this, "_data.currentContact.subContacts", false)) this._data.currentContact.subContacts = []
+
+                this._data.currentContact.services.push(svc)
+                this._data.currentContact.subContacts.push({
+                    status: 64,
+                    services: [{serviceId: svc.id}],
+                    tags: svc.tags,
+                })
+
+                return promResolve
+                    .then(() => !!_.trim(_.get(this, "_data.currentContact.rev", "")) ?
+                        this.api.contact().modifyContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {})) :
+                        this.api.contact().createContactWithUser(_.get(this,"user",{}), _.get(this, "_data.currentContact", {}))
+                    )
+                    .then(c=>this.api.register(c,'contact')).then(c => (this._data.currentContact.rev = c.rev) && c)
+                    .then(()=> this.dispatchEvent(new CustomEvent('refresh-patient', {composed: true, bubbles: true, detail: {}})))
+
+            }
+
+            _saveMedexKhmerIttToPatFile() {
+
+                const messageObject = {
+                    transportGuid: "MEDEX:OUT:KHMER",
+                    recipients: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                    metas: {
+                        filename : _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
+                        hcpId: _.trim(_.get(this, "_data.contactHcp.id", "")),
+                        contactId : _.trim(_.get(this, "_data.currentContact.id", "")),
+                        originalContactId : this._data.eMediattestParentFormDp.form().contactId,
+                        formId : _.trim(_.get(_.get(this, "_data.eMediattestParentFormDp.form")(),"id","")),
+                        subFormId : _.trim(_.get(_.get(this, "_data.eMediattestSubFormDp.form")(),"id","")),
+                    },
+                    toAddresses: [_.trim(_.get(this, "_data.contactHcp.id", ""))],
+                    subject: "[KHMER] " + this.localize("medicalCertificate","Medical certificate",this.language) + " Medex",
+                }
+
+                return this.api.message().newInstanceWithPatient(_.get(this,"user",{}), _.get(this,"_data.currentPatient",{}))
+                    .then(messageInstance => this.api.message().createMessage(_.merge(messageInstance, messageObject)))
+                    .then(createdMessage => this.api.document().newInstance(_.get(this,"user",{}),createdMessage, {
+                        documentType: 'report',
+                        mainUti: this.api.document().uti("application/xml"),
+                        name: _.get(messageObject,"metas.filename"),
+                        tags: [
+                            {type: "medex", code: "true"},
+                            {type: "khmer", code: "true"},
+                            {type: "formId", code: _.trim(_.get(messageObject, "metas.formId",""))},
+                            {type: "subFormId", code: _.trim(_.get(messageObject, "metas.subFormId",""))}
+                        ]
+                    }).then(documentInstance=>([createdMessage, documentInstance])))
+                    .then(([createdMessage, documentInstance]) => this.api.document().createDocument(documentInstance).then(createdDocument=>([createdMessage, createdDocument])))
+                    .then(([createdMessage, createdDocument]) => this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("encrypt", _.get(this,"user",{}), createdDocument, this.api.crypto().utils.text2ua(_.get(this, "_data.eMediattest.khmerContent", ""))).then(encryptedFileContent => [createdMessage,createdDocument,encryptedFileContent]))
+                    .then(([createdMessage,createdDocument,encryptedFileContent]) => this.api.document().setAttachment(_.get(createdDocument,"id"), null, encryptedFileContent).then(() => ([createdMessage,createdDocument])))
+                    .then(([createdMessage,createdDocument])=> this._saveDocumentAsService({
+                        documentId: _.trim(_.get(createdDocument, "id", "")),
+                        stringValue: _.trim(_.get(messageObject,"subject","")),
+                        contactId: _.trim(_.get(messageObject, "metas.contactId", "")),
+                        originalContactId: _.trim(_.get(messageObject, "metas.originalContactId", "")),
+                        messageObject: messageObject,
+                        cdTransactionCode: "medical-certificate",
+                    }).then(()=>([createdMessage,createdDocument])))
+                    .catch(e => { console.log("[ERROR] _saveMedexKhmerIttToPatFile", e); return Promise.resolve(); })
+
+            }
+
             open(componentOpenParameters) {
 
                 this._resetComponentData();
@@ -1202,6 +1560,9 @@
                     // GDL on 20190607 - Not anymore by default
                     // this.set("newMessage.important", true)
                     try{ delete(componentOpenParameters.dataFromPatDetail); } catch(e){}
+
+                    // eMediattest ?
+                    if(!!_.size(_.get(dataFromPatDetail,"eMediattestSubFormDp",{}))) return this._prepareEMediattestMessage(dataFromPatDetail)
 
                     if(_.trim(_.get(dataFromPatDetail,"patient.id",""))) {
                         dataFromPatDetail.patient = _.assign({displayName : _.compact([
@@ -1218,7 +1579,7 @@
                     }
 
                     // To improve: could be several attachments from pat (considering we only have one at the moment)
-                    return this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
+                    return  this.api.document().getDocument(_.trim(_.get(dataFromPatDetail,"documentId","")))
                         .then(foundDocument => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.trim(_.get(foundDocument,"id","")), _.size(_.get(foundDocument,"encryptionKeys",[])) ? _.get(foundDocument,"encryptionKeys",[]) : _.get(foundDocument,"delegations",[]))
                             .then(({extractedKeys: enckeys}) => !!_.trim(_.get(foundDocument,"attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(foundDocument,"id","")), _.trim(_.get(foundDocument,"attachmentId","")), enckeys.join(',')).then(decryptedContent=>({foundDocument,decryptedContent})).catch(e=>{console.log("ERROR with getAttachment: ",e); return foundDocument;}) : foundDocument)
                         )
@@ -1332,115 +1693,180 @@
 
             }
 
-            _debugMessage() {
+            _confirmMessageSuccessfullySent() {
 
-                console.log(this.newMessage);
-                console.log(this._additionalAnnexesFromForward);
-                console.log(this._additionalAnnexesFromPatDetail);
-                return;
+                this._resetComponentData();
+
+                this.$['new-msg'].close();
+
+                setTimeout(() => { this.$["success"].classList.add('displayNotification'); },100);
+                setTimeout(() => { this.$["success"].classList.remove('displayNotification'); },8000);
+
+                return null;
 
             }
 
-            _recipientsFilterChanged(recipientType, recipientFilter) {
+            _prepareEMediattestMessage(dataFromPatDetail) {
 
-                if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
-                const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
+                const promResolve = Promise.resolve();
+                const outgoingDocumentComponent = this.shadowRoot.querySelector("#outgoingDocument")
+                const linkedPatientComboxBox = this.shadowRoot.querySelector('#linkedPatientComboxBox')
 
-                setTimeout(() => {
-                    if (reqIdx !== this.recipientReqIdx) return;
-                    this.set('busySpinner', true)
-
-                    const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
-                    const numericSearchQuery = _.trim(_.trim(recipientFilter).replace( /([^\d]*)/gi, '' ))
-                    const patternsValidation = {
-                        heightDigits: /^([0-9]){8}$/i,
-                        tenDigits: /^([0-9]){10}$/i,
-                        elevenDigits: /^([0-9]){11}$/i
-                    }
-
-                    const isValidNihii = !!patternsValidation.heightDigits.test(numericSearchQuery) || !!patternsValidation.elevenDigits.test(numericSearchQuery)
-                    const isValidBce = !!patternsValidation.tenDigits.test(numericSearchQuery)
-                    const isValidEhp = !!patternsValidation.tenDigits.test(numericSearchQuery)
-                    const isValidSsin = !!patternsValidation.elevenDigits.test(numericSearchQuery)
-
-                    let searchProm = recipientType.id === 'CBE' ?
-                        Promise.all([
-                            !isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'cbe',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
-                        ]) :
-                        recipientType.id === 'EHP' ? Promise.all([
-                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
-                        ]) :
-                        recipientType.id === 'SSIN' ? Promise.all([
-                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
-                        ]) :
-                        (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
-                        ]) :
-                        // Default type = NIHII
-                        Promise.all([
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
-                        ])
-
-                    searchProm
-                        .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
-                            this.set("filteredRecipientsList", _
-                                .chain(searchResults)
-                                .flatMap()
-                                .filter( singleSearchResult => { return (
-                                    ( !!_.get(singleSearchResult, "ehp", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ehp)))).indexOf(_.trim(_.get(singleSearchResult, "ehp", ""))) === -1 ) ||
-                                    ( !!_.get(singleSearchResult, "ssin", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.ssin)))).indexOf(_.trim(_.get(singleSearchResult, "ssin", ""))) === -1 ) ||
-                                    ( !!_.get(singleSearchResult, "cbe", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.cbe)))).indexOf(_.trim(_.get(singleSearchResult, "cbe", ""))) === -1 ) ||
-                                    ( !!_.get(singleSearchResult, "nihii", false) && _.uniq(_.compact(_.map(_.get(this,"newMessage.recipients",[]), i=>_.trim(i.nihii)))).indexOf(_.trim(_.get(singleSearchResult, "nihii", ""))) === -1 )
-                                )})
-                                .map(singleRecipient => _.assign({displayName : _.compact([
-                                    _.map( _.trim(_.get(singleRecipient, "lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                    _.map( _.trim(_.get(singleRecipient, "firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
-                                    ( ( !_.trim(_.get(singleRecipient, "lastName", "")) && !_.trim(_.get(singleRecipient, "firstName", "")) ) ? _.map( _.trim(_.get(singleRecipient, "name", "")).split(" "),i=> _.capitalize(i)).join(" ") : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "nihii", "")) ? "(" + this.localize('nihii', 'INAMI', this.language) + ": " + this.api.formatInamiNumber(_.trim(_.get(singleRecipient, "nihii", ""))) + ")" : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "ssin", "")) ? "(" + this.localize('ssin', 'Registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(singleRecipient, "ssin", ""))) + ")" : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "ehp", "")) ? "(EHP: " + _.trim(_.get(singleRecipient, "ehp", "")) + ")" : "" ),
-                                    ( !! _.trim(_.get(singleRecipient, "cbe", "")) ? "(BCE: " + _.trim(_.get(singleRecipient, "cbe", "")) + ")" : "" )
-                                ]).join(" ")},singleRecipient))
-                                .orderBy(['displayName','nihii', 'ssin', 'ehp', 'cbe'],['asc','asc','asc','asc','asc'])
-                                .value()
-                            )
-
-                            if(!!_.get(this,"_assignRecipientValueWhenReplyingToMessage") && _.size(_.get(this, "filteredRecipientsList[0]",{})) && !!newMsgTo) {
-                                this.set("_assignRecipientValueWhenReplyingToMessage",false)
-                                newMsgTo.selectedItem = _.get(this, "filteredRecipientsList[0]",{})
-                                setTimeout(()=>{this._addRecipient()},100)
-                                setTimeout(()=>{newMsgTo.close()},200)
+                return promResolve
+                    .then(() => {
+                        this.set('_isMedex', true );
+                        this._resetLoadingMessage();
+                        this.$['new-msg'].open()
+                        this.set('_isLoading', true );
+                        this._setLoadingMessage({ message:this.localize('please_wait',this.language), icon:"arrow-forward"});
+                        this.set('medexData', {
+                            recipient: {
+                                type: "EHP",
+                                quality: "INSTITUTION_EHP",
+                                id: "1990002015",
+                                firstName: "Medex",
+                                lastName: "Medex",
+                            },
+                            customMetas: {
+                                MessageType:"IncapacityNotification",
+                                MessageVersion:"1.0",
+                                MessageFormat:"FPS HFCSE",
                             }
 
-                        }})
-                        .catch(e=>{console.log("ERROR with _recipientsFilterChanged: ", e);})
-                        .finally(() => this.set('busySpinner', false))
+                        });
+                    })
+                    .then(() => {
+                        // Linked patient & subject line
+                        dataFromPatDetail.patient = _.assign({displayName: _.compact([
+                                _.map( _.trim(_.get(dataFromPatDetail, "patient.lastName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                _.map( _.trim(_.get(dataFromPatDetail, "patient.firstName", "")).split(" "),i=> _.capitalize(i)).join(" "),
+                                ( !!_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) ? "(" + this.localize('ssinPatVerbose', 'Numéro de registre national', this.language) + ": " + this.api.formatSsinNumber(_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) + ")" : "" ),
+                                ( !_.trim(_.get(dataFromPatDetail, "patient.ssin", "")) && !!_.trim(_.get(dataFromPatDetail, "patient.dateOfBirth", "")) ? "(" + this.localize('birthDate', 'Birthdate', this.language) + ": " + moment(_.trim(_.get(dataFromPatDetail,"patient.dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY') + ")" : "" )
+                            ]).join(" ")},dataFromPatDetail.patient)
 
-                }, 300)
+                        // Changing value / selectedItem will call this._setLinkedPatient
+                        if(linkedPatientComboxBox && !!_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.selectedItem = _.get(dataFromPatDetail, "patient", {})
+                        if(linkedPatientComboxBox && !_.trim(_.get(dataFromPatDetail, "patient.ssin", ""))) linkedPatientComboxBox.value = _.get(dataFromPatDetail, "patient.displayName", "")
+                        setTimeout(()=>{ this.set("newMessage.document.title", _.compact(["eMediAtt - Medex", _.trim(_.get(this, "newMessage.document.title"))]).join(" - ")) },100)
+                    })
+                    .then(() => outgoingDocumentComponent.printMedexPdfItt(dataFromPatDetail))
+                    .then(printMedexPdfIttData => this.set("_data",_.merge(printMedexPdfIttData, {language:this.language, nowMs: moment().format('YYYYMMDDHHmmss0000'), nowYYYYMMDD: moment().format('YYYY-MM-DD'), nowHHMMSS: moment().format('HH:mm:ss'),})))
+                    .then(() => _.merge(this._data.eMediattest, {khmerContent:this._getMedexKhmerTemplate(this._data)}))
+                    .then(() => this._saveMedexKhmerIttToPatFile())
+                    .then(([createdMessage,createdDocument]) => _.merge(this._data.eMediattest.khmerData, {createdMessage:createdMessage,createdDocument:createdDocument}))
+                    .then(() => {
+
+                        // Error scenarios
+                        const errorScenario = _.trim(_.get(this,"_data.currentPatient.ssin","")).length < 11 ? 1 :
+                            _.trim(_.get(this,"_data.currentPatient.ssin","")).length > 11 ? 2 :
+                            !this.api.patient().isValidSsin(_.trim(_.get(this,"_data.currentPatient.ssin",""))) ? 3 :
+                            !_.trim(_.get(this,"_data.currentPatient.firstName","")) ? 4 :
+                            !_.trim(_.get(this,"_data.currentPatient.lastName","")) ? 5 :
+                            (_.trim(_.get(this,"_data.currentPatient.dateOfBirth","")).length !== 8 || !parseInt(_.trim(_.get(this,"_data.currentPatient.dateOfBirth","")))) ? 6 :
+                            // !_.size(_.get(this,"_data.currentPatient.languages",[])) ? 7 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"incapacité de"}), "valueHr")) ? 8 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"pour cause de"}), "valueHr")) ? 9 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"Sortie"}), "valueHr")) ? 10 :
+                            // !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"Accident suvenu le"}), "valueHr")) ? 11 :
+                            !_.trim(_.get(_.get(this,"_data.eMediattestSubFormDp.form")(),"created")) ? 12 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"du"}), "valueHr")) ? 13 :
+                            !_.trim(_.get(_.find(this._data.eMediattest.incapacityData, {name:"au"}), "valueHr")) ? 14 :
+                            (parseInt(_.get(_.find(this._data.eMediattest.incapacityData, {name:"du"}), "valueObject.fuzzyDateValue","")) > parseInt(_.get(_.find(this._data.eMediattest.incapacityData, {name:"au"}), "valueObject.fuzzyDateValue",""))) ? 15 :
+                            _.trim(_.get(this,"_data.currentHcp.ssin","")).length < 11 ? 16 :
+                            _.trim(_.get(this,"_data.currentHcp.ssin","")).length > 11 ? 17 :
+                            !this.api.patient().isValidSsin(_.trim(_.get(this,"_data.currentHcp.ssin",""))) ? 18 :
+                            !_.trim(_.get(this,"_data.currentHcp.nihii","")) ? 19 :
+                            0
+
+                        return !parseInt(errorScenario) ? false : this._toggleMedexErrorScenario(errorScenario)
+
+                    })
+                    .then(hasError => {
+
+                        if(!!hasError) return false;
+
+                        this.set("_hasAnnexesFromForward", true)
+                        this.set("newMessage.useReceivedReceipt", true)
+                        this.set("newMessage.useReadReceipt", true)
+                        this.set("newMessage.usePublicationReceipt", true)
+                        this.set("newMessage.encrypted", true)
+                        this.set("_forwardOrReplyAction", "- " + this.localize("medicalCertificate", "Medical certificate",this.language) +" Medex")
+                        this.push('newMessage.recipients', { type:_.get(this,"medexData.recipient.type"), ehp:_.get(this,"medexData.recipient.id"), quality:_.get(this,"medexData.recipient.quality"), lastName: "Medex", firstName: "Medex"})
+
+                        // PDF FILE
+                        const attachmentSizePdf = _.get(_.get(this,"_data.pdf.data",""),"byteLength",0)
+                        const attachmentSizePdfPow = attachmentSizePdf > (1024**2) ? 2 : attachmentSizePdf > 1024 ? 1 : 0
+                        this.push("_additionalAnnexesFromForward", {
+                            content: _.get(this,"_data.pdf.data",""),
+                            filename: _.trim(_.get(this,"_data.pdf.filename","")),
+                            fileExtension: "pdf",
+                            fileExtensionUppercase: "PDF",
+                            mimeType: "application/pdf",
+                            title: _.trim(_.get(this,"_data.pdf.filename","")),
+                            size: this.api._powRoundFloatByPrecision( attachmentSizePdf / (1024**attachmentSizePdfPow) ,2) + " " + _.trim(attachmentSizePdfPow === 2 ? "Mb" : attachmentSizePdfPow === 1 ? "Kb" : "Bytes"),
+                            documentId: _.trim(_.get(this,"_data.pdf.createdDocument.id",""))
+                        });
+
+                        // KHMER FILE
+                        const attachmentSizeKhmer = _.get(this.api.crypto().utils.text2ua(_.get(this,"_data.eMediattest.khmerContent","")),"byteLength",0)
+                        const attachmentSizeKhmerPow = attachmentSizeKhmer > (1024**2) ? 2 : attachmentSizeKhmer > 1024 ? 1 : 0
+                        this.push("_additionalAnnexesFromForward", {
+                            content: this.api.crypto().utils.text2ua(_.get(this,"_data.eMediattest.khmerContent","")),
+                            filename: _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
+                            fileExtension: "xml",
+                            fileExtensionUppercase: "XML",
+                            mimeType: "application/xml",
+                            title: _.trim(_.get(this, "_data.pdf.filename", "")).replace(".pdf",".xml"),
+                            size: this.api._powRoundFloatByPrecision( attachmentSizeKhmer / (1024**attachmentSizeKhmerPow) ,2) + " " + _.trim(attachmentSizeKhmerPow === 2 ? "Mb" : attachmentSizeKhmerPow === 1 ? "Kb" : "Bytes"),
+                            documentId: _.trim(_.get(this,"_data.eMediattest.khmerData.createdDocument.id",""))
+                        });
+
+                        setTimeout(()=>{
+                            this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsList') && this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsList').render()
+                            this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsPreview') && this.shadowRoot.querySelector('#additionalAnnexesFromForward_attachmentsPreview').render()
+                        },100)
+
+                    })
+                    .catch( e => { console.log("ERROR _prepareEMediattestMessage", e); this.set("_bodyOverlay", true); this.$["unableToLinkPatDocument"].open(); })
+                    .finally(() => { this._resetLoadingMessage(); this.set('_isLoading', false ); })
+
             }
 
+            _toggleMedexErrorScenario(errorScenario) {
 
+                // 1) Pat ssin < 11
+                // 2) Pat ssin > 11
+                // 3) Invalid pat ssin
+                // 4) Missing pat fn
+                // 5) Missing pat ln
+                // 6) Invalid pat dateOfBirth
+                // 7) Pat has no language
+                // 8) No incapacity
+                // 9) No incapacity reason
+                // 10) No "out of house" flag (allowed/disallowed)
+                // 11) No accident date
+                // 12) No accident report date
+                // 13) No incapacity begin date
+                // 14) No incapacity end date
+                // 15) Incapacity end date before begin date
+                // 16) Hcp ssin < 11
+                // 17) Hcp ssin > 11
+                // 18) Invalid hcp ssin
+                // 19) No hcp nihii
 
+                this.set("_bodyOverlay", true);
+                this.set("errorDialogLine1", this.localize("ehboxMedexErrorScenario_" + _.trim(errorScenario), "Error with validation " + errorScenario,this.language));
+                this.set("errorDialogLine2", this.localize("pleaseCorrectAndTryAgain", "Please correct the information and try again.",this.language));
+                this.set("errorDialogLine3", "");
+                this.$["errorDialog"].open();
 
+                return true;
 
-
-
-
-
-
+            }
 
             _addRecipient(){
 
                 const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
-
-                // return (!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) ? false : ( this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:_.get(this,"recipientType.id", "NIHII")})) && newMsgTo._clear() );
 
                 if(!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) return false
 
@@ -1449,8 +1875,11 @@
                     !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" :
                     "NIHII"
 
-                    // Need NIHII-HOSPITAL ?
-                    // Need NIHII-PHARMACY ?
+                // Need NIHII-HOSPITAL ?
+                // Need NIHII-PHARMACY ?
+
+                const keysToClean = ["cbe","ehp","nihii","ssin"]
+                _.map(keysToClean, k => !_.trim(_.get(newMsgTo.selectedItem, k, "")) ? false : newMsgTo.selectedItem[k] = newMsgTo.selectedItem[k].replace(/[^0-9]*/g,""))
 
                 this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:recipientType}))
 
@@ -1458,31 +1887,53 @@
 
             }
 
-            _wrapRecipientData(recipientObject){
+            _wrapRecipientData(recipientObject) {
+
+                const recipientId = !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
+                    !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) :
+                    !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) :
+                    _.trim( _.get(recipientObject, "nihii", ""))
+
                 return {
                     identifierType: { type:
                         // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-pharmacy" ? "PHARMACY" :
                         // _.trim(_.get(recipientObject,"type","")).toLowerCase() === "nihii-hospital" ? "HOSPITAL" :
-                        _.trim(_.get(recipientObject,"type",""))
+                            _.trim(_.get(recipientObject,"type",""))
                     },
-                    id: (
-                        !!_.trim( _.get(recipientObject, "cbe", "")) ? _.trim( _.get(recipientObject, "cbe", "")) :
-                        !!_.trim( _.get(recipientObject, "ehp", "")) ? _.trim( _.get(recipientObject, "ehp", "")) :
-                        !!_.trim( _.get(recipientObject, "ssin", "")) ? _.trim( _.get(recipientObject, "ssin", "")) :
-                        _.trim( _.get(recipientObject, "nihii", ""))
-                    ),
-                    quality: _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase(),
+                    id:recipientId,
+                    quality: !!_.trim(_.get(recipientObject,"quality","")) ? _.trim(_.get(recipientObject,"quality","doctor")).toUpperCase() : "DOCTOR",
                     applicationId: _.trim(_.get(recipientObject,"applicationID","")),
-                    lastName: _.trim(_.get(recipientObject,"lastName","")),
-                    firstName: _.trim(_.get(recipientObject,"firstName","")),
+                    lastName: !!_.trim(_.get(recipientObject,"lastName","")) ? _.trim(_.get(recipientObject,"lastName","")) : recipientId,
+                    firstName: !!_.trim(_.get(recipientObject,"firstName","")) ? _.trim(_.get(recipientObject,"firstName","")) : recipientId,
                     organizationName: (!_.trim(_.get(recipientObject,"lastName","")) && !_.trim(_.get(recipientObject,"firstName",""))) ? _.trim(_.get(recipientObject, "name", _.get(recipientObject, "companyName", ""))) : "",
                     personInOrganisation: ""
                 }
+
             }
+
+            _etkNotRetrieved() {
+
+                this.set("_bodyOverlay", true);
+
+                this.set("errorDialogLine1", this.localize("ehboxMissingEtkLine1", "Your recipient does not support message encryption.",this.language));
+                this.set("errorDialogLine2", this.localize("ehboxMissingEtkLine2", "Its ETK could not be found within the public keys repository.",this.language));
+                this.set("errorDialogLine3", this.localize("ehboxMissingEtkLine3", "Please get in touch with the support and/or with your recipient.",this.language));
+
+                return this.$["errorDialog"].open();
+
+            }
+
+
+
+
+
+
+
+
 
             _doSendMessageWithEhBox(){
 
-                // Error scenarii
+                // Error scenarios
                 const errorScenarioDialog = (!_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false)) ? "notConnectedDialog" :
                     !_.trim(_.get(this,"newMessage.document.title", "")) ? "missingSubjectDialog" :
                     !_.size(_.get(this,"newMessage.recipients", [])) ? "missingRecipientDialog" :
@@ -1511,7 +1962,6 @@
                             size: _singleAdditionalAnnex.size
                         }
                     })||[]))
-
 
                     const isImportant = !!_.get(this,"newMessage.important",false)
                     const isEncrypted = !!_.get(this,"newMessage.encrypted",false)
@@ -1547,6 +1997,9 @@
                         "CM-SenderName": _.get(customMetas, "CM-AuthorName",""),
                     },customMetas)
 
+                    // For medex
+                    if(!!_.size(_.get(this,"medexData.customMetas",{}))) _.merge(customMetas, _.get(this,"medexData.customMetas",{}))
+
                     // EhBox won't allow for empty values
                     Object.keys(customMetas).forEach(k =>{ if(!_.trim(customMetas[k])) try { delete customMetas[k] } catch(e){} })
 
@@ -1567,7 +2020,7 @@
                         freeText : _.get(this,"newMessage.document.textContent",""),
                         freeInformationTableTitle : null,
                         freeInformationTableRows : {},
-                        patientInss : _.get(this,"newMessage.patientInss",null),
+                        patientInss : !!_.trim(_.get(this,"newMessage.patientInss","")) ? _.trim(_.get(this,"newMessage.patientInss",null)) : null,
                         annex : annexes,
                         copyMailTo : [],
                         documentTitle : messageSubject,
@@ -1598,20 +2051,26 @@
                         .then(x=>sendMessageResponse=x)
                         .catch(x=>sendMessageResponse=x)
                         .finally(()=>{
+
                             this._resetLoadingMessage();
                             this.set('_isLoading', false );
-                            if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
-                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
-                            setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.remove('displayNotification'); },8000);
+
+                            // if(sendMessageResponse===true) { this._resetComponentData(); this.$['new-msg'].close(); } else { console.log("ERROR with _doSendMessageWithEhBox: ", sendMessageResponse); }
+                            // setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.add('displayNotification'); },100);
+                            // setTimeout(() => { this.$[(sendMessageResponse===true ? "success" : "failed")].classList.remove('displayNotification'); },8000);
+
+                            // Either went well [OR] couldn't find ETK (missing recipient public key) - when crypting message [OR] (hardcoded) -> "successfull" (labellisation)
+                            return sendMessageResponse===true ? this._confirmMessageSuccessfullySent() : _.trim(_.get(sendMessageResponse,"message","")) === "api-error403" ? this._etkNotRetrieved() : this._confirmMessageSuccessfullySent()
+
                         })
 
                 })
-                    .catch(e=>{
-                        this._resetLoadingMessage();
-                        this.set('_isLoading', false );
-                        this.$["failed"].classList.add('displayNotification')
-                        console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
-                    })
+                .catch(e=>{
+                    this._resetLoadingMessage();
+                    this.set('_isLoading', false );
+                    this.$["failed"].classList.add('displayNotification')
+                    console.log("ERROR with getCurrentHealthcareParty while _doSendMessageWithEhBox: ", e);
+                })
 
             }
 
