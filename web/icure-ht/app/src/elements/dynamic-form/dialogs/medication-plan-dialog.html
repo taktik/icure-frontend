@@ -1326,17 +1326,21 @@
                 this._contacts = contacts;
 
                 this._contacts.forEach(contact => {
-                    _.get(contact, 'subContacts', []).forEach(subContact => {
-                        _.get(subContact, 'services', []).forEach(service => {
+                    _.get(contact, "subContacts", []).forEach(subContact => {
+                        _.get(subContact, "services", []).forEach(service => {
                             this._getPrescription(prescriptions, service, contact);
                         });
                     });
-                    _.get(contact, 'services', []).forEach(service => {
+                    _.get(contact, "services", []).forEach(service => {
                         this._getPrescription(prescriptions, service, contact);
                     });
                 })
 
                 this.set("isLoading", true)
+
+                if (this.shadowRoot.querySelector("#prescription-history"))
+                    this.shadowRoot.querySelector("#prescription-history").setPrescriptions([]);
+
                 this.api.hcparty().getHealthcareParty(_.get(this.user, 'healthcarePartyId', null))
                     .then(hcp => this.set("hcp", hcp))
                     .then(() => (_.get(this.api, "tokenId", null) && _.get(this.patient, 'ssin', null) ? this.api.fhc().Recipecontroller().listOpenPrescriptionsByPatientUsingGET(_.get(this.api, 'keystoreId', null), _.get(this.api, 'tokenId', null), "persphysician", _.get(this.hcp, 'nihii', null), _.get(this.hcp, 'ssin', null), _.get(this.hcp, 'lastName', null), _.get(this.patient, 'ssin', null), _.get(this.api, 'credentials.ehpassword', null)) : Promise.resolve([])))
@@ -1374,9 +1378,24 @@
                         //TODO: get feedback for every recip-e prescription
                         //this.api.fhc().Recipecontroller().listFeedbacksUsingGET(this.api.keystoreId, this.api.tokenId, "persphysician", this.hcp.nihii, this.hcp.ssin, this.hcp.lastName, this.api.credentials.ehpassword, rid)
 
+                        const getFeedback = _.get(this.api, "tokenId", null) && _.get(this.patient, 'ssin', null) ? prescriptions.filter(p => p.rid).map(p => {
+                            return this.api.fhc().Recipecontroller().listFeedbacksUsingGET(
+                                _.get(this.api, 'keystoreId', null),
+                                _.get(this.api, 'tokenId', null),
+                                "persphysician",
+                                _.get(this.hcp, 'nihii', null),
+                                _.get(this.hcp, 'ssin', null),
+                                _.get(this.hcp, 'lastName', null),
+                                _.get(this.api, 'credentials.ehpassword'), p.rid);
+                        }) : [];
+
                         return Promise.all(promises).then(() => {
                             this.shadowRoot.querySelector("#prescription-history").hcp = this.hcp;
                             this.shadowRoot.querySelector("#prescription-history").setPrescriptions(prescriptions);
+                            Promise.all(getFeedback).then((fbs) => {
+                                console.log("get feedbacks");
+                            });
+                        }).finally(() => {
                             this.set("isLoading", false)
                         });
                     })
@@ -1386,19 +1405,23 @@
                 this.dispatchEvent(e);//new CustomEvent('print-prescription', e));
             }
 
+            _getMedicationValue(service) {
+                return _.get(this.api.contact().preferredContent(service, this.language), "medicationValue", null);
+            }
+
             _getPrescription(prescriptions, service, contact) {
                 if (!service) return;
                 if (service.label === "Prescription" ||
                     (service.tags && service.tags.some(t => t.type === "ICURE" && t.code === "PRESC"))) {
-                    const medicationValue = service.content.fr.medicationValue;
-                    const medicinalProduct = medicationValue ? medicationValue.medicinalProduct : null;
+                    const medicationValue = this._getMedicationValue(service);
+                    const medicinalProduct = _.get(medicationValue, "medicinalProduct" , null);
                     if (medicinalProduct) {
                         const prescription = {
                             service: service,
                             contact: contact,
                             date: this.api.moment(service.valueDate).format("DD/MM/YYYY"),
-                            name: medicinalProduct ? medicinalProduct.intendedname : "unknown",
-                            rid: medicationValue.prescriptionRID ? medicationValue.prescriptionRID : null,
+                            name: _.get(medicinalProduct, "intendedname", "unknown"),
+                            rid: _.get(medicationValue, "prescriptionRID", null),
                             atc: _.get(service.codes.find(c => c.type === "CD-ATC"), "code"),
                             cnk: _.get(service.codes.find(c => c.type === "CD-DRUG-CNK"), "code"),
                             cds: medicinalProduct ? medicinalProduct.intendedcds.map(c => c.code) : "unknown",
