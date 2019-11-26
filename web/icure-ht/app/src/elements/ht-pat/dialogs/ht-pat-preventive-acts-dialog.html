@@ -192,6 +192,21 @@
                 width: 20%;
             }
 
+            .sort {
+                display: flex;
+                flex-flow: row nowrap;
+                cursor: pointer;
+            }
+
+            .sort-button {
+                display: inline;
+                position: relative;
+                padding: 0px;
+                margin: 0px;
+                width: 16px;
+                height: 16px;
+            }
+
             .sidebar-filter {
                 display: flex;
                 flex-flow: row nowrap;
@@ -263,12 +278,27 @@
 
                         <div class="sidebar-content">
                             <div class="header">
-                                <div class="col-1 col hdr">[[localize('dat','Date',language)]]</div>
-                                <div class="col-2 col hdr">[[localize('lab','Label',language)]]</div>
-                                <div class="col-3 col hdr">[[localize('sta','Status',language)]]</div>
+                                <div id="date" class="sort col-1 col hdr" on-tap="_sortBy" >
+                                    <div>[[localize('dat', 'Date', language)]]</div>
+                                    <template is="dom-if" if="[[_isSortedBy('date', sort)]]">
+                                        <paper-icon-button id="sortDate" class="sort-button" icon="[[_sortIcon('date', sort)]]" hover="none"></paper-icon-button>
+                                    </template>
+                                </div>
+                                <div id="label" class="sort col-2 col hdr" on-tap="_sortBy" >
+                                    <div>[[localize('lab', 'Label', language)]]</div>
+                                    <template is="dom-if" if="[[_isSortedBy('label', sort)]]">
+                                        <paper-icon-button id="sortLabel" class="sort-button" icon="[[_sortIcon('label', sort)]]" hover="none"></paper-icon-button>
+                                    </template>
+                                </div>
+                                <div id="status" class="sort col-3 col hdr" on-tap="_sortBy" >
+                                    <div>[[localize('sta', 'Status', language)]]</div>
+                                    <template is="dom-if" if="[[_isSortedBy('status', sort)]]">
+                                        <paper-icon-button id="sortStatus" class="sort-button" icon="[[_sortIcon('status', sort)]]" hover="none"></paper-icon-button>
+                                    </template>
+                                </div>
                             </div>
                             <paper-listbox id="menu" class="menu-content sublist" selected="[[selectedItem]]" attr-for-selected="id">
-                                <template is="dom-repeat" items="[[services]]">
+                                <template id="servicesList" is="dom-repeat" items="[[services]]">
                                     <paper-item id="id_[[item.id]]" class$="menu-trigger menu-item [[isIronSelected(selected)]] one-line-menu" aria-selected="[[selected]]" on-tap="_select">
                                         <div class="col-1 col" data-id$="[[id]]">[[_formatDate(item, services, refresher)]]</div>
                                         <div class="col-2 col" data-id$="[[id]]">[[_getContent(item, services, refresher)]]</div>
@@ -359,6 +389,10 @@
                         type: String,
                         value: ''
                     },
+                    sort: {
+                        type: String,
+                        value: "date"
+                    },
                     refresher: {
                         type: Number,
                         value: 0
@@ -407,14 +441,55 @@
                 return this.api.moment(Date.now()).add(1, 'd');
             }
 
-            _compareDate(a, b) {
-                return a && b ? this.api.moment(a).diff(this.api.moment(b), 'days') : null
+            _isSortedBy(label) {
+                return this.sort.startsWith(label);
+            }
+
+            _sortIcon() {
+                return this.sort.endsWith("-desc") ? "icons:arrow-drop-down" : "icons:arrow-drop-up"
+            }
+
+            _sortBy(e) {
+                const label = e.currentTarget.id;
+                if (this._isSortedBy(label)) {
+                    this._sort(!this.sort.endsWith("-desc") ? label + "-desc" : label)
+                    return;
+                }
+                this._sort(label)
+            }
+
+            _sort(order) {
+                this.set("sort", order)
+                this.set("services", this._filteredServices.sort((a, b) => this._compare(order, a, b)));
+                this.shadowRoot.querySelector('#servicesList').render() ;
+            }
+
+            _compare(order, a, b) {
+                if (order.startsWith("date")) {
+                    if (order.endsWith("-desc"))
+                        return this._compareDates(b.valueDate, a.valueDate);
+                    return this._compareDates(a.valueDate, b.valueDate);
+                }
+                if (order.startsWith("label")) {
+                    if (order.endsWith("-desc"))
+                        return this._getContent(b).localeCompare(this._getContent(a));
+                    return this._getContent(a).localeCompare(this._getContent(b));
+                }
+                if (order.startsWith("status")) {
+                    if (order.endsWith("-desc"))
+                        return this._formatStatus(b).localeCompare(this._formatStatus(a));
+                    return this._formatStatus(a).localeCompare(this._formatStatus(b));
+                }
+            }
+
+            _compareDates(a, b) {
+                return a && b ? this.api.moment(a).diff(this.api.moment(b), 'days') : null;
             }
 
             _between(date, min, max) {
-                if (min && max) return this._compareDate(date, min) >= 0 && this._compareDate(date, max) <= 0;
-                if (min) return this._compareDate(date, min) >= 0;
-                if (max) return this._compareDate(date, max) <= 0;
+                if (min && max) return this._compareDates(date, min) >= 0 && this._compareDates(date, max) <= 0;
+                if (min) return this._compareDates(date, min) >= 0;
+                if (max) return this._compareDates(date, max) <= 0;
                 return true;
             }
 
@@ -439,9 +514,9 @@
                 if (this.filterLabel && this.filterLabel.length > 0)
                     services = services.filter(s => this._getContent(s).includes(this.filterLabel));
                 if (this.filterStatus)
-                    services = services.filter(s => this._getStatus(s) === this.filterStatus.id);
-                services = services.sort((a, b) => this._compareDate(a.valueDate, b.valueDate));
-                this.set("services", services);
+                    services = services.filter(s => this._getStatus(s) === this.filterStatus);
+                this._filteredServices = services;
+                this._sort(this.sort);
             }
 
             _getContent(svc){

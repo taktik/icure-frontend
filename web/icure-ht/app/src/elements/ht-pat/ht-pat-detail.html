@@ -3907,19 +3907,40 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$.planActionForm.open(svc)
             }
 
+            _cloneService(detail) {
+                const service = _.cloneDeep(detail.service);
+                delete service.id;
+                delete service.created;
+                delete service.modified;
+                service.valueDate = parseInt(detail.next);
+                let tag = service.tags.find(t => t.type == 'CD-LIFECYCLE');
+                if (tag)
+                    tag.code = "pending";
+                return this.api.contact().service().newInstance(this.user, service);
+            }
+
             _createService(e) {
                 if (!this.currentContact) return;
                 const hes = e.detail.hes || []
                 const allContacts = (this.currentContact ? [this.currentContact] : []).concat(this.contacts)
+
+                let services = [];
+                if (e.detail.service) {
+                    services.push(this.api.contact().service().newInstance(this.user, e.detail.service));
+                    if (e.detail.next)
+                        services.push(this._cloneService(e.detail));
+                }
                 Promise.all(hes.map(he => he.id ? Promise.resolve(he) : this.contact().promoteServiceToHealthElement(he))).then(hes =>
-                    this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, this.api.contact().service().newInstance(this.user, e.detail.service), null, {}, hes.map(he => he.id), e.detail.function || undefined)
+                    services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, hes.map(he => he.id), e.detail.function || undefined))
                 ).then(() => this.saveContact(this.currentContact))
             }
 
             _updateServices(e) {
                 if (!this.currentContact) return;
                 const allContacts = (this.currentContact ? [this.currentContact] : []).concat(this.contacts)
-                const services = (e.detail.services || (e.detail.service && [e.detail.service]) || [] )
+                let services = (e.detail.services || (e.detail.service && [e.detail.service]) || [] )
+                if (e.detail.next && e.detail.service)
+                    services.push(this._cloneService(e.detail));
                 const heIds = e.detail.hes ? e.detail.hes.map(he => he.id) : [];
                 if (this.currentContact.subContacts && e.detail.hes)
                     this.currentContact.subContacts = this.currentContact.subContacts.filter(c => !c.healthElementId || heIds.includes(c.healthElementId));
