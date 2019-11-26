@@ -2723,6 +2723,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             <div class="horizontal">
                 <vaadin-date-picker label="[[localize('startDate','Start date',language)]]" i18n="[[i18n]]" value="{{dateStartAsString}}"></vaadin-date-picker>
                 <vaadin-date-picker label="[[localize('endDate','End date',language)]]" i18n="[[i18n]]" value="{{dateEndAsString}}"></vaadin-date-picker>
+                <vaadin-combo-box style="vertical-align: top; min-width: 260px" id="moreOptionsUsers" filter="{{moreOptionsUsersFilter}}" filtered-items="[[moreOptionsUsers]]"
+                                  item-label-path="name" item-value-path="id"
+                                  label="[[localize('user','User',language)]]"
+                                  value="{{moreOptionsUser}}"></vaadin-combo-box>
+                <!--
+                <vaadin-combo-box style="vertical-align: top; min-width: 260px" id="moreOptionsUsers" filtered-items="[[moreOptionsUsers]]"
+                                  item-label-path="name" item-value-path="id"
+                                  label="[[localize('user','User',language)]]"
+                                  value="{{moreOptionsUser}}"></vaadin-combo-box>
+                                  -->
             </div>
             <div class="horizontal">
                 <label style="display:flex;"><b>[[localize('sta','Status',language)]]</b></label>
@@ -2758,7 +2768,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
             </div>
             <div class="buttons">
-                <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_closeMoreOptions">[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
         <ht-pat-preventive-acts-dialog id="preventiveActs" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" linkables="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" contacts="[[contacts]]" on-open-action="openActionDialog" on-create-service="_createService" on-update-service="_updateServices" services-refresher="[[servicesRefresher]]"></ht-pat-preventive-acts-dialog>
@@ -3263,6 +3273,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: String,
                         value: ""
                     },
+                    moreOptionsUsersFilter: {
+                        type: String,
+                        value: null
+                    },
+                    moreOptionsUsers: {
+                        type: Array,
+                        value: () => []
+                    },
+                    moreOptionsUser: {
+                        type: Object,
+                        value: () => {}
+                    },
                     contactStatusAll: {
                         type: Boolean,
                         value: true
@@ -3327,7 +3349,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     'hcpChanged(user)',
                     'showPatientHubState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*)',
                     'checkSumehrPresentOnHub(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*, hubReady)',
-                    'showPatientSumehrState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*, sumehrOnHubChecked, sumehrPresentOnHub, sumehrContentOnPatientLoad, sumehrContentOnPatientRefresh, hubEndPoint)'
+                    'showPatientSumehrState(currentConsents, currentConsents.*, currentTherLinks, currentTherLinks.*, sumehrOnHubChecked, sumehrPresentOnHub, sumehrContentOnPatientLoad, sumehrContentOnPatientRefresh, hubEndPoint)',
+                    '_moreOptionsUsersFilterChanged(moreOptionsUsersFilter)'
                 ];
             }
 
@@ -3414,10 +3437,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     { key: "dbp", code: "dbp", chart: "bp", regex: null },
                 ];
 
-                return this.api.getDocumentTypes(this.resources, this.language)
-                    .then(documentTypes => this.set("documentTypes", _.concat([{code: 'all', name: this.localize('all', 'All', this.language)}], documentTypes)))
-                    .then(() => this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0])
-
+                return this.api.user().listUsers().then((users) => {
+                    //this.set("moreOptionsUsers", users.rows);
+                    this._moreOptionsUsers = users.rows;
+                    this.api.getDocumentTypes(this.resources, this.language)
+                        .then(documentTypes => this.set("documentTypes", _.concat([{code: 'all', name: this.localize('all', 'All', this.language)}], documentTypes)))
+                        .then(() => this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0])
+                })
             }
 
             wideClass(rev) {
@@ -5098,6 +5124,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$['select-more-options-dialog'].open()
             }
 
+            _closeMoreOptions() {
+                this.$['select-more-options-dialog'].close();
+                this._refreshContacts();
+            }
+
             _selectBetweenTwoDates() {
 
                 this.set('timeSpanStart', moment(this.dateStartAsString).format('YYYYMMDD')==="Invalid date" ? null :parseInt(moment(this.dateStartAsString).format('YYYYMMDD')));
@@ -5168,7 +5199,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 //    console.log("printed");
                 //    this.set('SpinnerActive', false);
                 //});
-                printer._printPatient(this.patient, contacts, this.documentTypes, this.patientHealthCarePartiesById, () => {
+                const selectedContacts = this.selectedContacts && this.selectedContacts.length > 1 ? this.selectedContacts : contacts;
+                printer._printPatient(this.patient, selectedContacts, this.documentTypes, this.patientHealthCarePartiesById, () => {
                     console.log("printed");
                     this.set('SpinnerActive', false);
                 });
@@ -5257,6 +5289,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             this.statutFilter==="all" || this.contactStatutChecked.some(id => id===ctc.id)
                         )
                         && (
+                            !this.moreOptionsUser || this.moreOptionsUser === ctc.author
+                        )
+                        && (
                             this.contactStatusFilter === "all" || (
                                 // 1<<0 = Labresult ; 1<<5 = Protocol ; 1<<6 = imported document
                                 (ctc.subContacts.some(s => !!(parseInt(_.get(s, "status", 0)) & (1 << 0)) || !!(parseInt(_.get(s, "status", 0)) & (1 << 5)) || !!(parseInt(_.get(s, "status", 0)) & (1 << 6)) ) ) && (
@@ -5270,6 +5305,27 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         )
                         || !ctc.closingDate;
 
+                }
+            }
+
+            _moreOptionsUsersFilterChanged(){
+                if(this.moreOptionsUsersFilter){
+                    const keywordsString = _.trim(_.get(this,"moreOptionsUsersFilter","")).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")
+                    const keywordsArray = _.compact(_.uniq(_.map(keywordsString.split(" "), i=>_.trim(i))))
+                    setTimeout(() => {
+                        if(parseInt(_.get(keywordsString,"length",0)) > 0) {
+                            const results =  _.chain(_.get(this, "_moreOptionsUsers", []))
+                                .chain(_.get(this, "moreOptionsUsersFilter", []))
+                                .filter(i => _.size(keywordsArray) === _.size(_.compact(_.map(keywordsArray, keyword => i.name.toLowerCase().normalize('NFD').includes(keyword) ? keyword : null))))
+                                .compact()
+                                .uniq()
+                                .orderBy(['name'], ['asc'])
+                                .value()
+                            this.set('moreOptionsUsers', _.sortBy(results, ['name'], ['asc']))
+                        }else{
+                            this.set('moreOptionsUsers', _.sortBy(this._moreOptionsUsers, ['name'], ['asc']))
+                        }
+                    }, 100)
                 }
             }
 
