@@ -217,9 +217,7 @@
 
             linkService(e) {
                 const he = e.detail.healthElement
-                if (!he) {
-                    return;
-                }
+                if (!he) return;
                 const ctc = this.currentContact
                 ;(he.id ? Promise.resolve(he) : this.promoteServiceToHealthElement(he)).then(he => {
                         this.dataProvider.getServicesInContact(e.detail.representedObject).forEach(svcStruc => svcStruc && svcStruc[0] && svcStruc[0].svc && !!svcStruc[0].svc.endOfLife && this.api.contact().promoteServiceInContact(ctc, this.user, this._allContacts(), svcStruc[0].svc, this.form.id, null, [he.id]))
@@ -230,9 +228,7 @@
 
             unlinkService(e){
                 const he = e.detail.healthElement
-                if (!he) {
-                    return;
-                }
+                if (!he) return;
                 const heIndex = _.findIndex(this.currentContact.subContacts,subC => subC.healthElementId === he.id);
                 this.splice("currentContact.subContacts", heIndex , 1)
                 this.scanServicesAndScheduleSave(this.currentContact)
@@ -240,47 +236,36 @@
 
             linkForm(e) {
                 const he = e.detail.healthElement
-                if (!he) {
-                    return;
-                }
+                if (!he) return;
                 const ctc = this.currentContact
                 if (!he.id) {
                     this.promoteServiceToHealthElement(he).then(he => {
                         _.assign(e.detail.healthElement, he) //Prevent subsequent promotions
-                        if (!ctc.subContacts.some(sc => sc.formId === this.formId && sc.healthElementId === he.id)) {
-                            if (this.contact === ctc) {
-                                this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
-                            } else {
-                                ctc.subContacts.push({formId: this.formId, healthElementId: he.id, services: []})
-                            }
-
-                            this.scanServicesAndScheduleSave(ctc);
-                        }
+                        if (!ctc.subContacts.some(sc => sc.formId === this.formId && sc.healthElementId === he.id))
+							this._link(he, ctc)
                     });
-                } else if (!this._selectedHes().includes(he.id)) {
-                    if (this.contact === ctc) {
-                        this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
-                    } else {
-                        ctc.subContacts.push({formId: this.formId, healthElementId: he.id, services: []})
-                    }
-
-                    this.scanServicesAndScheduleSave(ctc);
-                }
+                } else if (!this._selectedHes().includes(he.id))
+					this._link(he, ctc)
             }
+
+            _link(he, ctc) {
+				if (this.contact === ctc)
+					this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
+				else
+					ctc.subContacts.push({formId: this.formId, healthElementId: he.id, services: []})
+				this.scanServicesAndScheduleSave(ctc);
+			}
 
             _openActionDialog(e, detail) {
                 this.dispatchEvent(new CustomEvent('plan-action', {detail: this.dataProvider && this.dataProvider.getStringValue(detail.representedObject), bubbles: true, composed: true})); //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
             }
 
             _selectedHes() {
-                if (!this.dataProvider || !this.healthElements) {
+                if (!this.dataProvider || !this.healthElements)
                     return []
-                }
-
                 const svcsStructs = _.chain(this.dataProvider.servicesInHierarchy()).map(svcLine => svcLine[0]).compact().value()
                 const heIds = _.chain(svcsStructs).flatMap(svcstr => svcstr.ctc.subContacts.filter(sc => sc.services.some(s => s.serviceId === svcstr.svc.id)).map(sc => sc.healthElementId)).compact().uniq().value()
                 const scHeIds = _.chain(this.contact.subContacts.filter(sc => sc.formId === this.formId).map(sc => sc.healthElementId)).compact().uniq().value()
-
                 return this.healthElements.filter(he => he.id && (heIds.includes(he.id) || scHeIds.includes(he.id)))
             }
 
@@ -532,16 +517,16 @@
                             const orderedComputables = visit(computables, [])
 
                             if (orderedComputables.length) {
-                                const env = new evaljs.Environment({
-                                    patient: this.patient,
-                                    contact: this.contact,
-                                    contacts: this.contacts,
-                                    x: _.keys(this.servicesMap).reduce((x, label) => {
-                                        x[label] = self.getRawValue(label)
-                                        return x
-                                    }, {})
-                                });
                                 return Promise.all(orderedComputables.map(comp => {
+                                    const env = new evaljs.Environment({
+                                        patient: this.patient,
+                                        contact: this.contact,
+                                        contacts: this.contacts,
+                                        x: _.keys(this.servicesMap).reduce((x, label) => {
+                                            x[label] = self.getRawValue(label)
+                                            return x
+                                        }, {})
+                                    });
 
                                     const f = (comp.li.formulas || []).find(f => f && f.lifecycle && lifecycles.includes(f.lifecycle.toString()))
 
@@ -561,6 +546,7 @@
                                     ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'object') && self.setMeasureValue(comp.name, Number(compValue.toFixed(3)) || null, false);
                                     ;['DateTimeEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && self.setDateValue(comp.name, status.value || null, false);
                                     ;['DateTimeEditor'].includes(comp.li.editor.key) && (typeof compValue === 'string') && self.setDateValue(comp.name,isNaN(Date.parse(compValue)) ? compValue : Date.parse(compValue) || null, false);
+                                    ;['CheckBoxEditor'].includes(comp.li.editor.key) && (typeof compValue === 'boolean') && self.setBooleanValue(comp.name, compValue || false,false);
 
                                     this.root.querySelector('#dynamic-form') && this.root.querySelector('#dynamic-form').notify((rootPath.length ? rootPath + '.' : '') + comp.name)
 
@@ -674,8 +660,15 @@
                                     _.pull(currentValueContainers, currentValueContainers.find(s => s.id === container.id));
                                 }
                                 if (!prevSvc || !_.isEqual(prevSvc.content, container.content)) {
-                                    self.dispatchService(_.extend(this.createService(label, form.id, null, (this.highlightedHes || []).map(he => he.id), container.id, initWrapper(label)),
-                                        {index: container.index, content: _.cloneDeep(container.content), codes: container.codes && container.codes.map(_.cloneDeep)}));
+                                	const createdSvc = this.createService(label, form.id, null, (this.highlightedHes || []).map(he => he.id), container.id, initWrapper(label));
+                                    self.dispatchService(_.extend(
+                                    		createdSvc,
+                                        	{
+                                        		index: container.index,
+												content: _.cloneDeep(container.content),
+												codes: container.codes && container.codes.map(_.cloneDeep),
+												tags: _.unionBy(createdSvc.tags, container.tags && container.tags.map(_.cloneDeep), "type")
+                                        	}));
                                     return true;
                                 }
                             }
@@ -948,6 +941,11 @@
                             }
                         });
                     },
+					radioButtonChecked: (group,checkedName) =>{
+						form = form || this.form
+						const layoutItems = _.flatten(_.flatten(form.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
+						layoutItems.filter(item =>item.editor && item.editor.key==="CheckBoxEditor" && item.editor.groupRadio && item.editor.groupRadio===group && item.name!==checkedName).map(box =>  self.setBooleanValue(box.name,false,false))
+					},
                     filter: (data, text, deduplicationUuid, id) => {
                         if (data.source !== "codes") { return id ? Promise.resolve({}) : Promise.resolve([]) }
 
@@ -1029,7 +1027,6 @@
             deleteForm() {
                 this.dataProvider.deleteForm && this.dataProvider.deleteForm();
             }
-
 
             linkAllServicesInForm(he) {
                 _.compact(this.dataProvider.servicesInHierarchy().map(svcLine => svcLine[0])) //Latest version of all services

@@ -251,8 +251,7 @@
                             <paper-item id="[[item.id]]" class$="menu-trigger menu-item [[isIronSelected(selected)]]" aria-selected="[[selected]]" on-tap="toggleMenu" elevation="">
                                 <div class="one-line-menu">
                                     <span class="force-left force-ellipsis box-txt">[[item.name]]</span>
-
-                                   <!-- <span>[[item.name]]</span>-->
+                                    <!-- <span>[[item.name]]</span>-->
                                 </div>
                             </paper-item>
                         </template>
@@ -266,9 +265,9 @@
                         </paper-tab>
                     </paper-tabs>
                     <page>
-                        <div class="charts-menu-content">
-                            <ht-spinner active="[[isLoading]]"></ht-spinner>
-                            <canvas id="chart" class="charts" height="380"></canvas>
+                        <!--<ht-spinner active="[[isLoading]]"></ht-spinner>-->
+                        <div class="chart-container" style="position: relative; height:calc(100% - 60px); width:100%;">
+                            <canvas id="chart"></canvas>
                         </div>
                     </page>
                 </div>
@@ -333,7 +332,7 @@
             }
 
             static get observers() {
-                return ['apiReady(api,user,opened)', 'selectedTabChanged(tabs)'];
+                return [];
             }
 
             ready() {
@@ -342,7 +341,6 @@
                 this._labResults = [
                     {
                         id: "hemo",
-                        name: "Hémoglobine",
                         regex: /^HÉMOGLOBINE$/,
                         series: [
                             {
@@ -359,7 +357,7 @@
 
                             },
                             {
-                                label: "value",
+                                label: this.localize('chart-value', 'Value', this.language),
                                 value: "value",
                                 backgroundColor: "rgba(28,254,101,0.2)",
                                 borderColor: "rgb(28,254,101)"
@@ -368,8 +366,7 @@
                         samples: [ "HÉMOGLOBINE" ]
                     },
                     {
-                        id: "glycemie",
-                        name: "Glycémie",
+                        id: "glycemia",
                         regex: /^GLYCEMIE|GLYCÉMIE|GLYC,MIE/,
                         series: [
                             {
@@ -443,8 +440,44 @@
                         ]
                     },
                     {
+                        id: "cholesterol",
+                        regex: /^CHO-LDL|CHOLESTASE|CHOLESTEROL|CHOLEST,ROL|CHOLESTÚROL/,
+                        series: [
+                            {
+                                label: "value",
+                                value: "value",
+                                backgroundColor: "rgba(255,99,132,0.2)",
+                                borderColor: "rgba(254,99,132,2)"
+                            }
+                        ],
+                        samples: [
+                            "CHO-LDL / CHO-HDL",
+                            "CHOLESTASE",
+                            "CHOLESTEROL",
+                            "CHOLESTEROL HDL",
+                            "CHOLESTEROL LDL",
+                            "CHOLESTEROL LDL CALCULE",
+                            "CHOLESTEROL LIE AUX L.D.L",
+                            "CHOLESTEROL LIE AUX VLDL",
+                            "CHOLESTEROL NON HDL",
+                            "CHOLESTEROL TOTAL",
+                            "CHOLESTEROL TOTAL/HDL",
+                            "CHOLESTEROL TOT./HDL",
+                            "CHOLEST,ROL",
+                            "CHOLEST,ROL HDL",
+                            "CHOLEST,ROL LDL",
+                            "CHOLEST,ROL LDL CALCUL,",
+                            "CHOLESTÚROL",
+                            "CHOLESTÚROL HDL",
+                            "CHOLESTÚROL LDL",
+                            "CHOLESTÚROL LDL CALCULÚ",
+                            "CHOLESTÚROL TOTAL",
+                            "CHOLESTÚROL TOTAL/HDL",
+                            "CHOLESTUROL NON HDL"
+                        ]
+                    },
+                    {
                         id: "hba1c",
-                        name: "Hemoglobine glyquée",
                         regex: /^HB(81|\sA1C|C\sANTICORPS|\sGLYCOSYLEE|\sGLYCOSYL,E|\sGLYCOSYLÚE|\sGLYQUEE|S\sAG|S\sANTICORPS)]/,
                         series: [
                             {
@@ -480,7 +513,6 @@
                     },
                     {
                         id: "microalbumine",
-                        name: "Microalbumine",
                         regex: /^MICROALB|MICRO-ALB/,
                         series: [
                             {
@@ -503,7 +535,6 @@
                     },
                     {
                         id: "vitamined",
-                        name: "Vitamine D",
                         regex: /^VITAMINE\sD/,
                         series: [
                             {
@@ -525,12 +556,6 @@
             }
 
             apiReady() {
-                if (!this.api || !this.user || !this.user.id || !this.opened) return;
-
-                try {
-                } catch (e) {
-                    console.log(e);
-                }
             }
 
             toggleMenu(e) {
@@ -540,11 +565,6 @@
 
             isIronSelected(selected) {
                  return selected ? 'iron-selected' : '';
-            }
-
-
-            selectedTabChanged(){
-
             }
 
             select(id) {
@@ -562,56 +582,38 @@
                 });
 
                 let chart = this.charts.find(chart => chart.id == id);
-                this.$['chart'] =
-                    new Chart(this.$['chart'], {
-                        type: chart.info.type,
-                        data: chart.info.data,
-                        options: {
-                            responsive: true,
-                            aspectRatio: 3,
-                            maintainAspectRatio: false
-                        }
-                    });
+
+                if (this.chart)
+                    this.chart.destroy();
+                
+                this.chart = new Chart(this.$['chart'], {
+                    type: chart.info.type,
+                    data: chart.info.data,
+                    options: {
+                        responsive: true,
+                        aspectRatio: 3,
+                        maintainAspectRatio: false
+                    }
+                });
             }
 
             attached() {
                 super.attached();
-                this.async(this.notifyResize());
+                //this.async(this.notifyResize());
             }
 
-            open() {
+            open(code) {
+                this._code = code ? code : 'bmi';
                 this.$['chartsDialog'].open();
-                this.isLoading = true;
-                setTimeout(()=> {
-                    this._refresh();
-                    if (!this.selectedItem)
-                        this.select('bmi');
-                    this.isLoading = false;
+                this._initialize();
+
+                this.set("isLoading", true);
+                this._timer = setTimeout(()=> {
+                    this.set("isLoading", false);
+                    this.select(this._code);
+                    clearTimeout(this._timer);
+                    this._timer = null;
                 }, 1000);
-
-            }
-
-            _initializeCharts2() {
-                this.$['bmiChart'] =
-                    new Chart(this.$['bmiChart'], {
-                        type: 'line',
-                        data: {}
-                    });
-            }
-
-            _initializeCharts() {
-                this.charts.map(chart => {
-                    this.shadowRoot.querySelector("#"+_.get(chart, 'id', null) + "Chart") ?
-                        new Chart(this.shadowRoot.querySelector("#"+_.get(chart, 'id', null) + "Chart"), {
-                            type: _.get(chart, 'info.type', 'line'),
-                            data: _.get(chart, 'info.data', {}),
-                            options: {
-                                responsive: true,
-                                aspectRatio: 2,
-                                maintainAspectRatio: false
-                            }
-                        }) : null
-                });
             }
 
             _match(service, labResult) {
@@ -619,84 +621,78 @@
                 return (label.match(labResult.regex) || labResult.samples.includes(label));
             }
 
-            _initializeChartsDataProvider() {
+            _getContentValue(s, name) {
+                return _.get(s, "content." + this.language + "." + name,
+                    _.get(s, "content.fr." + name, _.get(s, "content.measure." + name, null)));
+            }
+
+            _hasValue(s) {
+                return !!this._getValue(s);
+            }
+
+            _getValue(s) {
+                const value = this._getContentValue(s, "measureValue.value");
+                return value ? value : this._getContentValue(s, "numberValue");
+            }
+
+            _getLabels(code) {
+                return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) && this._hasValue(s) ? this.api.moment(_.get(s, 'valueDate', null)).format('DD/MM/YYYY') : null)) || [];
+            }
+
+            _getValues(code) {
+                return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) ? this._getValue(s) : null)) || [];
+            }
+
+            _compareValueDates(a, b) {
+                return this.api.moment(b).diff(this.api.moment(a), "minutes");
+            }
+
+            _newChart(id) {
+                return {
+                    id: id,
+                    name: this.localize('chart-' + id, id, this.language),
+                    info: {
+                        type: 'line',
+                        data: {
+                            labels: this._getLabels(id),
+                            datasets: [{
+                                label: this.localize('chart-' + id, id, this.language),
+                                fillColor: "transparent",
+                                data: this._getValues(id),
+                                lineTension: 0.1,
+                                backgroundColor: "rgba(255,99,132,0.2)",
+                                borderColor: "rgba(254,99,132,2)"
+                            }]
+                        },
+                        options: {}
+                    }
+                }
+            }
+
+            _initialize() {
                 let charts = [
-                    {
-                        id: 'bmi',
-                        name: 'Mesure du BMI',
-                        info: {
-                            type: 'line',
-                            data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "bmi" && _.get(s, 'content.'+this.language+'.numberValue', null)) ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)) || [],
-                                datasets: [{
-                                    label: "BMI",
-                                    fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "bmi" && _.get(s, 'content.'+this.language+'.numberValue', null)) ? _.get(s, 'content.fr.numberValue', null) : null)) || [],
-                                    lineTension: 0.1,
-                                    backgroundColor: "rgba(255,99,132,0.2)",
-                                    borderColor: "rgba(254,99,132,2)"
-                                }]
-                            },
-                            options: {}
-                        }
-                    },
-                    {
-                        id: 'weight',
-                        name: 'Poids',
-                        info: {
-                            type: 'line',
-                            data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "weight") ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)) || [],
-                                datasets: [{
-                                    label: "Weight",
-                                    fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "weight") ? _.get(s, 'content.fr.measureValue.value', null) : null)) || [],
-                                    lineTension: 0.1,
-                                    backgroundColor: "rgba(255,99,132,0.2)",
-                                    borderColor: "rgba(254,99,132,2)"
-                                }]
-                            },
-                            options: {}
-                        }
-                    },
-                    {
-                        id: 'height',
-                        name: 'Taille',
-                        info: {
-                            type: 'line',
-                            data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "height") ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)) || [],
-                                datasets: [{
-                                    label: "Height",
-                                    fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "height") ? _.get(s, 'content.fr.measureValue.value', null) : null)) || [],
-                                    lineTension: 0.1,
-                                    backgroundColor: "rgba(255,99,132,0.2)",
-                                    borderColor: "rgba(254,99,132,2)"
-                                }]
-                            },
-                            options: {}
-                        }
-                    },
+                    this._newChart("bmi"),
+                    this._newChart("weight"),
+                    this._newChart("height"),
                     {
                         id: 'bp',
-                        name: 'Tension artérielle',
+                        name: this.localize('chart-bp', 'bp', this.language),
                         info: {
                             type: 'line',
                             data: {
-                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "dbp") ? this.api.moment(_.get(s, 'created', null)).format('DD/MM/YYYY') : null)),
+                                labels: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "dbp") ? this.api.moment(_.get(s, 'valueDate', null)).format('DD/MM/YYYY') : null)),
                                 datasets: [{
-                                    label: "Tension systolique",
+                                    label: this.localize('chart-sbp', 'Systolic blood pressure', this.language),
                                     fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "sbp") ? _.get(s, 'content.fr.measureValue.value', null) : null)) || [],
+                                    data: this._getValues("sbp"),
                                     lineTension: 0.1,
                                     backgroundColor: "rgba(255,99,132,0.2)",
                                     borderColor: "rgba(254,99,132,2)"
                                 },
                                 {
-                                    label: "Tension diastolique",
+                                    label: this.localize('chart-dbp', 'Diastolic blood pressure', this.language),
                                     fillColor: "transparent",
-                                    data: _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === "dbp") ? _.get(s, 'content.fr.measureValue.value', null) : null)) || [],
+                                    data: this._getValues("dbp"),
                                     lineTension: 0.1,
                                     backgroundColor: "rgba(28,101,254,0.2)",
                                     borderColor: "rgb(28,101,254)"
@@ -712,9 +708,10 @@
                     const services = contacts.flatMap(c => c.services.filter(s => this._match(s, labResult)));
                     console.log(labResult.name + " " + services.length);
                     if (services.length > 0) {
+                        services.sort((a,b) => this._compareValueDates(a.valueDate, b.valueDate));
                         charts.push({
                             id: labResult.id,
-                            name: labResult.name,
+                            name: this.localize('chart-' + labResult.id, labResult.id, this.language),
                             info: {
                                 type: 'line',
                                 data: {
@@ -723,7 +720,7 @@
                                         return {
                                             label: serie.label,
                                             fillColor: "transparent",
-                                            data: services.map(s => _.get(s.content.fr.measureValue, serie.value, null)),
+                                            data: _.compact(services.map(s => _.get(s.content.fr.measureValue, serie.value, null) ? _.get(s.content.fr.measureValue, serie.value, null) : _.get(s.content.measure.measureValue, serie.value, null) ? _.get(s.content.measure.measureValue, serie.value, null) : null)) || [],
                                             lineTension: 0.1,
                                             backgroundColor: serie.backgroundColor,
                                             borderColor: serie.borderColor
@@ -739,21 +736,8 @@
                 this.set("charts", charts);
             }
 
-            _refresh(){
-                this._initializeChartsDataProvider();
-                this._initializeCharts();
-            }
-
             close() {
                 this.$.dialog.close();
-            }
-
-            _activeItemChanged(item){
-
-            }
-
-            _isEqual(a,b) {
-                return (a === b)
             }
 
             _closeDialogs(){

@@ -5,6 +5,7 @@
 <link rel="import" href="../../../bower_components/paper-listbox/paper-listbox.html">
 <link rel="import" href="../../../bower_components/paper-tooltip/paper-tooltip.html">
 <link rel="import" href="../../../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../../../bower_components/iron-icons/iron-icons.html">
 
 <dom-module id="ht-pat-he-tree-detail">
     <template>
@@ -285,6 +286,18 @@
                 flex-grow: 1;
             }
 
+            .table-line-menu .privacy{
+                min-width: 20px;
+                max-width: 20px;
+                padding: 0 2px;
+                box-sizing: border-box;
+            }
+
+            .table-line-menu .privacy iron-icon{
+                height: 16px;
+                width: 16px;
+            }
+
             .table-line-menu .sign{
                 padding-left:4px;
                 padding-right:4px;
@@ -292,9 +305,13 @@
             }
 
             .table-line-menu .date{
-                min-width: 30px;
+                width: 34px;
                 padding-left: 4px;
                 padding-right: 4px;
+                text-align: center;
+                overflow: hidden;
+                flex-shrink: 0;
+                flex-grow: 0;
             }
 
             .table-line-menu .btns{
@@ -337,6 +354,7 @@
                 text-decoration: line-through;
             }
 
+
         </style>
         <collapse-button>
             <paper-item slot="sublist-collapse-item" id="[[getHeId(he)]]" aria-selected="[[selected]]" class$="menu-trigger menu-item [[isIronSelected(selected)]]" on-tap="select">
@@ -356,6 +374,7 @@
                         [[getIcpc(he)]]
                     </div>
                     <div class$="descr [[_isExcluded(he)]]">[[_getLabel(he)]]</div>
+                    <div class="privacy"><iron-icon icon="[[_getPricacyIcon(he)]]"></iron-icon></div>
                     <div class="sign">[[_getSign(he)]]</div>
                     <div class="date">[[_shortDateFormat(he.openingDate, he.valueDate)]]</div>
                     <div class="date">[[_shortDateFormat(he.closingDate)]]</div>
@@ -404,7 +423,7 @@
                 </template>
                 <template is="dom-repeat" items="[[he.plansOfAction]]" as="poa">
                     <paper-item class="submenu-item" id="_poa_[[poa.id]]">
-                        <span>[[poa.descr]]</span>
+                        <span>[[poa.name]]</span>
                     </paper-item>
                 </template>
                 <!--
@@ -451,6 +470,10 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     socialrisk: "vaadin:group",
                     professionalrisk: "icons:work"
                 })
+            },
+            hcp: {
+                type: Object,
+                value: () => {}
             }
         };
     }
@@ -517,13 +540,42 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     _linkToEvidenceLinker(e){
+        e.stopPropagation()
         const he = this.he;
+        if(_.get(_.get(this, 'he.codes', []).find(c => c.type === "ICD"), 'code', null) || _.get(_.get(this, 'he.codes', []).find(c => c.type === "ICPC"), 'code', null)){
+            _.get(this.api, 'tokenId', null) && _.get(this, 'api.keystoreId', null) ?
+            this.api.fhc().Stscontroller().getBearerTokenUsingGET(_.get(this.api, 'tokenId', null), _.get(this, 'api.credentials.ehpassword', null), _.get(this.hcp, 'ssin', null),_.get(this, 'api.keystoreId', null))
+                .then(bearerToken => {
+                    this._sendPostRequest({
+                        action : _.get(this.user.properties.find(p => p.type && p.type.identifier === 'org.taktik.icure.user.eHealthEnv'), "typedValue.stringValue", null) === "acc" ? "https://wwwacc.ehealth.fgov.be/idp/profile/SAML2/Bearer/POST" : "https://www.ehealth.fgov.be/idp/profile/SAML2/Bearer/POST",
+                        params: [
+                            _.get(_.get(this, 'he.codes', []).find(c => c.type === "ICD"), 'code', null) ? {type: "hidden", name: "RelayState", value: "https://login.cdlh.be/sts/evidence"+_.toLower(this.language)+".aspx?k=elicd:"+_.get(_.get(this, 'he.codes', []).find(c => c.type === "ICD"), 'code', null)} : {type: "hidden", name: "RelayState", value: "https://login.cdlh.be/sts/evidence"+_.toLower(this.language)+".aspx?k=elicpc:"+_.get(_.get(this, 'he.codes', []).find(c => c.type === "ICPC"), 'code', null)} ,
+                            {type: "hidden", name: "SAMLResponse", value: _.get(bearerToken, 'token', null)}
+                        ]
+                    })
+                }) :
+                _.get(_.get(this, 'he.codes', []).find(c => c.type === "ICD"), 'code', null) ?
+                    window.open("https://www.evidencelinker.be/"+_.toLower(this.language)+"/Pages/evdresult.aspx?k=elicd:"+_.get(_.get(this, 'he.codes', []).find(c => c.type === "ICD"), 'code', null)) :
+                    window.open("https://www.evidencelinker.be/"+_.toLower(this.language)+"/Pages/evdresult.aspx?k=elicpc:"+_.get(_.get(this, 'he.codes', []).find(c => c.type === "ICPC"), 'code', null))
+        }
+    }
 
-        const icpcCode = he && he.codes && he.codes.find(c => c.type === "ICPC")
+    _sendPostRequest(params){
+        const form = document.createElement('form')
+        form.method = "post"
+        form.target = "cebam"
+        form.action = _.get(params, 'action', null)
 
-        icpcCode && icpcCode.code ? window.open("https://www.evidencelinker.be/"+this.language+"/Pages/evdresult.aspx?k=elicpc:"+icpcCode.code) : window.open("https://www.evidencelinker.be/"+this.language+"/Pages/evdresult.aspx?term="+he.descr)
+        _.get(params, 'params', []).map(p => {
+            const hiddenField = document.createElement('input')
+            hiddenField.type = _.get(p, 'type', null)
+            hiddenField.name = _.get(p, 'name', null)
+            hiddenField.value = _.get(p, 'value', null)
+            form.appendChild(hiddenField)
+        })
 
-
+        document.body.appendChild(form)
+        form.submit()
     }
 
     _addApproach(e) {}
@@ -534,7 +586,7 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
     }
 
     _shortDateFormat(date, altDate) {
-        return (date || altDate) && this.api.moment(date || altDate).format('YY') || '';
+        return (date || altDate) && this.api.moment(date || altDate).format('MM/YY') || '';
     }
 
     _evidenceLinkerPicture(){
@@ -568,6 +620,20 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
     _getSign(healthElement){
         return healthElement && healthElement.tags && healthElement.tags.find(tag => tag.type==="CD-ITEM") && !["familyrisk","risk","socialrisk","allergy","adr","surgery"].find(type => type===healthElement.tags.find(tag => tag.type==="CD-ITEM").code) ? healthElement.status===0 || healthElement.status===1 ?"S" : healthElement.status===3 || healthElement.status===2 ? "N" :"" : ""
+    }
+
+    _getPricacyIcon(healthElement){
+        //TODO @sam : retrieve the info to check
+        const privacy = ''
+        switch(privacy) {
+            case 'private': 
+                return 'icure-svg-icons:privacy';
+            case 'notvisible': 
+                return 'icons:visibility-off';
+            default:
+                return ''
+        }
+
     }
 
     _getLabel(he){
