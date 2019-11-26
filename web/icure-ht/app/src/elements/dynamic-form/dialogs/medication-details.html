@@ -586,11 +586,20 @@
             .text-area {
                 width: 100%;
             }
+
+            .compound-title {
+                display: flex;
+                flex-direction: row;
+                justify-content: flex-start;
+            }
         </style>
         <div class$="container [[_customContainer(closable)]]">
             <div class="title-header">
+                <template is="dom-if" if="[[_isCompoundPrescription(medicationDetail)]]">
+                    <paper-icon-button id="editBtn" class="button button--other" icon="create" role="button" on-tap="_editCompoundPrescription"></paper-icon-button>
+                </template>
                 <div class="title">
-                    <h2>[[medicationDetail.intendedName]]</h2>
+                    <h2><template is="dom-if" if="[[medicationDetail.compoundTitle]]">[[medicationDetail.compoundTitle]]: </template>[[medicationDetail.intendedName]]</h2>
                     <template is="dom-if" if="[[medicationDetail.samCode]]">
                         <h5>[[medicationDetail.samCode]]</h5>
                     </template>
@@ -738,7 +747,7 @@
                         </paper-listbox>
                     </paper-dropdown-menu>
                     <template is="dom-if" if="[[_isAllowed(medicationDetail.renewal)]]">
-                        <paper-input always-float-label type="number" min="0" label="[[localize('number', 'Nombre', language)]]" value="{{medicationContent.medicationValue.renewal.decimal}}"></paper-input>
+                        <paper-input always-float-label type="number" min="0" label="[[localize('amount', 'Nombre', language)]]" value="{{medicationContent.medicationValue.renewal.decimal}}"></paper-input>
                         <paper-input always-float-label type="number" min="0" label="[[localize('everyX', 'tous le', language)]]" value="{{medicationContent.medicationValue.renewal.duration.value}}"></paper-input>
                         <paper-dropdown-menu always-float-label id="medicRenewalTimeUnit" label="[[localize('time_unit','Time unit',language)]]" class="regimen--renewalTimeUnit">
                             <paper-listbox id="renewalTimeUnit" slot="dropdown-content" class="dropdown-renewalTimeUnit" attr-for-selected="value" selected="{{renewalTimeUnit}}">
@@ -908,7 +917,6 @@
                         type: String,
                         value: ""
                     },
-
                     quantityFactors: {
                         type: Array,
                         value: () => [
@@ -918,12 +926,10 @@
                             {id: "quarter", label: "quantity_factor_quarter", numLabel: "1/4", denominator: 4}
                         ]
                     },
-
                     weekdayKeys: {
                         type: Array,
                         value: () => ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
                     },
-
                     periodConfigs: {
                         type: Array,
                         value: () => [
@@ -933,17 +939,14 @@
                             // {id: "monthly", keys: _.range(1, 32), label: "dayOfMonth", disabled: false, keyId: "dayNumber"}
                         ]
                     },
-
                     periodConfig: {
                         type: Object,
                         value: {id: ""}
                     },
-
                     availableRegimenKeys: {
                         type: Array,
                         value: () => [""]
                     },
-
                     regimenConfig: {
                         type: Array,
                         value: () => [
@@ -965,22 +968,18 @@
                             {id: "thehourofsleep"}
                         ]
                     },
-
                     weekdayCodes: {
                         type: Array,
                         value: () => []
                     },
-
                     dayPeriodCodes: {
                         type: Array,
                         value: () => []
                     },
-
                     reimbursementReason: {
                         type: Object,
                         value: () => {}
                     },
-
                     insufficientProvision: {
                         type: Boolean,
                         value: false
@@ -1059,7 +1058,31 @@
             }
 
             _close() {
-                this.dispatchEvent(new CustomEvent('close', {detail: {bubbles: true, composed: true}}));
+                this.dispatchEvent(new CustomEvent('close', {detail: {}, bubbles: true, composed: true}));
+            }
+
+            _editCompoundPrescription() {
+                this.dispatchEvent(new CustomEvent('edit-compound', {
+                    detail: {
+                        item : {
+                            title: this.medicationDetail.compoundTitle,
+                            formula: this.medicationDetail.intendedName,
+                            fromPrescription: {
+                                update: false,
+                                onChange: this._updateCompoundPrescription.bind(this)
+                            }
+                        }
+                    }, bubbles: true, composed: true
+                }));
+            }
+
+            _updateCompoundPrescription(compound) {
+                const medicationValue = _.get(this.medicationContent, "medicationValue", "");
+                if (medicationValue) {
+                    medicationValue.compoundPrescription = compound.title + "\r\n" + compound.formula;
+                    this.set("medicationDetail.compoundTitle", compound.title);
+                    this.set("medicationDetail.intendedName", compound.formula);
+                }
             }
 
             _isPortion() {
@@ -1281,6 +1304,10 @@
                 }
             }
 
+            _isCompoundPrescription() {
+                return this.medicationDetail && this.medicationDetail.type === "compound";
+            }
+
             extractContentWithIdFromMedicationService(m, isNew, isPres) {
                 const content = this.api.contact().preferredContent(m, this.language)  || (m.content[this.language] = {
                     medicationValue: {regimen: []}
@@ -1324,7 +1351,6 @@
                         endExecMomentAsString: today.add(3, "months").subtract(1, "days").format("YYYY-MM-DD"),
                         dividable: medication.dividable === undefined ? true : medication.dividable,
                         packDisplayValue: medication.packDisplayValue || 0,
-                        // bufferUnit: this.medicationContent.medicationUnit || this.localize('generic_unit', 'unit', this.language),
                         medicPriority : this.medicationContent.medicationValue.priority === "high" ? 2 : this.medicationContent.medicationValue.priority === "middle" ? 1 : 0,
                         renewal: !!this.medicationContent.medicationValue.renewal ? "allowed" : "forbidden",
                         isConfidential: ((medication.newMedication.tags || []).find(tag => tag.type === "org.taktik.icure.entities.embed.Confidentiality") || {code: ""}).code === "secret",
@@ -1350,7 +1376,6 @@
                 }
                 this._updateStats();
             }
-
 
             _periodChanged() {
                 if (!this.periodConfig.id) return;
@@ -1626,21 +1651,6 @@
             //
             // _substitutionAllowedChanged(e) {
             //     this.set('medicationContent.medicationValue.substitutionAllowed', e.target.checked);
-            // }
-
-            // _renewalChanged(e) {
-            //     this._setRenewal(e.detail.value === 0);
-            // }
-
-            // _renewalValueChanged(e){
-            //     this._setRenewal(e.target.checked);
-            // }
-
-            // _setRenewal(isRenewal){
-            //     this.set('medicationContent.medicationValue.isRenewal', isRenewal);
-            //     if(!isRenewal){
-            //         this.set("medicationContent.medicationValue.renewal", null);
-            //     }
             // }
 
             _changeRenewalTimeUnitItem(item, unitValue, decimalValue){

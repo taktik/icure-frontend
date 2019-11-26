@@ -389,7 +389,13 @@
                 return this.isPrescription ? this.localize("prescription", "Prescription"): this.localize("medication", "Médication");
             }
 
-            open(medicationDetail, medicationContent, boxes) {
+            _getCompoundPrescriptionFields(compoundPrescription) {
+                if (!compoundPrescription) return {title: "", formula: ""};
+                const fields = compoundPrescription.split(/\r?\n/);
+                return {title: fields.length > 1 ? fields[0] : "", formula: fields.length > 1 ? fields[1] : fields.length > 0 ? fields[0] : ""};
+            }
+
+            open(service, medicationContent, boxes) {
                 this.api.helement().findBy(this.user.healthcarePartyId, this.patient)
                     .then(hes => {
                         const allergies = hes.filter(he => he.tags.some(tag => tag.type === "CD-ITEM" && (tag.code === "allergy" || tag.code === "adr")))
@@ -408,37 +414,39 @@
                     .then(() => this.$['medication-details'].init())
                     .catch(err => console.log(err))
                     .finally(() => {
-                        const preferredContent = this.api.contact().preferredContent(medicationDetail, this.language);
+                        const preferredContent = this.api.contact().preferredContent(service, this.language);
                         if (!medicationContent || !medicationContent.isNew) { // medicationContent.isNew==false when opening an existing medication
                             // do not set a default date if not defined, for the user to see when a medication has no date
                             const start = (preferredContent && preferredContent.medicationValue && preferredContent.medicationValue.beginMoment)
-                                || (medicationDetail.valueDate)
-                                || (medicationDetail.openingDate);
+                                || (service.valueDate)
+                                || (service.openingDate);
                             const end = (preferredContent && preferredContent.medicationValue && preferredContent.medicationValue.endMoment)
-                                || (medicationDetail.closingDate);
-                            medicationContent = this.extractContentWithIdFromMedicationService(medicationDetail, false, medicationContent.isPrescription);
+                                || (service.closingDate);
+                            medicationContent = this.extractContentWithIdFromMedicationService(service, false, medicationContent.isPrescription);
                             medicationContent.beginMomentAsString = start && this.api.moment(start).format('YYYY-MM-DD') || null;
                             medicationContent.endMomentAsString = end && this.api.moment(end).format('YYYY-MM-DD') || null;
                         } else { // new medication, should set a default start date
                             medicationContent.beginMomentAsString = this.api.moment(Date.now()).format("YYYY-MM-DD");
                         }
 
-                        const id = (medicationDetail.codes.find(c => c.type === "CD-INNCLUSTER") || medicationDetail.codes.find(c => c.type === "CD-DRUG-CNK") || {code: ""}).code;
-                        const intendedName = _.get(preferredContent.medicationValue, "medicinalProduct.intendedname", _.get(preferredContent.medicationValue, "substanceProduct.intendedname", ""));
-                        const atcCodes = medicationDetail.codes.filter(c => c.type === "CD-ATC").map(code => code.code) || [];
+                        const id = (service.codes.find(c => ["CD-INNCLUSTER", "CD-VMPGROUP", "CD-DRUG-CNK"].includes(c.type)) || {code: ""}).code;
+                        const medicationValue = preferredContent.medicationValue;
+                        const compoundFields = this._getCompoundPrescriptionFields(medicationValue.compoundPrescription);
+                        const intendedName = _.get(medicationValue, "medicinalProduct.intendedname", _.get(medicationValue, "substanceProduct.intendedname", compoundFields.formula));
+                        const atcCodes = service.codes.filter(c => c.type === "CD-ATC").map(code => code.code) || [];
                         const allergies = this.allergies.filter(allergy => (allergy.cnk && (id === allergy.cnk)) || (atcCodes && atcCodes.some(atcCode => atcCode === allergy.atcCode) || ""));
                         this.set('medicationContent', medicationContent);
                         this.set('isPrescription', medicationContent.isPrescription);
-                        // this._initmedicationContent();
                         this.set('medicationDetail', {
                             unit: _.get(medicationContent, "medicationValue.regimen[0].administratedQuantity.unit", this.localize("uni", "Unités")),
                             intendedName: intendedName,
+                            compoundTitle: compoundFields.title,
                             atcCodes: atcCodes,
                             allergies: allergies,
                             boxes: boxes || 1,
                             // medicPriority: this.medicationContent.medicationValue.priority === "high" ? 2 : this.medicationContent.medicationValue.priority === "middle" ? 1 : 0,
                             // renewal: !!this.medicationContent.medicationValue.renewal,
-                            newMedication: medicationDetail,
+                            newMedication: service,
                             options: {
                                 createMedication: this.medicationContent.createMedication,
                                 isPrescription: this.medicationContent.isPrescription,
