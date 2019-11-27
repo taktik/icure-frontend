@@ -273,6 +273,7 @@
                 </div>
                 <div class="buttons">
                     <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                    <paper-button class="button button--other" on-tap="_print"><iron-icon icon="icons:print" class="mr5 smallIcon"></iron-icon> [[localize('pri','Print',language)]]</paper-button>
                     <paper-button class="button button--other" on-tap="_refresh"><iron-icon icon="icons:refresh" class="mr5 smallIcon" ></iron-icon> [[localize('refresh','Refresh',language)]]</paper-button>
                 </div>
             </div>
@@ -742,6 +743,40 @@
 
             _closeDialogs(){
                 this.$['chartsDialog'].close();
+            }
+
+            _print() {
+                if (!this.chart || !this.selectedItem) return;
+                const chart = this.charts.find(chart => chart.id == this.selectedItem);
+                const title = chart.name;
+                this.api.pdfReport(this._getHtml(title, this.chart.toBase64Image()), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
+                    .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", title + ".pdf", this.$["chartsDialog"]))
+                    .finally(() => {
+                        console.log("Printed");
+                    })
+            }
+
+            _getHtml(title, data) {
+                const body = '<div class="imageContainer"><img src="' + data + '"/></div>'
+                return `
+                    <html>
+                        <head>
+                            <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+                            <style>
+                                @page {size: A4 landscape; width: 210mm; height: 297mm; margin: 0; padding: 0; }
+                                body {margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; line-height:1.3em; }
+                                .page { width: 300mm; color:#000000; font-size:12px; padding:10mm; position:relative; }
+                                .imageContainer img {max-width:100%; height:auto; margin-top: 80px}
+                            </style>
+                        </head>
+
+                        <body>
+                            <div class="page"><h1>` + title + `</h1>` + body + `
+                            </div>` +
+                    '<script>document.fonts.ready.then(() => { setInterval(() => {document.body.dispatchEvent(new CustomEvent("pdfDoneRenderingEvent"))}, 500); }); <' + '/script>' + `
+                        </body>
+                    </html>
+                `
             }
         }
         customElements.define(HtPatChartsDialog.is, HtPatChartsDialog);
