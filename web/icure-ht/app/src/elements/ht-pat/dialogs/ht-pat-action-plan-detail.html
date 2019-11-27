@@ -658,9 +658,9 @@
                     return this._setError(this.localize('some_mandat_fields', 'Some fields are mandatory', this.language))
 
                 const vaccine = this.selectedVaccineItem;
-                const vaccineId = action.VaccineInfo ? action.VaccineInfo.id : _.get(vaccine, "id", null);
-                const vaccineName = action.VaccineInfo ? action.VaccineInfo.name : _.get(vaccine, "name", action.VaccineName);
-                const vaccineRegion = action.VaccineInfo ? action.VaccineInfo.id.language : "fr";
+                const vaccineId = _.get(action, "VaccineInfo.id", _.get(vaccine, "id", null));
+                const vaccineName = _.get(action, "VaccineInfo.name", _.get(vaccine, "name", _.get(action, "VaccineName", null)));
+                const vaccineRegion = _.get(action, "VaccineInfo.id.language", "fr");
 
                 const medication = this.isVaccineProcedure && {
                     medicinalProduct: {
@@ -736,6 +736,7 @@
 
                 this._footprint = this._getFootprint();
                 this._dispatchChangedEvent();
+                this._dispatchEvent("saved");
             }
 
             _createContent(stringValue, medicationValue) {
@@ -795,18 +796,6 @@
 
             save() {
                 this.planAction();
-                /*
-                if (this.currentContact.subContacts)
-                    this.currentContact.subContacts = this.currentContact.subContacts.filter(c => !this._toDetach(c));
-                if (this.linkedHes.length > 0) {
-                    const heIds = this.linkedHes.map(he => he.id);
-                    this.api.contact().promoteServiceInContact(this.currentContact, this.user, this.contacts, this.service, null, null, heIds, null);
-                }
-                this.api.contact().modifyContactWithUser(this.user, this.currentContact).then(result => {
-                    console.log(result);
-                    this.planAction();
-                })
-                */
             }
 
             show(service) {
@@ -818,6 +807,8 @@
             }
 
             _open(service, readonly, detail, showLinks) {
+                // LDE: TODO: remove showLinks
+                showLinks = true;
                 this._detail = detail;
                 this.reset();
 
@@ -825,12 +816,14 @@
                     return { id : id, label: this.localize("proc_status_" + id, id) }
                 }));
 
+                if (!service) return;
+
                 this.set("isLoading", true);
 
                 this.set("linkedHes", []);
                 this.api.contact().getContactWithUser(this.user, service.contactId).then(contact => {
                     this.set("currentContact", contact);
-                    const ids = _.compact(_.get(contact, 'subContacts', []).map(s => s.healthElementId));
+                    const ids = _.compact(_.get(contact, 'subContacts', []).filter(sc => sc.services.some(s => s.serviceId === service.id)).map(s => s.healthElementId));
                     const promises = ids.map(id => this.api.helement().getHealthElement(id));
                     Promise.all(promises).then(healthElements => {
                         this._linkedHes = healthElements;
