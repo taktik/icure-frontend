@@ -1964,7 +1964,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <div class="btns">&nbsp;</div>
                                     </div>
                                     <template id="activeHesDomRepeat" is="dom-repeat" items="[[_filterElements(activeHealthElements,cb_ahelb_sort,cb_ahelb_showInactive)]]" as="he">
-                                        <ht-pat-he-tree-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" hcp="[[globalHcp]]" user="[[user]]" resources="[[resources]]" id="[[getHeId(he)]]" he="[[he]]" selected="[[_isItemInArray(he,selectedHealthcareElements,selectedHealthcareElements.*)]]" on-selection-change="handleSelectionChange" on-edit-he="_editHealthElement" on-activate-he="_activate" on-archive-he="_archive" on-inactivate-he="_inactivate"></ht-pat-he-tree-detail>
+                                        <ht-pat-he-tree-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" hcp="[[globalHcp]]" user="[[user]]" resources="[[resources]]" id="[[getHeId(he)]]" he="[[he]]" selected="[[_isItemInArray(he,selectedHealthcareElements,selectedHealthcareElements.*)]]" on-selection-change="handleSelectionChange" on-edit-he="_editHealthElement" on-activate-he="_activate" on-archive-he="_archive" on-inactivate-he="_inactivate" on-show-linked-procedures="_showLinkedProcedures"></ht-pat-he-tree-detail>
                                     </template>
                                     <!-- <template is="dom-if" if="[[activeHealthElements.length]]">
                                         <paper-item class="menu-item sublist-footer"><div class="one-line-menu">[[localize('add_hea_ele','Add health element',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addHealthElement"></paper-icon-button></paper-item>
@@ -3981,11 +3981,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (!this.currentContact) return;
                 const allContacts = (this.currentContact ? [this.currentContact] : []).concat(this.contacts)
                 let services = (e.detail.services || (e.detail.service && [e.detail.service]) || [] )
-                if (e.detail.next && e.detail.service)
+                if (e.detail.service && e.detail.next)
                     services.push(this._cloneService(e.detail));
                 const heIds = e.detail.hes ? e.detail.hes.map(he => he.id) : [];
-                if (this.currentContact.subContacts && e.detail.hes)
-                    this.currentContact.subContacts = this.currentContact.subContacts.filter(c => !c.healthElementId || heIds.includes(c.healthElementId));
+                let subContacts = this.currentContact.subContacts;
+                if (subContacts && e.detail.service && e.detail.hes) {
+                    subContacts.filter(subContact => subContact.healthElementId).forEach(subContact => {
+                        if (subContact.services)
+                            subContact.services = subContact.services.filter(s => s.serviceId !== e.detail.service.id || heIds.includes(subContact.healthElementId))
+                    })
+                    subContacts = subContacts.filter(s => !s.healthElementId || (s.services && s.services.length > 0));
+                    this.currentContact.subContacts = subContacts;
+                }
                 services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, heIds, e.detail.function || undefined))
                 this.saveContact(this.currentContact)
             }
@@ -5093,6 +5100,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                     this.saveNewService(svc).then(c => this.refreshPatient());
                 }
+            }
+
+            _showLinkedProcedures(e) {
+                e.stopPropagation()
+                const healthElementId = _.get(e, "detail.he.id", null);
+                if (healthElementId)
+                    this.$["preventiveActs"]._openDialog(healthElementId);
             }
 
             _selectToday() {
@@ -6747,7 +6761,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.api.fhc().RnConsultController().historyUsingGET(_.get(this, 'api.keystoreId', null), _.get(this, 'api.tokenId', null), _.get(this, 'api.credentials.ehpassword', null), _.get(patient, 'ssin', null)).then(resp => {
                         this.set('rnHistoryResult', resp)
                         if(!_.isEmpty(resp)){
-                           if(_.get(resp, 'ssin.value', null) && !_.get(resp, 'ssin.replaces', null)){
+                           if(_.get(resp, 'ssin.value', null) && !_.get(resp, 'ssin.replaces', null) && _.get(resp, 'ssin.canceled', null) !== true){
                                this.$['rnConsultStatus'].classList.add('rnConsultOk')
                            }else if(_.get(resp, 'ssin.replaces', null)){
                                this.$['rnConsultStatus'].classList.add('rnConsultPending')
