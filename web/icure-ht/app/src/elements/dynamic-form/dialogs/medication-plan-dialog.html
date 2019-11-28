@@ -37,7 +37,7 @@
             }
 
             .present, .patient {
-                height: calc(100% - 35px);
+                height: calc(100% - 50px);
                 overflow-y: auto;
                 margin-top: 0;
                 padding: 24px;
@@ -709,8 +709,9 @@
             }
 
             .header-content{
-                padding: 5px;
-                height: 25px;
+                padding-left: 24px;
+                height: 50px;
+                display: flex;
             }
 
             ht-spinner {
@@ -721,6 +722,22 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%,-50%);
+            }
+
+            paper-input {
+                --paper-input-container-focus-color: var(--app-primary-color);
+                font-size: var(--form-font-size);
+                width: calc(100% - 300px);
+            }
+
+            #startDatePresent{
+                padding-left: 10px;
+                padding-top: 10px;
+            }
+
+            #endDatePresent{
+                padding-left: 10px;
+                padding-top: 10px;
             }
 
         </style>
@@ -743,6 +760,11 @@
                 </template>
                 <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <div class="header-content">
+                        <paper-input always-float-label id="filter" label="[[localize('search','Search',language)]]" value="{{filterPresentValue}}" autofocus></paper-input>
+                        <vaadin-date-picker id="startDatePresent" value="{{startDatePresent}}" label="[[localize('start-date','Date de début',language)]]"></vaadin-date-picker>
+                        <template is="dom-if" if="[[startDatePresent.length]]">
+                            <vaadin-date-picker id="endDatePresent" value="{{endDatePresent}}" label="[[localize('endDate','Date de fin',language)]]"></vaadin-date-picker>
+                        </template>
                     </div>
                     <div class="present">
                         <div class="table">
@@ -821,7 +843,7 @@
                             </div>
                             <!-- END HEADER -->
                             <!-- START BODY -->
-                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*)]]" as="medicationsWithPosology">
+                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*,filterPresentValue,startDatePresent,endDatePresent)]]" as="medicationsWithPosology">
                                 <div class="tr category">
                                     <div class="td"></div>
                                     <div class="td td--category" style="flex-grow: 5;">
@@ -1205,6 +1227,18 @@
                     prescriptions:{
                         type: Array,
                         value: []
+                    },
+                    filterPresentValue:{
+                        type: String,
+                        value: ""
+                    },
+                    startDatePresent:{
+                        type: String,
+                        value: ""
+                    },
+                    endDatePresent:{
+                        type: String,
+                        value: ""
                     }
                 }
             }
@@ -1424,7 +1458,7 @@
                             rid: _.get(medicationValue, "prescriptionRID", null),
                             atc: _.get(service.codes.find(c => c.type === "CD-ATC"), "code"),
                             cnk: _.get(service.codes.find(c => c.type === "CD-DRUG-CNK"), "code"),
-                            cds: medicinalProduct ? medicinalProduct.intendedcds.map(c => c.code) : "unknown",
+                            cds: _.get(medicinalProduct,"intendedcds",[]).map(c => _.get(c,'code','unknown')) || "unknown",
                             status: "unknown",
                             update: false
                         }
@@ -1541,9 +1575,23 @@
                 return _.zipWith(medTab, prescTab,(med,presc) =>{
                     return {
                         "letter" : _.get(med, 'letter', null),
-                        "meds" : _.uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', [])))
+                        "meds" : _.uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', []))).filter(med => {
+                            const closeDate = this._getMedicationClosingDate(med) ? moment(this._getMedicationClosingDate(med),"DD/MM/YYYY") : moment()
+                            const startDate= this.api.moment(_.get(this.api.contact().medicationValue(med.medication),"beginMoment",parseInt(moment().format("YYYYMMDD"))))
+                            if(this.startDatePresent && moment(this.startDatePresent)){
+                                if(this.endDatePresent && moment(this.endDatePresent)){
+                                    return moment(this.startDatePresent).isSameOrBefore(closeDate) && moment(this.endDatePresent).isSameOrAfter(startDate)
+                                }
+                                else{
+                                    return moment(this.startDatePresent).isBetween(startDate,closeDate)
+                                }
+                            }
+                            else{
+                                return closeDate ? closeDate.isSameOrAfter(moment()) : true
+                            }
+                        }).filter(med => this.filterPresentValue.length>2 ? this._serviceDescription(med.medication).includes(this.filterPresentValue) : true)
                     };
-                });
+                }).filter(zipped => zipped.meds.length)
             }
 
             _prescriptionsChanged(){
