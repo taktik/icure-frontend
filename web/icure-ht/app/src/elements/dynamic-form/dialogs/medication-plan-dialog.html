@@ -1250,7 +1250,7 @@
             }
 
             static get observers() {
-                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medications.*)','_prescriptionsChanged(prescriptions.*)','_getPrescrMed(medicationClassesWithPosology.*,prescriptionsClassesWithPosology.*,filterPresentValue,startDatePresent,endDatePresent)']
+                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medicationClassesWithPosology.*,prescriptionsClassesWithPosology.*)','_prescriptionsChanged(prescriptions.*)','_getPrescrMed(medicationClassesWithPosology.*,prescriptionsClassesWithPosology.*,filterPresentValue,startDatePresent,endDatePresent)']
             }
 
             constructor() {
@@ -1576,8 +1576,8 @@
             }
 
             _getPrescrMed(){
-                const prescTab =_.get(this,'medicationClassesWithPosology',[]).map(val => this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
-                const medTab =_.get(this,'prescriptionsClassesWithPosology',[]).map(val => this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
+                const prescTab =_.sortBy(_.compact(_.get(this,'medicationClassesWithPosology',[]).map(val => !this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) ? {letter : val.letter, meds:[]} : {}).concat(this.prescriptionsClassesWithPosology)),'letter')
+                const medTab =_.sortBy(_.compact(_.get(this,'prescriptionsClassesWithPosology',[]).map(val => !this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) ? {letter : val.letter, meds:[]} : {}).concat(this.medicationClassesWithPosology)),'letter')
                 this.set("presentList", _.zipWith(medTab, prescTab,(med,presc) =>{
                     return {
                         "letter" : _.get(med, 'letter', null),
@@ -1762,7 +1762,7 @@
             }
 
             _patientPlanChanged(){
-               let medicationClass = this.medicationClassesWithPosology
+               let medicationClass = this.medicationClassesWithPosology.concat(this.prescriptionsClassesWithPosology)
 
                 const medications = medicationClass.flatMap(classe => classe.meds)
 
@@ -1996,6 +1996,66 @@
             print() {
                 const template = require("./src/medication-doctor-view-pdf-template.json")
 
+                const html = `
+<html>
+    <head>
+    </head>
+    <body>
+        <div class="patient">
+            <div class="general-infos">
+                <div class="infos-block">
+                    <div class="infos--name"><span>{{localize.gp}}</span>{{hcp.stylised}}</div>
+                    <div class="infos--address"><span>{{localize.add}}</span>{{hcp.stylisedAdd}}</div>
+                </div>
+
+                <div class="infos-block">
+                    <div class="infos--name"><span>{{localize.pharmacist}}</span>{{pharma.stylised}}</div>
+                    <div class="infos--address"><span>{{localize.add}}</span>{{pharma.stylisedAdd}}</div>
+                </div>
+            </div>
+            {{#patientPlan}}
+                {{#meds.isRegimen}}
+                    <div id="breakfast" class="table-container">
+                        <div class="header">
+                            <iron-icon icon="{{iconBase64}}"></iron-icon>
+                            <h3>{{title}}</h3>
+                        </div>
+                        <div class="table-header">
+                            <div class="col col--med">{{localize.medecine}}</div>
+                            <div class="col col--photo">Photo</div>
+                            <div class="col col--ed">{{localize.endDate}}</div>
+                            <div class="col col--freq">{{localize.freq}}</div>
+                            {{#cols}}
+                                <div class="col col--bef">{{getHeaderTitle}}</div>
+                            {{/cols}}
+                            <div class="col col--com">{{localize.com}}</div>
+                        </div>
+                        <div class="table-body">
+                            {{#meds}}
+                                <div class="table-row">
+                                    <div class="col col--med"><span class="med--name">{{getTimeOfDay}} {{serviceDescription}}</span></div>
+                                    <div class="col col--photo"><iron-icon class="medIcon" icon="{{getMedIconBase64}}"></iron-icon></div>
+                                    <div class="col col--ed">{{getMedicationClosingDate}}</div>
+                                    <div class="col col--freq">{{serviceFrequency}}</div>
+                                        {{#cols}}
+                                            <div class="col col--dur">
+                                                {{#getRegimen}}
+                                                    <span class="dur-pill">{{getRegimenQuantity}}</span>
+                                                {{/getRegimen}}
+                                            </div>
+                                        {{/cols}}
+                                    <div class="col col--com">{{medication.instructionForPatient}}</div>
+                                </div>
+                            {{/meds}}
+                        </div>
+                    </div>
+                {{/meds.isRegimen}}
+            {{/patientPlan}}
+        </div>
+    </body>
+</html>
+                `;
+
                 let list = this.presentList
                 list = list.map(l => {
                     l.localizedTitle = this._localizedTitle(l)
@@ -2014,21 +2074,28 @@
                     return l;
                 })
                 const view = {
+                    hcp : {
+                        stylisedAdd: this._getHcpAdress(),
+                        stylised : this.localize("dr","Dr.")+" "+this.user.name
+                    },
                     history : template.icon.history,
                     list: list,
                     moon : template.icon.moon,
                     sun : template.icon.sun,
                     localize: {
-                        mom_break: this.localize('mom_break', 'Breakfast', this.language),
-                        mom_lunch: this.localize('mom_lunch', 'Lunch', this.language),
-                        mom_dinner: this.localize('mom_dinner', 'Dinner', this.language),
-                        medic: this.localize('medic', 'Medicine', this.language),
-                        freq: this.localize('freq', 'Frequency', this.language),
-                        mom_before: this.localize('mom_before_short', 'Before', this.language),
-                        mom_during: this.localize('mom_during_short', 'During', this.language),
-                        mom_after: this.localize('mom_after_short', 'After', this.language),
-                        endDate: this.localize('endDate', 'End Date', this.language),
-                        com: this.localize('com', 'Comments', this.language)
+                        mom_break: this.localize('mom_break', 'Breakfast'),
+                        mom_lunch: this.localize('mom_lunch', 'Lunch'),
+                        mom_dinner: this.localize('mom_dinner', 'Dinner'),
+                        medic: this.localize('medic', 'Medicine'),
+                        freq: this.localize('freq', 'Frequency'),
+                        mom_before: this.localize('mom_before_short', 'Before'),
+                        mom_during: this.localize('mom_during_short', 'During'),
+                        mom_after: this.localize('mom_after_short', 'After'),
+                        endDate: this.localize('endDate', 'End Date'),
+                        com: this.localize('com', 'Comments'),
+                        gp: "GP",
+                        pharmacist : this.localize("pharmacist","pharmacist"),
+                        add : this.localize("add","address")
                     }
                 }
 
@@ -2047,6 +2114,10 @@
 
             _isDisplayingPrintButton(){
                 return this._isEqual(this.selectedTab,1) || this._isEqual(this.selectedTab,2)
+            }
+
+            _getHcpAdress(){
+                return _.get(this,'hcp.addresses',[]).find(add => add==="work")
             }
         }
 
