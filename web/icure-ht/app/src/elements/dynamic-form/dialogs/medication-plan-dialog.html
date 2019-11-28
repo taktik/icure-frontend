@@ -37,9 +37,9 @@
             }
 
             .present, .patient {
-                height: calc(100% - 35px);
+                height: calc(100% - 55px);
                 overflow-y: auto;
-                margin-top: 0;
+                margin-top: 5px;
                 padding: 24px;
                 box-sizing: border-box;
             }
@@ -709,8 +709,9 @@
             }
 
             .header-content{
-                padding: 5px;
-                height: 25px;
+                padding-left: 24px;
+                height: 50px;
+                display: flex;
             }
 
             ht-spinner {
@@ -721,6 +722,22 @@
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%,-50%);
+            }
+
+            paper-input {
+                --paper-input-container-focus-color: var(--app-primary-color);
+                font-size: var(--form-font-size);
+                width: calc(100% - 300px);
+            }
+
+            #startDatePresent{
+                margin-left: 10px;
+                margin-top: 15px;
+            }
+
+            #endDatePresent{
+                margin-left: 10px;
+                margin-top: 15px;
             }
 
         </style>
@@ -743,6 +760,9 @@
                 </template>
                 <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
                     <div class="header-content">
+                        <paper-input always-float-label id="filter" label="[[localize('search','Search',language)]]" value="{{filterPresentValue}}" autofocus></paper-input>
+                        <vaadin-date-picker id="startDatePresent" value="{{startDatePresent}}" max="[[endDatePresent]]" label="[[localize('from2', 'Du', language)]]"></vaadin-date-picker>
+                        <vaadin-date-picker id="endDatePresent" value="{{endDatePresent}}" min="[[startDatePresent]]" label="[[localize('to2', 'Au', language)]]"></vaadin-date-picker>
                     </div>
                     <div class="present">
                         <div class="table">
@@ -821,7 +841,7 @@
                             </div>
                             <!-- END HEADER -->
                             <!-- START BODY -->
-                            <template is="dom-repeat" items="[[_getPrescrMed(medicationClassesWithPosology.*,prescriptionClassesWithPosology.*)]]" as="medicationsWithPosology">
+                            <template is="dom-repeat" items="[[presentList]]" as="medicationsWithPosology">
                                 <div class="tr category">
                                     <div class="td"></div>
                                     <div class="td td--category" style="flex-grow: 5;">
@@ -1027,7 +1047,7 @@
 
 
             <div class="buttons">
-                <template is="dom-if" if="{{_isEqual(selectedTab,1)}}">
+                <template is="dom-if" if="{{_isDisplayingPrintButton(selectedTab)}}">
                     <paper-button on-tap="print" class="button button--other">[[localize('print','Print',language)]]</paper-button>
                 </template>
                 <paper-button dialog-confirm autofocus on-tap="cancel" class="button">[[localize('clo','Close',language)]]</paper-button>
@@ -1078,6 +1098,10 @@
                         type: Object
                     },
                     medicationClassesWithPosology: {
+                        type: Array,
+                        value: () => []
+                    },
+                    prescriptionsClassesWithPosology: {
                         type: Array,
                         value: () => []
                     },
@@ -1205,12 +1229,28 @@
                     prescriptions:{
                         type: Array,
                         value: []
+                    },
+                    filterPresentValue:{
+                        type: String,
+                        value: ""
+                    },
+                    startDatePresent:{
+                        type: String,
+                        value: ""
+                    },
+                    endDatePresent:{
+                        type: String,
+                        value: ""
+                    },
+                    presentList:{
+                        type: Array,
+                        value : []
                     }
                 }
             }
 
             static get observers() {
-                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medications.*)','_prescriptionsChanged(prescriptions.*)']
+                return ['_medicationsChanged(medications.*)', '_patientPlanChanged(medicationClassesWithPosology.*,prescriptionsClassesWithPosology.*)','_prescriptionsChanged(prescriptions.*)','_getPrescrMed(medicationClassesWithPosology.*,prescriptionsClassesWithPosology.*,filterPresentValue,startDatePresent,endDatePresent)']
             }
 
             constructor() {
@@ -1424,7 +1464,7 @@
                             rid: _.get(medicationValue, "prescriptionRID", null),
                             atc: _.get(service.codes.find(c => c.type === "CD-ATC"), "code"),
                             cnk: _.get(service.codes.find(c => c.type === "CD-DRUG-CNK"), "code"),
-                            cds: medicinalProduct ? medicinalProduct.intendedcds.map(c => c.code) : "unknown",
+                            cds: _.get(medicinalProduct,"intendedcds",[]).map(c => _.get(c,'code','unknown')) || "unknown",
                             status: "unknown",
                             update: false
                         }
@@ -1536,19 +1576,34 @@
             }
 
             _getPrescrMed(){
-                const prescTab =this.medicationClassesWithPosology.map(val => this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
-                const medTab =this.prescriptionsClassesWithPosology.map(val => this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) || {letter : val.letter, meds:[]})
-                return _.zipWith(medTab, prescTab,(med,presc) =>{
+                const prescTab =_.sortBy(_.compact(_.get(this,'medicationClassesWithPosology',[]).map(val => !this.prescriptionsClassesWithPosology.find(lowVal => lowVal.letter===val.letter) ? {letter : val.letter, meds:[]} : {}).concat(this.prescriptionsClassesWithPosology)),'letter')
+                const medTab =_.sortBy(_.compact(_.get(this,'prescriptionsClassesWithPosology',[]).map(val => !this.medicationClassesWithPosology.find(lowVal => lowVal.letter===val.letter) ? {letter : val.letter, meds:[]} : {}).concat(this.medicationClassesWithPosology)),'letter')
+                this.set("presentList", _.zipWith(medTab, prescTab,(med,presc) =>{
                     return {
                         "letter" : _.get(med, 'letter', null),
-                        "meds" : _.uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', [])))
+                        "meds" : _.uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', []))).filter(med => {
+                            const closeDate = this._getMedicationClosingDate(med.medication) ? moment(this._getMedicationClosingDate(med.medication),"DD/MM/YYYY") : false
+                            const startDate= this.api.moment(_.get(this.api.contact().medicationValue(med.medication),"beginMoment",parseInt(moment().format("YYYYMMDD"))))
+                            const betweenDate = (this.startDatePresent && moment(this.startDatePresent)) || (this.endDatePresent && moment(this.endDatePresent)) || false
+                            if(betweenDate){
+                                if(this.startDatePresent && moment(this.startDatePresent) && this.endDatePresent && moment(this.endDatePresent)){
+                                    return (!closeDate || moment(this.startDatePresent).isSameOrBefore(closeDate)) && moment(this.endDatePresent).isSameOrAfter(startDate)
+                                }
+                                else{
+                                    return (!closeDate && moment(betweenDate).isSameOrAfter(startDate)) || moment(betweenDate).isBetween(startDate,closeDate)
+                                }
+                            }
+                            else{
+                                return closeDate ? closeDate.isSameOrAfter(moment()) : true
+                            }
+                        }).filter(med => this.filterPresentValue.length>2 ? this._serviceDescription(med.medication).includes(this.filterPresentValue) : true)
                     };
-                });
+                }).filter(zipped => zipped.meds.length))
             }
 
             _prescriptionsChanged(){
                 const scores = this.api.contact().medication().regimenScores()
-                this.prescriptionsClassesWithPosology =  _.sortBy(Object.values(this.prescriptions.filter(prescr => {
+                this.set('prescriptionsClassesWithPosology',_.sortBy(Object.values(this.prescriptions.filter(prescr => {
                     const medValue = this.api.contact().medicationValue(prescr)
                     return (medValue && medValue.endMoment || prescr.closingDate) ? this.api.moment(medValue && medValue.endMoment || prescr.closingDate).isSameOrAfter(moment()) : true
                 }).map( p => ({
@@ -1571,12 +1626,12 @@
                     const letter = ((p.medication && p.medication.codes && p.medication.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0,1)
                     ;(acc[letter] || (acc[letter] = {letter:letter, meds:[]})).meds.push(p)
                     return acc
-                }, {})), 'letter')
+                }, {})), 'letter'))
             }
 
             _medicationsChanged() {
                 const scores = this.api.contact().medication().regimenScores()
-                this.medicationClassesWithPosology =  _.sortBy(Object.values(this.medications.map( m => ({
+                this.set('medicationClassesWithPosology',_.sortBy(Object.values(this.medications.map( m => ({
                     medication:m, regimenTable: this.extractRegimenSlices(((this.api.contact().preferredContent(m, this.language) || {}).medicationValue || {}).regimen, 'daily', [
                         x => x < scores.beforebreakfast,
                         x => x === scores.beforebreakfast,
@@ -1596,7 +1651,7 @@
                     const letter = ((m.medication && m.medication.codes && m.medication.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0,1)
                     ;(acc[letter] || (acc[letter] = {letter:letter, meds:[]})).meds.push(m)
                     return acc
-                }, {})), 'letter')
+                }, {})), 'letter'))
             }
 
             _serviceDescription(s) {
@@ -1707,7 +1762,7 @@
             }
 
             _patientPlanChanged(){
-               let medicationClass = this.medicationClassesWithPosology
+               let medicationClass = this.medicationClassesWithPosology.concat(this.prescriptionsClassesWithPosology)
 
                 const medications = medicationClass.flatMap(classe => classe.meds)
 
@@ -1941,7 +1996,67 @@
             print() {
                 const template = require("./src/medication-doctor-view-pdf-template.json")
 
-                let list = this._getPrescrMed()
+                const html = `
+<html>
+    <head>
+    </head>
+    <body>
+        <div class="patient">
+            <div class="general-infos">
+                <div class="infos-block">
+                    <div class="infos--name"><span>{{localize.gp}}</span>{{hcp.stylised}}</div>
+                    <div class="infos--address"><span>{{localize.add}}</span>{{hcp.stylisedAdd}}</div>
+                </div>
+
+                <div class="infos-block">
+                    <div class="infos--name"><span>{{localize.pharmacist}}</span>{{pharma.stylised}}</div>
+                    <div class="infos--address"><span>{{localize.add}}</span>{{pharma.stylisedAdd}}</div>
+                </div>
+            </div>
+            {{#patientPlan}}
+                {{#meds.isRegimen}}
+                    <div id="breakfast" class="table-container">
+                        <div class="header">
+                            <iron-icon icon="{{iconBase64}}"></iron-icon>
+                            <h3>{{title}}</h3>
+                        </div>
+                        <div class="table-header">
+                            <div class="col col--med">{{localize.medecine}}</div>
+                            <div class="col col--photo">Photo</div>
+                            <div class="col col--ed">{{localize.endDate}}</div>
+                            <div class="col col--freq">{{localize.freq}}</div>
+                            {{#cols}}
+                                <div class="col col--bef">{{getHeaderTitle}}</div>
+                            {{/cols}}
+                            <div class="col col--com">{{localize.com}}</div>
+                        </div>
+                        <div class="table-body">
+                            {{#meds}}
+                                <div class="table-row">
+                                    <div class="col col--med"><span class="med--name">{{getTimeOfDay}} {{serviceDescription}}</span></div>
+                                    <div class="col col--photo"><iron-icon class="medIcon" icon="{{getMedIconBase64}}"></iron-icon></div>
+                                    <div class="col col--ed">{{getMedicationClosingDate}}</div>
+                                    <div class="col col--freq">{{serviceFrequency}}</div>
+                                        {{#cols}}
+                                            <div class="col col--dur">
+                                                {{#getRegimen}}
+                                                    <span class="dur-pill">{{getRegimenQuantity}}</span>
+                                                {{/getRegimen}}
+                                            </div>
+                                        {{/cols}}
+                                    <div class="col col--com">{{medication.instructionForPatient}}</div>
+                                </div>
+                            {{/meds}}
+                        </div>
+                    </div>
+                {{/meds.isRegimen}}
+            {{/patientPlan}}
+        </div>
+    </body>
+</html>
+                `;
+
+                let list = this.presentList
                 list = list.map(l => {
                     l.localizedTitle = this._localizedTitle(l)
                     l.meds = l.meds.map(med => {
@@ -1959,21 +2074,28 @@
                     return l;
                 })
                 const view = {
+                    hcp : {
+                        stylisedAdd: this._getHcpAdress(),
+                        stylised : this.localize("dr","Dr.")+" "+this.user.name
+                    },
                     history : template.icon.history,
                     list: list,
                     moon : template.icon.moon,
                     sun : template.icon.sun,
                     localize: {
-                        mom_break: this.localize('mom_break', 'Breakfast', this.language),
-                        mom_lunch: this.localize('mom_lunch', 'Lunch', this.language),
-                        mom_dinner: this.localize('mom_dinner', 'Dinner', this.language),
-                        medic: this.localize('medic', 'Medicine', this.language),
-                        freq: this.localize('freq', 'Frequency', this.language),
-                        mom_before: this.localize('mom_before_short', 'Before', this.language),
-                        mom_during: this.localize('mom_during_short', 'During', this.language),
-                        mom_after: this.localize('mom_after_short', 'After', this.language),
-                        endDate: this.localize('endDate', 'End Date', this.language),
-                        com: this.localize('com', 'Comments', this.language)
+                        mom_break: this.localize('mom_break', 'Breakfast'),
+                        mom_lunch: this.localize('mom_lunch', 'Lunch'),
+                        mom_dinner: this.localize('mom_dinner', 'Dinner'),
+                        medic: this.localize('medic', 'Medicine'),
+                        freq: this.localize('freq', 'Frequency'),
+                        mom_before: this.localize('mom_before_short', 'Before'),
+                        mom_during: this.localize('mom_during_short', 'During'),
+                        mom_after: this.localize('mom_after_short', 'After'),
+                        endDate: this.localize('endDate', 'End Date'),
+                        com: this.localize('com', 'Comments'),
+                        gp: "GP",
+                        pharmacist : this.localize("pharmacist","pharmacist"),
+                        add : this.localize("add","address")
                     }
                 }
 
@@ -1988,6 +2110,14 @@
                         +new Date()
                     ]).join("_")) + ".pdf"
                 ))
+            }
+
+            _isDisplayingPrintButton(){
+                return this._isEqual(this.selectedTab,1) || this._isEqual(this.selectedTab,2)
+            }
+
+            _getHcpAdress(){
+                return _.get(this,'hcp.addresses',[]).find(add => add==="work")
             }
         }
 
