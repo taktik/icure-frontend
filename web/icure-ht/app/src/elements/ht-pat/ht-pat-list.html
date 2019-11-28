@@ -2306,6 +2306,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _exportFilteredPatientListToXls() {
+                this._exportXlsFromPatientDataProviderFunction(fun => {
+                    var grid = this.$['patients-list']
+                    grid.dataProvider({pageSize: 10000}, fun)
+                })
+            }
+
+            _exportXlsFromPatientDataProviderFunction(dataProviderFun) {
+
                 // Data mapping
                 var dataColumns = [
                     "externalId",
@@ -2341,13 +2349,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 var grid = this.$['patients-list']
 
                 // Loop grid with a max of X results (csv)
-                grid.dataProvider({pageSize: 10000}, items => {
+                dataProviderFun(items => {
 
                     // Rewrite date for HR, input = yyyymmdd, output = dd/mm/yyyy
                     items.forEach(item => {
-                            item.dateOfBirth = item.dateOfBirth ? ("" + item.dateOfBirth).replace(/([0-9]{4})([0-9]{2})([0-9]{2})/, '$3/$2/$1') : this.localize('na_short', 'N/A')
-                            item.phone = this._getPhone(item)
-                            item.genderText = this.localize(item.gender, 'no translation', this.language)
+                        item.dateOfBirth = item.dateOfBirth ? ("" + item.dateOfBirth).replace(/([0-9]{4})([0-9]{2})([0-9]{2})/, '$3/$2/$1') : this.localize('na_short', 'N/A')
+                        item.phone = this._getPhone(item)
+                        item.genderText = this.localize(item.gender, 'no translation', this.language)
                     })
 
                     // Populate / collect
@@ -2372,6 +2380,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     (key, docId) => this.api.patient().listPatientsByHcPartyWithUser(this.user, this.user.healthcarePartyId, null, (key && JSON.stringify(key) || null), docId || null, 1000, null).then(pl => ({
                         rows: pl.rows.map(
                             p => (
+                                this.pimpPatient(p)
+                                /*
                                 p.languages = p.languages.join(' / '),
                                     p.dateOfBirth = (p.dateOfBirth ? ("" + p.dateOfBirth).replace(/([0-9]{4})([0-9]{2})([0-9]{2})/, '$3/$2/$1') : this.localize('na_short', 'N/A')),
                                     _.assign(
@@ -2396,6 +2406,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                             )
                                         )
                                     )
+
+                                 */
                             )
                         ),
                         nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
@@ -2409,11 +2421,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set("isLoadingPatient",true)
                 this.getAllPatients().then(
                     pl => {
-                        return ({
-                            rows: this.generateXlsFile(pl),
-                            nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
-                            nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
-                            done: !pl.nextKeyPair
+                        this._exportXlsFromPatientDataProviderFunction(fun => {
+                            fun(pl)
                         })
                     }
                 ).finally( () => this.set('isLoadingPatient',false))
