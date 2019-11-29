@@ -350,6 +350,12 @@ function peg$parse(input, options) {
 								'healthcarePartyId': hcpId,
 								'gender': right
 							}
+						case 'active':
+							return {
+								'$type': 'PatientByHcPartyAndActiveFilter',
+								'healthcarePartyId': hcpId,
+								'active': right
+							}
 					}
 					return requestFilter(left, right, rightMost)
 				case '!=':
