@@ -818,7 +818,7 @@
                         </div>
                     </page>
                     <page id="carePathProcedure">
-                        <ht-pat-care-path-detail-procedure id="htPatCarePathDetailProcedure" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" patient="[[patient]]" hcp="[[hcp]]" selected-care-path="[[selectedCarePath]]" selected-care-path-type="[[selectedCarePathType]]" available-package-of-procedure="[[availablePackageOfProcedure]]"></ht-pat-care-path-detail-procedure>
+                        <ht-pat-care-path-detail-procedure id="htPatCarePathDetailProcedure" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" patient="[[patient]]" hcp="[[hcp]]" selected-care-path="[[selectedCarePath]]" selected-care-path-type="[[selectedCarePathType]]" available-package-of-procedure="[[availablePackageOfProcedure]]" contacts="[[contacts]]"></ht-pat-care-path-detail-procedure>
                     </page>
                     <page id="carePathResume">
                         <div class="information-block">
@@ -1197,6 +1197,7 @@
                     '_initializeCharts(tabs)',
                     '_dateAsStringChanged(agreementsDateAsString, agreementsDateAsString.*, activationDateAsString, activationDateAsString.*, deadlineDateAsString)',
                     '_selectedPackageOfProcedureChanged(selectedPackageOfProcedure)',
+                    '_selectedTabChanged(tabs)'
                 ];
             }
 
@@ -1611,8 +1612,8 @@
             }
 
             _createContract(){
+                this._saveCarePath()
                 const pdfTemplate = this.isRenal() === true ? this._getRenalPdfContent() : this._getDiabetesPdfContent()
-
                 this.api.pdfReport(pdfTemplate, {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
                     .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload( printedPdf.pdf, "application/pdf", _.kebabCase(_.trim(_.get(this,"_data.content.dateYYYYMMDD",moment().format("YYYYMMDD"))) + "-" +_ .trim(_.get(this,"_data.content.title",this.api.crypto().randomUuid()))) + ".pdf" ))
             }
@@ -1742,8 +1743,10 @@
                 if(!_.isEmpty(_.get(this.selectedCarePath, 'linkedHealthElement', {})) && _.get(this.selectedCarePath, 'startDate', null) !== null && _.get(this,"selectedCarePath.type", null) !== null){
                     this.api.helement().getHealthElement(_.get(this.selectedCarePath, 'linkedHealthElement.id', null))
                         .then(he => {
-                            he.careTeam = _.concat(he.careTeam, _.compact(_.concat(this.selectedCarePath.careTeam.physician.map(hcp => _.assign(hcp, {careTeamMemberType: 'physician'})), this.selectedCarePath.careTeam.specialist.map(hcp => _.assign(hcp, {careTeamMemberType: 'specialist'})), this.selectedCarePath.careTeam.other.map(hcp => _.assign(hcp, {careTeamMemberType: 'other'}))).map(hcp => {
-                                !_.get(he, 'careTeam', []).find(ct => ct.healthcarePartyId === hcp.id) ? {
+                            he.careTeam = _.concat(he.careTeam, _.compact(_.concat(this.selectedCarePath.careTeam.physician.map(hcp => _.assign(hcp, {careTeamMemberType: 'physician'})),
+                                this.selectedCarePath.careTeam.specialist.map(hcp => _.assign(hcp, {careTeamMemberType: 'specialist'})),
+                                this.selectedCarePath.careTeam.other.map(hcp => _.assign(hcp, {careTeamMemberType: 'other'}))).map(hcp => {
+                                return !_.get(he, 'careTeam', []).find(ct => _.get(ct, 'healthcarePartyId', null) === hcp.id) ? {
                                        id: this.api.crypto().randomUuid(),
                                        healthcarePartyId: _.get(hcp, 'id', null),
                                        quality: _.get(hcp, 'specialityCodes', []).length ? {
@@ -1801,6 +1804,7 @@
                         .then(he => !_.trim(_.get(he,"id","")) ? promResolve : this.api.helement().modifyHealthElement(he).then(he=>this.api.register(he, 'helement')))
                         .then(he => {
                             console.log(he)
+                            this.dispatchEvent(new CustomEvent('save-care-path', {bubbles: true, composed: true}))
                         }).catch( e => "Error when saving care path: "+e)
 
                 }
@@ -2218,6 +2222,10 @@
                 this.set("unlinkBtnAvailable", false)
                 this.set("linkBtnAvailable", true)
                 this._saveCarePath()
+            }
+
+            _selectedTabChanged(){
+                !_.isEmpty(_.get(this, 'selectedCarePath', {})) ? this._saveCarePath() : null
             }
 
         }
