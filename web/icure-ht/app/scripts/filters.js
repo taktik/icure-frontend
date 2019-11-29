@@ -13,6 +13,11 @@ const lodash_1 = require("lodash");
 const date_fns_1 = require("date-fns");
 function filter(parsedInput, api, hcpartyId, debug) {
 	return __awaiter(this, void 0, void 0, function* () {
+		const hcpHierarchy = [hcpartyId];
+		let hcp;
+		while ((hcp = yield api.hcpartyicc.getHealthcareParty(hcpHierarchy[0])).parentId) {
+			hcpHierarchy.unshift(hcp.parentId);
+		}
 		const requestToFilterTypeMap = {
 			'SVC': 'ServiceByHcPartyTagCodeDateFilter',
 			'HE': 'HealthElementByHcPartyTagCodeFilter',
@@ -122,32 +127,37 @@ function filter(parsedInput, api, hcpartyId, debug) {
 							if (filter.entity === 'SVC') {
 								if (debug)
 									console.error('Request SVC: ' + JSON.stringify(body));
-								const servicesOutput = yield api.contacticc.filterServicesBy(undefined, undefined, undefined, body);
+								const servicesOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.contacticc.filterServicesBy(undefined, undefined, 10000, Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield servicesToPatientIds(servicesOutput);
+									if (debug)
+										console.log('Patient Ids: ' + patientIds);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
 								}
 							}
 							else if (filter.entity === 'HE') {
 								if (debug)
 									console.log('Request HE: ' + JSON.stringify(body));
-								const helementOutput = yield api.helementicc.filterBy(body);
+								const helementOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.helementicc.filterBy(Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield helementsToPatientIds(helementOutput || []);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
 								}
 							}
 							else if (filter.entity === 'INV') {
-								console.log('Request INV: ' + JSON.stringify(body));
-								const invoiceOutput = yield api.invoiceicc.filterBy(body);
+								if (debug)
+									console.log('Request INV: ' + JSON.stringify(body));
+								const invoiceOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.invoiceicc.filterBy(Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield invoicesToPatientIds(invoiceOutput || []);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
 								}
 							}
 							else if (filter.entity === 'CTC') {
-								console.log('Request CTC: ' + JSON.stringify(body));
-								const contactOutput = yield api.contacticc.filterByWithUser(yield api.usericc.getCurrentUser(), undefined, undefined, undefined, body);
+								if (debug)
+									console.log('Request CTC: ' + JSON.stringify(body));
+								const user = yield api.usericc.getCurrentUser();
+								const contactOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.contacticc.filterByWithUser(user, undefined, undefined, undefined, Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield contactsToPatientIds(contactOutput);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
@@ -203,6 +213,8 @@ function filter(parsedInput, api, hcpartyId, debug) {
 		}
 		function handleFinalRequest(filter) {
 			return __awaiter(this, void 0, void 0, function* () {
+				if (debug)
+					console.log('Final request: ' + JSON.stringify(filter));
 				if (filter.$type === 'request' && filter.entity && filter.filter) {
 					let res;
 					if (filter.entity === 'PAT') {
@@ -246,8 +258,16 @@ function filter(parsedInput, api, hcpartyId, debug) {
 			return __awaiter(this, void 0, void 0, function* () {
 				try {
 					const services = servicesOutput.rows || [];
-					const extractPromises = services.map((svc) => api.cryptoicc.extractKeysFromDelegationsForHcpHierarchy(hcpartyId, svc.contactId || '', svc.cryptedForeignKeys || {}));
-					return [...new Set(lodash_1.flatMap(yield Promise.all(extractPromises), it => it.extractedKeys))]; // set to remove duplicates
+					// tslint:disable-next-line:block-spacing
+					const extractPromises = services.map((svc) => {
+						return api.cryptoicc.extractKeysFromDelegationsForHcpHierarchy(hcpartyId, svc.contactId || '', svc.cryptedForeignKeys || {});
+					}).map(it => it.catch(e => {
+						console.error('Skipped error while converting service to patient id (might be due to missing patient)');
+						console.error(e);
+						return e;
+					}));
+					// @ts-ignore (no smartcast to non-nullable)
+					return [...new Set(lodash_1.flatMap((yield Promise.all(extractPromises)).filter(result => !(result instanceof Error)), it => it.extractedKeys))]; // set to remove duplicates
 				}
 				catch (error) {
 					console.error('Error while converting services to patient ids');
