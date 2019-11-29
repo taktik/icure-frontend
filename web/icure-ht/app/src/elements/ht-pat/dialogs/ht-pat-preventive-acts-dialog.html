@@ -348,6 +348,7 @@
             <div class="buttons">
                 <p class="error">[[error]]</p>
                 <paper-button class="button" on-tap="_closeDialogs"><iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_print"><iron-icon icon="vaadin:print" class="mr5 smallIcon"></iron-icon> [[localize('print','Print',language)]]</paper-button>
                 <paper-button class="button button--save" autofocus on-tap="_save" disabled="[[!changed]]">[[localize('save','Save',language)]]</paper-button>
             </div>
         </paper-dialog>
@@ -673,6 +674,162 @@
 
             _closeDialogs(){
                 this.$['preventiveActsDialog'].close();
+            }
+
+            _getContent(svc){
+                const content = svc && this.api.contact().preferredContent(svc, this.language) || svc.content[this.language]
+                return _.get(svc, 'tags', []).some(t => t.type == "SOAP" && t.code == "Plan") && !_.isEmpty(content) ?  _.get(svc, 'content.descr.stringValue', null) : _.get(content, 'stringValue', null) ?  _.get(content, 'stringValue', null) : !_.isEmpty(content) ? content : _.get(svc, 'comment', null) ? _.get(svc, 'comment', null) :  this.localize('obs_val','obsolete value',this.language)
+            }
+
+            _formatDate(svc) {
+                return svc.valueDate && this.api.formatedMoment(svc.valueDate);
+            }
+
+            _formatStatus(svc) {
+                const status = this._getStatus(svc);
+                return this.localize('proc_status_' + status, status, this.language);
+            }
+
+            _label(label, value) {
+                return "<b>" + this.localize(label, label) + ":</b>&nbsp;" + value;
+            }
+
+            _generateRow(value) {
+                return value ? "<div class='action-row'>" + value + "</div>" : "";
+            }
+
+            _generatePdf(action) {
+                let html = "<div class='action'>";
+                html += "<div class='action-header'>";
+                html += "<div>" + this._formatDate(action.service) + "&nbsp;</div>";
+                let content = this._getContent(action.service);
+                if (action.isVaccineProcedure) {
+                    const dose = _.get(action, "DoseNumber", null);
+                    if (content && dose)
+                        content += "&nbsp;(" + dose + ")";
+                }
+                html += "<div>" + content + "</div>";
+                html += "<div class='action-status " + this._getStatusClass(action.service) + "'>" + this._formatStatus(action.service) + "</div>";
+                html += "</div>";
+
+                html += "<div class='action-body'>";
+
+                if (action.HealthElements && action.HealthElements.length > 0) {
+                    html += "<div class='action-row'><b>" + this.localize("healthcareelements", "healthcareelements") + ":</b>&nbsp;";
+                    action.HealthElements.forEach(he => {
+                        html += "<div>" + he.descr + "&nbsp;</div>";
+                    })
+                    html += "</div>";
+                }
+
+                if (action.isVaccineProcedure) {
+                    let product = _.get(action, "VaccineInfo.name", _.get(action, "VaccineName", null));
+                    if (product) {
+                        const batch = _.get(action, "BatchNumber", null);
+                        if (batch)
+                            product += "&nbsp;(" + batch + ")"
+                        html += this._generateRow(this._label("pro", product));
+                    }
+                }
+
+                const description = _.get(action, "Description", null);
+                if (description)
+                    html += this._generateRow(this._label("des", description));
+
+                const profession = _.get(action, "ProfessionInfo.label." + this.language, null);
+                let healthCareParty = _.get(action, "HealthCareParty.name", null);
+                if (healthCareParty && profession)
+                    healthCareParty += "&nbsp;(" + profession.trim() + ")"
+                html += this._generateRow(healthCareParty);
+
+                if (action.Status === "refused") {
+                    const reasonOfRef = _.get(action, "ReasonOfRef", null);
+                    if (reasonOfRef)
+                        html += this._generateRow("<b>Motif de refus:</b>" + reasonOfRef);
+                }
+
+                //if (action.Status === "completed")
+                //    html += this._generateRow(_.get(action, "isSurgical", null));
+
+                html += "</div>";
+                html += "</div>";
+                return html;
+            }
+
+            _print() {
+                const name = "report.pdf";
+                const promises = this.services.map(s => this.$["detail"].getPlannedAction(s));
+                Promise.all(promises).then(actions => {
+                    let html = "";
+                    actions.forEach(action => html += this._generatePdf(action));
+                    this.api.pdfReport(this._getHtml(html), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
+                        .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", name, this.$['preventiveActsDialog']))
+                        .finally(() => {
+                            console.log("Printed");
+                        })
+                })
+            }
+
+            _getHtml(body) {
+                return `
+                    <html>
+                        <head>
+                            <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+                            <style>
+
+                                @page {size: A4; width: 210mm; height: 297mm; margin: 0; padding: 0; }
+                                body {margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; line-height:1.3em; }
+                                .page { width: 210mm; color:#000000; font-size:12px; padding:10mm; position:relative;  }
+
+                                .action {
+                                    border: 1px solid #eeeeee;
+                                    margin: 5px;
+                                }
+                                .action-header {
+                                    background-color: #eeeeee;
+                                    display: flex;
+                                    padding: 5px;
+                                    flex-flow: row nowrap;
+                                }
+                                .action-status {
+                                    margin-left: auto;
+                                }
+                                .action-body {
+                                    display: flex;
+                                    flex-flow: column nowrap;
+                                    padding: 5px;
+                                    line-height: 14px;
+                                    font-size: x-small;
+                                    text-align: center;
+                                }
+                                .action-row {
+                                    display: flex;
+                                    flex-flow: row nowrap;
+                                    padding: 5px;
+                                    line-height: 14px;
+                                    font-size: x-small;
+                                    text-align: center;
+                                }
+
+                                .orangeStatus { color: #fcdf35; }
+                                .greenStatus { color: #07f87f; }
+                                .redStatus { color: #ff4d4d; }
+
+                                .w100 { width: 100px; }
+                                .w400 { width: 400px; }
+                                .w300 { width: 300px; }
+                                .w150 { width: 150px; }
+
+                            </style>
+                        </head>
+
+                        <body>
+                            <div class="page">` + body + `
+                            </div>` +
+                    '<script>document.fonts.ready.then(() => { setInterval(() => {document.body.dispatchEvent(new CustomEvent("pdfDoneRenderingEvent"))}, 500); }); <'+'/script>' + `
+                        </body>
+                    </html>
+                `
             }
         }
         customElements.define(HtPatPreventiveActsDialog.is, HtPatPreventiveActsDialog);
