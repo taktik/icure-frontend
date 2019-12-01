@@ -563,6 +563,9 @@
                             <page>
                                 <div class="m4">
                                     <div class="prevention-line">
+                                        <vaadin-combo-box class="w100 p4" filtered-items="[[listOfClinicalPlan]]" item-label-path="label.[[language]]" item-value-path="id" id="prevention-list" label="Type de prévention*" value="{{prevention.clinicalPlanId}}"></vaadin-combo-box>
+                                    </div>
+                                    <div class="prevention-line">
                                         <vaadin-combo-box class="w70 p4" filtered-items="[[filteredProcedures]]" item-label-path="label.[[language]]" item-value-path="id" id="procedures-list" filter="{{procedureFilter}}" label="[[localize('prev-proc', 'Procedure', language)]]*" value="{{prevention.procedureId}}"></vaadin-combo-box>
                                         <vaadin-date-picker class="mw30 p4 m4" id="date-picker" label="[[localize('prev-deadline', 'Deadline', language)]]*" value="{{prevention.deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline"></vaadin-date-picker>
                                     </div>
@@ -648,8 +651,8 @@
                     remindType:{
                         type: Array,
                         value: () => [
-                            {label: {fr:'Par sms', nl:'Bij sms', en:'By sms'}, code: "sms"},
-                            {label: {fr:'Par email', nl:'Bij mail', en:'By email'}, code:"mail"},
+                            //{label: {fr:'Par sms', nl:'Bij sms', en:'By sms'}, code: "sms"},
+                            //{label: {fr:'Par email', nl:'Bij mail', en:'By email'}, code:"mail"},
                             {label: {fr:'Par liste Excel pour publipostage', nl:'Bij Excel', en:'By Excel'}, code:"xlsx"}
                         ]
                     },
@@ -689,14 +692,17 @@
                     this.set('listOfProcedures',listOfProc.map(p => _.assign(p, {
                         normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.get(p, _.trim('label.'+this.language), ""), _.get(p, 'code', ""), _.get(p, 'searchTerms.'+this.language, "")])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                     })))
-                }).finally(() => {
+                }).then(() => this.api.code().findCodes("be", "CD-CLINICALPLAN"))
+                    .then(listOfClinicalPlan => this.set('listOfClinicalPlan', listOfClinicalPlan.filter(cp => cp.code !== "gmdplus")))
+                    .finally(() => {
                     this.set('prevention', {
                         title: null,
+                        clinicalPlanId: null,
                         procedureId: null,
                         deadline: null,
                         linkedProfession: null,
                         description: null,
-                        remindType: null,
+                        remindType: _.get(this, 'remindType', []).find(rt => rt.code === "xlsx"),
                         label: 'Actes'
                     })
                     this.set("reminderInfo", {
@@ -776,7 +782,7 @@
                                         stringValue: _.trim(_.get(this.prevention, 'description', null))}]]),
                                     label: _.get(this.prevention, "label", "Actes"),
                                     comment: _.trim(_.get(this.prevention, 'description', null)),
-                                    valueDate: _.get(this.prevention, 'deadline', null) ? parseInt(this.api.moment(_.get(this.prevention, 'deadline', null)).format('YYYYMMDD')+"000000") : null,
+                                    valueDate: _.get(this.prevention, 'deadline', null) ? parseInt(_.padEnd(this.api.moment(_.get(this.prevention, 'deadline', null)).format('YYYYMMDD'), 14, 0)) : null,
                                     codes: [
                                         {
                                             id: _.get(this.listOfProcedures.find(proc => proc.id === this.prevention.procedureId), 'id', null),
@@ -799,6 +805,9 @@
                                     ctc.services.push(svc)
                                     return Promise.all([pat, this.api.contact().createContactWithUser(this.user, ctc)])
                                 }).then(([pat, ctc]) => _.concat(listOfContact, {contact: ctc, patient: pat}))
+                                .finally(() => {
+                                    this.exportXslxList()
+                                })
                             })
                         }
                     })
@@ -824,6 +833,65 @@
                 }
             }
 
+            exportXslxList(){
+                let patientList = _.get(this, "selectedPatientForPrevention", []).forEach((pat, idx) => {
+                    return {
+                        [this.localize('ext_id_short', 'Dossier', this.language)[idx]]: _.get(pat, 'patient.externalId', null),
+                        [this.localize('las_nam', 'Last name', this.language)[idx]]: _.get(pat, 'patient.lastName', null),
+                        [this.localize('fir_nam', 'First name', this.language)[idx]]: _.get(pat, 'patient.firstName', null),
+                        [this.localize('birthDate', 'Birth date', this.language)[idx]]: _.get(pat, 'patient.dateOfBirth', null).replace(/([0-9]{4})([0-9]{2})([0-9]{2})/, '$3/$2/$1'),
+                        [this.localize('phone', 'Phone', this.language)[idx]]: _.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'telecoms', []).find(tel => tel.telecomType === "mobile" || tel.telecomType==="phone")), "telecomNumber", null),
+                        [this.localize('postalAddress', 'Dossier', this.language)[idx]]: _.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'addressType', null) === "home"), "houseNumber", null)+" "+_.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'addressType', null) === "home"), "street", null)+" "+_.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'addressType', null) === "home"), "postalCode", null)+" "+_.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'addressType', null) === "home"), "city", null)+" "+_.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'addressType', null) === "home"), "country", null),
+                        [this.localize('email', 'Dossier', this.language)[idx]]: _.get(_.get(pat, 'patient.addresses', []).find(adr => _.get(adr, 'telecoms', []).find(tel => tel.telecomType === "email")), "telecomNumber", null),
+                        [this.localize('ssin', 'Dossier', this.language)[idx]]: _.get(pat, 'patient.ssin', null),
+                        [this.localize('gender', 'Dossier', this.language)[idx]]:  this.localize(_.get(pat, 'patient.gender', null), _.get(pat, 'patient.gender', null), this.language)
+                    }
+                })
+
+                this.generateXlsFile(patientList, "patient-prevention-list_" +moment().format("YYYYMMDD-HHmmss")+ ".xls", "Liste des patients pour la prévention", "Topaz")
+            }
+
+            generateXlsFile(data, filename, title, author) {
+
+                // Create xls work book and assign properties
+                const xlsWorkBook = {SheetNames: [], Sheets: {}}
+                xlsWorkBook.Props = {Title: title, Author: author}
+
+                // Create sheet based on json data collection
+                var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
+
+                // Link sheet to workbook
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, title)
+
+                // Virtual data output
+                var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
+
+                // Put output to virtual "file"
+                var fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+
+                // Create download link and append to page's body
+                var downloadLink = document.createElement("a")
+                document.body.appendChild(downloadLink)
+                downloadLink.style = "display: none"
+
+                // Create url
+                var urlObject = window.URL.createObjectURL(fileBlob)
+
+                // Link to url
+                downloadLink.href = urlObject
+                downloadLink.download = filename
+
+                // Trigger download and drop object
+                downloadLink.click()
+                window.URL.revokeObjectURL(urlObject)
+
+                // Free mem
+                fileBlob = false
+                xlsWorkBookOutput = false
+
+                return
+            }
+
             _getNbOfPatient(selectedPatient){
                 return _.size(selectedPatient)
             }
@@ -842,11 +910,11 @@
                 }
             }
 
-            _isAvailableForEmail(pat){
+            _isAvailableForSms(pat){
                 return !!_.get(pat, 'addresses', []).find(adr => _.get(adr, 'telecoms', []).find(tel => _.get(tel, 'telecomType', null) === 'mobile' && _.get(tel, 'telecomNumber', null) !== '' && _.get(tel, 'telecomNumber', null) !== null))
             }
 
-            _isAvailableForSms(pat){
+            _isAvailableForEmail(pat){
                 return !!_.get(pat, 'addresses', []).find(adr => _.get(adr, 'telecoms', []).find(tel => _.get(tel, 'telecomType', null) === 'email' && _.get(tel, 'telecomNumber', null) !== '' && _.get(tel, 'telecomNumber', null) !== null))
             }
 
