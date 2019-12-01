@@ -99,7 +99,9 @@
                             <vaadin-grid-sorter path="">[[localize('care-path-team','Team',language)]]</vaadin-grid-sorter>
                         </template>
                         <template>
-                            <div></div>
+                            <template is="dom-repeat" items="[[item.team]]" as="hcp">
+                                <div>[[hcp.firstName]] [[hcp.lastName]]</div>
+                            </template>
                         </template>
                     </vaadin-grid-column>
                     <vaadin-grid-column>
@@ -161,8 +163,17 @@
 
             open(){
                 const activeEh = _.cloneDeep(this.activeHealthElements)
-                this.set('carePathList', _.flatten(activeEh.filter(he => he.id && he.codes.find(c => c.type === "BE-THESAURUS" && (c.code === "10119104" || c.code === "10025768")) && _.size(he.plansOfAction)).map(he => _.get(he, 'plansOfAction', []).map(p => _.merge(p, {linkedHealthElement: he})))))
-                this.$["care-path-list"].open()
+                let prom = Promise.resolve()
+
+                activeEh.filter(he => he.id && he.codes.find(c => c.type === "BE-THESAURUS" && (c.code === "10119104" || c.code === "10025768")) && _.size(he.plansOfAction)).map(he => _.get(he, 'plansOfAction', []).map(p => {
+                    prom = prom.then(cp => this.api.hcparty().getHealthcareParties(_.compact(_.get(p, 'careTeamMemberships', []).map(ctms => _.get(_.get(he, "careTeam", []).find(ct => _.get(ct, 'id', null) === _.get(ctms, 'careTeamMemberId', "")), 'healthcarePartyId', null))).join(','))
+                        .then(hcps => _.concat(cp, _.merge(p, {linkedHealthElement: he, team: hcps}))))
+                }))
+
+                prom.then(cp => {
+                    this.set('carePathList', _.compact(cp))
+                    this.$["care-path-list"].open()
+                })
             }
 
             _closeDialogs(){
