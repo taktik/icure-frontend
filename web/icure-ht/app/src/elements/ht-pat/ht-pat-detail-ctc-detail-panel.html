@@ -4165,25 +4165,20 @@
 
 				const promResolve = Promise.resolve()
 				const he = _.get(e, "detail.healthElement",{})
-				const ctc = _.get(e, "detail.contact",{})
+				const ctc = _.find(this.contacts, {id:_.get(_.get(e, "detail.contact",{}),"id","")})
 				const doc = _.get(e, "detail.document",{})
 				const documentSvc = _.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === doc.id) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === doc.id) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === doc.id))
 				const documentSubCtc = _.find(ctc.subContacts, sctc => _.some(_.get(sctc,"services",[]), svc => _.get(svc,"serviceId","") === _.get(documentSvc, "id","")))
-				const existingFormId = _.trim(_.get(documentSubCtc,"formId",""))
-
-				// Fz: revoir existingFormId => pas le bon ciblage car pas lié au subctc du doc
-
-				return false;
 
 				return !_.trim(_.get(he,"id","")) || !_.trim(_.get(ctc,"id","")) || !_.trim(_.get(doc,"id","")) || !_.size(documentSvc) || !_.size(documentSubCtc) ? false :
-					promResolve.then(() => !!_.trim(existingFormId) ? _.trim(existingFormId) : this.api.form().newInstance(this.user, this.patient, {contactId: _.trim(_.get(ctc,"id","")), descr: this.api.crypto().randomUuid()}).then(formInstance => this.api.form().createForm(formInstance)).then(createdForm=>this.api.register(createdForm, 'form')).then(createdForm => _.get(createdForm,"id","")))
-						.then(formId => {
 
-							// No existing from id yet, create new subctc
-							// if(!_.trim(existingFormId)) this.contact.subctc existe ? push sinon create with :
-							// { "formId": formId, "healthElementId": _.get(he,"id",""), },
-
-						})
+                    promResolve
+                        .then(() => _.merge(documentSubCtc, {healthElementId:_.get(he,"id","")}))
+                        .then(() => this.api.contact().modifyContactWithUser(this.user, ctc))
+                        .then(c => this.api.register(c,'contact'))
+                        .then(c => ctc.rev = c.rev)
+                        .then(() => this._contactsChanged())
+                        .then(() => setTimeout(() => this.dispatchEvent(new CustomEvent("refresh-contacts", {detail:{contact: ctc},bubbles: true,composed: true})), 500))
 
 			}
 
