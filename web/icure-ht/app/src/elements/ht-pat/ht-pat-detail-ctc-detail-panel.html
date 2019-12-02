@@ -18,6 +18,7 @@
 <link rel="import" href="../../../bower_components/vaadin-icons/vaadin-icons.html">
 <link rel="import" href="../../../bower_components/vaadin-upload/vaadin-upload.html">
 <link rel="import" href="../../../bower_components/vaadin-checkbox/vaadin-checkbox.html">
+<link rel="import" href="../../../bower_components/vaadin-material-theme/vaadin-text-field.html">
 
 <link rel="import" href="../../../bower_components/paper-input/paper-input.html">
 <link rel="import" href="../../../bower_components/paper-input/paper-input-container.html">
@@ -29,6 +30,7 @@
 <link rel="import" href="../filter-panel/filter-panel.html">
 <link rel="import" href="../../../bower_components/paper-fab-speed-dial/paper-fab-speed-dial.html">
 <link rel="import" href="../../../bower_components/paper-fab-speed-dial/paper-fab-speed-dial-action.html">
+<link rel="import" href="../../../bower_components/vaadin-combo-box/vaadin-combo-box.html">
 
 <link rel="import" href="../dynamic-form/dynamically-loaded-form.html">
 <link rel="import" href="dialogs/ht-pat-invoicing-dialog.html">
@@ -42,6 +44,7 @@
 <link rel="import" href="../../styles/buttons-style.html">
 <link rel="import" href="../../styles/dialog-style.html">
 <link rel="import" href="dialogs/ht-pat-outgoing-document.html">
+<link rel="import" href="../../styles/shared-styles.html">
 
 <link rel="import" href="../dynamic-form/dynamic-subcontact-type-selector.html">
 <link rel="import" href="../dynamic-form/dynamic-confidentiality-selector.html">
@@ -112,7 +115,7 @@
 
 	<template>
 
-		<style include="scrollbar-style buttons-style dialog-style">
+		<style include="scrollbar-style buttons-style dialog-style shared-styles">
 			.notification-panel {
 				position: fixed;
 				top:50%;
@@ -657,6 +660,10 @@
 				margin-left:80px!important;
 			}
 
+			#editLabelAndTransactionDialog .modal-title {
+			    justify-content: flex-start;
+			}
+
 		</style>
 
         <template is="dom-if" if="[[_bodyOverlay]]">
@@ -823,7 +830,23 @@
 							</vaadin-date-picker-light>
 						</template>
                     </div>
-					<ht-services-list id="dynamicallyListForm" api="[[api]]" user="[[user]]" patient="[[patient]]" contact="[[dof.ctc]]" health-elements="[[healthElements]]" contacts="[[contacts]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" forwardable="true" printable="true"></ht-services-list>
+					<ht-services-list
+						id="dynamicallyListForm"
+						api="[[api]]"
+						user="[[user]]"
+						patient="[[patient]]"
+						contact="[[dof.ctc]]"
+						health-elements="[[healthElements]]"
+						contacts="[[contacts]]"
+						i18n="[[i18n]]"
+						language="[[language]]"
+						resources="[[resources]]"
+						forwardable="true"
+						printable="true"
+						allow-es-link="true"
+						linkable-health-elements="[[mainHealthElements]]"
+						health-elements="[[healthElements]]"
+					></ht-services-list>
 				</template>
 				<template is="dom-if" if="[[table]]">
                     <div class="ctc-header">
@@ -927,6 +950,13 @@
 									    is-pat-detail="true"
 										show-extended-title="true"
 										contacts="[[allContacts]]"
+										allow-es-link="true"
+										linkable-health-elements="[[mainHealthElements]]"
+										health-elements="[[healthElements]]"
+										on-link-doc="_linkDocumentAndEs"
+										on-unlink-doc="_unlinkDocumentAndEs"
+										allow-edit-label-and-transaction="true"
+										on-edit-label-and-transaction="_editLabelAndTransactionDialog"
 									></dynamic-doc>
 <!--									<div>[[_getComment(item, comments)]]</div>-->
 								</template>
@@ -1039,6 +1069,19 @@
         
         <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
 
+
+
+        <paper-dialog class="modalDialog" id="editLabelAndTransactionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="create" class="mr5"></iron-icon>[[localize('modifyInformation','Modify information',language)]]</h2>
+            <div class="content pt10 pr20 pl20">
+                <div class=""><paper-input value="{{editLabelAndTransactionData.label}}" placeHolder="[[localize('doc-title','Titre du document',language)]]" label="[[localize('doc-title','Titre du document',language)]]"></paper-input></div>
+                <div class="mt30"><vaadin-combo-box class="w100pc" filtered-items="[[listType]]" item-label-path="name" item-value-path="code" value="{{editLabelAndTransactionData.transactionCode}}" label="[[localize('docType','Type de document',language)]]"></vaadin-combo-box></div>
+            </div>
+            <div class="buttons">
+                <paper-button class="button button--other" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_saveLabelAndTransactionDialog"><iron-icon icon="save"></iron-icon> [[localize('save','Save',language)]]</paper-button>
+            </div>
+        </paper-dialog>
 
 	</template>
 
@@ -1253,14 +1296,43 @@
 					allHealthElements :{
                         type : Object,
                         value : {}
+                    },
+                    editLabelAndTransactionData :{
+                        type : Object,
+                        value : () => { return {
+                            ctc: {
+                                type: Object,
+                                value: {}
+                            },
+                            docId: {
+                                type: String,
+                                value: ""
+                            },
+                            label: {
+                                type: String,
+                                value: ""
+                            },
+                            transactionCode:{
+                                type: String,
+                                value: ""
+                            },
+                        }}
+                    },
+                    listType:{
+                        type: Array,
+                        value: ()=>[]
                     }
 				};
 			}
 
 			static get observers() {
 				return [
-				    'ifRecipeAvailable(user)', '_servicesFilter(serviceFilters)','_allContactsChanged(allContacts.*, currentContact, currentContact._rev, servicesRefresher)',
-					'_resetPatient(patient)', '_isConnectedToEhbox(api.tokenId)'
+				    'ifRecipeAvailable(user)',
+				    '_servicesFilter(serviceFilters)',
+				    '_allContactsChanged(allContacts.*, currentContact, currentContact._rev, servicesRefresher)',
+					'_resetPatient(patient)',
+					'_isConnectedToEhbox(api.tokenId)',
+					'_apiReady(api)'
 				];
 			}
 
@@ -1269,8 +1341,12 @@
 			}
 
             ready() {
-                super.ready();
+			    super.ready();
                 this._getOutGoingDocumentTemplates()
+            }
+
+            _apiReady() {
+                return !!_.size(_.get(this,"listType",[])) ? null : this.api.getDocumentTypes(this.resources, this.language).then(documentTypes => this.set("listType", documentTypes))
             }
 
             _resetPatient() {
@@ -4149,6 +4225,119 @@
 			addWhiteConsultation(){
 				this.set('showAddFormsContainer', false);
 				this.addForm("a33a559d-b8c8-46e1-9623-f9627f88b1f0");
+			}
+
+			_saveContactAndRefreshContacts(ctc) {
+
+			    return Promise.resolve()
+			        .then(() => this.api.contact().modifyContactWithUser(this.user, ctc))
+                    .then(c => this.api.register(c,'contact'))
+                    .then(c => ctc.rev = c.rev)
+                    // .then(() => this._contactsChanged())
+                    .then(() => setTimeout(() => this.dispatchEvent(new CustomEvent("refresh-contacts", {detail:{contact: ctc},bubbles: true,composed: true})), 500))
+
+			}
+
+			_linkDocumentAndEs(e) {
+
+				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+				const docId = _.get(e, "detail.document.id",{})
+				const documentSvcId = _.trim(_.get(_.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId)), "id",""))
+				const heAlreadyLinked = !!_.size(_.filter(_.get(ctc,"subContacts",[]), sctc => _.get(sctc,"healthElementId","") === _.trim(_.get(e, "detail.healthElement.id","")) && !!_.some(_.get(sctc,"services"), {serviceId:documentSvcId})))
+
+				return !_.trim(_.get(e, "detail.healthElement.id","")) ||
+				    !_.trim(_.get(ctc,"id","")) ||
+				    !_.size(_.get(ctc,"subContacts",[])) ||
+				    !_.trim(docId) ||
+				    !_.trim(documentSvcId) ||
+                    heAlreadyLinked ? Promise.resolve() : Promise.resolve()
+                        .then(() => ctc.subContacts.push({
+                            codes: [],
+                            tags: [],
+                            healthElementId: _.trim(_.get(e, "detail.healthElement.id","")),
+                            services: [{serviceId: documentSvcId}]
+                         }))
+                         .then(()=>this._saveContactAndRefreshContacts(ctc))
+
+			}
+
+			_unlinkDocumentAndEs(e) {
+
+				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+				const docId = _.get(e, "detail.document.id",{})
+				const documentSvcId = _.trim(_.get(_.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId)), "id",""))
+
+				return !_.trim(_.get(e, "detail.healthElement.id","")) ||
+				    !_.trim(_.get(ctc,"id","")) ||
+				    !_.size(_.get(ctc,"subContacts",[])) ||
+				    !_.trim(docId) ||
+				    !_.trim(documentSvcId) ? Promise.resolve() : Promise.resolve()
+                        .then(() => ctc.subContacts = _.filter(ctc.subContacts, sctc => (
+                            (!!_.some(_.get(sctc,"services"), {serviceId:documentSvcId}) && _.trim(_.get(sctc,"healthElementId")) !== _.trim(_.get(e,"detail.healthElement.id"))) ||
+                            !_.some(_.get(sctc,"services"), {serviceId:documentSvcId})
+                        )))
+                        .then(()=>this._saveContactAndRefreshContacts(ctc))
+
+			}
+
+			_editLabelAndTransactionDialog(e) {
+
+			    const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+                const docId = _.get(e, "detail.document.id",{})
+                const documentSvc = _.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId))
+                const serviceLabel = !!_.trim(_.get(documentSvc,"content.fr.stringValue","")) ? _.trim(_.get(documentSvc,"content.fr.stringValue","")) : !!_.trim(_.get(documentSvc,"content.nl.stringValue","")) ? _.trim(_.get(documentSvc,"content.nl.stringValue","")) : !!_.trim(_.get(documentSvc,"content.en.stringValue","")) ? _.trim(_.get(documentSvc,"content.en.stringValue","")) : _.trim(_.get(documentSvc,"label",""))
+                const transactionCode = !!_.trim(_.get(_.find(_.get(documentSvc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) ? _.trim(_.get(_.find(_.get(documentSvc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) : !!_.trim(_.get(_.find(_.get(ctc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) ? _.trim(_.get(_.find(_.get(ctc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) : ""
+
+			    this.set("editLabelAndTransactionData.ctc", ctc)
+			    this.set("editLabelAndTransactionData.docId", docId)
+			    this.set("editLabelAndTransactionData.label", serviceLabel)
+			    this.set("editLabelAndTransactionData.transactionCode", transactionCode)
+
+			    return this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].open();
+
+			}
+
+			_saveLabelAndTransactionDialog() {
+
+				const ctc = _.find(this.contacts, {id:_.get(this,"editLabelAndTransactionData.ctc.id","")})
+				const docId = _.trim(_.get(this,"editLabelAndTransactionData.docId",""))
+				const documentSvc = _.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId))
+				const documentSctc = _.find(ctc.subContacts, sctc => !_.trim(_.get(sctc,"healthElementId","")) && !!_.some(_.get(sctc,"services"),{serviceId:_.get(documentSvc,"id","")}))
+				const isEhboxMessage = !!_.trim(_.get(_.find(_.get(documentSctc, "tags", []), {type:"originalEhBoxMessageId"}),"id",""))
+
+				const newLabel = _.trim(_.get(this,"editLabelAndTransactionData.label",""))
+				const newTransactionCode = _.trim(_.get(this,"editLabelAndTransactionData.transactionCode",""))
+
+				return !_.size(ctc) ||
+				    !_.trim(docId) ||
+				    !_.size(documentSvc) ||
+				    !_.size(documentSctc) ? Promise.resolve() : Promise.resolve()
+				        .then(() => {
+
+				            if(isEhboxMessage) {
+
+				                ctc.descr = newLabel
+				                documentSvc.label = newLabel
+
+				                ctc.tags = _.filter(_.get(ctc,"tags",[]), tag => _.trim(_.get(tag,"type")) !== "CD-TRANSACTION")
+				                ctc.tags.push({type: "CD-TRANSACTION", code: newTransactionCode, disabled: false})
+
+                                documentSctc.tags = _.filter(_.get(documentSctc,"tags",[]), tag => _.trim(_.get(tag,"type")) !== "CD-TRANSACTION")
+				                documentSctc.tags.push({type: "CD-TRANSACTION", code: newTransactionCode, disabled: false})
+
+				            }
+
+				            if(!!_.size(_.get(documentSvc,"content.fr",{}))) _.merge(documentSvc, {content:{fr:{stringValue:newLabel}}})
+				            if(!!_.size(_.get(documentSvc,"content.nl",{}))) _.merge(documentSvc, {content:{nl:{stringValue:newLabel}}})
+				            if(!!_.size(_.get(documentSvc,"content.en",{}))) _.merge(documentSvc, {content:{en:{stringValue:newLabel}}})
+
+				            documentSvc.tags = _.filter(_.get(documentSvc,"tags",[]), tag => _.trim(_.get(tag,"type")) !== "CD-TRANSACTION")
+				            documentSvc.tags.push({type: "CD-TRANSACTION", code: newTransactionCode, disabled: false})
+
+				        })
+				        .then(()=>this._saveContactAndRefreshContacts(ctc))
+				        .finally(()=>this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].close())
+
 			}
 
         }
