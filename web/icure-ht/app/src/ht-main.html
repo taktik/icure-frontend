@@ -952,6 +952,13 @@ autoReadCardEid(cards){
         return target.split(search).join(replacement);
     }
 
+	setLinkPatient(logs){
+		return Promise.all(logs.map(log => log.patientId ? Promise.resolve(log) : this.api.crypto().extractCryptedFKs(log, this.user.healthcarePartyId).then(ids =>{
+			log.patientId= log.patientId || ids.extractedKeys[0];
+			return log;
+		})))
+	}
+
     apiReady() {
 		if (!this.user || !this.api) { return }
 
@@ -964,20 +971,29 @@ autoReadCardEid(cards){
 			language && this.set('language', language);
 			return hcp;
 		}).then(hcp => {
+			this.api.setPreventLogging()
 			this.api.accesslog().findByUserAfterDateWithUser(this.user,this.user.id, 'USER_ACCESS', +new Date() - 1000 * 3600 * 24 * 365, null, null, 1000, true).then(accessLogs => {
-				const accesses = accessLogs.rows.reduce((acc, access) => {
-					const latestAccessForPatId = acc[access.patientId] || (acc[access.patientId] = { access: access });
-					if (latestAccessForPatId.access.date < access.date) {
-						latestAccessForPatId.access = access;
-					}
-					return acc;
-				}, {});
-				return this.api.patient().getPatientsWithUser(this.user, { ids: Object.keys(accesses) }).then(patients => {
-					patients.forEach(p => accesses[p.id] && (accesses[p.id].patient = p));
-					this.set('_isLoadingLatestPatients',false);
-					return accesses;
-				});
-			}).then(accesses => this.set('accessLogs', _.sortBy(Object.values(accesses).filter(acc => !!acc.patient), a => -a.access.date)));
+				return this.setLinkPatient(accessLogs.rows ? accessLogs.rows : []).then(logs =>{
+
+					const accesses = logs.reduce((acc, access) => {
+						if(access.patientId){
+							const latestAccessForPatId = acc[access.patientId] || (acc[access.patientId] = { access: access });
+							if (latestAccessForPatId.access.date < access.date) {
+								latestAccessForPatId.access = access;
+							}
+						}
+						return acc;
+					}, {});
+					return this.api.patient().getPatientsWithUser(this.user, { ids: Object.keys(accesses) }).then(patients => {
+						patients.forEach(p => accesses[p.id] && (accesses[p.id].patient = p));
+						this.set('_isLoadingLatestPatients',false);
+						return accesses;
+					});
+				})
+			}).then(accesses => this.set('accessLogs', _.sortBy(Object.values(accesses).filter(acc => !!acc.patient), a => -a.access.date)))
+					.finally(()=> {
+						this.api.setPreventLogging(false)
+					})
 
             this._updateLabResults()
 
