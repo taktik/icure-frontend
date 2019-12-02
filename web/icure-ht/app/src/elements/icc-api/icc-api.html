@@ -22,6 +22,7 @@
     import {IccHelementXApi} from 'icc-api/dist/icc-x-api/icc-helement-x-api'
     import {IccPatientXApi} from 'icc-api/dist/icc-x-api/icc-patient-x-api'
     import {IccReceiptXApi} from 'icc-api/dist/icc-x-api/icc-receipt-x-api'
+    import {IccAccesslogXApi} from 'icc-api/dist/icc-x-api/icc-accesslog-x-api'
     import {IccUserXApi} from 'icc-api/dist/icc-x-api/icc-user-x-api'
     import {IccInvoiceXApi} from 'icc-api/dist/icc-x-api/icc-invoice-x-api'
     import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
@@ -124,7 +125,6 @@
             Object.assign(this.headers60s, this.headers)
             Object.assign(this.headers120s, this.headers)
 
-            this.accesslogicc = new api.iccAccesslogApi(this.host, this.headers)
             this.authicc = new api.iccAuthApi(this.host, this.headers)
             this.bemikronoicc = new api.iccBeMikronoApi(this.host, this.headers)
             this.onlineBeMikronoicc = new api.iccBeMikronoApi(this.host && this.host.match(/https:\/\/backend.(.+).icure.cloud.+/) ? this.host : "https://backend.svc.icure.cloud/rest/v1", this.headers)
@@ -165,6 +165,8 @@
             this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.formicc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc, this.classificationicc)
             this.messageicc = new IccMessageXApi(this.host, this.headers120s, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
+            this.accesslogicc = new IccAccesslogXApi(this.host, this.headers, this.cryptoicc)
+
 
             this._Spy(this.accesslogicc,"createAccessLog");
             ["modifyPatientWithUser","createPatientWithUser","getPatientsWithUser","mergeIntoWithUser","modifyPatientReferralWithUser","getPatientWithUser"].map(method => this._Spy(this.patienticc,method));
@@ -1040,16 +1042,11 @@
             this.user().getCurrentUser().then(user=>{
                 let patients = this._getPatientIds(info)
                 patients && patients.length && patients.map(pat => {
-                    let log ={
-                        id: this.crypto().randomUuid(),
-                        patientId: pat,
-                        user: user.id||this.mainLog.userId,
-                        date: +new Date(),
-                        accessType: 'USER_ACCESS',
-                        detail: info.method
-                    }
-
-                    return this.accesslogicc.createAccessLog(log)
+                    const log ={}
+                    this.accesslogicc.newInstance(user,pat,log).then(newlog =>{
+                        newlog.detail=info.method
+                        this.accesslogicc.createAccessLogWithUser(user,newlog);
+                    })
                 })
             })
 

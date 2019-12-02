@@ -161,7 +161,7 @@
                                 <div class="log-text-col hover-icon" id="user" data-item$="user" on-tap="sortList">[[localize('persphysicianRole','Prestataire',language)]]<iron-icon data-item$="user" class="none" icon="[[getIcon('user',lastSort,asc)]]"></iron-icon></div>
                                 <div class="log-text-col hover-icon" id="patient" data-item$="patient" on-tap="sortList">[[localize('pat','Patients',language)]]<iron-icon data-item$="patient" class="none" icon="[[getIcon('patient',lastSort,asc)]]"></iron-icon></div>
                             </div>
-                            <template is="dom-repeat" items="[[logList]]">
+                            <template is="dom-repeat" items="[[displayedLogList]]">
                                     <paper-item class="log-text">
                                         <div class="log-text-col">
                                             <template is="dom-if" if="[[exportMode]]">
@@ -247,6 +247,10 @@
                         type : Array,
                         value : []
                     },
+                    displayedLogList: {
+                        type : Array,
+                        value : []
+                    },
                     listPatient :{
                         type : Array,
                         value : []
@@ -298,10 +302,6 @@
                         type: Array,
                         value: []
                     },
-                    documentLog:{
-                        type: Object,
-                        value: {}
-                    },
                     needMoreLogs:{
                         type: Boolean,
                         value: false
@@ -325,8 +325,20 @@
                     endDate:{
                         type: String,
                         value: ""
+                    },
+                    listMoreAccess:{
+                        type: Object,
+                        value: {}
+                    },
+                    searchDate:{
+                        type: String,
+                        value: ""
                     }
                 };
+            }
+
+            static get observers(){
+                return ['_setDisplayedLogList(logList.*)','_setSearchDate(endDate,startDate)']
             }
 
             open() {
@@ -352,16 +364,39 @@
                 this.set("needMorePatient",true)
                 this.set("patientsList",[])
 
-                this.set("stopRecursive",true)
-
                 this.set("logList",[])
                 this.listingPatients()
+            }
+
+            getMoreAccess(){
+                this.set("selected",null)
+                this.set("selectedLog",null)
+                this.set("loadingLogs",true)
+                this.listingAccessByUser(this.filterValue,this.searchDate)
+                    .then(logs => this.format(logs))
+            }
+
+            _setSearchDate(){
+                const old = this.searchDate || moment().format("YYYY-MM-DD")
+                let prom = Promise.resolve({})
+                if(this.startDate && moment(this.startDate).isBefore(moment(old,"YYYY-MM-DD"))){
+                    this.set("searchDate",moment(this.startDate).format("YYYY-MM-DD"))
+                }
+                else if(this.endDate && moment(this.endDate).isBefore(moment(old,"YYYY-MM-DD"))){
+                    this.set("searchDate",moment(this.endDate).format("YYYY-MM-DD"))
+                }
+                if(old !== this.searchDate){
+                    prom = this.listingAccessByUser(this.filterValue,this.searchDate).then(logs => this.format(logs))
+                }
+
+                prom.then(log => this._setDisplayedLogList())
             }
 
             listingPatients(){
                 let latestSearchValue = this.filterValue
                 this.latestSearchValue = latestSearchValue
 
+                this.api.setPreventLogging();
                 const filter = /^[0-9]{11}$/.test(latestSearchValue) ? {
                     '$type': 'PatientByHcPartyAndSsinFilter',
                     'healthcarePartyId': this.user.healthcarePartyId,
@@ -390,8 +425,11 @@
                     }else{
                         this.set("documentPatients",patients.nextKeyPair)
                         this.set("needMorePatient",true)
+                        this.api.setPreventLogging(false);
                         this.listingPatients()
                     }
+                }).finally(()=>{
+                    this.api.setPreventLogging(false);
                 })
             }
 
@@ -399,85 +437,116 @@
                 if(this.needMorePatient)return;
                 this.set("logList",[]);
                 this.set("needMoreLogs",false)
-                this.set("documentLog",{startKey:null,startKeyDocId:null})
                 this.set('usersList', this.users.filter(user=> _.lowerCase(_.get(user,'name','')).includes(_.lowerCase(this.filterValue)) || _.lowerCase(_.get(user,'email','')).includes(_.lowerCase(this.filterValue))))
                 this.set('extraPatientsList',[])
-                this.listingAccess(this.filterValue)
+                this.set('listMoreAccess',{})
+                Promise.all([
+                    this.listingAccessByUser(this.filterValue,this.searchDate),
+                    this.listingAccessByPatient(this.filterValue)
+                ]).then(([logsUser,logsPat])=>{
+                    this.format(_.uniqBy(_.flattenDeep([logsUser|| [],logsPat || []]),"id"))
+                })
+
             }
 
-            listingAccess(filter){
-                filter===this.filterValue && this.api && this.documentLog && this.api.accesslog().listAccessLogs( this.documentLog.startKey,this.documentLog.startKeyDocId,10000,true).then(accessLogs => {
-                    this.set("needMoreLogs",!!accessLogs.nextKeyPair || !(accessLogs.rows.length<10000))
-                    this.set("documentLog",accessLogs.nextKeyPair)
-                    const logListTemp=accessLogs.rows.filter(log=> this.patientsList.find(pat=> pat.id===log.patientId) || this.usersList.find(user => user.id===log.user)).map(log => {
-                        return  {
-                            userId : log.user,
-                            patientId : log.patientId,
-                            date : log.date,
-                            detail : log.detail
+            listingAccessByUser(filter,date){
+                if(filter!==this.filterValue || date!==this.searchDate)return;
+
+                if(this.usersList.length){
+                    return Promise.all(this.usersList.filter(user => !_.get(this.listMoreAccess,user.id,false) || _.get(this.listMoreAccess,user.id+'.needMoreLogs',false)).map(user => {
+                        return this.api.accesslog().findByUserAfterDateWithUser(this.user,user.id,'USER_ACCESS',this.searchDate ? moment(this.searchDate).unix()*1000 : +new Date() - 1000 * 3600 * 24 * 31,_.get(this.listMoreAccess,user.id+'.startKey',null),_.get(this.listMoreAccess,user.id+'.startDocumentId',null),1000,true)
+                        .then(logs =>{
+                            if(!logs.nextKeyPair || logs.rows.length<1000){
+                                this.listMoreAccess[user.id].needMoreLogs=false
+                            }else{
+                                this.listMoreAccess[user.id]={
+                                    needMoreLogs:true,
+                                    startKey : logs.nextKeyPair.startKey,
+                                    startKeyDocId : logs.nextKeyPair.startKeyDocId
+                                }
+                            }
+                            return logs.rows
+                        })
+                    })).then(logsByUser=>{
+                        const logs = _.flatten(logsByUser)
+                        this.set("needMoreLogs",!!this.usersList.find(user => !_.get(this.listMoreAccess,user.id,false) || _.get(this.listMoreAccess,user.id+'.needMoreLogs',false)))
+                        if(logs.length<50 && this.usersList.find(user => !_.get(this.listMoreAccess,user.id,false) || _.get(this.listMoreAccess,user.id+'.needMoreLogs',false))){
+                            return this.listingAccessByUser(filter,date).then(newLogs => newLogs.concat(logs))
                         }
+                        return logs
+                    }).catch(err => {
+                        return Promise.resolve([]);
                     })
+                }
+                return Promise.resolve([]);
+            }
 
-                    if(!logListTemp.length && this.needMoreLogs){
-                        this.listingAccess(filter);
-                        return;
-                    }
+            listingAccessByPatient(filter){
+                if(filter!==this.filterValue)return;
+                return Promise.all(this.patientsList && this.patientsList.length ? this.patientsList.map(pat => this.api.accesslog().findBy(this.user.healthcarePartyId,pat)) : [])
+                    .then(logsByPatient => {
+                        return logsByPatient && logsByPatient.length ? logsByPatient : []
+                    })
+                    .catch(err => {
+                        return Promise.resolve([]);
+                    })
+            }
 
-                    this.api.patient().getPatientsWithUser(this.user,{ids:_.uniq(logListTemp.filter(log => !this.patientsList.find(pat=> log.patientId===pat.id) && !this.extraPatientsList.find(pat=> log.patientId===pat.id)).map(log => log.patientId))}).then(extraPatients =>{
-                        this.set('extraPatientsList',this.extraPatientsList.concat(extraPatients))
-                        const logByPatient = _.groupBy(logListTemp,log=> log.patientId)
-                        const newLogs=_.flatMapDeep(Object.keys(logByPatient).map(patId =>{
-                            const patient = this.patientsList.find(pat=> pat.id===patId) || this.extraPatientsList.find(pat=> patId===pat.id)
-                            const logByUser=_.groupBy(logByPatient[patId],log=> log.userId)
-                            return Object.keys(logByUser).map(userId =>{
-                                const logByDate = _.groupBy(logByUser[userId],log => this.api.moment(log.date).format("DD/MM/YYYY"))
-                                return Object.keys(logByDate).map(date =>{
-                                    return{
-                                        logs : logByDate[date].map(log => {
-                                            return {
-                                                detail : log.detail,
-                                                date: log.date
-                                            }
-                                        }),
-                                        date : date,
-                                        userId : userId,
-                                        patientId : patId,
-                                        patient : patient ? patient.lastName + " " + patient.firstName : this.localize("unknow","Inconnu"),
-                                        user : (this.users.find(user=> user.id===userId)|| {name: this.localize("unknow","Inconnu")}).name
-                                    }
-                                })
+            format(logs){
+                this.api.setPreventLogging();
+
+                const logListTemp=logs.filter(log=> this.patientsList.find(pat=> pat.id===log.patientId || log.secretForeignKeys.find(key => key===pat.id)) || this.usersList.find(user => user.id===log.user))
+
+                this.api.patient().getPatientsWithUser(this.user,{ids:_.uniq(_.flattenDeep(logListTemp.filter(log => !this.patientsList.find(pat=> log.patientId===pat.id || log.secretForeignKeys.find(key => key===pat.id)) && !this.extraPatientsList.find(pat=> log.patientId===pat.id || log.secretForeignKeys.find(key => key===pat.id))).map(log => log.patientId ? log.patientId : log.secretForeignKeys)))}).then(extraPatients =>{
+                    this.set('extraPatientsList',this.extraPatientsList.concat(extraPatients))
+                    const logByPatient = _.groupBy(logListTemp,log=> log.patientId ? log.patientId : _.first(log.secretForeignKeys))
+                    const newLogs=_.flatMapDeep(Object.keys(logByPatient).map(patId =>{
+                        const patient = this.patientsList.find(pat=> pat.id===patId) || this.extraPatientsList.find(pat=> patId===pat.id)
+                        const logByUser=_.groupBy(logByPatient[patId],log=> log.user)
+                        return Object.keys(logByUser).map(userId =>{
+                            const logByDate = _.groupBy(logByUser[userId],log => this.api.moment(log.date).format("DD/MM/YYYY"))
+                            return Object.keys(logByDate).map(date =>{
+                                return{
+                                    logs : logByDate[date].map(log => {
+                                        return {
+                                            detail : log.detail,
+                                            date: log.date,
+                                            id : log.id
+                                        }
+                                    }),
+                                    date : date,
+                                    userId : userId,
+                                    patientId : patId,
+                                    patient : patient ? patient.lastName + " " + patient.firstName : this.localize("unknow","Inconnu"),
+                                    user : (this.users.find(user=> user.id===userId)|| {name: this.localize("unknow","Inconnu")}).name
+                                }
                             })
-                        }))
+                        })
+                    }))
 
-                        const grouped =  _.groupBy(_.concat(newLogs,this.logList),log=> log.userId+"/"+log.patientId+"/"+log.date)
-                        this.set("logList",Object.keys(grouped).map(key=> grouped[key].length ? grouped[key].reduce((acc,val) => _.mergeWith(acc||{},val,(objValue, srcValue)=>{
-                            if (_.isArray(srcValue)) {
-                                return _.compact(srcValue.concat(objValue));
-                            }
-                            return srcValue;
-                        })) : _.first(grouped[key])).filter(log => {
-                            if(this.startDate || this.endDate){
-                                const oneDate= this.startDate || this.endDate
-                                if(this.startDate && this.endDate){
-                                    moment(log.date,"DD/MM/YYYY").isBetween(moment(this.startDate),moment(this.endDate))
-                                }
-                                else{
-                                    moment(log.date,"DD/MM/YYYY").isSame(moment(oneDate),"day")
-                                }
-                            }
-
-                        }))
-
-                        this.sortList();
-
-                        if(this.logList.length<50 && this.needMoreLogs){
-                            this.listingAccess(filter)
+                    const grouped =  _.groupBy(_.concat(newLogs,this.logList),log=> log.userId+"/"+log.patientId+"/"+log.date)
+                    this.set("logList",Object.keys(grouped).map(key=> grouped[key].length ? grouped[key].reduce((acc,val) => _.mergeWith(acc||{},val,(objValue, srcValue)=>{
+                        if (_.isArray(srcValue)) {
+                            return _.compact(srcValue.concat(objValue));
                         }
-                        else {
-                            this.set("loadingLogs", false)
+                        return srcValue;
+                    })) : _.first(grouped[key])).map(formatedLog => {
+                        return {
+                            logs : _.uniqBy(formatedLog.logs,"id"),
+                            date : formatedLog.date,
+                            userId : formatedLog.userId,
+                            patientId : formatedLog.patientId,
+                            patient : formatedLog.patient,
+                            user : formatedLog.user
                         }
-                    })
+                    }))
+
+                    this.sortList();
+                }).finally(()=> {
+                    this.set("loadingLogs", false)
+                    this.api.setPreventLogging(false);
                 })
+
             }
 
             filterValueChanged(){
@@ -511,13 +580,6 @@
 
             _getDetail(item){
                 return (item.detail && this.localize(item.detail,item.detail)) || this.localize('log_info','ancien systeme de log => ouverture du patient')
-            }
-
-            getMoreAccess(){
-                this.set("selected",null)
-                this.set("selectedLog",null)
-                this.set("loadingLogs",true)
-                this.listingAccess(this.filterValue);
             }
 
             export(){
@@ -621,6 +683,21 @@
 
             getIcon(div){
                 return div===this.lastSort && !this.asc ? "icons:arrow-drop-down" : "icons:arrow-drop-up";
+            }
+
+            _setDisplayedLogList(){
+                this.set("displayedLogList",this.logList.filter(log => {
+                    if(this.startDate || this.endDate){
+                        const oneDate= this.startDate || this.endDate
+                        if(this.startDate && this.endDate){
+                            return moment(log.date,"DD/MM/YYYY").isBetween(moment(this.startDate),moment(this.endDate) ,null, '[]')
+                        }
+                        else{
+                            return moment(log.date,"DD/MM/YYYY").isSame(moment(oneDate),"day")
+                        }
+                    }
+                    return true;
+                }))
             }
         }
         customElements.define(HtExportKey.is, HtExportKey);
