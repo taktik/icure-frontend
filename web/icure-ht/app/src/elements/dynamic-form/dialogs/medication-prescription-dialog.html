@@ -771,6 +771,10 @@
                 --paper-input-container-input_-_height: unset;
             }
 
+            iron-autogrow-textarea {
+                --iron-autogrow-textarea_-_padding: 4px 8px 0;
+            }
+
             .compound-line paper-input {
                 width: 100%
             }
@@ -1557,14 +1561,24 @@
                                     <div>[[item.intendedName]]</div>
                                 </template>
                             </vaadin-grid-column>
-                            <vaadin-grid-column flex-grow="0">
+                            <vaadin-grid-column width="40px" flex-grow="0">
+                                <template>
+                                    <template is="dom-if" if="[[_isMine(item)]]">
+                                        <iron-icon class="table-icon" icon="social:person"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[!_isMine(item)]]">
+                                        <iron-icon class="table-icon" icon="social:group"></iron-icon>
+                                    </template>
+                                </template>
+                            </vaadin-grid-column>
+                            <vaadin-grid-column width="80px" flex-grow="0">
                                 <template>
                                     <div class="compound-control-line">
                                         <div class="compound-control">
                                             <paper-icon-button id="[[item.id]]" icon="create" on-tap="_editCompound"></paper-icon-button>
                                         </div>
                                         <div class="compound-control">
-                                            <paper-icon-button id="[[item.id]]" icon="clear" on-tap="_deleteCompound"></paper-icon-button>
+                                            <paper-icon-button id="[[item.id]]" icon="clear" on-tap="_deleteCompound" disabled="[[!_isMine(item)]]"></paper-icon-button>
                                         </div>
                                     </div>
                                 </template>
@@ -1599,7 +1613,7 @@
                 <div class="compound-line">
                     <paper-input-container always-float-label="true">
                         <label slot="label" class="color-status">[[localize('formula','Formule',language)]]</label>
-                        <iron-autogrow-textarea class="paper-input-input" slot="input" value="{{selectedCompound.formula}}" rows="3"></iron-autogrow-textarea>
+                        <iron-autogrow-textarea slot="input" value="{{selectedCompound.formula}}" rows="3"></iron-autogrow-textarea>
                     </paper-input-container>
                 </div>
                 <template is="dom-if" if="[[selectedCompound.fromPrescription]]">
@@ -1837,6 +1851,10 @@
 
             constructor() {
                 super()
+            }
+
+            _isMine(item) {
+                return item.userId === this.user.id;
             }
 
             _reloadCompounds() {
@@ -2612,10 +2630,11 @@
 
             _compoundPrescriptionsSearch(source, searchValue, language, type, first, count) {
                 if (!searchValue || searchValue.length < 2) return Promise.resolve([]);
-                return this.api.entitytemplate().findEntityTemplates(this.user.id, "org.taktik.icure.entities.embed.Medication", searchValue, true)
+                return this.api.entitytemplate().findAllEntityTemplates("org.taktik.icure.entities.embed.Medication", searchValue, true)
                     .then(results => Promise.all(results.map(result => {
                         return {
                             id: result.id,
+                            userId: result.userId,
                             compoundTitle: result.descr,
                             intendedName: (result.entity && result.entity.length && result.entity.find(ent => ent.compoundPrescription) || {compoundPrescription: ""}).compoundPrescription,
                             type: "compound"
@@ -2629,6 +2648,7 @@
                     return Promise.all(results.map(result => {
                         const item = {
                             "id": result.id,
+                            "userId": result.userId,
                             "compoundTitle": result.compoundTitle,
                             "intendedName": result.intendedName,
                             "type": result.type
@@ -2886,6 +2906,8 @@
                         }
                     }
                     const newMedClone = _.cloneDeep(newMed);
+                    newMedClone.tags = newMed.tags && newMed.tags.length && newMed.tags.filter(tag => tag.type === "org.taktik.icure.entities.embed.Confidentiality") || [];
+                    (this.api.contact().medicationValue(newMedClone, this.language) || {medicationValue: {}}).status = 0;
                     const desc = this._serviceDescription(newMedClone);
                     if (desc) {
                         this.push('medicationAccumulator', Object.assign(
