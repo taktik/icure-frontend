@@ -273,14 +273,12 @@ onmessage = e => {
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
                     if(_.size(candidates) === 1){
-                        accesslogApi.createAccessLog({
-                            id: iccCryptoXApi.randomUuid(),
-                            patientId: candidates[0].id,
-                            user: _.trim(_.get(user,"id","")),
-                            date: +new Date(),
-                            accessType: 'SYSTEM_ACCESS',
-                            detail : "Save Assignment in Message panel"
-                        }).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    	const log= {}
+						log.accessType= 'SYSTEM_ACCESS'
+						log.detail = "Save Assignment in Message panel"
+                    	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
+							accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
+						}).catch(e=>console.log("ERROR with createAccessLog: ", e))
                     }
 
                     return (_.size(candidates) !== 1) ?
