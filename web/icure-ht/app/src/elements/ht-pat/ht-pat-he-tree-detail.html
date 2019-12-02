@@ -374,7 +374,7 @@
                         [[getIcpc(he)]]
                     </div>
                     <div class$="descr [[_isExcluded(he)]]">[[_getLabel(he)]]</div>
-                    <div class="privacy"><iron-icon icon="[[_getPricacyIcon(he)]]"></iron-icon></div>
+                    <div class="privacy"><iron-icon icon="[[_getPrivacyIcon(he)]]"></iron-icon></div>
                     <div class="sign">[[_getSign(he)]]</div>
                     <div class="date">[[_shortDateFormat(he.openingDate, he.valueDate)]]</div>
                     <div class="date">[[_shortDateFormat(he.closingDate)]]</div>
@@ -391,6 +391,9 @@
                                 </template>
                                 <template is="dom-if" if="[[isNotHistory(he)]]">
                                     <paper-item id="he-edit-btn-history_[[getHeId(he)]]" on-tap="_inactivate">[[localize('add_to_ant','Add to med history',language)]]</paper-item>
+                                </template>
+                                <template is="dom-if" if="[[hasLinkedProcedures(he, contacts, refresher)]]">
+                                    <paper-item id="he-edit-btn-procedures_[[getHeId(he)]]" on-tap="_linkToProcedures">[[localize('proc_show_linked','Afficher les procédures liées',language)]]</paper-item>
                                 </template>
                                 <paper-item id="he-edit-btn-evlink_[[getHeId(he)]]" on-tap="_linkToEvidenceLinker">[[localize('adm_ebm','ebmPracticeNet',language)]]</paper-item>
                             </paper-listbox>
@@ -457,7 +460,6 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
             he: {
                 type: Object
             },
-
             selected: {
                 type: Boolean
             },
@@ -470,6 +472,14 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
                     socialrisk: "vaadin:group",
                     professionalrisk: "icons:work"
                 })
+            },
+            refresher: {
+                type: Number,
+                value: 0
+            },
+            contacts: {
+                type: Array,
+                value: () => []
             },
             hcp: {
                 type: Object,
@@ -506,6 +516,10 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         return (he.status & 2) === 0;
     }
 
+    hasLinkedProcedures(he) {
+        return this.contacts.some(c => _.get(c, "subContacts", []).some(sc => sc.healthElementId && sc.healthElementId === he.id && _.get(sc, "services", []).length > 0));
+    }
+
     toggleMenu(e) {
         e.stopPropagation();
         e.preventDefault();
@@ -537,6 +551,10 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
     _inactivate(e) {
         this.dispatchEvent(new CustomEvent('inactivate-he', { detail: { he: this.he } }));
+    }
+
+    _linkToProcedures(e) {
+        this.dispatchEvent(new CustomEvent('show-linked-procedures', { detail: { he: this.he } }));
     }
 
     _linkToEvidenceLinker(e){
@@ -622,11 +640,16 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
         return healthElement && healthElement.tags && healthElement.tags.find(tag => tag.type==="CD-ITEM") && !["familyrisk","risk","socialrisk","allergy","adr","surgery"].find(type => type===healthElement.tags.find(tag => tag.type==="CD-ITEM").code) ? healthElement.status===0 || healthElement.status===1 ?"S" : healthElement.status===3 || healthElement.status===2 ? "N" :"" : ""
     }
 
-    _getPricacyIcon(healthElement){
+    _getPrivacyType(healthElement){
+        return healthElement && healthElement.tags &&
+        healthElement.tags.find(tag => tag.type==="org.taktik.icure.entities.embed.Confidentiality" && tag.code==="secret") ? "secret"  : ""
+    }
+
+    _getPrivacyIcon(healthElement){
         //TODO @sam : retrieve the info to check
-        const privacy = ''
+        const privacy = this._getPrivacyType(healthElement);
         switch(privacy) {
-            case 'private': 
+            case 'secret':
                 return 'icure-svg-icons:privacy';
             case 'notvisible': 
                 return 'icons:visibility-off';
