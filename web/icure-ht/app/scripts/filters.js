@@ -127,7 +127,7 @@ function filter(parsedInput, api, hcpartyId, debug) {
 							if (filter.entity === 'SVC') {
 								if (debug)
 									console.error('Request SVC: ' + JSON.stringify(body));
-								const servicesOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.contacticc.filterServicesBy(undefined, undefined, 10000, Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
+								const servicesOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.contacticc.filterServicesBy(undefined, undefined, 10000, Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) })))), pl => pl.rows || []), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield servicesToPatientIds(servicesOutput);
 									if (debug)
@@ -138,7 +138,7 @@ function filter(parsedInput, api, hcpartyId, debug) {
 							else if (filter.entity === 'HE') {
 								if (debug)
 									console.log('Request HE: ' + JSON.stringify(body));
-								const helementOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.helementicc.filterBy(Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
+								const helementOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.helementicc.filterBy(Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) })))), pl => pl.rows || []), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield helementsToPatientIds(helementOutput || []);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
@@ -147,7 +147,7 @@ function filter(parsedInput, api, hcpartyId, debug) {
 							else if (filter.entity === 'INV') {
 								if (debug)
 									console.log('Request INV: ' + JSON.stringify(body));
-								const invoiceOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.invoiceicc.filterBy(Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
+								const invoiceOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.invoiceicc.filterBy(Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) })))), pl => pl.rows || []), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield invoicesToPatientIds(invoiceOutput || []);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
@@ -157,7 +157,7 @@ function filter(parsedInput, api, hcpartyId, debug) {
 								if (debug)
 									console.log('Request CTC: ' + JSON.stringify(body));
 								const user = yield api.usericc.getCurrentUser();
-								const contactOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.contacticc.filterByWithUser(user, undefined, undefined, undefined, Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) }))))), x => x.id);
+								const contactOutput = lodash_1.uniqBy(lodash_1.flatMap(yield Promise.all(hcpHierarchy.map(hcpId => api.contacticc.filterByWithUser(user, undefined, undefined, undefined, Object.assign({}, body, { filter: Object.assign({}, body.filter, { healthcarePartyId: hcpId }) })))), pl => pl.rows || []), x => x.id);
 								if (mainEntity === 'PAT') {
 									const patientIds = yield contactsToPatientIds(contactOutput);
 									return { $type: 'PatientByIdsFilter', ids: patientIds };
@@ -254,11 +254,9 @@ function filter(parsedInput, api, hcpartyId, debug) {
 				}
 			});
 		}
-		function servicesToPatientIds(servicesOutput) {
+		function servicesToPatientIds(services) {
 			return __awaiter(this, void 0, void 0, function* () {
 				try {
-					const services = servicesOutput.rows || [];
-					// tslint:disable-next-line:block-spacing
 					const extractPromises = services.map((svc) => {
 						return api.cryptoicc.extractKeysFromDelegationsForHcpHierarchy(hcpartyId, svc.contactId || '', svc.cryptedForeignKeys || {});
 					}).map(it => it.catch(e => {
