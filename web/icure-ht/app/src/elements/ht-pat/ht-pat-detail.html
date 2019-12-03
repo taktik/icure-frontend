@@ -2727,7 +2727,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
             <div class="buttons">
                 <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
-                <paper-button class="button button--other" on-tap="_importGenIns"><b>[[localize("imp-data","Import data",language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_importGenIns"><b>[[localize("imp-data","Import data",language)]]</b></paper-button>
                 <template is="dom-if" if="{{!hasTokenMH}}">
                     <paper-button class="button button--save" on-tap="_requestGenins" disabled="[[isLoading]]">[[localize('gen_ins_req','Request',language)]]</paper-button>
                 </template>
@@ -2839,8 +2839,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-button class="button" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
-        <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" on-save-document-as-service="[[_handleSaveDocumentAsService]]" on-pdf-report="_handlePdfReport"
-            global-hcp="[[globalHcp]]"></ht-pat-prescription-dialog>
+        <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" patient="[[patient]]" resources="[[resources]]" current-contact="[[currentContact]]" services-map="[[servicesMap]]" drugs-refresher="[[_drugsRefresher]]" on-save-document-as-service="[[_handleSaveDocumentAsService]]"
+            global-hcp="[[globalHcp]]" on-save-contact="_saveContact"></ht-pat-prescription-dialog>
 
         <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]" on-refresh-patient="refreshPatientAndServices"></ht-msg-new>
 
@@ -3901,7 +3901,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 // }
             }
 
-
             _getTherLinks(){
                 if (this.patient.ssin && this.api.tokenId) {
                     return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
@@ -4015,7 +4014,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (!this.currentContact) return;
                 const hes = e.detail.hes || []
                 const allContacts = (this.currentContact ? [this.currentContact] : []).concat(this.contacts)
-
                 let services = [];
                 if (e.detail.service) {
                     services.push(this.api.contact().service().newInstance(this.user, e.detail.service));
@@ -4023,20 +4021,21 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         services.push(this._cloneService(e.detail));
                 }
                 Promise.all(hes.map(he => he.id ? Promise.resolve(he) : this.contact().promoteServiceToHealthElement(he))).then(hes =>
+                    //this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, this.api.contact().service().newInstance(this.user, e.detail.service), null, {}, hes.map(he => he.id), e.detail.function || undefined)
                     services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, hes.map(he => he.id), e.detail.function || undefined))
                 ).then(() => this.saveContact(this.currentContact))
             }
 
             _updateServices(e) {
                 let services = (e.detail.services || (e.detail.service && [e.detail.service]) || [] )
-                if (e.detail.service && e.detail.next)
-                    services.push(this._cloneService(e.detail));
                 const heIds = e.detail.hes ? e.detail.hes.map(he => he.id) : [];
                 if (e.detail.hes && e.detail.service) {
                     let updates = [];
                     const service = e.detail.service;
                     // A. Insert hes
                     const contact = this.contacts.find(c => c.id === service.contactId);
+                    if (e.detail.next)
+                        contact.services.push(this._cloneService(e.detail));
                     this.api.contact().promoteServiceInContact(contact, this.user, this.contacts, service, null, {}, heIds, e.detail.function || undefined)
                     // B. Remove hes
                     this.contacts.filter(c => this._hasServiceRef(c, service.id)).forEach(contact => {
@@ -4270,7 +4269,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _compareValueDates(a, b) {
-                return this.api.moment(b).diff(this.api.moment(a), "days");
+                return this.api.moment(b).diff(this.api.moment(a));
             }
 
             _compareBiometrics(order, a, b) {
@@ -4530,7 +4529,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 flatRateUtil.checkFlatrateData(patient, Number(moment().format('YYYYMM'))).then(res => {
                     console.log("flatrate res", res);
                     if(res && res.flatrateStatus && res.flatrateStatus.errors.length > 0){
-                        this.set("flatrateMsg", res.flatrateStatus.errors.join());
+                        this.set("flatrateMsg", res.flatrateStatus.errors.map(err => this.localize(err, err, this.language)).join());
                         console.log("flatrateMsg", this.flatrateMsg);
                     }
                     flatRateUtil.checkGenins([res]).then(res2 => {
