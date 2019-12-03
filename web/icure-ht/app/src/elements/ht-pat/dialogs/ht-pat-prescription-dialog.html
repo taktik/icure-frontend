@@ -447,6 +447,19 @@
                         type: Boolean,
                         value: false
                     },
+                    _reimbursementReasonToInstructions: {
+                        type: Object,
+                        value: {
+                            tirdpartypaid: "PAYING_THIRD_PARTY",
+                            firstdose: "FIRST_DOSE",
+                            seconddose:"SECOND_DOSE",
+                            thirddose: "THIRD_DOSE",
+                            chronicalrenalcarepath: "CHRONIC_KINDEY_DISEASE",
+                            diabetescarepath: "DIABETES_TREATMENT",
+                            diabeteconvention: "DIABETES_CONVENTION",
+                            notreimbursable: "NOT_REIMBURSABLE"
+                        }
+                    }
                 }
             }
 
@@ -781,24 +794,32 @@
             _convertForRecipe(medications) {
                 // @todo: use code api
                 const medsDup = _.cloneDeep(medications);
-                medsDup.forEach(med => (this.api.contact().preferredContent(med, this.language) || {medicationValue: {regimen: []}}).medicationValue.regimen.forEach(reg => {
-                        if (reg.dayPeriod && reg.dayPeriod.type === "care.topaz.customDayPeriod") {
-                            if (reg.dayPeriod.code === "midday") {
-                                delete reg.dayPeriod;
-                                reg.timeOfDay = "120000";
-                            } else if (reg.dayPeriod.code === "afterwakingup") {
-                                delete reg.dayPeriod;
-                                reg.timeOfDay = "63000";
-                            }
-                        }
-                    })
-                );
                 medsDup.forEach(med => {
-                    const substanceProduct = _.get(this.api.contact().medicationValue(med, this.language), "substanceProduct", "");
-                    if (substanceProduct.intendedcds && substanceProduct.intendedcds.some(intendedcd => intendedcd.type === "CD-VMPGROUP")) {
-                        substanceProduct.intendedcds = [];
+                    const medicationValue = this.api.contact().medicationValue(med, this.language);
+                    if (!medicationValue) return;
+                    if (medicationValue.regimen && medicationValue.regimen.length) {
+                        medicationValue.regimen.forEach(reg => {
+                            if (reg.dayPeriod && reg.dayPeriod.type === "care.topaz.customDayPeriod") {
+                                if (reg.dayPeriod.code === "midday") {
+                                    delete reg.dayPeriod;
+                                    reg.timeOfDay = "120000";
+                                } else if (reg.dayPeriod.code === "afterwakingup") {
+                                    delete reg.dayPeriod;
+                                    reg.timeOfDay = "63000";
+                                }
+                            }
+                        });
                     }
-                });
+                    if (medicationValue.substanceProduct) {
+                        if (medicationValue.substanceProduct.intendedcds && medicationValue.substanceProduct.intendedcds.some(intendedcd => intendedcd.type === "CD-VMPGROUP")) {
+                            medicationValue.substanceProduct.intendedcds = [];
+                        }
+                    }
+                    if (medicationValue.reimbursementReason) {
+                        const key = Object.keys(this._reimbursementReasonToInstructions).find(key => key === medicationValue.reimbursementReason.code);
+                        medicationValue.instructionsForReimbursement = key && this._reimbursementReasonToInstructions[key] || this._reimbursementReasonToInstructions.notreimbursable;
+                    }
+                 });
                 return medsDup;
             }
 
