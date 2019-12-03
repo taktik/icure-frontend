@@ -772,7 +772,7 @@
 
             #startDatePresent, #endDatePresent{
                 margin-left: 8px;
-                margin-top: -10px;
+                margin-top: 5px;
             }
 
             .medication-category-label span{
@@ -1073,7 +1073,7 @@
                                     <div class="table-body">
                                         <template is="dom-repeat" items="[[plan.meds]]" as="m">
                                             <div class="table-row">
-                                                <div class="col col--med"><span class="med--name">[[_getTimeOfDay(m.during)]] [[_serviceDescription(m.medication)]]</span></div>
+                                                <div class="col col--med"><span class="med--name">[[_serviceDescription(m.medication)]]</span></div>
                                                 <div class="col col--photo"><iron-icon class="medIcon" icon="medication-svg-icons:[[_getMedIcon(m)]]"></iron-icon></div>
                                                 <div class="col col--ed">[[_getMedicationClosingDate(m.medication)]]</div>
                                                 <div class="col col--freq">[[_serviceFrequency(m.medication)]]</div>
@@ -2043,67 +2043,7 @@
             }
 
             print() {
-                const template = require("./src/medication-doctor-view-pdf-template.json")
-
-                const html = `
-<html>
-    <head>
-    </head>
-    <body>
-        <div class="patient">
-            <div class="general-infos">
-                <div class="infos-block">
-                    <div class="infos--name"><span>{{localize.gp}}</span>{{hcp.stylised}}</div>
-                    <div class="infos--address"><span>{{localize.add}}</span>{{hcp.stylisedAdd}}</div>
-                </div>
-
-                <div class="infos-block">
-                    <div class="infos--name"><span>{{localize.pharmacist}}</span>{{pharma.stylised}}</div>
-                    <div class="infos--address"><span>{{localize.add}}</span>{{pharma.stylisedAdd}}</div>
-                </div>
-            </div>
-            {{#patientPlan}}
-                {{#meds.isRegimen}}
-                    <div id="breakfast" class="table-container">
-                        <div class="header">
-                            <iron-icon icon="{{iconBase64}}"></iron-icon>
-                            <h3>{{title}}</h3>
-                        </div>
-                        <div class="table-header">
-                            <div class="col col--med">{{localize.medecine}}</div>
-                            <div class="col col--photo">Photo</div>
-                            <div class="col col--ed">{{localize.endDate}}</div>
-                            <div class="col col--freq">{{localize.freq}}</div>
-                            {{#cols}}
-                                <div class="col col--bef">{{getHeaderTitle}}</div>
-                            {{/cols}}
-                            <div class="col col--com">{{localize.com}}</div>
-                        </div>
-                        <div class="table-body">
-                            {{#meds}}
-                                <div class="table-row">
-                                    <div class="col col--med"><span class="med--name">{{getTimeOfDay}} {{serviceDescription}}</span></div>
-                                    <div class="col col--photo"><iron-icon class="medIcon" icon="{{getMedIconBase64}}"></iron-icon></div>
-                                    <div class="col col--ed">{{getMedicationClosingDate}}</div>
-                                    <div class="col col--freq">{{serviceFrequency}}</div>
-                                        {{#cols}}
-                                            <div class="col col--dur">
-                                                {{#getRegimen}}
-                                                    <span class="dur-pill">{{getRegimenQuantity}}</span>
-                                                {{/getRegimen}}
-                                            </div>
-                                        {{/cols}}
-                                    <div class="col col--com">{{medication.instructionForPatient}}</div>
-                                </div>
-                            {{/meds}}
-                        </div>
-                    </div>
-                {{/meds.isRegimen}}
-            {{/patientPlan}}
-        </div>
-    </body>
-</html>
-                `;
+                const template = require(this._isEqual(this.selectedTab,1) ? "./src/medication-doctor-view-pdf-template.json" : "./src/medication-patient-view-pdf-template.json")
 
                 let list = this.presentList
                 list = list.map(l => {
@@ -2122,13 +2062,42 @@
                     })
                     return l;
                 })
+
+                let patientPlan = this.patientPlan
+                patientPlan = patientPlan.map(plan =>{
+                    plan.isRegimen = this._isRegimen(plan.meds)
+                    plan.cols = plan.cols.map(col =>{
+                        col.getHeaderTitle = this._getHeaderTitle(col)
+                        return col
+                    })
+                    plan.meds = plan.meds.map(m =>{
+                        m.serviceDescription = this._serviceDescription(m.medication);
+                        m.getMedIconBase64 = template.icon.medoc
+                        m.getMedicationClosingDate =this._getMedicationClosingDate(m.medication);
+                        m.serviceFrequency = this._serviceFrequency(m.medication);
+                        m.cols = plan.cols.map(col => {
+                            col.getRegimen = this._getRegimen(col, m)
+                            col.getRegimenQuantity = this._getRegimenQuantity(col, m)
+                            return col;
+                        })
+                        return m
+                    })
+                    return plan;
+                })
                 const view = {
                     hcp : {
                         stylisedAdd: this._getHcpAdress(),
                         stylised : this.localize("dr","Dr.")+" "+this.user.name
                     },
+                    pharma : {
+                        /**@todo faire les pharma pour le mustache a imprimer*/
+                        stylisedAdd: "",
+                        stylised : ""
+                    },
+
                     history : template.icon.history,
                     list: list,
+                    patient_plan: patientPlan,
                     moon : template.icon.moon,
                     sun : template.icon.sun,
                     localize: {
@@ -2144,7 +2113,8 @@
                         com: this.localize('com', 'Comments'),
                         gp: "GP",
                         pharmacist : this.localize("pharmacist","pharmacist"),
-                        add : this.localize("add","address")
+                        add : this.localize("address","address"),
+                        medecine : this.localize("medic","Medicine")
                     }
                 }
 
@@ -2155,6 +2125,7 @@
                     pdfFileContent,
                     "application/pdf",
                     _.kebabCase(_.compact([
+                        this._isEqual(this.selectedTab,1) ? "doctor_" : "patient_",
                         "schema_medication_",
                         +new Date()
                     ]).join("_")) + ".pdf"
