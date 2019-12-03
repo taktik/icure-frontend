@@ -189,7 +189,9 @@
                         <vaadin-grid items="[[selectedLog.logs]]" class="tab-right">
                             <vaadin-grid-column>
                                 <template class="header">
-                                    [[localize('hour','heure',language)]]
+                                    <vaadin-grid-sorter path="date">
+                                        [[localize('hour','heure',language)]]
+                                    </vaadin-grid-sorter>
                                 </template>
                                 <template>
                                     [[convertDate(item.date)]]
@@ -492,60 +494,72 @@
                     })
             }
 
-            format(logs){
+            setLinkPatient(logs){
+                return Promise.all(logs.map(log => this.api.crypto().extractCryptedFKs(log, this.user.healthcarePartyId).then(ids =>{
+                    log.patientId= log.patientId || ids.extractedKeys[0];
+                    return log;
+                })))
+            }
+
+            format(logsWithoutPatient){
                 this.api.setPreventLogging();
+                this.setLinkPatient(logsWithoutPatient).then(logs =>{
+                    const logListTemp=logs.filter(log=> this.patientsList.find(pat=> pat.id===log.patientId) || this.usersList.find(user => user.id===log.user))
 
-                const logListTemp=logs.filter(log=> this.patientsList.find(pat=> pat.id===log.patientId || log.secretForeignKeys.find(key => key===pat.id)) || this.usersList.find(user => user.id===log.user))
-
-                this.api.patient().getPatientsWithUser(this.user,{ids:_.uniq(_.flattenDeep(logListTemp.filter(log => !this.patientsList.find(pat=> log.patientId===pat.id || log.secretForeignKeys.find(key => key===pat.id)) && !this.extraPatientsList.find(pat=> log.patientId===pat.id || log.secretForeignKeys.find(key => key===pat.id))).map(log => log.patientId ? log.patientId : log.secretForeignKeys)))}).then(extraPatients =>{
-                    this.set('extraPatientsList',this.extraPatientsList.concat(extraPatients))
-                    const logByPatient = _.groupBy(logListTemp,log=> log.patientId ? log.patientId : _.first(log.secretForeignKeys))
-                    const newLogs=_.flatMapDeep(Object.keys(logByPatient).map(patId =>{
-                        const patient = this.patientsList.find(pat=> pat.id===patId) || this.extraPatientsList.find(pat=> patId===pat.id)
-                        const logByUser=_.groupBy(logByPatient[patId],log=> log.user)
-                        return Object.keys(logByUser).map(userId =>{
-                            const logByDate = _.groupBy(logByUser[userId],log => this.api.moment(log.date).format("DD/MM/YYYY"))
-                            return Object.keys(logByDate).map(date =>{
-                                return{
-                                    logs : logByDate[date].map(log => {
-                                        return {
-                                            detail : log.detail,
-                                            date: log.date,
-                                            id : log.id
-                                        }
-                                    }),
-                                    date : date,
-                                    userId : userId,
-                                    patientId : patId,
-                                    patient : patient ? patient.lastName + " " + patient.firstName : this.localize("unknow","Inconnu"),
-                                    user : (this.users.find(user=> user.id===userId)|| {name: this.localize("unknow","Inconnu")}).name
-                                }
+                    this.api.patient().getPatientsWithUser(this.user,{ids:_.uniq(_.flattenDeep(logListTemp.filter(log => !this.patientsList.find(pat=> log.patientId===pat.id) && !this.extraPatientsList.find(pat=> log.patientId===pat.id)).map(log => log.patientId)))}).then(extraPatients =>{
+                        this.set('extraPatientsList',this.extraPatientsList.concat(extraPatients))
+                        const logByPatient = _.groupBy(logListTemp,log=> log.patientId)
+                        const newLogs=_.flatMapDeep(Object.keys(logByPatient).map(patId =>{
+                            const patient = this.patientsList.find(pat=> pat.id===patId) || this.extraPatientsList.find(pat=> patId===pat.id)
+                            const logByUser=_.groupBy(logByPatient[patId],log=> log.user)
+                            return Object.keys(logByUser).map(userId =>{
+                                const logByDate = _.groupBy(logByUser[userId],log => this.api.moment(log.date).format("DD/MM/YYYY"))
+                                return Object.keys(logByDate).map(date =>{
+                                    return{
+                                        logs : logByDate[date].map(log => {
+                                            return {
+                                                detail : log.detail,
+                                                date: log.date,
+                                                id : log.id
+                                            }
+                                        }),
+                                        date : date,
+                                        userId : userId,
+                                        patientId : patId,
+                                        patient : patient ? patient.lastName + " " + patient.firstName : this.localize("unknow","Inconnu"),
+                                        user : (this.users.find(user=> user.id===userId)|| {name: this.localize("unknow","Inconnu")}).name
+                                    }
+                                })
                             })
-                        })
-                    }))
+                        }))
 
-                    const grouped =  _.groupBy(_.concat(newLogs,this.logList),log=> log.userId+"/"+log.patientId+"/"+log.date)
-                    this.set("logList",Object.keys(grouped).map(key=> grouped[key].length ? grouped[key].reduce((acc,val) => _.mergeWith(acc||{},val,(objValue, srcValue)=>{
-                        if (_.isArray(srcValue)) {
-                            return _.compact(srcValue.concat(objValue));
-                        }
-                        return srcValue;
-                    })) : _.first(grouped[key])).map(formatedLog => {
-                        return {
-                            logs : _.uniqBy(formatedLog.logs,"id"),
-                            date : formatedLog.date,
-                            userId : formatedLog.userId,
-                            patientId : formatedLog.patientId,
-                            patient : formatedLog.patient,
-                            user : formatedLog.user
-                        }
-                    }))
+                        const grouped =  _.groupBy(_.concat(newLogs,this.logList),log=> log.userId+"/"+log.patientId+"/"+log.date)
+                        this.set("logList",Object.keys(grouped).map(key=> grouped[key].length ? grouped[key].reduce((acc,val) => _.mergeWith(acc||{},val,(objValue, srcValue)=>{
+                            if (_.isArray(srcValue)) {
+                                return _.compact(srcValue.concat(objValue));
+                            }
+                            return srcValue;
+                        })) : _.first(grouped[key])).map(formatedLog => {
+                            return {
+                                logs : _.uniqBy(formatedLog.logs,"id"),
+                                date : formatedLog.date,
+                                userId : formatedLog.userId,
+                                patientId : formatedLog.patientId,
+                                patient : formatedLog.patient,
+                                user : formatedLog.user
+                            }
+                        }))
 
-                    this.sortList();
+                        this.sortList();
+                    }).finally(()=> {
+                        this.set("loadingLogs", false)
+                        this.api.setPreventLogging(false);
+                    })
                 }).finally(()=> {
                     this.set("loadingLogs", false)
                     this.api.setPreventLogging(false);
                 })
+
 
             }
 
@@ -616,30 +630,7 @@
                 // Virtual data output
                 var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
 
-                // Put output to virtual "file"
-                var fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
-
-                // Create download link and append to page's body
-                var downloadLink = document.createElement("a")
-                document.body.appendChild(downloadLink)
-                downloadLink.style = "display: none"
-
-                // Create url
-                var urlObject = window.URL.createObjectURL(fileBlob)
-
-                // Link to url
-                downloadLink.href = urlObject
-                downloadLink.download = "accessLog_list_" + moment().format("YYYYMMDD-HHmmss") + ".xls"
-
-                // Trigger download and drop object
-                downloadLink.click()
-                window.URL.revokeObjectURL(urlObject)
-
-                // Free mem
-                fileBlob = false
-                xlsWorkBookOutput = false
-
-                return
+                this.api.triggerFileDownload(xlsWorkBookOutput, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  "accessLog_list_" + moment().format("YYYYMMDD-HHmmss") + ".xls")
             }
 
             getIndex(item){

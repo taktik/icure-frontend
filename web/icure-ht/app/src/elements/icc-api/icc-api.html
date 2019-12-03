@@ -103,6 +103,14 @@
                 preventLogging:{
                     type : Boolean,
                     value: false
+                },
+                _chargedPatients:{
+                    type: Array,
+                    value:[]
+                },
+                tmpLogging:{
+                    type:Boolean,
+                    value:false
                 }
             }
         }
@@ -168,13 +176,16 @@
             this.accesslogicc = new IccAccesslogXApi(this.host, this.headers, this.cryptoicc)
 
 
-            this._Spy(this.accesslogicc,"createAccessLog");
-            ["modifyPatientWithUser","createPatientWithUser","getPatientsWithUser","mergeIntoWithUser","modifyPatientReferralWithUser","getPatientWithUser"].map(method => this._Spy(this.patienticc,method));
-            ["modifyContactWithUser","getContactWithUser","getContactsWithUser","modifyContactsWithUser","createContactWithUser"].map(method => this._Spy(this.contacticc,method));
-            ["serviceToHealthElement"].map(method => this._Spy(this.helementicc,method));
-            ["deleteInvoice","getInvoice","getInvoices","mergeTo","modifyInvoice","createInvoice"].map(method => this._Spy(this.invoiceicc,method));
-            ["createDocument","deleteAttachment","deleteDocument","getAttachment","getDocument","getDocuments","modifyDocument","modifyDocuments","setAttachment","setAttachmentMulti"].map(method => this._Spy(this.documenticc,method));
-            ["createMessage","deleteMessages","deleteMessagesBatch","getChildren","getChildrenOfList","getMessage","modifyMessage","setMessagesReadStatus"].map(method => this._Spy(this.messageicc,method));
+            const toObserve = [
+                [this.accesslogicc,["newInstance"]],
+                [this.patienticc,["modifyPatientWithUser","createPatientWithUser","getPatientsWithUser","mergeIntoWithUser","modifyPatientReferralWithUser","getPatientWithUser"]],
+                [this.contacticc,["modifyContactWithUser","getContactWithUser","getContactsWithUser","modifyContactsWithUser","createContactWithUser"]],
+                [this.helementicc,["serviceToHealthElement"]],
+                [this.invoiceicc,["deleteInvoice","getInvoice","getInvoices","mergeTo","modifyInvoice","createInvoice"]],
+                [this.documenticc,["createDocument","deleteAttachment","deleteDocument","getAttachment","getDocument","getDocuments","modifyDocument","modifyDocuments","setAttachment","setAttachmentMulti"]],
+                [this.messageicc,["createMessage","deleteMessages","deleteMessagesBatch","getChildren","getChildrenOfList","getMessage","modifyMessage","setMessagesReadStatus"]],
+            ];
+            this._Spy(toObserve);
             this.dispatchEvent(new CustomEvent('refresh', {detail: {}}))
         }
 
@@ -1008,63 +1019,83 @@
 
         }
 
-
-        /**
-         * Log manager by Julien Wathelet
-         * 1) méthode spy done
-         * 2) gestion des log courrants ouvert. done
-         * 3) tester multi-fenêtre
-         * 4) gestion des treats done
-         * 5) tout tester
-         * */
-         _Spy(obj, method) {
-            let spy = {
-                object : obj,
-                args: [],
-                method : method
-            };
+         _Spy(toObserve) {
+            //j'utilise les objects car ca passe en pointeur!!!!
+            let mainLog = {}
+            let tmpLogging= {isDoing :false}
+            let chargedPatients = {patients : []}
 
             const add = this._addNewCurrentLog.bind(this);
             const setMain = this._setMainLog.bind(this);
-            let original = obj[method];
-            spy.original=original
-            obj[method] = function() {
-                spy.args = [].slice.apply(arguments);
-                if(!this.preventLogging){
-                    if(spy.method!=="createAccessLog"){ add(spy)}
-                    else {setMain(spy)}
-                }
-                return original.apply(obj, spy.args)
-            }.bind(this);
+
+            toObserve.map(item =>{
+                const obj = item[0]
+                const methods = item[1]
+                methods.map(method =>{
+                    let spy = {
+                        object : obj,
+                        args: [],
+                        method : method
+                    };
+                    let original = obj[method];
+                    spy.original=original
+                    obj[method] = function() {
+                        spy.args = [].slice.apply(arguments);
+                        if(!this.preventLogging && !tmpLogging.isDoing){
+                            if(spy.method!=="newInstance"){
+                                add(spy,mainLog,tmpLogging,chargedPatients)
+                            }
+                            else {mainLog=setMain(spy)}
+                        }
+                        return original.apply(obj, spy.args)
+                    }.bind(this);
+                })
+            })
          }
 
-        _addNewCurrentLog(info){
+        _addNewCurrentLog(info,mainLog,tmpLogging,chargedPatients){
             this.user().getCurrentUser().then(user=>{
-                let patients = this._getPatientIds(info)
+                let patients = this._getPatient(info,mainLog,chargedPatients)
                 patients && patients.length && patients.map(pat => {
                     const log ={}
-                    this.accesslogicc.newInstance(user,pat,log).then(newlog =>{
-                        newlog.detail=info.method
-                        this.accesslogicc.createAccessLogWithUser(user,newlog);
+                    const chargedPatient = chargedPatients.patients.find(tmpPat=> tmpPat.id===pat) || false;
+                    tmpLogging.isDoing=true;
+                    (chargedPatient ? Promise.resolve(chargedPatient) :this.patienticc.getPatientWithUser(user,pat)).then(patient =>{
+                        tmpLogging.isDoing=false;
+                        if(!chargedPatients.patients.find(tmpPat => patient.id===tmpPat.id)){
+                            chargedPatients.patients.push(patient)
+                        }
+                        tmpLogging.isDoing=true;
+                        this.accesslogicc.newInstance(user,patient,log).then(newlog =>{
+                            tmpLogging.isDoing=false;
+                            newlog.detail=info.method
+                            this.accesslogicc.createAccessLogWithUser(user,newlog)
+                        })
                     })
+                        .catch(err=> tmpLogging.isDoing=false)
+                        .finally(()=>{tmpLogging.isDoing=false})
+
                 })
             })
 
         }
 
         _setMainLog(info){
-            this.set('mainLog',{
-                patientId : info.args[0].patientId,
-                userId : info.args[0].userId
-            })
+            return {
+                patientId : info.args[1].id,
+                userId : info.args[0].id
+            }
         }
 
-        _getPatientIds(info){
+        _getPatient(info,mainLog,chargedPatients){
             let patientIds = _.countBy(_.zip(this._getParamNames(info.original),info.args).map(([name,arg]) => {
                 if(!arg)return false
                 if(arg.constructor.name==="UserDto"){
                     return false;
                 }else if(arg.constructor.name==="PatientDto"){
+                    if(!chargedPatients.patients.find(pat => pat.id===arg.id)){
+                        chargedPatients.patients.push(arg)
+                    }
                     return arg.id;
                 }else if(arg.constructor.name==="ListOfIdsDto"){
                     return arg.ids.join(",");
@@ -1091,7 +1122,7 @@
             }
 
             if(!patients){
-                patients = this.mainLog.patientId;
+                patients = mainLog.patientId;
             }
             return !patients ? null : (patients.includes(",") ? patients.split(",") : [patients]);
         }
