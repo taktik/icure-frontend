@@ -22,6 +22,7 @@
     import {IccHelementXApi} from 'icc-api/dist/icc-x-api/icc-helement-x-api'
     import {IccPatientXApi} from 'icc-api/dist/icc-x-api/icc-patient-x-api'
     import {IccReceiptXApi} from 'icc-api/dist/icc-x-api/icc-receipt-x-api'
+    import {IccAccesslogXApi} from 'icc-api/dist/icc-x-api/icc-accesslog-x-api'
     import {IccUserXApi} from 'icc-api/dist/icc-x-api/icc-user-x-api'
     import {IccInvoiceXApi} from 'icc-api/dist/icc-x-api/icc-invoice-x-api'
     import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
@@ -91,7 +92,26 @@
                 sessionId: {
                     type: String
                 },
-
+                mainLog:{
+                    type: Object,
+                    value : {}
+                },
+                promiseAccessLog:{
+                    type : Object,
+                    value : {}
+                },
+                preventLogging:{
+                    type : Boolean,
+                    value: false
+                },
+                _chargedPatients:{
+                    type: Array,
+                    value:[]
+                },
+                tmpLogging:{
+                    type:Boolean,
+                    value:false
+                }
             }
         }
 
@@ -113,7 +133,6 @@
             Object.assign(this.headers60s, this.headers)
             Object.assign(this.headers120s, this.headers)
 
-            this.accesslogicc = new api.iccAccesslogApi(this.host, this.headers)
             this.authicc = new api.iccAuthApi(this.host, this.headers)
             this.bemikronoicc = new api.iccBeMikronoApi(this.host, this.headers)
             this.onlineBeMikronoicc = new api.iccBeMikronoApi(this.host && this.host.match(/https:\/\/backend.(.+).icure.cloud.+/) ? this.host : "https://backend.svc.icure.cloud/rest/v1", this.headers)
@@ -130,6 +149,7 @@
 
             this.calendaritemicc = new api.iccCalendarItemApi(this.host, this.headers)
             this.calendaritemtypeicc = new api.iccCalendarItemTypeApi(this.host, this.headers)
+            this.besamv2icc = new api.iccBeSamv2Api(this.host, this.headers)
 
             this.usericc = new IccUserXApi(this.host, this.headers)
 
@@ -150,10 +170,22 @@
             this.formicc = new IccFormXApi(this.host, this.headers, this.cryptoicc)
             this.helementicc = new IccHelementXApi(this.host, this.headers, this.cryptoicc)
             this.invoiceicc = new IccInvoiceXApi(this.host, this.headers30s, this.cryptoicc, this.entityreficc)
-            this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc, this.classificationicc)
+            this.patienticc = new IccPatientXApi(this.host, this.headers, this.cryptoicc, this.contacticc, this.formicc, this.helementicc, this.invoiceicc, this.documenticc, this.hcpartyicc, this.classificationicc)
             this.messageicc = new IccMessageXApi(this.host, this.headers120s, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
             this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
+            this.accesslogicc = new IccAccesslogXApi(this.host, this.headers, this.cryptoicc)
 
+
+            const toObserve = [
+                [this.accesslogicc,["newInstance"]],
+                [this.patienticc,["modifyPatientWithUser","createPatientWithUser","getPatientsWithUser","mergeIntoWithUser","modifyPatientReferralWithUser","getPatientWithUser"]],
+                [this.contacticc,["modifyContactWithUser","getContactWithUser","getContactsWithUser","modifyContactsWithUser","createContactWithUser"]],
+                [this.helementicc,["serviceToHealthElement"]],
+                [this.invoiceicc,["deleteInvoice","getInvoice","getInvoices","mergeTo","modifyInvoice","createInvoice"]],
+                [this.documenticc,["createDocument","deleteAttachment","deleteDocument","getAttachment","getDocument","getDocuments","modifyDocument","modifyDocuments","setAttachment","setAttachmentMulti"]],
+                [this.messageicc,["createMessage","deleteMessages","deleteMessagesBatch","getChildren","getChildrenOfList","getMessage","modifyMessage","setMessagesReadStatus"]],
+            ];
+            this._Spy(toObserve);
             this.dispatchEvent(new CustomEvent('refresh', {detail: {}}))
         }
 
@@ -235,6 +267,10 @@
 
         beresultimport() {
             return this.beresultimporticc
+        }
+
+        besamv2() {
+            return this.besamv2icc
         }
 
         bests() {
@@ -357,16 +393,42 @@
             return d1 === null || d2 === null || d1 === undefined || d2 === undefined || this.moment(d1).isBefore(this.moment(d2));
         }
 
-        moment(epochOrLongCalendar) {
+        moment(epochOrLongCalendar,extremity) {
             if (!epochOrLongCalendar && epochOrLongCalendar !== 0) {
                 return null;
             }
             if (epochOrLongCalendar >= 18000101 && epochOrLongCalendar < 25400000) {
-                return moment('' + epochOrLongCalendar, 'YYYYMMDD');
+                const date= moment('' + (epochOrLongCalendar%100!==0 ? epochOrLongCalendar : epochOrLongCalendar%10000!==0 ? epochOrLongCalendar+1 : epochOrLongCalendar+101), 'YYYYMMDD')
+                return extremity && extremity==="post" ? date.endOf(epochOrLongCalendar%100!==0 ? "day" : epochOrLongCalendar%10000!==0 ? "month" : "year")  : date
             } else if (epochOrLongCalendar >= 18000101000000) {
-                return moment('' + epochOrLongCalendar, 'YYYYMMDDHHmmss');
+                let toAdd = 0 + (epochOrLongCalendar%10000000000<100000000 ? 100000000 : 0) + (epochOrLongCalendar%100000000<1000000 ? 1000000 : 0) + (epochOrLongCalendar%1000000<1000 ? 10000 : 0) + (epochOrLongCalendar%10000<100 ? 100 : 0) + (epochOrLongCalendar%100<1 ? 1 : 0);
+                const date = moment('' + (epochOrLongCalendar+toAdd), 'YYYYMMDDHHmmss');
+                return extremity && extremity==="post" ? date.endOf(epochOrLongCalendar%100000000!==0 ? "day" : epochOrLongCalendar%10000000000!==0 ? "month" : "year")  : date;
             } else {
                 return moment(epochOrLongCalendar);
+            }
+        }
+
+        formatedMoment(epochOrLongCalendar) {
+            if(typeof epochOrLongCalendar === "String" && /$\d+^/.test(epochOrLongCalendar)){
+                epochOrLongCalendar = parseInt(epochOrLongCalendar);
+            }
+            if (!epochOrLongCalendar && epochOrLongCalendar !== 0) {
+                return null;
+            }
+            if (epochOrLongCalendar >= 18000101 && epochOrLongCalendar < 25400000) {
+                if(epochOrLongCalendar%100!==0){
+                    return moment(''+epochOrLongCalendar, 'YYYYMMDD').format("DD/MM/YYYY");
+                } else if(epochOrLongCalendar%10000!==0){
+                    return moment(''+(epochOrLongCalendar+1), 'YYYYMMDD').format("MM/YYYY");
+                }else{
+                    return moment(''+(epochOrLongCalendar+101), 'YYYYMMDD').format("YYYY");
+                }
+            } else if (epochOrLongCalendar >= 18000101000000) {
+                let toAdd = 0 + (epochOrLongCalendar%10000000000<100000000 ? 100000000 : 0) + (epochOrLongCalendar%100000000<1000000 ? 1000000 : 0) + (epochOrLongCalendar%1000000<1000 ? 10000 : 0) + (epochOrLongCalendar%10000<100 ? 100 : 0) + (epochOrLongCalendar%100<1 ? 1 : 0);
+                return moment('' + (epochOrLongCalendar+toAdd), 'YYYYMMDDHHmmss').format((epochOrLongCalendar%100000000>=1000000?"DD/":"")+(epochOrLongCalendar%10000000000>=100000000?"MM/":"")+"YYYY"+(epochOrLongCalendar%1000000!==0 ?" HH:mm":""));
+            } else {
+                return moment(epochOrLongCalendar).format("DD/MM/YYYY");
             }
         }
 
@@ -395,7 +457,7 @@
                 return;
             }
 
-            const birthDate = this.moment(date)
+            const birthDate = this.moment(date%100!==0 ? date : date%10000!==0 ? date+1 :date+101)
             const now = moment()
             let ageString = ""
             const age = moment.duration(now.diff(birthDate))
@@ -957,6 +1019,127 @@
 
         }
 
+         _Spy(toObserve) {
+            //j'utilise les objects car ca passe en pointeur!!!!
+            let mainLog = {}
+            let tmpLogging= {isDoing :false}
+            let chargedPatients = {patients : []}
+
+            const add = this._addNewCurrentLog.bind(this);
+            const setMain = this._setMainLog.bind(this);
+
+            toObserve.map(item =>{
+                const obj = item[0]
+                const methods = item[1]
+                methods.map(method =>{
+                    let spy = {
+                        object : obj,
+                        args: [],
+                        method : method
+                    };
+                    let original = obj[method];
+                    spy.original=original
+                    obj[method] = function() {
+                        spy.args = [].slice.apply(arguments);
+                        if(!this.preventLogging && !tmpLogging.isDoing){
+                            if(spy.method!=="newInstance"){
+                                add(spy,mainLog,tmpLogging,chargedPatients)
+                            }
+                            else {mainLog=setMain(spy)}
+                        }
+                        return original.apply(obj, spy.args)
+                    }.bind(this);
+                })
+            })
+         }
+
+        _addNewCurrentLog(info,mainLog,tmpLogging,chargedPatients){
+            this.user().getCurrentUser().then(user=>{
+                let patients = this._getPatient(info,mainLog,chargedPatients)
+                patients && patients.length && patients.map(pat => {
+                    const log ={}
+                    const chargedPatient = chargedPatients.patients.find(tmpPat=> tmpPat.id===pat) || false;
+                    tmpLogging.isDoing=true;
+                    (chargedPatient ? Promise.resolve(chargedPatient) :this.patienticc.getPatientWithUser(user,pat)).then(patient =>{
+                        tmpLogging.isDoing=false;
+                        if(!chargedPatients.patients.find(tmpPat => patient.id===tmpPat.id)){
+                            chargedPatients.patients.push(patient)
+                        }
+                        tmpLogging.isDoing=true;
+                        this.accesslogicc.newInstance(user,patient,log).then(newlog =>{
+                            tmpLogging.isDoing=false;
+                            newlog.detail=info.method
+                            this.accesslogicc.createAccessLogWithUser(user,newlog)
+                        })
+                    })
+                        .catch(err=> tmpLogging.isDoing=false)
+                        .finally(()=>{tmpLogging.isDoing=false})
+
+                })
+            })
+
+        }
+
+        _setMainLog(info){
+            return {
+                patientId : info.args[1].id,
+                userId : info.args[0].id
+            }
+        }
+
+        _getPatient(info,mainLog,chargedPatients){
+            let patientIds = _.countBy(_.zip(this._getParamNames(info.original),info.args).map(([name,arg]) => {
+                if(!arg)return false
+                if(arg.constructor.name==="UserDto"){
+                    return false;
+                }else if(arg.constructor.name==="PatientDto"){
+                    if(!chargedPatients.patients.find(pat => pat.id===arg.id)){
+                        chargedPatients.patients.push(arg)
+                    }
+                    return arg.id;
+                }else if(arg.constructor.name==="ListOfIdsDto"){
+                    return arg.ids.join(",");
+                }else if(name.includes("user")){
+                    return false;
+                }else if(name.includes("patient")){
+                    return arg;
+                }else if(name.includes("toId")){
+                    return arg;
+                }else if(name.includes("fromIds")){
+                    return arg;
+                }else if(info.method.includes("getPatientsWithUser")){
+                    return arg.ids.join(",");
+                }
+                return false;
+            }).filter(id => !!id));
+            let patients = ""
+            if(info.method==="mergeIntoWithUser"){
+                patients = _.values(patientIds).join(",")
+            }
+            else{
+                const biggest = _.last(_.sortBy(_.values(patientIds)))
+                patients= _.findKey(patientIds,nb => nb===biggest)
+            }
+
+            if(!patients){
+                patients = mainLog.patientId;
+            }
+            return !patients ? null : (patients.includes(",") ? patients.split(",") : [patients]);
+        }
+
+        _getParamNames(func) {
+            const STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
+            const ARGUMENT_NAMES = /([^\s,]+)/g;
+            let fnStr = func.toString().replace(STRIP_COMMENTS, '');
+            let result = fnStr.slice(fnStr.indexOf('(')+1, fnStr.indexOf(')')).match(ARGUMENT_NAMES);
+            if(result === null)
+                result = [];
+            return result;
+        }
+
+        setPreventLogging(status=true){
+            this.set("preventLogging",status)
+        }
     }
 
     customElements.define(IccApi.is, IccApi)
