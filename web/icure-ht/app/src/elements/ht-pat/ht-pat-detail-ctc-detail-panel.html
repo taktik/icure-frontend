@@ -660,8 +660,14 @@
 				margin-left:80px!important;
 			}
 
-			#editLabelAndTransactionDialog .modal-title {
+			#editLabelAndTransactionDialog .modal-title, #deleteServiceDialog .modal-title {
 			    justify-content: flex-start;
+			}
+
+			.modalDialogSmall {
+				min-width:1px;
+				height:200px;
+				width:400px;
 			}
 
 		</style>
@@ -846,6 +852,11 @@
 						allow-es-link="true"
 						linkable-health-elements="[[mainHealthElements]]"
 						health-elements="[[healthElements]]"
+						on-link-doc="_linkServicesAndEs"
+						on-unlink-doc="_unlinkServicesAndEs"
+						allow-edit-label-and-transaction="true"
+						on-edit-label-and-transaction="_editLabelAndTransactionDialogServices"
+						on-delete-service="_deleteServiceDialog"
 					></ht-services-list>
 				</template>
 				<template is="dom-if" if="[[table]]">
@@ -963,6 +974,7 @@
 										on-unlink-doc="_unlinkDocumentAndEs"
 										allow-edit-label-and-transaction="true"
 										on-edit-label-and-transaction="_editLabelAndTransactionDialog"
+										on-delete-service="_deleteServiceDialog"
 									></dynamic-doc>
 <!--									<div>[[_getComment(item, comments)]]</div>-->
 								</template>
@@ -1075,8 +1087,6 @@
         
         <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
 
-
-
         <paper-dialog class="modalDialog" id="editLabelAndTransactionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title"><iron-icon icon="create" class="mr5"></iron-icon>[[localize('modifyInformation','Modify information',language)]]</h2>
             <div class="content pt10 pr20 pl20">
@@ -1086,6 +1096,15 @@
             <div class="buttons">
                 <paper-button class="button button--other" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
                 <paper-button class="button button--save" on-tap="_saveLabelAndTransactionDialog"><iron-icon icon="save"></iron-icon> [[localize('save','Save',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
+        <paper-dialog class="modalDialog modalDialogSmall" id="deleteServiceDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+            <h2 class="modal-title"><iron-icon icon="delete" class="mr5"></iron-icon>[[localize('areYouSure','Are you sure?',language)]]</h2>
+            <div class="content pt40 pr20 pl20 textaligncenter fw700">[[localize('pleaseConfirm','Please confirm',language)]].</div>
+            <div class="buttons">
+                <paper-button class="button button--other" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_doDeleteService"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
             </div>
         </paper-dialog>
 
@@ -1314,6 +1333,10 @@
                                 type: String,
                                 value: ""
                             },
+							isServices: {
+								type: Boolean,
+								value: false
+							},
                             label: {
                                 type: String,
                                 value: ""
@@ -1327,7 +1350,36 @@
                     listType:{
                         type: Array,
                         value: ()=>[]
-                    }
+                    },
+					_deleteServicesData :{
+						type : Object,
+						value : () => { return {
+							ctc: {
+								type: Object,
+								value: {}
+							},
+							isFromServices: {
+								type: Boolean,
+								value: false
+							},
+							docId: {
+								type: String,
+								value: ""
+							},
+							documentSvc: {
+								type: Object,
+								value: {}
+							},
+							sourceSubContact: {
+								type: Object,
+								value: {}
+							},
+							sourceServiceIds:{
+								type: Array,
+								value: () => []
+							},
+						}}
+					},
 				};
 			}
 
@@ -4248,7 +4300,7 @@
 			_linkDocumentAndEs(e) {
 
 				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
-				const docId = _.get(e, "detail.document.id",{})
+				const docId = _.trim(_.get(e, "detail.document.id",""))
 				const documentSvcId = _.trim(_.get(_.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId)), "id",""))
 				const heAlreadyLinked = !!_.size(_.filter(_.get(ctc,"subContacts",[]), sctc => _.get(sctc,"healthElementId","") === _.trim(_.get(e, "detail.healthElement.id","")) && !!_.some(_.get(sctc,"services"), {serviceId:documentSvcId})))
 
@@ -4271,7 +4323,7 @@
 			_unlinkDocumentAndEs(e) {
 
 				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
-				const docId = _.get(e, "detail.document.id",{})
+				const docId = _.trim(_.get(e, "detail.document.id",""))
 				const documentSvcId = _.trim(_.get(_.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId)), "id",""))
 
 				return !_.trim(_.get(e, "detail.healthElement.id","")) ||
@@ -4290,13 +4342,14 @@
 			_editLabelAndTransactionDialog(e) {
 
 			    const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
-                const docId = _.get(e, "detail.document.id",{})
+				const docId = _.trim(_.get(e, "detail.document.id",""))
                 const documentSvc = _.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId))
                 const serviceLabel = !!_.trim(_.get(documentSvc,"content.fr.stringValue","")) ? _.trim(_.get(documentSvc,"content.fr.stringValue","")) : !!_.trim(_.get(documentSvc,"content.nl.stringValue","")) ? _.trim(_.get(documentSvc,"content.nl.stringValue","")) : !!_.trim(_.get(documentSvc,"content.en.stringValue","")) ? _.trim(_.get(documentSvc,"content.en.stringValue","")) : _.trim(_.get(documentSvc,"label",""))
                 const transactionCode = !!_.trim(_.get(_.find(_.get(documentSvc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) ? _.trim(_.get(_.find(_.get(documentSvc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) : !!_.trim(_.get(_.find(_.get(ctc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) ? _.trim(_.get(_.find(_.get(ctc,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) : ""
 
 			    this.set("editLabelAndTransactionData.ctc", ctc)
 			    this.set("editLabelAndTransactionData.docId", docId)
+			    this.set("editLabelAndTransactionData.isServices", false)
 			    this.set("editLabelAndTransactionData.label", serviceLabel)
 			    this.set("editLabelAndTransactionData.transactionCode", transactionCode)
 
@@ -4305,6 +4358,8 @@
 			}
 
 			_saveLabelAndTransactionDialog() {
+
+				if(!!_.get(this,"editLabelAndTransactionData.isServices",false)) return this._saveLabelAndTransactionDialogService()
 
 				const ctc = _.find(this.contacts, {id:_.get(this,"editLabelAndTransactionData.ctc.id","")})
 				const docId = _.trim(_.get(this,"editLabelAndTransactionData.docId",""))
@@ -4317,8 +4372,7 @@
 
 				return !_.size(ctc) ||
 				    !_.trim(docId) ||
-				    !_.size(documentSvc) ||
-				    !_.size(documentSctc) ? Promise.resolve() : Promise.resolve()
+				    !_.size(documentSvc) ? Promise.resolve((this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].close())) : Promise.resolve()
 				        .then(() => {
 
 				            if(isEhboxMessage) {
@@ -4329,8 +4383,10 @@
 				                ctc.tags = _.filter(_.get(ctc,"tags",[]), tag => _.trim(_.get(tag,"type")) !== "CD-TRANSACTION")
 				                ctc.tags.push({type: "CD-TRANSACTION", code: newTransactionCode, disabled: false})
 
-                                documentSctc.tags = _.filter(_.get(documentSctc,"tags",[]), tag => _.trim(_.get(tag,"type")) !== "CD-TRANSACTION")
-				                documentSctc.tags.push({type: "CD-TRANSACTION", code: newTransactionCode, disabled: false})
+                                if(!!_.size(documentSctc)) {
+									documentSctc.tags = _.filter(_.get(documentSctc, "tags", []), tag => _.trim(_.get(tag, "type")) !== "CD-TRANSACTION")
+									documentSctc.tags.push({type: "CD-TRANSACTION",code: newTransactionCode,disabled: false})
+								}
 
 				            }
 
@@ -4344,6 +4400,126 @@
 				        })
 				        .then(()=>this._saveContactAndRefreshContacts(ctc))
 				        .finally(()=>this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].close())
+
+			}
+
+			_linkServicesAndEs(e) {
+
+				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
+				const sourceServiceIds = _.uniq(_.compact(_.map(_.get(sourceSubContact,"services",[]), x => _.get(x,"serviceId",""))))
+				const heAlreadyLinked = !!_.size(_
+					.chain(_.get(ctc,"subContacts",[]))
+					.filter(sctc => ((_.get(sctc,"status",0) & (1 << 0)) === 0) && ((_.get(sctc,"status",0) & (1 << 5)) === 0) && _.every( _.uniq(_.compact(_.map(_.get(sctc,"services",[]), x => _.get(x,"serviceId","")))), x => sourceServiceIds.indexOf(x) > -1 ))
+					.map(subCtc => _.get(subCtc,"healthElementId",""))
+					.filter(heId => heId === _.trim(_.get(e, "detail.healthElement.id","")))
+					.compact()
+					.uniq()
+					.value()
+				)
+
+				return !_.trim(_.get(e, "detail.healthElement.id","")) ||
+					!_.trim(_.get(ctc,"id","")) ||
+					!_.size(sourceSubContact) ||
+					!_.size(sourceServiceIds) ||
+					heAlreadyLinked ? Promise.resolve() : Promise.resolve()
+						.then(() => ctc.subContacts.push({
+							codes: [],
+							tags: [],
+							healthElementId: _.trim(_.get(e, "detail.healthElement.id","")),
+							services: _.map(sourceServiceIds, svcId => _.merge({},{serviceId: svcId}))
+						}))
+						.then(()=>this._saveContactAndRefreshContacts(ctc))
+
+			}
+
+			_unlinkServicesAndEs(e) {
+
+				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
+				const sourceServiceIds = _.uniq(_.compact(_.map(_.get(sourceSubContact,"services",[]), x => _.get(x,"serviceId",""))))
+
+				return !_.trim(_.get(e, "detail.healthElement.id","")) ||
+					!_.trim(_.get(ctc,"id","")) ||
+					!_.size(sourceSubContact) ||
+					!_.size(sourceServiceIds) ? Promise.resolve() : Promise.resolve()
+						.then(() => ctc.subContacts = _.filter(ctc.subContacts, sctc => !(!!_.every( _.uniq(_.compact(_.map(_.get(sctc,"services",[]), x => _.get(x,"serviceId","")))), x => sourceServiceIds.indexOf(x) > -1 ) && _.get(sctc,"healthElementId","") === _.trim(_.get(e, "detail.healthElement.id","")))))
+						.then(()=>this._saveContactAndRefreshContacts(ctc))
+
+			}
+
+			_editLabelAndTransactionDialogServices(e) {
+
+				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
+				const serviceLabel = !!_.trim(_.get(ctc,"descr","")) ? _.trim(_.get(ctc,"descr","")) : _.trim(_.get(sourceSubContact,"descr",""))
+				const transactionCode = !!_.trim(_.get(_.find(_.get(sourceSubContact,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) ? _.trim(_.get(_.find(_.get(sourceSubContact,"tags",[]), {type:"CD-TRANSACTION"}), "code", "")) : _.trim(_.get(_.find(_.get(ctc,"tags",[]), {type:"CD-TRANSACTION"}), "code", ""))
+
+				this.set("editLabelAndTransactionData.ctc", ctc)
+				this.set("editLabelAndTransactionData.docId", "")
+				this.set("editLabelAndTransactionData.isServices", true)
+				this.set("editLabelAndTransactionData.label", serviceLabel)
+				this.set("editLabelAndTransactionData.transactionCode", transactionCode)
+
+				return this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].open();
+
+			}
+
+			_saveLabelAndTransactionDialogService() {
+
+				const ctc = _.find(this.contacts, {id:_.get(this,"editLabelAndTransactionData.ctc.id","")})
+				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
+				const isEhboxMessage = !!_.trim(_.get(_.find(_.get(sourceSubContact, "tags", []), {type:"originalEhBoxMessageId"}),"id",""))
+
+				const newLabel = _.trim(_.get(this,"editLabelAndTransactionData.label",""))
+				const newTransactionCode = _.trim(_.get(this,"editLabelAndTransactionData.transactionCode",""))
+
+				return !_.size(ctc) || !_.size(sourceSubContact) ? Promise.resolve((this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].close())) : Promise.resolve()
+					.then(() => {
+
+						ctc.descr = newLabel
+						isEhboxMessage && (ctc.tags = _.filter(_.get(ctc,"tags",[]), tag => _.trim(_.get(tag,"type")) !== "CD-TRANSACTION"))
+						isEhboxMessage && ctc.tags.push({type: "CD-TRANSACTION", code: newTransactionCode, disabled: false})
+
+						isEhboxMessage && (sourceSubContact.tags = _.filter(_.get(sourceSubContact, "tags", []), tag => _.trim(_.get(tag, "type")) !== "CD-TRANSACTION"))
+						isEhboxMessage && sourceSubContact.tags.push({type: "CD-TRANSACTION",code: newTransactionCode,disabled: false})
+
+					})
+					.then(()=>this._saveContactAndRefreshContacts(ctc))
+					.finally(()=>this.$['editLabelAndTransactionDialog'] && this.$['editLabelAndTransactionDialog'].close())
+
+			}
+
+			_deleteServiceDialog(e) {
+
+				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
+				const isFromServices = !!_.get(e,"detail.isServices", false)
+
+				// For dynamic doc
+				const docId = _.trim(_.get(e, "detail.document.id",""))
+				const documentSvc = _.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId))
+
+				// For ht-services-list
+				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
+				const sourceServiceIds = _.uniq(_.compact(_.map(_.get(sourceSubContact,"services",[]), x => _.get(x,"serviceId",""))))
+
+				// For dialog
+				this.set("_deleteServicesData.ctc",ctc)
+				this.set("_deleteServicesData.isFromServices",isFromServices)
+				this.set("_deleteServicesData.docId",docId)
+				this.set("_deleteServicesData.documentSvc",documentSvc)
+				this.set("_deleteServicesData.sourceSubContact",sourceSubContact)
+				this.set("_deleteServicesData.sourceServiceIds",sourceServiceIds)
+
+				return this.$['deleteServiceDialog'] && this.$['deleteServiceDialog'].open();
+
+			}
+
+			_doDeleteService() {
+
+				console.log("_doDeleteService", this._deleteServicesData)
+
+				return this.$['deleteServiceDialog'] && this.$['deleteServiceDialog'].close();
 
 			}
 
