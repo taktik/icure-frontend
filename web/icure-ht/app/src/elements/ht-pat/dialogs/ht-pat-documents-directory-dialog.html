@@ -423,6 +423,13 @@
                 flex-wrap: nowrap;
                 align-content: stretch;
                 height:85px;
+                max-width:50%;
+            }
+
+            @media screen and (max-width:1400px){
+                #filterResults {
+                    max-width:100%;
+                }
             }
 
             .filterContainer {
@@ -471,7 +478,7 @@
 
 
 
-            <h2 class="modal-title pl10">[[localize('documentsDirectory','Documents directory',language)]] ([[_data.currentPatient.firstName]] [[_data.currentPatient.lastName]] - [[_data.currentPatient.dateOfBirthHr]] - [[_data.currentPatient.age]]) <paper-icon-button class="button button--other" dialog-dismiss icon="icons:close"></paper-icon-button></h2>
+            <h2 class="modal-title pl10">[[localize('documentsDirectory','Documents directory',language)]] ([[_data.currentPatient.firstName]] [[_data.currentPatient.lastName]] - [[_data.currentPatient.dateOfBirthHr]] - [[_data.currentPatient.age]])</h2>
 
 
 
@@ -660,6 +667,11 @@
                         value: false,
                         noReset: true
                     },
+                    _isLocked: {
+                        type: Boolean,
+                        value: false,
+                        noReset: true
+                    },
                     _vaadinGridActiveItem: {
                         type: Object,
                         value: null
@@ -697,7 +709,7 @@
                             },
                             searchEngineValues: {
                                 type: Object,
-                                value: ()=>{}
+                                value: () => {}
                             },
                         }}
                     },
@@ -1013,7 +1025,7 @@
                     authorHr: []
                 }
 
-                _.map(this._data.directoryDocuments, it => {
+                _.map(_.get(this,"_data.vaadinGridData",[]), it => {
                     searchEngineValues.inComingOutGoingHr.push(_.trim(_.get(it,"inComingOutGoingHr","")))
                     searchEngineValues.typeHr.push(_.trim(_.get(it,"typeHr","")))
                     searchEngineValues.originHr.push(_.trim(_.get(it,"originHr","")))
@@ -1031,6 +1043,8 @@
 
             _filterResults(inComingOutGoingHr, typeHr, originHr, authorHr) {
 
+                if(!!_.get(this,"_isLocked",false)) return;
+
                 let finalResults = _.cloneDeep(_.get(this,"_data.directoryDocuments", []));
                 const inComingOutGoingHrValue = _.trim(_.get(inComingOutGoingHr,"dataFilter",""))
                 const typeHrValue = _.trim(_.get(typeHr,"dataFilter",""))
@@ -1043,6 +1057,9 @@
                 finalResults = !_.trim(authorHrValue) ? finalResults : _.filter(finalResults, i => _.trim(_.get(i,"authorHr","")).indexOf(authorHrValue) > -1)
 
                 this.set("_data.vaadinGridData",finalResults)
+
+                // When updating filters, by pass observer (avoid infinite loop)
+                this.set("_isLocked", true); this._getSearchEngineValue().then(searchEngineValues => { this.set("_data.searchEngineValues", searchEngineValues); this.set("_isLocked", false); })
 
             }
 
@@ -1082,7 +1099,7 @@
                             isFromMigration: true,
                         })
                     )))))
-                    .then(foundServicesWithDocumentId => !_.size(foundServicesWithDocumentId) ? false : this.api.document().getDocuments({ids:_.uniq(_.compact(_.map(foundServicesWithDocumentId,s=>_.trim(_.get(s,"documentId","")))))}).then(foundDocuments=>[foundServicesWithDocumentId,foundDocuments]))
+                    .then(foundServicesWithDocumentId => !_.size(foundServicesWithDocumentId) ? Promise.resolve([foundServicesWithDocumentId, []]) : this.api.document().getDocuments({ids:_.uniq(_.compact(_.map(foundServicesWithDocumentId,s=>_.trim(_.get(s,"documentId","")))))}).then(foundDocuments=>[foundServicesWithDocumentId,foundDocuments]))
                     .then(([foundServicesWithDocumentId,foundDocuments]) => _.compact(_.map(foundServicesWithDocumentId, fswd => {
                         const serviceDocument = _.find(foundDocuments, {id: _.trim(_.get(fswd, "documentId"))})
                         return !!_.get(fswd,"isFromMigration",false) ? fswd : (!_.trim(_.get(serviceDocument,"id","")) || !_.trim(_.get(serviceDocument,"attachmentId","")) || !_.trim(_.get(serviceDocument,"secretForeignKeys","")) ) ? false : _.merge({}, fswd, {document: serviceDocument})
@@ -1131,6 +1148,12 @@
                           const transactionCodeLabelHr = !!_.get(data,"isFromMigration",false) && !!_.trim(documentTypeFromSubContactsStatus) ? _.trim(documentTypeFromSubContactsStatus) :
                               !!_.get(data,"isLabResultOrProtocol",false) || !!_.get(data,"isFromMigration",false) ?
                               _.trim(_.get(_.find(_.get(this,"_data.codes['CD-TRANSACTION']",[]), {code:_.get(_.find(_.get(data,"contact.tags",[]), {type:"CD-TRANSACTION"}),"code","")}), "labelHr","")) :
+                              _.trim(_.get(data,"message.transportGuid")) === "PRESCRIPTION:ITT:ARCHIVE" ? this.localize("medicalCertificate","Medical certificate",this.language) :
+                              _.trim(_.get(data,"message.transportGuid")) === "PRESCRIPTION:KINE:ARCHIVE" ? this.localize("requestForKineCare_header1","Kinesitherapy prescription",this.language) :
+                              _.trim(_.get(data,"message.transportGuid")) === "PRESCRIPTION:NURSE:ARCHIVE" ? this.localize("requestForNurseCare_header1","Nursing prescription",this.language) :
+                              _.trim(_.get(data,"message.transportGuid")) === "PRESCRIPTION:IMAGING:ARCHIVE" ? this.localize("requestForImagingExam","Medical imaging exam",this.language) :
+                              _.trim(_.get(data,"message.transportGuid")) === "MEDEX:OUT:PDF" ? this.localize("medicalCertificate","Medical certificate",this.language) + " Medex" :
+                              _.trim(_.get(data,"message.transportGuid")) === "MEDEX:OUT:KHMER" ? "KHMER - " + this.localize("medicalCertificate","Medical certificate",this.language) + " Medex" :
                               !!_.size(_.get(data,"service.tags",[])) ? _.trim(_.get(_.find(_.get(this,"_data.codes['CD-TRANSACTION']",[]), {code:_.get(_.find(_.get(data,"service.tags",[]), {type:"CD-TRANSACTION"}),"code","")}), "labelHr","")) :
                               !!_.size(_.get(data,"contact.tags",[])) ? _.trim(_.get(_.find(_.get(this,"_data.codes['BE-CONTACT-TYPE']",[]), {code:_.get(_.find(_.get(data,"contact.tags",[]), {type:"BE-CONTACT-TYPE"}),"code","")}), "labelHr","")) :
                               ""

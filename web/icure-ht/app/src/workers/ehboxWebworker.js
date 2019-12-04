@@ -273,14 +273,12 @@ onmessage = e => {
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
                     if(_.size(candidates) === 1){
-                        accesslogApi.createAccessLog({
-                            id: iccCryptoXApi.randomUuid(),
-                            patientId: candidates[0].id,
-                            user: _.trim(_.get(user,"id","")),
-                            date: +new Date(),
-                            accessType: 'SYSTEM_ACCESS',
-                            detail : "Save Assignment in Message panel"
-                        }).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    	const log= {}
+						log.accessType= 'SYSTEM_ACCESS'
+						log.detail = "Save Assignment in Message panel"
+                    	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
+							accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
+						}).catch(e=>console.log("ERROR with createAccessLog: ", e))
                     }
 
                     return (_.size(candidates) !== 1) ?
@@ -416,7 +414,8 @@ onmessage = e => {
             const ehBoxAnnexes = _.get(fullMessageFromEHealthBox,"annex",[])
             const labResultHeaderRegExp = /A1\\.*\\.*([\\])*([.*])*/gi
             const a1HeadersByAnnexesKey = _.map(ehBoxAnnexes, singleAnnex => {
-                singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+                // singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+                singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!_.trim(_.get(singleAnnex,"content","")) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
                 return _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp)
             })
             const splittedEhBoxAnnexes = _.flatMap(_.map(ehBoxAnnexes, (singleAnnex,annexKey) => ( !_.size(a1HeadersByAnnexesKey[annexKey]) || _.size(a1HeadersByAnnexesKey[annexKey]) === 1 ) ?
