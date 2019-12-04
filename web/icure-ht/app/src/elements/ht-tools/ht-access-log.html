@@ -162,16 +162,16 @@
                                 <div class="log-text-col hover-icon" id="patient" data-item$="patient" on-tap="sortList">[[localize('pat','Patients',language)]]<iron-icon data-item$="patient" class="none" icon="[[getIcon('patient',lastSort,asc)]]"></iron-icon></div>
                             </div>
                             <template is="dom-repeat" items="[[displayedLogList]]">
-                                    <paper-item class="log-text">
-                                        <div class="log-text-col">
-                                            <template is="dom-if" if="[[exportMode]]">
-                                                <paper-checkBox role="check" index="[[getIndex(item,logList.*)]]" on-checked-changed="setListExport"></paper-checkBox>
-                                            </template>
-                                            [[item.date]]
-                                        </div>
-                                        <div class="log-text-col">[[item.user]]</div>
-                                        <div class="log-text-col">[[item.patient]]</div>
-                                    </paper-item>
+                                <paper-item class="log-text">
+                                    <div class="log-text-col">
+                                        <template is="dom-if" if="[[exportMode]]">
+                                            <paper-checkBox role="check" index="[[getIndex(item,logList.*)]]" on-checked-changed="setListExport"></paper-checkBox>
+                                        </template>
+                                        [[item.date]]
+                                    </div>
+                                    <div class="log-text-col">[[item.user]]</div>
+                                    <div class="log-text-col">[[item.patient]]</div>
+                                </paper-item>
                             </template>
                             <template is="dom-if" if="[[canGetMore(loadingLogs,exportMode,needMoreLogs)]]">
                                 <paper-item class="log-text">
@@ -289,7 +289,7 @@
                     },
                     documentPatients:{
                         type: Object,
-                        value: {startKey:null,startKeyDocId:null}
+                        value: {}
                     },
                     needMorePatient: {
                         type: Boolean,
@@ -357,17 +357,37 @@
             }
 
             updateList() {
-                if (!this.user || !this.api) return
+                if (!this.user || !this.api || this.filterValue.length<2) return
                 this.set("loadingLogs",true)
                 this.set('selected', null)
                 this.set('selectedLog', null)
                 //patients
-                this.set("documentPatients",{startKey:null,startKeyDocId:null})
+                this.set("documentPatients",{})
                 this.set("needMorePatient",true)
                 this.set("patientsList",[])
 
                 this.set("logList",[])
-                this.listingPatients()
+                const prom = []
+                this.api.setPreventLogging();
+                this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId)
+                    .then(hcp => this.recurciveParent(hcp,prom,this.user))
+                    .then(()=>{
+                        Promise.all(prom).then(p =>{
+                            this.set("needMorePatient",false)
+                        }).finally(()=>{
+                            this.api.setPreventLogging(false);
+                        })
+                    })
+            }
+
+            recurciveParent(hcp,prom,user){
+                prom.push(this.listingPatients(user))
+                if(hcp.parentId){
+                    return Promise.all([this.api.hcparty().getHealthcareParty(hcp.parentId),this.api.user().findByHcpartyId(hcp.parentId)])
+                        .then(([newHcp,userId]) => Promise.all([Promise.resolve(newHcp),this.api.user().getUser(userId)]))
+                        .then(([newHcp,newUser])=>this.recurciveParent(newHcp,prom,newUser))
+                }
+                return Promise.resolve({})
             }
 
             getMoreAccess(){
@@ -394,7 +414,7 @@
                 prom.then(log => this._setDisplayedLogList())
             }
 
-            listingPatients(){
+            listingPatients(user){
                 let latestSearchValue = this.filterValue
                 this.latestSearchValue = latestSearchValue
 
@@ -405,33 +425,30 @@
                     'ssin': latestSearchValue
                 } : /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(latestSearchValue) ? {
                     '$type': 'PatientByHcPartyDateOfBirthFilter',
-                    'healthcarePartyId': this.user.healthcarePartyId,
+                    'healthcarePartyId': user.healthcarePartyId,
                     'dateOfBirth': latestSearchValue.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3, decalage, chaine) => (p3.length === 4 ? p3 : (p3 > 20) ? "19" + p3 : "20" + p3) + (p2.length === 2 ? p2 : "0" + p2) + (p1.length === 2 ? p1 : "0" + p1))
                 } : /^([1-2][89012])?[0-9][0-9]([\/-])?(1[0-2]|0?[0-9])([\/-])?[0-3]?[0-9]$/.test(latestSearchValue) ? {
                     '$type': 'PatientByHcPartyDateOfBirthFilter',
-                    'healthcarePartyId': this.user.healthcarePartyId,
+                    'healthcarePartyId': user.healthcarePartyId,
                     'dateOfBirth': latestSearchValue.replace(/^((?:[1-2][89012])?[0-9][0-9])(?:[\/-])?(1[0-2]|0?[0-9])(?:[\/-])?([0-3]?[0-9])$/g, (correspondance, p1, p2, p3, decalage, chaine) => (p1.length === 4 ? p1 : (p1 > 20) ? "19" + p1 : "20" + p1) + (p2.length === 2 ? p2 : "0" + p2) + (p3.length === 2 ? p3 : "0" + p3))
                 } : {
                     '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
-                    'healthcarePartyId': this.user.healthcarePartyId,
+                    'healthcarePartyId': user.healthcarePartyId,
                     'searchString': latestSearchValue
                 }
 
                 console.log(filter)
 
-                return this.api.patient().filterByWithUser(this.user, this.documentPatients.startKey,this.documentPatients.startKeyDocId, 1000, 0, 'lastName', true, {filter: filter}).then(patients =>{
-                    this.set("patientsList",this.patientsList.concat(patients.rows))
+                return this.api.patient().filterByWithUser(user, _.get(this,"documentPatients."+user.id+".startKey",null),_.get(this,"documentPatients."+user.id+".startKeyDocId",null), 1000, 0, 'lastName', true, {filter: filter}).then(patients =>{
+                    this.set("patientsList",_.uniqBy(this.patientsList.concat(patients.rows),"id"))
                     if(patients.rows.length<1000){
-                        this.set("documentPatients",{startKey:null,startKeyDocId:null})
-                        this.set("needMorePatient",false)
+                        this.set("documentPatients."+user.id,{startKey:null,startKeyDocId:null})
                     }else{
-                        this.set("documentPatients",patients.nextKeyPair)
+                        this.set("documentPatients."+user.id,patients.nextKeyPair)
                         this.set("needMorePatient",true)
                         this.api.setPreventLogging(false);
-                        this.listingPatients()
+                        return this.listingPatients()
                     }
-                }).finally(()=>{
-                    this.api.setPreventLogging(false);
                 })
             }
 
@@ -457,18 +474,18 @@
                 if(this.usersList.length){
                     return Promise.all(this.usersList.filter(user => !_.get(this.listMoreAccess,user.id,false) || _.get(this.listMoreAccess,user.id+'.needMoreLogs',false)).map(user => {
                         return this.api.accesslog().findByUserAfterDateWithUser(this.user,user.id,'USER_ACCESS',this.searchDate ? moment(this.searchDate).unix()*1000 : +new Date() - 1000 * 3600 * 24 * 31,_.get(this.listMoreAccess,user.id+'.startKey',null),_.get(this.listMoreAccess,user.id+'.startDocumentId',null),1000,true)
-                        .then(logs =>{
-                            if(!logs.nextKeyPair || logs.rows.length<1000){
-                                this.listMoreAccess[user.id].needMoreLogs=false
-                            }else{
-                                this.listMoreAccess[user.id]={
-                                    needMoreLogs:true,
-                                    startKey : logs.nextKeyPair.startKey,
-                                    startKeyDocId : logs.nextKeyPair.startKeyDocId
+                            .then(logs =>{
+                                if(!logs.nextKeyPair || logs.rows.length<1000){
+                                    this.listMoreAccess[user.id].needMoreLogs=false
+                                }else{
+                                    this.listMoreAccess[user.id]={
+                                        needMoreLogs:true,
+                                        startKey : logs.nextKeyPair.startKey,
+                                        startKeyDocId : logs.nextKeyPair.startKeyDocId
+                                    }
                                 }
-                            }
-                            return logs.rows
-                        })
+                                return logs.rows
+                            })
                     })).then(logsByUser=>{
                         const logs = _.flatten(logsByUser)
                         this.set("needMoreLogs",!!this.usersList.find(user => !_.get(this.listMoreAccess,user.id,false) || _.get(this.listMoreAccess,user.id+'.needMoreLogs',false)))
