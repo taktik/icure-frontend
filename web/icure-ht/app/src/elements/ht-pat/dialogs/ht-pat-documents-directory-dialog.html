@@ -587,6 +587,8 @@
 
             <div class="buttons">
                 <paper-button class="button button--other" dialog-dismiss><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_downloadListAndFiles"><iron-icon icon="icons:file-download"></iron-icon> [[localize('downloadListAndFiles','Download list & files',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_downloadList"><iron-icon icon="icons:file-download"></iron-icon> [[localize('downloadList','Download list',language)]]</paper-button>
             </div>
 
 
@@ -621,6 +623,10 @@
         import _ from 'lodash/lodash';
         import moment from 'moment/src/moment';
         import { Base64 } from 'js-base64';
+        import '../../../../bower_components/js-xlsx/shim.js'
+        import jsZip from "jszip/dist/jszip.js";
+
+        const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
 
 
@@ -1210,6 +1216,57 @@
                     .then(() => this._getSearchEngineValue().then(searchEngineValues => this.set("_data.searchEngineValues",searchEngineValues)))
                     .finally(() => (this.set("_isBusy", false)||true) && (console.log("--- this._data ---",this._data)||true))
                     .catch(e=>console.log("ERROR", e));
+
+            }
+
+            _downloadList(config=false) {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+
+                this.set("_isBusy", true)
+
+                const title = this.localize("documentsDirectory","Document directory",this.language)
+                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), title, _.trim(_.get(this,"patient.lastName")), _.trim(_.get(this,"patient.firstName")), +new Date()]).join(" ")) + ".xls"
+                const xlsWorkBook = {SheetNames: [], Sheets: {}, Props:{Title: title, Author: "TOPAZ"}}
+                const fieldsAndLabels = [
+                    ["dateHr", this.localize("date","Date",this.language)],
+                    ["inComingOutGoingHr", this.localize("document","Document",this.language)],
+                    ["typeHr", this.localize("type","Type",this.language)],
+                    ["originHr", this.localize("origin","Origin",this.language)],
+                    ["authorHr", this.localize("aut","Author",this.language)],
+                    ["description", this.localize("des","Description",this.language)],
+                ]
+                const exportData = _.map(_.get(this,"_data.vaadinGridData",[]), i => _.fromPairs(_.map(fieldsAndLabels, fal => [fal[1], _.get(i, fal[0], "")])))
+
+                XLSX.utils.book_append_sheet(xlsWorkBook, XLSX.utils.json_to_sheet(exportData), title)
+                const xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
+                const fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.ms-excel"}) /* "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" */
+
+                this.set("_isBusy", false)
+
+                return !!_.get(config,"returnFileBlob",false) ? Promise.resolve({fileName:fileName,fileBlob:fileBlob}) : this.api.triggerFileDownload(fileBlob, "application/vnd.ms-excel", fileName, this.shadowRoot.querySelector('#document-directory-dialog'))
+
+            }
+
+            _downloadListAndFiles() {
+
+                if(!!_.get(this,"_isBusy",false)) return;
+
+                const data = {}
+                const promResolve = Promise.resolve()
+                const zipArchive = new jsZip()
+                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), title, _.trim(_.get(this,"patient.lastName")), _.trim(_.get(this,"patient.firstName")), +new Date()]).join(" ")) + ".zip"
+
+                return promResolve
+                    .then(() => this._downloadList({returnFileBlob:true}))
+                    .then(xlsListBlob => _.merge(data,{xlsListBlob:xlsListBlob}))
+                    .then(() => this.set("_isBusy", true))
+                    .then(() => Promise.all(_.map(_.get(this,"_data.vaadinGridData",[]), i => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.get(i,"document.id",""), _.size(_.get(i,"document.encryptionKeys",[])) ? _.get(i,"document.encryptionKeys",[]) : _.get(i,"document.delegations",[])).then(({extractedKeys: enckeys}) => !!_.trim(_.get(i,"document.attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(i,"document.id","")), _.trim(_.get(i,"document.attachmentId","")), enckeys.join(',')).then(decryptedContent=>_.merge(i,{document:{content:decryptedContent}})).catch(()=>i) : i))))
+                    .then(itemsWithAttachments => _.map(itemsWithAttachments, i => !_.get(i,"document.content",false) ? false : zipArchive.folder(!!_.trim(_.get(i,"typeHr","")) ? _.kebabCase(_.get(i,"typeHr","")) : "unclassified").file(_.trim(_.get(i,"document.name")), _.get(i,"document.content",false) instanceof ArrayBuffer ? _.get(i,"document.content") : this.api.crypto().utils.text2ua(_.get(i,"document.content")))))
+                    .then(() => zipArchive.file(_.trim(_.get(data,"xlsListBlob.fileName")), _.get(data,"xlsListBlob.fileBlob")))
+                    .then(() => zipArchive.generateAsync({type:"arraybuffer", mimeType: "application/zip", compression: "DEFLATE", compressionOptions: { level: 9 }}))
+                    .then(zipBlob =>  this.api.triggerFileDownload(zipBlob, "application/zip", fileName, this.shadowRoot.querySelector('#document-directory-dialog')))
+                    .finally(()=>this.set("_isBusy", false))
 
             }
 
