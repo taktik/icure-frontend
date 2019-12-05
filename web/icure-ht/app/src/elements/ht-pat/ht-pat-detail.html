@@ -142,6 +142,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 display: flex;
                 flex-direction: column;
                 height: 100%;
+                position: relative;
             }
 
             .padding-0{
@@ -443,7 +444,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 left: 4px;
                 top: 4px;
                 background:var(--app-secondary-color);
-                color:var(--app-text-color);
+                color:var(--app-text-color-light);
                 height:20px;
                 width:20px;
                 z-index: 4;
@@ -1031,8 +1032,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     display:none;
                 }
                 .btn-pat-close {
-                    top: 16px;
-                    left: 37vw;
+                    top: 4px;
+                    left: inherit;
+                    right: 4px;
                 }
             }
 
@@ -4570,6 +4572,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this.set("patientWillServices",patientWillServices);
                     });
                     this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id)).then(hesAsServices => {
+                        hesAsServices.forEach(h => {
+                            if (!_.get(h, `content[${this.language}].medicationValue`)) {
+                                const medicationValue = this.api.contact().medicationValue(h, this.language);
+                                Object.assign(h.content, _.fromPairs([[this.language, {medicationValue: medicationValue}]]));
+                                // MEDISPRING medication to prescription
+                                if (h.id && /^Medication_\d{19}_\d*$/.test(h.id)) {
+                                    if (h.tags && h.tags.length) {
+                                        h.tags = h.tags.filter(tag => !(tag.type === "CD-ITEM" && tag.code === "medication") && !(tag.type === "ICURE" && tag.code === "PRESC"));
+                                        h.tags.push(this.api.code().normalize({id: "ICURE|PRESC|1"}));
+                                        h.label = "Prescription";
+                                    }
+                                }
+                            }
+                        });
                         const svcHes = hesAsServices.filter(s => !s.tags.some(t => t.type === 'CD-ITEM' && t.code === 'medication')).map(svc => this._makeHeFromSvc(svc))
 
                         const oneWeekAgo = moment().subtract(7, 'days')
