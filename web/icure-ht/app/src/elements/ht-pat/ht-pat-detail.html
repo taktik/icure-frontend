@@ -4513,6 +4513,29 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
+            _normalizeMedications(contact) {
+                if (!contact || !contact.services || !contact.services.length) return;
+                contact.services.forEach(service => {
+                    if (service.id && /^Medication_\d{19}_\d*$/.test(service.id)) {
+                        if (service.label === "Medication" && _.get(service, "content.medication.medicationValue")) {
+                            if (!_.get(service, `content[${this.language}].medicationValue`)) {
+                                const medicationValue = this.api.contact().medicationValue(service, this.language);
+                                Object.assign(service.content, _.fromPairs([[this.language, {medicationValue: medicationValue}]]));
+                            }
+                            if (!service.tags || !service.tags.length || !service.tags.some(tag => tag.type === "ICURE" && tag.code === "PRESC")) {
+                                if (service.tags && service.tags.length) {
+                                    service.tags = service.tags.filter(tag => !(tag.type === "CD-ITEM" && tag.code === "medication") && !(tag.type === "ICURE" && tag.code === "PRESC"));
+                                } else {
+                                    service.tags = [];
+                                }
+                                service.tags.push(this.api.code().normalize({id: "ICURE|PRESC|1"}));
+                            }
+                            service.label = "Prescription";
+                        }
+                    }
+                });
+            }
+
             refreshPatient(refreshSelectedContacts = true) {
                 const patient = this.patient
 
@@ -4571,21 +4594,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         console.log("patientwillservices", patientWillServices);
                         this.set("patientWillServices",patientWillServices);
                     });
-                    this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id)).then(hesAsServices => {
-                        // hesAsServices.forEach(h => {
-                        //     if (h.id && /^Medication_\d{19}_\d*$/.test(h.id)) {
-                        //         if (!_.get(h, `content[${this.language}].medicationValue`)) {
-                        //             const medicationValue = this.api.contact().medicationValue(h, this.language);
-                        //             Object.assign(h.content, _.fromPairs([[this.language, {medicationValue: medicationValue}]]));
-                        //             // MEDISPRING medication to prescription
-                        //             if (h.tags && h.tags.length) {
-                        //                 h.tags = h.tags.filter(tag => !(tag.type === "CD-ITEM" && tag.code === "medication") && !(tag.type === "ICURE" && tag.code === "PRESC"));
-                        //                 h.tags.push(this.api.code().normalize({id: "ICURE|PRESC|1"}));
-                        //                 h.label = "Prescription";
-                        //             }
-                        //         }
-                        //     }
-                        // });
+                    ctcs.forEach(ctc => this._normalizeMedications(ctc));
+                    this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id))
+                        // .then(hesAsServices => this._normalizeMedications(hesAsServices))
+                        .then(hesAsServices => {
                         const svcHes = hesAsServices.filter(s => !s.tags.some(t => t.type === 'CD-ITEM' && t.code === 'medication')).map(svc => this._makeHeFromSvc(svc))
 
                         const oneWeekAgo = moment().subtract(7, 'days')
