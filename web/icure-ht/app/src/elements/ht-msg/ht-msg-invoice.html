@@ -2027,7 +2027,6 @@
                         prom = prom.then(listOfEfact =>
                             this.api.crypto().extractCryptedFKs(eu, this.user.healthcarePartyId).then(ids => _.concat(listOfEfact, {invoice: eu, patientId: ids.extractedKeys[0]})))
                     )
-
                     prom = prom.then(listOfEfact =>
                         Promise.all([_.compact(listOfEfact), this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(_.compact(listOfEfact).map(x => x.patientId))}))])
                             .then(([listOfEfact, patientsList]) => listOfEfact.map(efact => _.assign(efact, {patient: patientsList.find(p => p.id === efact.patientId)})))
@@ -2073,10 +2072,11 @@
                         this.set("totalInvoicesToBeSend.totalReimbursement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00)
                         this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
                         this._toggleDataProvider(this.selectedInvoicesToBeSend)
-                    }).finally(() => this.fetchMessages())
+                    }).finally(() =>{
+                        this.api.setPreventLogging(false)
+                        return this.fetchMessages()
+                    })
                      .catch(e => console.log('Erreur lors de la récupération des factures: ', e))
-                }).finally(()=>{
-                    this.api.setPreventLogging(false)
                 })
 
 
@@ -2100,11 +2100,12 @@
                         this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
                     ).then(invAndPats =>
                         this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it=>[it[0], it[1], ins.find(i=>it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate>=patIns.startDate && it[0].invoiceDate<=patIns.endDate && patIns.insuranceId===i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId===i.id))))]))
-                    ).then(invAndPatsAndInsurances => _.flatMap(invAndPatsAndInsurances, ([inv, pat, ins]) => {
-                    let insurabilityComplete = false
-                    pat && pat.insurabilities ? pat.insurabilities = pat.insurabilities.filter(ins => ins.insuranceId && ins.insuranceId.length && ins.parameters && ins.parameters.tc1 && ins.parameters.tc1.length && ins.parameters.tc2 && ins.parameters.tc2.length) : []
-                    pat.insurabilities.length > 0 ? insurabilityComplete = true : insurabilityComplete = false
-                    return ({
+                    ).then(invAndPatsAndInsurances => {
+                        return _.flatMap(invAndPatsAndInsurances, ([inv, pat, ins]) => {
+                        let insurabilityComplete = false
+                        pat && pat.insurabilities ? pat.insurabilities = pat.insurabilities.filter(ins => ins.insuranceId && ins.insuranceId.length && ins.parameters && ins.parameters.tc1 && ins.parameters.tc1.length && ins.parameters.tc2 && ins.parameters.tc2.length) : []
+                        pat.insurabilities.length > 0 ? insurabilityComplete = true : insurabilityComplete = false
+                        return ({
                             patientName: pat.lastName+" "+pat.firstName,
                             invoiceId: inv.id,
                             sentMediumType: inv.sentMediumType,
@@ -2127,8 +2128,9 @@
                             error: inv.error || "",
                             insurabilityCheck: insurabilityComplete,
                             realizedByTrainee : inv.internshipNihii && inv.internshipNihii.length ? true : false
+                        })
                     })
-                }))
+                })
                 .then(invoiceStruct => {
                     this.set("messagesToBeCorrected", invoiceStruct.filter(inv => inv.toBeCorrected === true))
                     this.set('selectedInvoicesToBeSend', invoiceStruct.filter(inv => inv.toBeCorrected === false && inv.invoice.printedDate))
@@ -2139,8 +2141,8 @@
                     this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
                     this._toggleDataProvider(this.selectedInvoicesToBeSend)
                 }).finally(() => {
-                    this.fetchMessages()
                     this.api.setPreventLogging(false)
+                    return this.fetchMessages()
                 })
             }
 
@@ -3348,6 +3350,7 @@
 
             _archiveBatchAuto(){
                 if(this.messageIdsCanBeAutoArchived && this.messageIdsCanBeAutoArchived.length > 0){
+                    this.api.setPreventLogging()
                     Promise.all(this.messageIdsCanBeAutoArchived.map(id =>
                         this.api.message().getMessage(id).then(msg => {
                             msg.status = (msg.status | (1 << 21))
@@ -3359,6 +3362,7 @@
                                     this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
                                 }))
                         }))).then(() => this.fetchMessageToBeSendOrToBeCorrected())
+                        .finally(()=>this.api.setPreventLogging(false))
                 }
             }
 
@@ -3373,6 +3377,7 @@
                     this._setLoadingMessage({ message:this.localize('tran-inv',this.language), icon:"arrow-forward"});
 
                     let prom = Promise.resolve({})
+                    this.api.setPreventLogging()
                     this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: this.activeGridItem.message.invoiceIds.map(id => id)}))
                       .then(invs => {
                           invs.map(inv => {
@@ -3384,8 +3389,8 @@
                               )
                           })
 
-                          prom.then(() => {
-                              this.api.message().getMessage(this.activeGridItem.message.id).then(msg => {
+                          return prom.then(() => {
+                              return this.api.message().getMessage(this.activeGridItem.message.id).then(msg => {
                                   this._setLoadingMessage({ message:this.localize('arch_mess',this.language), icon:"arrow-forward"});
                                   msg.status = (msg.status | (1 << 21))
                                   this.api.message().modifyMessage(msg)
@@ -3399,6 +3404,7 @@
                               })
                           })
                       })
+                        .finally(()=>this.api.setPreventLogging(false))
                 }
             }
 
