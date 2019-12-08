@@ -1595,34 +1595,6 @@
                         type : String,
                         value: ""
                     },
-                    i18n: {
-                        type: Object,
-                        value: function () {
-                            moment.locale('fr');
-                            const res = {
-                                monthNames: moment.months(),
-                                weekdays: moment.weekdays(),
-                                weekdaysShort: moment.weekdaysShort(),
-                                firstDayOfWeek: moment.localeData().firstDayOfWeek(),
-                                week: 'Semaine',
-                                calendar: 'Calendrier',
-                                clear: 'Clear',
-                                today: 'Aujourd\'hui',
-                                cancel: 'Annuler',
-                                formatDate: function (d) {
-                                    //return moment(d).format(moment.localeData().longDateFormat('L'))
-                                    return moment(d).format('DD/MM/YYYY');
-                                },
-                                parseDate: function (s) {
-                                    return moment(s, 'DD/MM/YYYY').toDate();
-                                },
-                                formatTitle: function (monthName, fullYear) {
-                                    return monthName + ' ' + fullYear;
-                                }
-                            };
-                            return res;
-                        }
-                    },
                     flatrateMenuSection: {
                         type: String,
                         observer: '_flatRateListingMenuSectionChanged'
@@ -2310,9 +2282,11 @@
             }
 
             _getInsuranceTitularyInfo(inputPatientsList=false) {
+                //this.api.setPreventLogging()
                 return new Promise(resolve =>{
                     const insuranceTitularyIds = _.compact(_.uniq(_.filter( (inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i)=>{ return _.trim(_.get(i, "titularyId", "")) }).map(i=>i.titularyId) ));
                     return !_.size(insuranceTitularyIds) ? resolve((inputPatientsList?inputPatientsList:this.flatRateAllPatients)) : this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ ids: insuranceTitularyIds })).then(results => {
+                        //this.api.setPreventLogging(false)
                         return resolve(
                             _.map((inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i=>{
                                 if(!_.trim(_.get(i,"titularyId", "" ))) return i
@@ -2328,6 +2302,7 @@
             _getListingJ3(e) {
 
                 this.set('_isLoading', true );
+                this.api.setPreventLogging();
                 this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_2',this.language), icon:"arrow-forward"});
 
                 this.reportCurrentDateString = _.trim(
@@ -2376,7 +2351,7 @@
                             <tbody>
                                 <tr class="bleft0 bright0">
                                     <td width="33%" class="important colorBlue bleft0 bright0 italic">`+ this.localize('flatrateMonthlyInvoicing',this.language) +`</td>
-                                    <td width="33%" class="important colorBlue bleft0 bright0 txt-center uppercase italic">`+ this.localize('month_' + parseInt(this.reportCurrentDateMomentObject.format('M')), this.language) + ` `+ this.reportCurrentDateMomentObject.format('YYYY')+`</td>
+                                    <td width="33%" class="important colorBlue bleft0 bright0 txt-center uppercase italic">`+ this.localize('month_' + parseInt(this.reportCurrentDateMomentObject.format('M')), this.language) + ` `+ this.reportCurrentDateMomentObject.format('YYYY') + `</td>
                                     <td width="33%" class="important colorBlue bleft0 bright0 txt-right small-txt italic lineHeight14px verticalAlignMiddle">`+ this.localize('day_' + parseInt(moment().day()), this.language) + ` ` + moment().format('DD') + ` `+ (this.localize('month_' + parseInt(moment().format('M')), this.language)).toLowerCase() + ` ` + moment().format('YYYY') + `</td>
 
                                 </tr>
@@ -2613,7 +2588,9 @@
                             <tbody>
                                 <tr class="fs9 bold">
                                     <td width="40%" class="colorBlue txt-left italic">`+ ( isInvoicingExport ? "" : this.localize('flatrate_footer_reply_before',this.language) ) +`</td>
-                                    <td width="20%" class="colorBlue txt-center italic underlined">`+ this.localize('month_' + parseInt(this.reportCurrentDateMomentObject.format('M')), this.language) + ` `+ this.reportCurrentDateMomentObject.format('YYYY')+`</td>
+                                    <td width="20%" class="colorBlue txt-center italic underlined">`+ this.localize('month_' + parseInt(this.reportCurrentDateMomentObject.format('M')), this.language) + ` `
+                    + this.reportCurrentDateMomentObject.format('YYYY')
+                    + (isInvoicingExport ? ` ` + this.localize("batch_nr", "N° envoi") + `:` + this.getUniqueSendNr(this.flatRateInvoicingDataObject.exportedDate) : ``)  +  `</td>
                                     <td width="40%" class="colorBlue txt-right italic">`+this.localize('page',this.language)+` `+currentPage+` `+this.localize('on',this.language)+` `+totalPages+` - Mut. `+oaCode+`</td>
                                 </tr>
                             </tbody>
@@ -3121,7 +3098,10 @@
                         this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_8',this.language), icon:"arrow-forward"})
                     })
                     .catch((e)=> console.log(e))
-                    .finally(() => this.set('_isLoading', false))
+                    .finally(() => {
+                        this.set('_isLoading', false)
+                        this.api.setPreventLogging(false);
+                    })
 
             }
 
@@ -3195,7 +3175,6 @@
                 let prom = Promise.resolve([])
                 const allPats = _.flatMap(this.flatRateInvoicingDataObject.listsData)
                 const patsCount = _.size(allPats)
-
                 // TOP-418
                 // const parentInsuranceIds = allPats.reduce((acc,pat) => { const parentId = this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent; if (!acc.includes(parentId)) { acc.push(parentId) }; return acc}, [])
                 const parentInsuranceIds = _.compact(_.uniq(_.map( this.flatRateInvoicingDataObject.insurancesData, i=>_.get(i,"parent", false ))))
@@ -3213,7 +3192,7 @@
                                         // TOP-435
                                         // const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
                                         const insParent = _.get(_.filter( parentInsurances, parentIns=> _.trim(_.get(parentIns, "id", "")) === _.trim(_.get(_.get(_.filter(childrenInsurancesData, i=>_.trim(_.get(i,"id",""))===_.trim(_.get(pat,"finalInsurability.insuranceId", ""))), "[0]", {}), "parent", ""))), "[0]", {})
-                                        return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
+                                        return retry.retry(() => (this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)))
                                             .then(invoices =>
                                                 !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
                                                     .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
@@ -3511,6 +3490,7 @@
 
             _doDeleteBatch() {
 
+                this.api.setPreventLogging();
                 const promResolve = Promise.resolve();
                 const batchExportTstamp = _.trim(this.batchExportTstamp)
 
@@ -3582,6 +3562,7 @@
                     .finally(() => {
                         this.set('activeGridItem', null );
                         this.set('messagesCachedData', null );
+                        this.api.setPreventLogging(false);
                         return this._fetchJ20Messages(true)
                     })
 
@@ -3610,6 +3591,7 @@
 
             _updateBatchStatus( action ) {
 
+                this.api.setPreventLogging();
                 const defaultInvoiceStatuses = {
                     accepted: false,
                     canceled: false,
@@ -3664,6 +3646,7 @@
                         .finally(() => {
                             this.set('_isLoadingSmall', false );
                             this.set('activeGridItem', null );
+                            this.api.setPreventLogging(false);
                             this._fetchJ20Messages(true)
                         })
                 }
@@ -4162,6 +4145,7 @@
 
                 if ( _.size(this.activeGridItem) ) {
 
+                    this.api.setPreventLogging()
                     this.shadowRoot.getElementById("messagesGridContainer").classList.add("half")
                     this.shadowRoot.getElementById("invoiceDetailContainer").classList.add("open")
 
@@ -4242,6 +4226,7 @@
                             this.set("messageDetailsData", messageDetailsData)
                             const invGridDetail = this.root.querySelector('#invoiceAndBatchesGridDetail'); invGridDetail && invGridDetail.clearCache();
                         })
+                        .finally(()=>this.api.setPreventLogging(false))
 
                 } else {
 
@@ -4265,7 +4250,7 @@
                 // 6. On new inv instance, loop invoicing codes and set as pending true + resent true (all others to false)
                 // 7. DO create new invoice, passing the entity ref ("type:hcpid:poaId:")
                 // 8. Modify old invoice to set corrective invoice id
-
+                this.api.setPreventLogging();
                 let prom = Promise.resolve([])
                 let insData = {}
 
@@ -4365,7 +4350,10 @@
                                                     e
                             )
                         })
-                        .finally(()=>prom)
+                        .finally(()=>{
+                            this.api.setPreventLogging(false);
+                            return prom;
+                        })
 
             }
 
@@ -4550,6 +4538,7 @@
                             countByStatus[statusKey] = parseInt(_.size(dataByStatus[statusKey].flatFiles))
                         })
 
+                        this.api.setPreventLogging()
                         // Eval error invoices based on fully rejected or partially accepted
                         return Promise.all( _.map( _.concat(dataByStatus.partiallyAccepted.flatFiles, dataByStatus.rejected.flatFiles), msg => {
                             const originalMessage = msg
@@ -4662,6 +4651,7 @@
                         messagesGrid3 && messagesGrid3.clearCache();
 
                         this.set('_isLoadingSmall', false )
+                        this.api.setPreventLogging(false)
                         return prom
 
                     })
@@ -4671,6 +4661,7 @@
             _exportFlatRateInvoicing() {
 
                 this.set('_isLoading', true );
+                this.api.setPreventLogging();
                 this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_1',this.language), icon:"arrow-forward"});
                 this.reportCurrentDateString = null;
 
@@ -5551,6 +5542,7 @@
                         const messagesGrid2 = this.root.querySelector('#messagesGrid2'); messagesGrid2 && messagesGrid2.clearCache();
                         const messagesGrid3 = this.root.querySelector('#messagesGrid3'); messagesGrid3 && messagesGrid3.clearCache();
                         const invGridDetail = this.root.querySelector('#invoiceAndBatchesGridDetail'); invGridDetail && invGridDetail.clearCache();
+                        this.api.setPreventLogging(false);
                         this._fetchJ20Messages(true).then(()=>{ this.dispatchEvent(new CustomEvent('do-route', { bubbles: true, composed: true, detail: { selection : { item : "e_flatrateinvOut", status: "j20_process" }}})); })
                     })
 
