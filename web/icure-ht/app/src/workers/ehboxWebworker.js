@@ -412,13 +412,14 @@ onmessage = e => {
         const registerNewMessage = (fullMessageFromEHealthBox, boxId) => {
 
             const promResolve = Promise.resolve()
+			const excludedFileExtensions = ["pdf","jpg","jpeg","gif","png","doc","docx","xls","xlsx","ppt","pptx"]
             const base64RegExp = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/
             const ehBoxAnnexes = _.get(fullMessageFromEHealthBox,"annex",[])
             const labResultHeaderRegExp = /A1\\.*\\.*([\\])*([.*])*/gi
             const a1HeadersByAnnexesKey = _.map(ehBoxAnnexes, singleAnnex => {
-                // singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+				const fileExtension = _.lowerCase(_.trim(( !!_.trim(_.get(singleAnnex,"filename","")) ? _.trim(_.get(singleAnnex,"filename","")) : _.trim(_.get(singleAnnex,"title","")) ).split(".").pop()));
                 singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!_.trim(_.get(singleAnnex,"content","")) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
-                return _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp)
+                return ( !_.trim(fileExtension) || excludedFileExtensions.indexOf(fileExtension) === -1) ? _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp) : false
             })
             const splittedEhBoxAnnexes = _.flatMap(_.map(ehBoxAnnexes, (singleAnnex,annexKey) => ( !_.size(a1HeadersByAnnexesKey[annexKey]) || _.size(a1HeadersByAnnexesKey[annexKey]) === 1 ) ?
                 [singleAnnex] : // Not a lab result OR lab result with only one patient, let go as such
