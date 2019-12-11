@@ -283,6 +283,17 @@
     <script>
         import Chart from 'chart.js';
 
+        const curves = require('./rsrc/growth-curves.json')
+
+        const growthCurves = [
+            //{ id: "HeadWeeks", code: "head", period: "weeks" },
+            //{ id: "HeadMonths", code: "head", period: "months" },
+            { id: "HeightWeeks", code: "height", period: "weeks" },
+            { id: "HeightMonths", code: "height", period: "months" },
+            { id: "WeightWeeks", code: "weight", period: "weeks" },
+            { id: "WeightMonths", code: "weight", period: "months" }
+        ]
+
         class HtPatChartsDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
             static get is() {
                 return 'ht-pat-charts-dialog';
@@ -295,6 +306,10 @@
                         value: null
                     },
                     user: {
+                        type: Object,
+                        value: null
+                    },
+                    patient: {
                         type: Object,
                         value: null
                     },
@@ -593,7 +608,15 @@
                     options: {
                         responsive: true,
                         aspectRatio: 3,
-                        maintainAspectRatio: false
+                        maintainAspectRatio: false,
+                        cubicInterpolationMode: 'default',
+                        scales: {
+                            yAxes: [{
+                                id: 'y-log-axis',
+                                type: 'linear'
+                                //type: 'logarithmic'
+                            }]
+                        }
                     }
                 });
             }
@@ -644,6 +667,22 @@
                 return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) ? this._getValue(s) : null)) || [];
             }
 
+            _getFilteredLabels(code, filter, dateOfBirth) {
+                return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => filter(this, s, dateOfBirth)).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) && this._hasValue(s) ? _.get(s, 'valueDate', null) : null)) || [];
+            }
+
+            _getFilteredValues(code, filter, dateOfBirth) {
+                return _.compact(_.flatten(this.contacts.map(ctc => _.get(ctc, 'services', []).filter(s => filter(this, s, dateOfBirth)).filter(s => _.get(s, 'tags', [])))).map(s => s.tags.find(t => t.type === "CD-PARAMETER" && t.code === code) ? this._getValue(s) : null)) || [];
+            }
+
+            _inWeeks(self, s, dateOfBirth) {
+                return self.api.moment(s.valueDate).diff(dateOfBirth, 'weeks') < 13;
+            }
+
+            _inMonths(self, s, dateOfBirth) {
+                return self.api.moment(s.valueDate).diff(dateOfBirth, 'months') < 60;
+            }
+
             _compareValueDates(a, b) {
                 return this.api.moment(b).diff(this.api.moment(a));
             }
@@ -668,6 +707,73 @@
                         options: {}
                     }
                 }
+            }
+
+            _newGrowthChart(id, data, series, label, measures) {
+
+                let datasets = series.map(serie => {
+                    return {
+                        label: this.localize('chart-' + serie.id, serie.id, this.language),
+                        fillColor: "transparent",
+                        data: data.map(d => d[serie.index]),
+                        fill: false,
+                        lineTension: 0.5,
+                        borderDash: _.get(serie, "dash", []),
+                        borderWidth: _.get(serie, "width", 1),
+                        borderColor: _.get(serie, "color", "rgb(28,101,254)"),
+                        pointRadius: 0,
+                        pointHitRadius: 0,
+                        pointBorderWidth: 0,
+                        spanGaps: true,
+                        cubicInterpolationMode: 'default'
+                    }
+                })
+
+                if (label && measures && measures.length) {
+                    datasets.push({
+                        label: this.localize(label, label, this.language),
+                        fillColor: "transparent",
+                        data: measures,
+                        fill: false,
+                        lineTension: 0.1,
+                        borderWidth: 1,
+                        borderColor: "rgb(28,101,254)",
+                        spanGaps: true
+                    })
+                }
+
+                return {
+                    id: id,
+                    name: this.localize('chart-' + id, id, this.language),
+                    info: {
+                        type: 'line',
+                        data: {
+                            labels: data.map(d => d[0]),
+                            datasets: datasets,
+                        }
+                    }
+                }
+            }
+
+            _createGrowthCharts(charts, gender) {
+                const dateOfBirth = this.api.moment(this.patient.dateOfBirth);
+                growthCurves.forEach(curve => {
+                    const name = gender + curve.id
+                    const filter = curve.period === "weeks" ? this._inWeeks : this._inMonths;
+                    const labels = this._getFilteredLabels(curve.code, filter, dateOfBirth);
+                    const values = this._getFilteredValues(curve.code, filter, dateOfBirth);
+                    if (labels.length > 0 &&
+                        values.length > 0 &&
+                        values.length === labels.length) {
+                        const data = curves[name + "P"];
+                        let measures =data .map(d => null);
+                        labels.forEach((label, i) => {
+                            const index = this.api.moment(label).diff(dateOfBirth, curve.period);
+                            measures[index] = values[i];
+                        })
+                        charts.push(this._newGrowthChart(name, data, pSeries, curve.code, measures));
+                    }
+                })
             }
 
             _initialize() {
@@ -703,6 +809,12 @@
                         }
                     }
                 ];
+
+                if (this.patient.gender === "male")
+                    this._createGrowthCharts(charts, "boys");
+
+                if (this.patient.gender === "female")
+                    this._createGrowthCharts(charts, "girls");
 
                 const contacts = this.contacts.filter(ctc => ctc.encounterType && ctc.encounterType.type === "CD-TRANSACTION" && ctc.encounterType.code === "labresult");
                 this._labResults.forEach(labResult => {
@@ -780,5 +892,13 @@
             }
         }
         customElements.define(HtPatChartsDialog.is, HtPatChartsDialog);
+
+        const pSeries = [
+            { index: 1, id: 'P3', color: "rgb(187,0,19)"},
+            { index: 2, id: 'P15', color: "rgb(255,114,37)", dash: [5, 10] },
+            { index: 3, id: 'P50', color: "rgb(0,115,25)" },
+            { index: 4, id: 'P85', color: "rgb(255,114,37)", dash: [5, 10] },
+            { index: 5, id: 'P97', color: "rgb(187,0,19)" },
+        ]
     </script>
 </dom-module>
