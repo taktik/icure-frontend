@@ -1211,10 +1211,11 @@
                     .then(() => this._getPrettifiedPatient(_.get(this,"user",{}), _.trim(_.get(this,"patient.id",""))).then(pat => this.set("_data.currentPatient", pat)))
                     .then(() => this._getCodesByType("CD-TRANSACTION").then(codes => _.merge(this._data,{codes:codes})))
                     .then(() => this._getCodesByType("BE-CONTACT-TYPE").then(codes => _.merge(this._data,{codes:codes})))
+                    .then(() => this.api.setPreventLogging())
                     .then(() => this._getDirectoryDocuments(_.get(this,"_data.currentPatient",{})).then(datas => this.set("_data.directoryDocuments", datas)))
                     .then(() => this.set("_data.vaadinGridData",_.get(this,"_data.directoryDocuments", [])))
                     .then(() => this._getSearchEngineValue().then(searchEngineValues => this.set("_data.searchEngineValues",searchEngineValues)))
-                    .finally(() => (this.set("_isBusy", false)||true) && (console.log("--- this._data ---",this._data)||true))
+                    .finally(() => (this.set("_isBusy", false)||true) && (console.log("--- this._data ---",this._data)||true) && (this.api.setPreventLogging(false)||true))
                     .catch(e=>console.log("ERROR", e));
 
             }
@@ -1255,18 +1256,19 @@
                 const data = {}
                 const promResolve = Promise.resolve()
                 const zipArchive = new jsZip()
-                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), title, _.trim(_.get(this,"patient.lastName")), _.trim(_.get(this,"patient.firstName")), +new Date()]).join(" ")) + ".zip"
+                const fileName = _.kebabCase(_.compact([ moment().format("YYYY-MM-DD"), this.localize("documentsDirectory","Document directory",this.language), _.trim(_.get(this,"patient.lastName")), _.trim(_.get(this,"patient.firstName")), +new Date()]).join(" ")) + ".zip"
 
                 return promResolve
                     .then(() => this._downloadList({returnFileBlob:true}))
                     .then(xlsListBlob => _.merge(data,{xlsListBlob:xlsListBlob}))
                     .then(() => this.set("_isBusy", true))
+                    .then(() => this.api.setPreventLogging())
                     .then(() => Promise.all(_.map(_.get(this,"_data.vaadinGridData",[]), i => this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(_.get(this,"user.healthcarePartyId", null), _.get(i,"document.id",""), _.size(_.get(i,"document.encryptionKeys",[])) ? _.get(i,"document.encryptionKeys",[]) : _.get(i,"document.delegations",[])).then(({extractedKeys: enckeys}) => !!_.trim(_.get(i,"document.attachmentId","")) ? this.api.document().getAttachment(_.trim(_.get(i,"document.id","")), _.trim(_.get(i,"document.attachmentId","")), enckeys.join(',')).then(decryptedContent=>_.merge(i,{document:{content:decryptedContent}})).catch(()=>i) : i))))
                     .then(itemsWithAttachments => _.map(itemsWithAttachments, i => !_.get(i,"document.content",false) ? false : zipArchive.folder(!!_.trim(_.get(i,"typeHr","")) ? _.kebabCase(_.get(i,"typeHr","")) : "unclassified").file(_.trim(_.get(i,"document.name")), _.get(i,"document.content",false) instanceof ArrayBuffer ? _.get(i,"document.content") : this.api.crypto().utils.text2ua(_.get(i,"document.content")))))
                     .then(() => zipArchive.file(_.trim(_.get(data,"xlsListBlob.fileName")), _.get(data,"xlsListBlob.fileBlob")))
                     .then(() => zipArchive.generateAsync({type:"arraybuffer", mimeType: "application/zip", compression: "DEFLATE", compressionOptions: { level: 9 }}))
                     .then(zipBlob =>  this.api.triggerFileDownload(zipBlob, "application/zip", fileName, this.shadowRoot.querySelector('#document-directory-dialog')))
-                    .finally(()=>this.set("_isBusy", false))
+                    .finally(()=>(this.set("_isBusy", false)||true)&&(this.api.setPreventLogging(false)||true))
 
             }
 
