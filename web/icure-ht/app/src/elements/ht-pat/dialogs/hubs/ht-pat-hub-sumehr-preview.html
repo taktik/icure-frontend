@@ -873,50 +873,70 @@
             _runPutSumehrV2WithGetTransaction(){
                 this.set("uploading", true);
                 this.set("putError", null);
-                this.generateAndPutSumehrV2().then(putResp => {
-                    this.set('putTransactionResponse', putResp);
-                    console.log("putTransactionResponse = ", putResp);
-                    if(putResp && putResp.id && putResp.id.length && putResp.id[0].value){
-                        console.log("putNRevoke: new transaction id", putResp.id[0].value);
-                        let transaction = {ids: putResp.id, cds: [{value:"sumehr"}]};
-                        this.parentDialog._getHubTransactionMessage(transaction).then(getResp => {
-                            console.log("new transaction on hub", getResp);
-                            const updateReference = this.api.crypto().randomUuid();
-                            this._logUpdateMessage(JSON.stringify(getResp), "new", updateReference, "text/xml").then(() => this._logUpdateMessage(JSON.stringify(this.hubSumehr), "old", updateReference, "text/xml")).then(() =>{
-                                if(this.hubSumehr){
-                                    if(this.hubSumehr.folders[0].transactions[0].ids && this.hubSumehr.folders[0].transactions[0].ids.find(id => id.value === putResp.id[0].value)) {
-                                        console.log("putNRevoke: id to revoke is same as new id, don't revoke", this.hubSumehr.folders[0].transactions[0].ids);
-                                        this.parentDialog._runGetTransactionList();
-                                        this.set("uploading", false);
-                                        if(this.$['commentDialog']) this.$['commentDialog'].close();
-                                        this.$["sumehrPreviewDialog"].close();
-                                    } else{
-                                        console.log("putNRevoke: id to revoke", this.hubSumehr.folders[0].transactions[0].ids);
-                                        if(this.hubSumehr && this.hubSumehr.folders)this.parentDialog._revokeHubTransaction(this.hubSumehr.folders[0].transactions[0]).then(r => {
-                                            console.log(r)
+                this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                    if(hcp.speciality && hcp.speciality.startsWith("pers")){
+                    }  else {
+                        console.log("hcp type changed, was ", hcp.type);
+                        hcp.speciality = "persphysician";
+                    }
+                    if(hcp.specialityCodes &&  hcp.specialityCodes.filter(spec => !spec.code.startsWith("pers")).length > 0){
+                        console.log("hcp specialityCodes changed, was ", hcp.specialityCodes);
+                        hcp.specialityCodes = [{
+                                "code": "persphysician",
+                                "type": "CD-HCPARTY",
+                                "version": "1",
+                                "id": "CD-HCPARTY|persphysician|1"}]
+                    }
+                    return this.api.hcparty().modifyHealthcareParty(hcp);
+                }).then(hcp =>
+                {
+                    console.log("hcp", hcp)
+                    this.generateAndPutSumehrV2().then(putResp => {
+                        this.set('putTransactionResponse', putResp);
+                        console.log("putTransactionResponse = ", putResp);
+                        if (putResp && putResp.id && putResp.id.length && putResp.id[0].value) {
+                            console.log("putNRevoke: new transaction id", putResp.id[0].value);
+                            let transaction = {ids: putResp.id, cds: [{value: "sumehr"}]};
+                            this.parentDialog._getHubTransactionMessage(transaction).then(getResp => {
+                                console.log("new transaction on hub", getResp);
+                                const updateReference = this.api.crypto().randomUuid();
+                                this._logUpdateMessage(JSON.stringify(getResp), "new", updateReference, "text/xml").then(() => this._logUpdateMessage(JSON.stringify(this.hubSumehr), "old", updateReference, "text/xml")).then(() => {
+                                    if (this.hubSumehr) {
+                                        if (this.hubSumehr.folders[0].transactions[0].ids && this.hubSumehr.folders[0].transactions[0].ids.find(id => id.value === putResp.id[0].value)) {
+                                            console.log("putNRevoke: id to revoke is same as new id, don't revoke", this.hubSumehr.folders[0].transactions[0].ids);
                                             this.parentDialog._runGetTransactionList();
                                             this.set("uploading", false);
-                                            if(this.$['commentDialog']) this.$['commentDialog'].close();
+                                            if (this.$['commentDialog']) this.$['commentDialog'].close();
                                             this.$["sumehrPreviewDialog"].close();
-                                        });
+                                        } else {
+                                            console.log("putNRevoke: id to revoke", this.hubSumehr.folders[0].transactions[0].ids);
+                                            if (this.hubSumehr && this.hubSumehr.folders) this.parentDialog._revokeHubTransaction(this.hubSumehr.folders[0].transactions[0]).then(r => {
+                                                console.log(r)
+                                                this.parentDialog._runGetTransactionList();
+                                                this.set("uploading", false);
+                                                if (this.$['commentDialog']) this.$['commentDialog'].close();
+                                                this.$["sumehrPreviewDialog"].close();
+                                            });
+                                        }
+                                    } else {
+                                        console.log("there was no sumehr on the hub yet");
+                                        this.parentDialog._runGetTransactionList();
+                                        this.set("uploading", false);
+                                        if (this.$['commentDialog']) this.$['commentDialog'].close();
+                                        this.$["sumehrPreviewDialog"].close();
                                     }
-                                } else {
-                                    console.log("there was no sumehr on the hub yet");
-                                    this.parentDialog._runGetTransactionList();
-                                    this.set("uploading", false);
-                                    if(this.$['commentDialog']) this.$['commentDialog'].close();
-                                    this.$["sumehrPreviewDialog"].close();
-                                }
+                                });
                             });
-                        });
-                    }else{
-                        console.log("a put transaction error occured", putResp);
-                        this.set("putError", putResp);
+                        } else {
+                            console.log("a put transaction error occured", putResp);
+                            this.set("putError", putResp);
+                            this.set("uploading", false);
+                        }
+                        ;
+                    }).catch(error => {
+                        console.log(error);
                         this.set("uploading", false);
-                    };
-                }).catch(error => {
-                    console.log(error);
-                    this.set("uploading", false);
+                    });
                 });
             }
 
