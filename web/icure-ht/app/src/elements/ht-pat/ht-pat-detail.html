@@ -2172,7 +2172,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <div class="date">Fin</div>
                                         <div class="btns">&nbsp;</div>
                                     </div>
-                                    <template is="dom-repeat" items="[[_getActifsMedications(medications.*)]]" as="medication">
+                                    <template is="dom-repeat" items="[[_getActiveMedications(medications.*)]]" as="medication">
                                         <paper-item class="menu-item" id="_svc_[[medication.id]]">
                                             <div class="table-line-menu">
                                                 <div class="code">
@@ -2808,7 +2808,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 id="medication-prescription"
                 api="[[api]]" user="[[user]]" patient="[[patient]]"
                 i18n="[[i18n]]" language="[[language]]"
-                medications="[[medications]]" prescriptions="[[prescriptions]]" resources="[[resources]]"
+                medications="[[medications]]" treatment-history="[[treatmentHistory]]" resources="[[resources]]"
                 on-save-medications="_saveMedications" on-new-medications="_createNewMedications">
         </medication-prescription-dialog>
         <medication-details-dialog id="medication-detail" api="[[api]]" user="[[user]]" i18n="[[i18n]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" selected-medication-content-with-id="{{selectedMedicationContentWithId}}" on-value-changed="_medicationDetailValueChanged"></medication-details-dialog>
@@ -3360,6 +3360,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     },
                     prescriptions:{
                         type : Array,
+                        value: [],
+                        notify: true
+                    },
+                    treatmentHistory: {
+                        type: Array,
                         value: [],
                         notify: true
                     },
@@ -4529,6 +4534,42 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             }
 
+            _normalizeMedications(contact) {
+                if (!contact || !contact.services || !contact.services.length) return;
+                contact.services.forEach(service => {
+                    if (service.id && /^Medication_\d{19}_\d*$/.test(service.id)) {
+                        if (_.get(service, "content.medication.medicationValue")) {
+                            if (!_.get(service, `content[${this.language}].medicationValue`)) {
+                                const medicationValue = this.api.contact().medicationValue(service, this.language);
+                                Object.assign(service.content, _.fromPairs([[this.language, {medicationValue: medicationValue}]]));
+                            }
+                            if (_.get(service, "content.medication.medicationValue.endMoment", "")) {
+                                if (!service.tags || !service.tags.length || !service.tags.some(tag => tag.type === "ICURE" && tag.code === "PRESC")) {
+                                    if (service.tags && service.tags.length) {
+                                        service.tags = service.tags.filter(tag => !(tag.type === "CD-ITEM" && tag.code === "medication") && !(tag.type === "ICURE" && tag.code === "PRESC"));
+                                    } else {
+                                        service.tags = [];
+                                    }
+                                    service.tags.push(this.api.code().normalize({id: "ICURE|PRESC|1"}));
+                                }
+                                service.label = "Prescription";
+                            }
+                            if (!service.codes) service.codes = [];
+
+                            const atcCode = _.get(service, "content.medication.medicationValue.options.atcCode.stringValue", "");
+                            if (atcCode) {
+                                service.codes.push(this.api.code().normalize({id: `CD-ATC|${atcCode}|1`}));
+                            }
+                            const codes = _.get(service, "content.medication.medicationValue.medicinalProduct.intendedcds", _.get(service, "content.medication.medicationValue.substanceProduct.intendedcds", [])).filter(code => ["CD-INNCLUSTER", "CD-VMPGROUP", "CD-DRUG-CNK"].includes(code.type));
+                            if (codes) {
+                                service.codes = service.codes.filter(code => !["CD-INNCLUSTER", "CD-VMPGROUP", "CD-DRUG-CNK"].includes(code.type));
+                                service.codes.push(...codes);
+                            }
+                        }
+                    }
+                });
+            }
+
             refreshPatient(refreshSelectedContacts = true) {
                 const patient = this.patient
 
@@ -4587,29 +4628,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         console.log("patientwillservices", patientWillServices);
                         this.set("patientWillServices",patientWillServices);
                     });
+                    ctcs.forEach(ctc => this._normalizeMedications(ctc));
                     this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'CD-ITEM' && ['healthcareelement', 'healthissue', 'familyrisk', 'risk', 'socialrisk', 'adr', 'allergy', 'medication', 'surgery', 'professionalrisk'].includes(c.code)) && !idServicesInHes.includes(s.id)).then(hesAsServices => {
-                        // hesAsServices.forEach(h => {
-                        //     if (h.id && /^Medication_\d{19}_\d*$/.test(h.id)) {
-                        //         if (!_.get(h, `content[${this.language}].medicationValue`)) {
-                        //             const medicationValue = this.api.contact().medicationValue(h, this.language);
-                        //             Object.assign(h.content, _.fromPairs([[this.language, {medicationValue: medicationValue}]]));
-                        //             // MEDISPRING medication to prescription
-                        //             if (h.tags && h.tags.length) {
-                        //                 h.tags = h.tags.filter(tag => !(tag.type === "CD-ITEM" && tag.code === "medication") && !(tag.type === "ICURE" && tag.code === "PRESC"));
-                        //                 h.tags.push(this.api.code().normalize({id: "ICURE|PRESC|1"}));
-                        //                 h.label = "Prescription";
-                        //             }
-                        //         }
-                        //     }
-                        // });
                         const svcHes = hesAsServices.filter(s => !s.tags.some(t => t.type === 'CD-ITEM' && t.code === 'medication')).map(svc => this._makeHeFromSvc(svc))
 
                         const oneWeekAgo = moment().subtract(7, 'days')
 
                         //s.tags.some(c => c.type === 'CD-ITEM' && c.code === 'medication' && !_.values(s.content).some(c => c && c.medicationValue && c.medicationValue.endMomentAsString && this.api.moment(c.medicationValue.endMomentAsString).isBefore(oneWeekAgo)))
-                        this.set('medications', _.sortBy(hesAsServices.filter(s =>
-                            s.tags.some(c => c.type === 'CD-ITEM' && c.code === 'medication')
-                        ).map(m => {
+                        this.set('medications', _.sortBy(hesAsServices.filter(s => s.tags.some(c => c.type === 'CD-ITEM' && c.code === 'medication') && !(this.api.contact().medicationValue(s, this.language) || {}).endMoment).map(m => {
                             return Object.assign(m, {
                                 colour: m.codes && m.codes.length && `ATC--${((m.codes.find(c => c.type === 'CD-ATC') || {code: 'V'}).code || 'V').substr(0, 1)}` || ""
                             })
@@ -4800,8 +4826,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                         }).finally(()=>this.set("SpinnerActive",false))
                     })
-                        .then(() => this.api.contact().filterServices(ctcs, s => s.tags.find(c => c.type === 'ICURE' && c.code === 'PRESC')))
-                        .then(svcPresc => this.set('prescriptions', _.sortBy(svcPresc,sorter)))
+
+                        .then(() => this.api.contact().filterServices(ctcs, s => s.tags.find(t => t.type === 'ICURE' && t.code === "PRESC" || t.type === 'CD-ITEM' && t.code === "medication")))
+                        .then(svcs => {
+                            this.set("treatmentHistory", svcs);
+                            this.set("prescriptions", _.sortBy(svcs.filter(svc => !svc.tags.some(t => t.type === "CD-ITEM" && t.code === "medication"))));
+                        })
                         .finally(()=>this.set("SpinnerActive",false)) // icc contact then end
 
                     this._updateFilterPanels()
@@ -5829,6 +5859,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 Promise.all(medicationArray.map(m => {
                     if(m.options && (m.options.createMedication || !m.options.isPrescription)) {
                         const newMedication = _.cloneDeep(m.newMedication);
+                        (this.api.contact().medicationValue(newMedication, this.language) || {endMoment: ""}).endMoment = null;
                         ((newMedication.tags || (newMedication.tags = [])).find(tag => tag.type === "CD-ITEM") || (newMedication.tags[newMedication.tags.length] = {type: "CD-ITEM", version: "1"})).code = "medication";
                         newMedication.label = this.localize('medication', 'medication', this.language);
                         newMedication.id = this.api.crypto().randomUuid();
@@ -7099,12 +7130,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _nbMedications(){
-                return this._getActifsMedications().length
+                return this._getActiveMedications().length
             }
 
-            _getActifsMedications(){
-                const yesterday = moment().subtract(1, 'days')
-                return this.medications.filter(s => s.tags.some(c => c.type === 'CD-ITEM' && c.code === 'medication' && !_.values(s.content).some(c => c && c.medicationValue && c.medicationValue.endMoment && this.api.moment(c.medicationValue.endMoment).isBefore(yesterday))))
+            _getActiveMedications(){
+                const yesterday = moment().subtract(1, 'days');
+                const today = moment();
+                return this.medications.filter(s => s.tags.some(c => c.type === 'CD-ITEM' && c.code === 'medication' && !_.values(s.content).some(c => c && c.medicationValue && (c.medicationValue.endMoment && this.api.moment(c.medicationValue.endMoment).isBefore(yesterday)) || (c.medicationValue.endOfLife && this.api.moment(c.medicationValue.endOfLife).isBefore(today)))));
             }
 
         }
