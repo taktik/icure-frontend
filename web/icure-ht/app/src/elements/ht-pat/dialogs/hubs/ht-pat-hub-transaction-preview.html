@@ -711,7 +711,12 @@
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td class="mdc-data-table__cell" style="width:200px;">[[_localizedItemTypeFromTags(item, language)]]</td>
+                                                        <td class="mdc-data-table__cell" style="width:200px;">
+                                                            [[_localizedItemTypeFromTags(item, language)]]
+                                                            <template is="dom-if" if="[[_itemTypeFromTagsMissing(item)]]">
+                                                                PROBLEMS!!!
+                                                            </template>
+                                                        </td>
                                                         <td class="mdc-data-table__cell" id="codes2_[[item.id]]">
                                                             [[_baseCode2(item)]]
                                                             <paper-tooltip for="codes2_[[item.id]]" position="top">[[_allCodes2(item)]]</paper-tooltip>
@@ -1103,6 +1108,8 @@
                     newSumehr = this.removeIncompleteServices(newSumehr);
                     newSumehr = this.removeEndedMedications(newSumehr);
                     newSumehr = this.removeTreatedServices(newSumehr);
+                    newSumehr = this.removeUndefinedPatientWillOldFormat(newSumehr);
+                    newSumehr = this.removePatientWillFIXME(newSumehr);
                     newSumehr = this.removeNotExportedPatientWill(newSumehr); //todo: change: translate the will to new format
                     newSumehr = this.sortItems(newSumehr);
                     newSumehr = this.insertTypeSeparators(newSumehr);
@@ -1138,7 +1145,7 @@
                 const svcNoCode = newSumehr.services.filter(svc => !svc.codes || svc.codes.length == 0);
                 const svcNoCdItem = newSumehr.services.filter(svc => !svc.tags || svc.tags.length === 0 || svc.tags.filter(tag => tag.type === "CD-ITEM").length === 0);
                 console.log("incompleteServices", svcNoCode, svcNoCdItem);
-                newSumehr.services = newSumehr.services.filter(svc => !svcNoCdItem.map(isvc => isvc.id).includes(svc.id));
+                //newSumehr.services = newSumehr.services.filter(svc => !svcNoCdItem.map(isvc => isvc.id).includes(svc.id));
                 return newSumehr;
             }
 
@@ -1147,6 +1154,19 @@
                 const treatedServiceIds = newSumehr.healthElements.filter(he => he.idService).map(he => he.idService).concat(servicesIdsWithHE.map(svc => svc.id));
                 console.log("treatedServiceIds", treatedServiceIds);
                 newSumehr.services = newSumehr.services.filter(svc => !treatedServiceIds.includes(svc.id));
+                return newSumehr;
+            }
+
+            removeUndefinedPatientWillOldFormat(newSumehr){
+                const svcPW = newSumehr.services.filter(svc => svc && svc.codes && svc.codes.find(c => c.type === "CD-PATIENTWILL"));
+                const svcUnd = svcPW.filter(svc => svc.content && svc.content.descr && svc.content.descr.stringValue && (svc.content.descr.stringValue === "undefined" || svc.content.descr.stringValue === "﻿\r\n"));
+                newSumehr.services = newSumehr.services.filter(svc => !svcUnd.map(isvc => isvc.id).includes(svc.id));
+                return newSumehr;
+            }
+
+            removePatientWillFIXME(newSumehr){
+                const svcPW = newSumehr.services.filter(svc => svc && svc.tags && svc.tags.find(c => c.code === "MS-FIXME-note"));
+                newSumehr.services = newSumehr.services.filter(svc => !svcPW.map(isvc => isvc.id).includes(svc.id));
                 return newSumehr;
             }
 
@@ -1854,6 +1874,10 @@
                 return item && item.tags && item.tags.find(tag => tag.type === "CD-ITEM") ? item.tags.find(tag => tag.type === "CD-ITEM").code : "";
             }
 
+            _itemTypeFromTagsMissing(item){
+                return this._itemTypeFromTags(item) ? false : true;
+            }
+
             _itemTypeFromCds(item){
                 return item.cds && item.cds.find(cd => cd.s === "CD_ITEM") ? item.cds.find(cd => cd.s === "CD_ITEM").value : "";
             }
@@ -1980,7 +2004,7 @@
                 let codes = icpc ? icpc : (icd ? icd : (atc ? atc : (will ? will : this._allCodes2(item))));
                 if(!codes || codes === ""){
                     codes = "get codes";
-                    if(this._itemTypeFromTags(item) === "medication"){
+                    if(this._itemTypeFromTags(item) === "medication" || this._itemTypeFromTags(item) === "treatment"){
                         const med = this.api.contact().preferredContent(item, this.language).medicationValue;
                         const cds = med && med.medicinalProduct ? med.medicinalProduct.intendedcds : (med && med.substanceProduct ? [] : (med && med.compoundPrescription ? [] : []));
                         const atc = this.getCdsByType(cds, ['CD-ATC'])
