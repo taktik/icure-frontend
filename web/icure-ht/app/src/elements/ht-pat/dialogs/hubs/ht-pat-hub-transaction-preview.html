@@ -636,9 +636,12 @@
                                                         <td class="mdc-data-table__cell" style="width:200px;">[[_localizedItemTypeFromTags(item, language)]]</td>
                                                         <td class="mdc-data-table__cell" id="codes_[[item.id]]">
                                                             [[_baseCode2(item)]]
-                                                            <paper-tooltip for="codes_[[item.id]]" position="top">[[_allCodes2(item)]]</paper-tooltip>
+                                                            <paper-tooltip position="right">[[_allCodes2(item)]]</paper-tooltip>
                                                         </td>
-                                                        <td class="mdc-data-table__cell">[[item.descr]]</td>
+                                                        <td class="mdc-data-table__cell" id="title_[[item.id]]">
+                                                            [[item.descr]]
+                                                            <paper-tooltip position="right">[[item.descr]]</paper-tooltip>
+                                                        </td>
                                                         <td class="mdc-data-table__cell" style="width:150px;">[[_formatDate(item.openingDate)]]</td>
                                                         <td class="mdc-data-table__cell" style="width:150px;">[[_formatDate(item.closingDate)]]</td>
                                                         <template is="dom-if" if="[[hubSumehr]]">
@@ -708,12 +711,20 @@
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td class="mdc-data-table__cell" style="width:200px;">[[_localizedItemTypeFromTags(item, language)]]</td>
+                                                        <td class="mdc-data-table__cell" style="width:200px;">
+                                                            [[_localizedItemTypeFromTags(item, language)]]
+                                                            <template is="dom-if" if="[[_itemTypeFromTagsMissing(item)]]">
+                                                                PROBLEMS!!!
+                                                            </template>
+                                                        </td>
                                                         <td class="mdc-data-table__cell" id="codes2_[[item.id]]">
                                                             [[_baseCode2(item)]]
-                                                            <paper-tooltip for="codes2_[[item.id]]" position="top">[[_allCodes2(item)]]</paper-tooltip>
+                                                            <paper-tooltip position="right">[[_allCodes2(item)]]</paper-tooltip>
                                                         </td>
-                                                        <td class="mdc-data-table__cell">[[getServiceTitle(item)]]</td>
+                                                        <td class="mdc-data-table__cell"  id="title2_[[item.id]]">
+                                                            [[getServiceTitle(item)]]
+                                                            <paper-tooltip  position="left">[[getServiceTitle(item)]]</paper-tooltip>
+                                                        </td>
                                                         <td class="mdc-data-table__cell" style="width:150px;">[[getMedicationStartDate(item)]]</td>
                                                         <td class="mdc-data-table__cell" style="width:150px;">[[getMedicationEndDate(item)]]</td>
                                                         <template is="dom-if" if="[[hubSumehr]]">
@@ -1094,10 +1105,15 @@
                     this.shadowRoot.getElementById("tabUnmatched").classList.add("doNotDisplay")
                 }
                 if(newSumehr) {
+                    newSumehr = this.removeIncompleteServices(newSumehr);
+                    newSumehr = this.removeEndedMedications(newSumehr);
                     newSumehr = this.removeTreatedServices(newSumehr);
-                    newSumehr = this.removeNotExportedPatientWill(newSumehr);
+                    newSumehr = this.removeUndefinedPatientWillOldFormat(newSumehr);
+                    newSumehr = this.removePatientWillFIXME(newSumehr);
+                    newSumehr = this.removeNotExportedPatientWill(newSumehr); //todo: change: translate the will to new format
                     newSumehr = this.sortItems(newSumehr);
                     newSumehr = this.insertTypeSeparators(newSumehr);
+                    newSumehr = this.removeIncompleteHealthElements(newSumehr);
                     this.matchSumehrElements(newSumehr, hubSumehr);
                     this.checkAll2('healthElements', newSumehr.healthElements);
                     this.checkAll2('services', newSumehr.services);
@@ -1109,7 +1125,38 @@
                     this.set('isLoading', false);
                 } else {
 
-                }
+                } 
+            }
+
+            removeEndedMedications(newSumehr){
+                const now = moment();
+                const endedMed = newSumehr.services.filter(svc => svc.content && (this._itemTypeFromTags(svc) === "medication" || this._isIcurePresc(svc)) && this.getMedicationEndMoment(svc) && this.getMedicationEndMoment(svc) < now);
+                console.log("endedMedications", endedMed);
+                newSumehr.services = newSumehr.services.filter(svc => !endedMed.map(isvc => isvc.id).includes(svc.id));
+                return newSumehr;
+            }
+
+            getMedicationEndMoment(svc) {
+                const med = svc.content ? this.api.contact().preferredContent(svc, this.language).medicationValue : null;
+                return med && med.endMoment ? this.api.moment(med.endMoment) : null
+            }
+
+            removeIncompleteServices(newSumehr){
+                //TODO: tags of medications are not always needed
+                const svcNoCode = newSumehr.services.filter(svc => !svc.codes || svc.codes.length == 0);
+                const svcNoCdItem = newSumehr.services.filter(svc => !svc.tags || svc.tags.length === 0 || svc.tags.filter(tag => tag.type === "CD-ITEM").length === 0);
+                console.log("incompleteServices", svcNoCode, svcNoCdItem);
+                //newSumehr.services = newSumehr.services.filter(svc => !svcNoCdItem.map(isvc => isvc.id).includes(svc.id));
+                return newSumehr;
+            }
+
+            removeIncompleteHealthElements(newSumehr){
+                //TODO: tags of medications are not always needed
+                //const svcNoCode = newSumehr.healthElements.filter(svc => !svc.codes || svc.codes.length == 0);
+                const svcNoCdItem = newSumehr.healthElements.filter(svc => !svc.tags || svc.tags.length === 0 || svc.tags.filter(tag => tag.type === "CD-ITEM").length === 0);
+                console.log("incompleteServices", svcNoCdItem);
+                newSumehr.healthElements = newSumehr.healthElements.filter(svc => !svcNoCdItem.map(isvc => isvc.id).includes(svc.id));
+                return newSumehr;
             }
 
             removeTreatedServices(newSumehr){
@@ -1117,6 +1164,19 @@
                 const treatedServiceIds = newSumehr.healthElements.filter(he => he.idService).map(he => he.idService).concat(servicesIdsWithHE.map(svc => svc.id));
                 console.log("treatedServiceIds", treatedServiceIds);
                 newSumehr.services = newSumehr.services.filter(svc => !treatedServiceIds.includes(svc.id));
+                return newSumehr;
+            }
+
+            removeUndefinedPatientWillOldFormat(newSumehr){
+                const svcPW = newSumehr.services.filter(svc => svc && svc.codes && svc.codes.find(c => c.type === "CD-PATIENTWILL"));
+                const svcUnd = svcPW.filter(svc => svc.content && svc.content.descr && svc.content.descr.stringValue && (svc.content.descr.stringValue === "authorize" || svc.content.descr.stringValue === "undefined" || svc.content.descr.stringValue === "﻿\r\n"));
+                newSumehr.services = newSumehr.services.filter(svc => !svcUnd.map(isvc => isvc.id).includes(svc.id));
+                return newSumehr;
+            }
+
+            removePatientWillFIXME(newSumehr){
+                const svcPW = newSumehr.services.filter(svc => svc && svc.tags && svc.tags.find(c => c.code === "MS-FIXME-note"));
+                newSumehr.services = newSumehr.services.filter(svc => !svcPW.map(isvc => isvc.id).includes(svc.id));
                 return newSumehr;
             }
 
@@ -1655,7 +1715,11 @@
 
             getMedicationTitle(contents) {
                 const med = contents ? _.flatMap(contents)[0].medicationValue : null;
-                return med && med.medicinalProduct ? med.medicinalProduct.intendedname : (med && med.substanceProduct ? med.substanceProduct.intendedname : (med && med.compoundPrescription ? med.compoundPrescription : "/"))
+                let title = med && med.medicinalProduct ? med.medicinalProduct.intendedname : (med && med.substanceProduct ? med.substanceProduct.intendedname : (med && med.compoundPrescription ? med.compoundPrescription : "/"))
+                if(!title || title === ""){
+                    title = "get title form content";
+                }
+                return title
             }
 
             getServiceTitle(item) {
@@ -1820,6 +1884,14 @@
                 return item && item.tags && item.tags.find(tag => tag.type === "CD-ITEM") ? item.tags.find(tag => tag.type === "CD-ITEM").code : "";
             }
 
+            _isIcurePresc(item){
+                return item && item.tags && item.tags.find(tag => tag.type === "ICURE" && tag.code === "PRESC") ? true : false;
+            }
+
+            _itemTypeFromTagsMissing(item){
+                return this._itemTypeFromTags(item) ? false : true;
+            }
+
             _itemTypeFromCds(item){
                 return item.cds && item.cds.find(cd => cd.s === "CD_ITEM") ? item.cds.find(cd => cd.s === "CD_ITEM").value : "";
             }
@@ -1941,14 +2013,31 @@
                 const icpc = item ? this.getCodeByType(item, ['ICPC','ICPC2']) : "";
                 const icd = item ? this.getCodeByType(item, ['ICD']) : "";
                 const atc = item ? this.getCodeByType(item, ['CD-ATC']) : "";
+                const thes = item ? this.getCodeByType(item, ['BE-THESAURUS-SURGICAL-PROCEDURES']) : "";
                 var will = item ? this.getCodeByType(item, ['CD-PATIENT-WILL', 'CD-PATIENT-WILL-HOS', 'CD-PATIENT-WILL-RES']) : "";
                 will = will ? this.localize("cd-patientwill-" + will, will, this.language) : "";
-                return icpc ? icpc : (icd ? icd : (atc ? atc : (will ? will : this._allCodes2(item))));
+                let codes = icpc ? icpc : (icd ? icd : (atc ? atc : (will ? will : (thes ? "BE-THESAURUS-SURGICAL-PROCEDURES|" + thes : this._allCodes2(item)))));
+                if(!codes || codes === ""){
+                    codes = "--";
+                    if(this._itemTypeFromTags(item) === "medication" || this._itemTypeFromTags(item) === "treatment"){
+                        const med = this.api.contact().preferredContent(item, this.language).medicationValue;
+                        const cds = med && med.medicinalProduct ? med.medicinalProduct.intendedcds : (med && med.substanceProduct ? [] : (med && med.compoundPrescription ? [] : []));
+                        const atc = this.getCdsByType(cds, ['CD-ATC'])
+                        const cnk = this.getCdsByType(cds, ['CD-DRUG-CNK'])
+                        codes = atc ? "ATC " + atc : cnk ? "CNK " + cnk : "--";
+                    }
+                }
+                return codes
             }
 
             getCodeByType(he, types) {
                 const icpc = he.codes && he.codes.find(t=> types.includes(t.type)); //t.type==='ICPC' || t.type==='ICPC2')
                 return icpc && ((icpc.code || icpc.id.split('|')[1]))
+            }
+
+            getCdsByType(cds, types){
+                const cdf = cds.find(c => types.includes(c.type));
+                return cdf && ((cdf.code || cdf.id.split('|')[1]))
             }
 
 
