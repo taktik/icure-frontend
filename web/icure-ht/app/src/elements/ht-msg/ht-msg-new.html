@@ -481,6 +481,22 @@
                 margin-right: 8px;
             }
 
+            #recipientWithMultipleEHealthBoxesDialog {
+                height:500px;
+            }
+
+            #multipleEHealthBoxesSelector {
+                height:280px;
+                overflow:auto;
+                border:1px solid var(--app-background-color-darker)
+            }
+
+            .multipleEHealthBoxesSingleLine {
+                display:flex;
+                align-items:center;
+                justify-content: flex-start;
+            }
+
         </style>
 
 
@@ -513,7 +529,7 @@
                                                 <template is="dom-repeat" items="[[newMessage.recipients]]" as="singleRecipient" id="recipientsList">
                                                     <paper-item class="destination-tag" id="[[singleRecipient.displayName]]">
                                                         <div class="destination-type">[[singleRecipient.type]]</div>
-                                                        <div class="one-line-menu list-title">[[singleRecipient.displayName]]</div>
+                                                        <div class="one-line-menu list-title">[[singleRecipient.displayName]] [[_hyphenBeforeWhenExists(singleRecipient.ehealthBoxes.0.qualityHr)]]</div>
                                                         <paper-icon-button class="del-destination" icon="icons:delete" id="[[singleRecipient.displayName]]" on-tap="_removeRecipient" data-recipient-index$='[[index]]'></paper-icon-button>
                                                     </paper-item>
                                                 </template>
@@ -724,6 +740,26 @@
                     </div>
                 </paper-dialog>
 
+                <paper-dialog class="modalDialog" id="recipientWithMultipleEHealthBoxesDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+
+                    <h2 class="modal-title"><iron-icon icon="vaadin:clipboard-user"></iron-icon> [[localize('chooseRecipient','Choose recipient',language)]]</h2>
+                    <div class="content pt10 pr20 pb10 pl20">
+                        <p class="fw700 mb5">[[localize('recipientSeveralQualities','Your recipient has several qualities.',language)]]</p>
+                        <p class="mb20 mt0">[[localize('recipientSeveralQualitiesChoose',"Please choose the relevant one to send this message to.",language)]]</p>
+                        <div id="multipleEHealthBoxesSelector" class="mt20 p10">
+                            <template is="dom-repeat" items="[[_recipientWithMultipleEHealthBoxes.ehealthBoxes]]" as="item" id="multipleEHealthBoxesSelectorDomRepeat">
+                                <div class="multipleEHealthBoxesSingleLine">
+                                    <paper-button class="button minw0 pt0 pr0 pb0 pl3" on-tap="_addRecipientEhBox" data-ehbox$="[[item]]"><iron-icon icon="add-circle"></iron-icon></paper-button>
+                                    <div>[[item.qualityHr]] ([[item.typeHr]]: [[item.id]])</div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="buttons">
+                        <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                    </div>
+                </paper-dialog>
+
 
             </div>
         </paper-dialog>
@@ -922,6 +958,10 @@
                     _isMedex: {
                         type: Boolean,
                         value: false
+                    },
+                    _recipientWithMultipleEHealthBoxes: {
+                        type: Object,
+                        value: () => {}
                     },
                 }
             }
@@ -1166,8 +1206,12 @@
             }
 
             _closeDialogs() {
+
                 this.set("_bodyOverlay", false);
+
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
+
+                this.set("_recipientWithMultipleEHealthBoxes", {})
             }
 
             _loadingStatusChanged() {
@@ -1951,6 +1995,10 @@
 
             }
 
+            _hyphenBeforeWhenExists(x) {
+                return !!_.trim(x) ? "- " + _.trim(x) : ""
+            }
+
             _resetComponentData(){
 
                 const componentProperties = HtMsgNew.properties
@@ -2051,59 +2099,72 @@
                 }, 300)
             }
 
+            _addRecipientEhBox(e) {
+
+                const promResolve = Promise.resolve();
+
+                let ehboxToAdd = {}
+                try { ehboxToAdd = JSON.parse(_.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.ehbox",""))),"[0].dataset.ehbox","")); } catch(e) {}
+                const finalRecipientObject = _.assign(_.cloneDeep(_.get(this,"_recipientWithMultipleEHealthBoxes",{})), {ehealthBoxes:[_.find(_.get(this,"_recipientWithMultipleEHealthBoxes.ehealthBoxes",[]), {id:_.trim(_.get(ehboxToAdd,"id","")), quality:_.trim(_.get(ehboxToAdd,"quality",""))})]})
+
+                return !_.size(ehboxToAdd) || !_.size(finalRecipientObject) ? promResolve : promResolve
+                    .then(() => {
+                        this.push('newMessage.recipients', finalRecipientObject)
+                        this.set("_recipientWithMultipleEHealthBoxes", _.assign(this._recipientWithMultipleEHealthBoxes, {ehealthBoxes:_.filter(_.get(this,"_recipientWithMultipleEHealthBoxes.ehealthBoxes",[]), x => _.trim(_.get(x,"id")) !== _.trim(_.get(ehboxToAdd,"id","")) && _.trim(_.get(x,"quality")) !== _.trim(_.get(ehboxToAdd,"quality","")) )}))
+                        this.shadowRoot.querySelector('#multipleEHealthBoxesSelectorDomRepeat') && this.shadowRoot.querySelector('#multipleEHealthBoxesSelectorDomRepeat').render()
+                    })
+
+            }
+
             _addRecipient(){
 
                 const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
-                const recipientType = !!_.trim(_.get(newMsgTo,"selectedItem.cbe")) ? "CBE" : !!_.trim(_.get(newMsgTo,"selectedItem.ehp")) ? "EHP" : !!_.trim(_.get(newMsgTo,"selectedItem.ssin")) ? "SSIN" : "NIHII"
-
+                const multipleEHealthBoxesDialog = this.shadowRoot.querySelector('#recipientWithMultipleEHealthBoxesDialog')||false
                 if(!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) return false
 
+                this.set('_isLoading', true)
+
+                // Cobra sometimes returns cbe, ehp, nihii, ssin with hyphens, spaces or dots
                 const keysToClean = ["cbe","ehp","nihii","ssin"]
-                _.map(keysToClean, k => !_.trim(_.get(newMsgTo.selectedItem, k, "")) ? false : newMsgTo.selectedItem[k] = newMsgTo.selectedItem[k].replace(/[^0-9]*/g,""))
+                _.map(keysToClean, k => !_.trim(_.get(newMsgTo.selectedItem, k, "")) ? false : newMsgTo.selectedItem[k] = _.trim(newMsgTo.selectedItem[k].replace(/[^0-9]*/g,"")))
 
-                this.push('newMessage.recipients', _.merge(_.get(newMsgTo,"selectedItem",{}),{type:recipientType}))
+                const patternsValidation = { heightDigits: /^([0-9]){8}$/i, tenDigits: /^([0-9]){10}$/i, elevenDigits: /^([0-9]){11}$/i}
 
-                newMsgTo._clear()
-
-
-
-                /*
                 const recipientCbe = _.trim(_.get(newMsgTo,"selectedItem.cbe", "")).replace( /([^\d]*)/gi, '' )
                 const recipientEhp = _.trim(_.get(newMsgTo,"selectedItem.ehp", "")).replace( /([^\d]*)/gi, '' )
                 const recipientNihii = _.trim(_.get(newMsgTo,"selectedItem.nihii", "")).replace( /([^\d]*)/gi, '' )
                 const recipientSsin = _.trim(_.get(newMsgTo,"selectedItem.ssin", "")).replace( /([^\d]*)/gi, '' )
-
-                const patternsValidation = {
-                    heightDigits: /^([0-9]){8}$/i,
-                    tenDigits: /^([0-9]){10}$/i,
-                    elevenDigits: /^([0-9]){11}$/i
-                }
 
                 const isValidCbe = !!patternsValidation.tenDigits.test(recipientCbe)
                 const isValidEhp = !!patternsValidation.tenDigits.test(recipientEhp)
                 const isValidNihii = !!patternsValidation.heightDigits.test(recipientNihii) || !!patternsValidation.elevenDigits.test(recipientNihii)
                 const isValidSsin = !!patternsValidation.elevenDigits.test(recipientSsin)
 
-                Promise.all([
-                    !isValidCbe ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientCbe),
-                    !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientEhp),
-                    !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii),
-                    !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii),
-                    !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientSsin)
-                ])
-                    .then(searchResults => _.chain(searchResults).flatMap().filter(sr => !!_.size(_.get(sr,"ehealthBoxes"))).compact().uniq().head().value())
-                    .then(recipientAndEhealthBoxes => {
+                this.set("_recipientWithMultipleEHealthBoxes",{})
 
-                        console.log("recipientAndEhealthBoxes", recipientAndEhealthBoxes);
-
-                    })
-
-                    Continue : resultat.ehealthBoxes === 1 => let go comme avance
-                    > 1 ? Donner choix sur qualité et adapter toute la cuisine après
-
-
-                 */
-
+                return (
+                    !!_.size(_.get(newMsgTo,"selectedItem.ehealthBoxes",[])) ?
+                        Promise.resolve(_.get(newMsgTo,"selectedItem",{})) :
+                        Promise.all([
+                            !isValidCbe ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientCbe).catch(()=>Promise.resolve([])),
+                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientEhp).catch(()=>Promise.resolve([])),
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii).catch(()=>Promise.resolve([])),
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii).catch(()=>Promise.resolve([])),
+                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientSsin).catch(()=>Promise.resolve([]))
+                        ]).then(searchResults => _.chain(searchResults).flatMap().filter(sr => !!_.size(_.get(sr,"ehealthBoxes"))).compact().uniq().head().value()||newMsgTo.selectedItem)
+                )
+                    .then(recipientAndEhealthBoxes => _.merge(newMsgTo.selectedItem, {
+                        type: !!_.trim(_.get(recipientAndEhealthBoxes,"cbe")) ? "CBE" : !!_.trim(_.get(recipientAndEhealthBoxes,"ehp")) ? "EHP" : !!_.trim(_.get(recipientAndEhealthBoxes,"ssin")) ? "SSIN" : "NIHII",
+                        ehealthBoxes: _
+                            .chain(_.get(recipientAndEhealthBoxes, "ehealthBoxes", []))
+                            .filter(x => !!_.trim(_.get(x, "id", "")))
+                            .map(x => _.assign(x, {qualityHr: this.localize("ehBoxQuality_" + _.trim(_.get(x, "quality")), _.trim(_.get(x, "quality")), this.language), typeHr: _.trim(_.get(x,"type")).toLowerCase() === "nihii" ? this.localize("cs-nihii", "Nihii", this.language) : _.trim(_.get(x,"type")).toLowerCase() === "inss" ? this.localize("cs-inss", "Inss", this.language) : _.upperFirst(_.trim(_.get(x,"type")).toLowerCase()),}))
+                            .orderBy(['qualityHr','quality'],['asc','asc'])
+                            .value()
+                    }))
+                    .then(recipientAndEhealthBoxes => _.size(_.get(recipientAndEhealthBoxes,"ehealthBoxes",[])) < 2 ? this.push('newMessage.recipients', recipientAndEhealthBoxes) : (this.set("_recipientWithMultipleEHealthBoxes", recipientAndEhealthBoxes)||true) && multipleEHealthBoxesDialog && multipleEHealthBoxesDialog.open())
+                    .catch(e=>console.log("Error with get org/hcp", e))
+                    .finally(()=>(newMsgTo._clear()||true) && this.set('_isLoading', false))
 
             }
 
