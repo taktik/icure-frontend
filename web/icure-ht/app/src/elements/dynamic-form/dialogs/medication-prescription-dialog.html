@@ -354,6 +354,12 @@
                 padding: 0px;
             }
 
+            .small-table-icon {
+                --iron-icon-height: 14px !important;
+                --iron-icon-width: 14px !important;
+                padding: 0px;
+            }
+
             .icon-type-group {
                 display: flex;
             }
@@ -1087,16 +1093,16 @@
 
                             <!-- MASTERLY / TEMPLATE-->
 
-<!--                            <vaadin-grid-column width="40px" flex-grow="0">-->
-<!--                                <template>-->
-<!--                                    <template is="dom-if" if="[[_isMasterly(item.preparation)]]">-->
-<!--                                        <iron-icon icon="medication:masterly"></iron-icon>-->
-<!--                                    </template>-->
-<!--                                    <template is="dom-if" if="[[_isTemplate(item.preparation)]]">-->
-<!--                                        <iron-icon icon="medication:template"></iron-icon>-->
-<!--                                    </template>-->
-<!--                                </template>-->
-<!--                            </vaadin-grid-column>-->
+                            <vaadin-grid-column width="40px" flex-grow="0">
+                                <template>
+                                    <template is="dom-if" if="[[_isMedication(item)]]">
+                                        <iron-icon icon="vaadin:alarm" class="table-icon"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[_isPrescription(item)]]">
+                                        <iron-icon icon="vaadin:barcode" class="table-icon"></iron-icon>
+                                    </template>
+                                </template>
+                            </vaadin-grid-column>
 
                             <!-- NAME / DOSAGE-->
 
@@ -1564,10 +1570,10 @@
                             <vaadin-grid-column width="40px" flex-grow="0">
                                 <template>
                                     <template is="dom-if" if="[[_isMine(item)]]">
-                                        <iron-icon class="table-icon" icon="social:person"></iron-icon>
+                                        <iron-icon class="table-icon small" icon="social:person"></iron-icon>
                                     </template>
                                     <template is="dom-if" if="[[!_isMine(item)]]">
-                                        <iron-icon class="table-icon" icon="social:group"></iron-icon>
+                                        <iron-icon class="table-icon small" icon="social:group"></iron-icon>
                                     </template>
                                 </template>
                             </vaadin-grid-column>
@@ -1707,7 +1713,7 @@
                         type: Array,
                         value: () => []
                     },
-                    prescriptions: {
+                    treatmentHistory: {
                         type: Array,
                         value: () => []
                     },
@@ -1851,6 +1857,14 @@
 
             constructor() {
                 super()
+            }
+
+            _isHistory(item) {
+                return item && item.type && item.type === "";
+            }
+
+            _isPrescription(item) {
+                return item && item.type && item.type === "";
             }
 
             _isMine(item) {
@@ -2086,10 +2100,10 @@
                             this.set('patientBim', (parseInt(insurability.parameters.tc1) % 2) === 1);
                         }
 
-                        this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
+                        // this.set('medications', _.orderBy(this.medications, ['atcCat'], ['asc']))
 
-                        this._initList('chronic-list', this._servicesSearch.bind(this, this.medications), '_servicesSearch_medications', this._serviceAdapter.bind(this));
-                        this._initList('history-list', this._servicesSearch.bind(this, this.prescriptions), '_servicesSearch_prescriptions', this._serviceAdapter.bind(this));
+                        this._initList('chronic-list', this._servicesSearch.bind(this, this.medications, "medication"), '_servicesSearch_medications', this._serviceAdapter.bind(this), 500);
+                        this._initList('history-list', this._servicesSearch.bind(this, this.treatmentHistory, "history"), '_servicesSearch_history', this._serviceAdapter.bind(this), 500);
                         this._initList('medicine-package-list', this._medicinePackageHierarchicalSearchSamV2.bind(this), '_medicinePackageHierarchicalSearchSamV2', this._medicinePackageAdapterSamV2.bind(this));
                         this._initList('ingredient-list', this._ingredientSearchSamV2.bind(this), '_ingredientSearchSamV2', this._ingredientAdapterSamV2.bind(this));
                         this._initList('compound-list', this._compoundPrescriptionsSearch.bind(this, this.compounds), '_compoundPrescriptionsSearch', this._compoundPrescriptionAdapter.bind(this));
@@ -2354,7 +2368,13 @@
                 }, []);
             }
 
-            _servicesSearch(source, searchValue, language, type, first, count) {
+            _getServiceType(service) {
+                if (!service.tags || !service.tags.length) return "";
+                return service.tags.some(tag => tag.type === "ICURE" && tag.code === "PRESC") ? "prescription" :
+                    service.tags.some(tag => tag.type === "CD-ITEM" && tag.code === "medication") ? "medication" : "";
+            }
+
+            _servicesSearch(source, sourceType, searchValue, first, count) {
                 // todo: this must be done only once per search!
                 const normSearchValue = searchValue.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
                 return new Promise(resolve => {
@@ -2381,12 +2401,16 @@
                                 startDate: medicationValue.beginMoment && this.api.moment(medicationValue.beginMoment).format('DD/MM/YYYY') || "",
                                 endDate: medicationValue.endMoment && this.api.moment(medicationValue.endMoment).format('DD/MM/YYYY') || "",
                                 status: medicationValue.status,
+                                beginMoment: medicationValue.beginMoment && this.api.moment(medicationValue.beginMoment).valueOf() || service.created,
                                 service: service
                             };
                             results.push(medication);
                         }
                         return results;
-                    }, []).filter(res => !res.id.includes(":")));
+                    }, [])
+                        .filter(res => !res.id.includes(":") && (res.intendedName || res.compoundTitle))
+                        .sort((a, b) => sourceType === "history" ? b.beginMoment - a.beginMoment : a.intendedName.localeCompare(b.intendedName))
+                    )
                 });
             }
 
@@ -2406,7 +2430,8 @@
                             "startDate": result.startDate,
                             "endDate": result.endDate,
                             "service": result.service,
-                            "type": result.type
+                            "type": result.type,
+                            "serviceType": this._getServiceType(result.service)
                         };
                         console.log("service item: ", item);
                         return item;
@@ -2640,7 +2665,7 @@
                             type: "compound"
                         }
                     })))
-                    .then(results => results.filter(result => result.id && result.compoundTitle && result.intendedName))
+                    .then(results => results.filter(result => result.id && (result.compoundTitle || result.intendedName)))
             }
 
             _compoundPrescriptionAdapter(results) {
@@ -2661,13 +2686,13 @@
                 }
             }
 
-            _initList(list, search, domain, adapter) {
+            _initList(list, search, domain, adapter, pageSize) {
                 this._list = list;
                 let grid = this.$[list];
                 if (!grid) return;
                 grid.lastParams = null; //Used to prevent double calls
                 grid.size = 0;
-                grid.pageSize = 100;
+                grid.pageSize = pageSize || 100;
                 grid.drugsCache = [];
                 grid.dataProvider = (params, callback) => {
                     // const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path || columns[0] && columns[0].key;
@@ -2849,6 +2874,14 @@
                 return med && med.drugType === "compoundPrescription";
             }
 
+            _isMedication(item) {
+                return item.serviceType === "medication";
+            }
+
+            _isPrescription(item) {
+                return item.serviceType === "prescription";
+            }
+
             _addMedication(med) {
                 const currentMedIdx = _.findIndex(this.medicationAccumulator, m => m.id === med.id);
                 if (currentMedIdx >= 0) {
@@ -2879,7 +2912,8 @@
 
                         if (drugType === "compoundPrescription") {
                             Object.assign(newMedicationContent.medicationValue, {
-                                compoundPrescription: med.compoundTitle + "\r\n" + med.intendedName
+                                // compoundPrescription: med.compoundTitle + "\r\n" + med.intendedName
+                                compoundPrescription: med.intendedName
                             });
                         } else {
                             const product = {
@@ -3172,8 +3206,9 @@
                 const medicationValue = this.api.contact().medicationValue(s, this.language);
                 if (!medicationValue) return "";
                 if (medicationValue.compoundPrescription) {
-                    const fields = this._getCompoundPrescriptionFields(medicationValue.compoundPrescription);
-                    return fields.title + ": " + fields.formula;
+                    return medicationValue.compoundPrescription;
+                    // const fields = this._getCompoundPrescriptionFields(medicationValue.compoundPrescription);
+                    // return fields.title + ": " + fields.formula;
                 } else {
                     return this.api.contact().medication().medicationNameToString((this.api.contact().preferredContent(s, this.language) || {}).medicationValue, this.language);
                 }
