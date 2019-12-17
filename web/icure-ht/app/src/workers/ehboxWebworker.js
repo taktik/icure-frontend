@@ -54,7 +54,7 @@ onmessage = e => {
         const iccClassificationXApi = new iccXApi.IccClassificationXApi(iccHost, iccHeaders,iccCryptoXApi)
 
         const iccFormXApi		    = new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
+		const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccFormXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
         const iccMessageXApi        = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi, iccInsuranceApi, iccEntityrefApi, iccIccInvoiceXApi, iccDocumentXApi, iccReceiptXApi, iccPatientXApi)
 
         let totalNewMessages = {
@@ -274,14 +274,15 @@ onmessage = e => {
 
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
-                    if(_.size(candidates) === 1){
-                    	const log= {}
-						log.accessType= 'SYSTEM_ACCESS'
-						log.detail = "Save Assignment in Message panel"
-                    	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
-							accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
-						}).catch(e=>console.log("ERROR with createAccessLog: ", e))
-                    }
+					// 20191217 - If you're using crypto, it would have been nice to instanciate the crypto class as well Mister Carolais :-)
+					// if(_.size(candidates) === 1){
+                    // 	const log= {}
+					// 	log.accessType= 'SYSTEM_ACCESS'
+					// 	log.detail = "Save Assignment in Message panel"
+                    // 	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
+					// 		accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
+					// 	}).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    // }
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
