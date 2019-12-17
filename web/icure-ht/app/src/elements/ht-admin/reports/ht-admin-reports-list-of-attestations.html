@@ -449,14 +449,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </vaadin-grid-column>
                 <vaadin-grid-column>
                     <template class="header">
-                        [[localize('inv_sup','Supplément',language)]]
-                    </template>
-                    <template>
-                        <div>[[item.doctorSupplement]]</div>
-                    </template>
-                </vaadin-grid-column>
-                <vaadin-grid-column>
-                    <template class="header">
                         [[localize('tot_pat','Ticket modérateur',language)]]
                     </template>
                     <template>
@@ -465,10 +457,34 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 </vaadin-grid-column>
                 <vaadin-grid-column>
                     <template class="header">
+                        [[localize('inv_sup','Supplément',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.doctorSupplement]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
                         [[localize('total_patient','Total patient',language)]]
                     </template>
                     <template>
                         <div>[[item.totalPatientAmount]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('inv_paid','Somme payé par le patient',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.paid]]</div>
+                    </template>
+                </vaadin-grid-column>
+                <vaadin-grid-column>
+                    <template class="header">
+                        [[localize('inv_round','Arrondi',language)]]
+                    </template>
+                    <template>
+                        <div>[[item.round]]</div>
                     </template>
                 </vaadin-grid-column>
                 <vaadin-grid-column>
@@ -966,7 +982,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     cancelIndex: this.api.crypto().randomUuid(),
                                     //patient: after
                                     invoiceReference: invoice.invoiceReference,
-                                    paymentReference: invoice.paymentReference,
+                                    paymentReference:(invoice.sentMediumType == "eattest" || invoice.invoiceType == "eattest") ? invoice.thirdPartyReference : invoice.paymentReference,
                                     //oa: after
                                     //insurance: after
                                     invoiceType: this.getInvoiceTypeLabel(invoice.invoiceType),
@@ -978,6 +994,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     creditCard: 0,
                                     wired: 0,
                                     totalAmount: 0,
+                                    paid : _.round(invoice.paid,2),
 
                                     invoice: invoice
                                 }
@@ -1009,6 +1026,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 item.debitCard = computeSum('debitcard')
                                 item.creditCard = computeSum('creditcard')
                                 item.wired = computeSum('wired')
+                                item.round=0.00
+                                if(item.cash){
+                                    if(_.round((invoice.paid*100))%5===0 && _.round(invoice.paid-item.totalAmount,2)<=0.02 && _.round(invoice.paid-item.totalAmount,2)>=-0.02)
+                                    item.round=_.round(invoice.paid-item.totalAmount,2)
+                                }
 
                                 item.insurance = ins ? ins.code + ' ' + (ins.name["fr"] || ins.name["nl"]) : null
                                 item.oa = item.insurance ? item.insurance[0] + '00' : null
@@ -1030,7 +1052,28 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 })
                             }))
                         }).then(invlist => {
-                            this.set('invoiceItems', invlist)
+                            this.set('invoiceItems', _.flattenDeep(invlist.map(inv =>{
+                                const newList=[]
+                                newList.push(inv)
+                                if(inv.cancelDate){
+                                    const cancel=_.cloneDeep(inv)
+                                    cancel.totalAmount=0-cancel.totalAmount
+                                    cancel.reimbursementAmount=0-cancel.reimbursementAmount
+                                    cancel.conventionAmount=0-cancel.conventionAmount
+                                    cancel.doctorSupplement=0-cancel.doctorSupplement
+                                    cancel.ticketAmount=0-cancel.ticketAmount
+                                    cancel.cash =0-cancel.cash
+                                    cancel.debitCard=0-cancel.debitCard
+                                    cancel.creditCard=0-cancel.creditCard
+                                    cancel.wired=0-cancel.wired
+                                    cancel.round=0-cancel.round
+                                    cancel.totalPatientAmount=0-cancel.totalPatientAmount
+                                    cancel.paid=0-cancel.paid
+                                    cancel.cancelIndex= this.api.crypto().randomUuid()
+                                    newList.push(cancel)
+                                }
+                                return newList;
+                            })))
                             this.set('_isLoadingList', false)
                         })
                 })

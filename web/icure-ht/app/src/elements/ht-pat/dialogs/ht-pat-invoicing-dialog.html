@@ -1189,6 +1189,9 @@
                     <div class="title">
                         <div class="title-txt">
                             [[localize('header','Header',language)]]
+                            <template is="dom-if" if="[[isEattestClosed]]">
+                                - [[localize('num_accuse_reception','Numéro d\'accusé de reception',language)]] [[selectedInvoice.thirdPartyReference]]
+                            </template>
                             <div class="eidReadingBtnContainer">
                                 <iron-icon icon="vaadin:user-card" on-tap="_openEidDialog" style="height: 18px;"></iron-icon>
                             </div>
@@ -1711,12 +1714,23 @@
             <h2 class="modal-title">[[localize('invoicing_no_derogation_title','invoicing_no_derogation_title',language)]]</h2>
             <div class="content">
                 <div class="p5">[[localize('invoicing_no_derogation','invoicing_no_derogation',language)]]</div>
-                <template is="dom-repeat" items="[[getNoDerogCodes(selectedInvoice.*,activeNmclItem.*,invoices.*)]]">
-                    <div class="p5">[[item.code]]</div>
+                <template is="dom-repeat" items="[[selectedInvoice.invoicingCodes]]">
+                    <template is="dom-if" if="[[hasNoDerogCodes(item)]]">
+                        <div class="p5" style="display: flex">
+                            [[item.code]]
+                            <vaadin-combo-box id="prescriberType" class="flex-container-nmcl-row"
+                                              label="[[localize('derog','Derogation',language)]]"
+                                              filtered-items="[[invoicingCodeDerogationType]]" item-label-path="label.[[language]]"
+                                              item-value-path="id" value="{{item.derogationMaxNumber}}"
+                                              readOnly="[[isInvoiceClosed]]"></vaadin-combo-box>
+                        </div>
+                    </template>
                 </template>
             </div>
             <div class="buttons">
                 <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--other" on-tap="_destroyInvoice">[[localize('inv_cancel_eattest','Annuler l\'eattest',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_confirmDerog">[[localize('valid','Validate',language)]]</paper-button>
             </div>
         </paper-dialog>
     </template>
@@ -3265,12 +3279,12 @@
                     let codes=[]
                     codes= (this.selectedInvoice.invoicingCodes.filter(code => ["101312","101334","101356","101371","101393","101415","101430","102771","102793","103574","103596","107015","107030","107052","107074","107096","107111","107133","107155","000000"].find(badCode => badCode===code.code))|| []).map(code=> code.code)
                     if(this.selectedInvoice.sentMediumType==="eattest" && codes.length){
-                        msgError+=this.localize("not_autho_code","code(s) non-autorisé(s) pour eattest")+": "+codes.join(",")+".\n"
+                        msgError+=this.localize("not_autho_code","Code nomenclature non permis dans eAttest")+": "+codes.join(",")+".\n"
                     }
 
                     codes= (this.selectedInvoice.invoicingCodes.filter(code =>["740434","740445","740456","740460","740471","740482"].find(badCode => badCode===code.code))|| []).map(code=> code.code)
                     if(this.selectedInvoice.sentMediumType==="eattest" && codes.length){
-                        msgError+=this.localize("not_autho_code_region","code(s) bloqué(s) par la région pour eattest")+": "+codes.join(",")+".\n"
+                        msgError+=this.localize("not_autho_code_region","code nomenclature non autorisé - Compétence transférée aux Communautés/Régions")+": "+codes.join(",")+".\n"
                     }
 
                     const lastInsur = parseInt(this.patient.insurabilities.length) ?
@@ -3283,11 +3297,11 @@
 
 
                     if(this.selectedInvoice.sentMediumType==="eattest" && _.get(lastInsur,"parameters.tc1",0)%2 ===1 && !this.selectedInvoice.invoicingCodes.find(code => ["103110","104510","104532","104554","104591","104613","104635","103213","103235","103132","104215","104230","104252","104296","104311","104333","103412","103434"].find(badCode => badCode===code.code))){
-                        msgError+= this.localize("not_autho_code_bim-need-add","code(s) non-autorisé(s) pour eattest quand on est BIM. Veuillez rajouter un de ces codes:")+"\n"+["103132","104215","104230","104252","104296","104311","104333","103412","103434","103110","104510","104532","104554","104591","104613","104635","103213","103235"].join(",")+".\n"
+                        msgError+= this.localize("not_autho_code_bim-need-add","Code nomenclature non permis dans eAttest")+"\n"
                     }
 
-                    if(this.selectedInvoice.sentMediumType==="eattest" && this.selectedInvoice.invoicingCodes.find(code => code.totalAmount<0)){
-                        msgError+= this.localize("not_autho_paid_neg","interdit d'avoir des montants négatifs pour les eattest")+".\n"
+                    if(this.selectedInvoice.sentMediumType==="eattest" && this.selectedInvoice.invoicingCodes.find(code => code.totalAmount<0 || code.reimbursement<0 || code.patientIntervention<0 || code.doctorSupplement<0)){
+                        msgError+= this.localize("not_autho_paid_neg","La valeur des montants n'est pas permise")+".\n"
                     }
 
 
@@ -3298,6 +3312,7 @@
 
                     this.set('selectedInvoice.paid', Number(this.selectedInvoice.invoicingCodes.reduce((tot,c)=>tot + (_.get(this.selectedInvoice, 'sentMediumType', 'paper') !== "efact" ? (Number(c.reimbursement) || 0) : 0) + (Number(c.patientIntervention) || 0) + (Number(c.doctorSupplement) || 0), 0).toFixed(2)))
                     this.set('selectedInvoice.paymentType',"cash")
+                    this.set("hasErrorPayment","")
                     this.$['paymentCheckDialog'].open()
                 }
             }
@@ -3310,8 +3325,8 @@
                 }
 
                 if(_.get(this.selectedInvoice, 'sentMediumType', 'paper') === "eattest" && _.round((this.selectedInvoice.paid *100)%5)!==0 && this.selectedInvoice.paymentType==="cash"){
-                    this.set("hasErrorPayment",this.localize("not_autho_paid_bc_type","montant introduit doit être arrondi au cinq cents près (inf.). Soit:")+" "+_.round((total-(total%0.05)),2)+" €")
-                    return;
+                    const montant = (this.selectedInvoice.paid *100)%5<3 ? _.round((total-(total%0.05)),2) : _.round((total+(0.05-total%0.05)),2)
+                     this.set("selectedInvoice.paid",montant);
                 }
                 this.set("hasErrorPayment","")
                 this.$["paymentCheckDialog"].close()
@@ -3323,10 +3338,10 @@
                 if (this.selectedInvoice.creditNote) {
                     console.log(this.selectedInvoice)
                     this.selectedInvoice.invoicingCodes.map(invoiceCode => {
-                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".reimbursement", 0 - invoiceCode.reimbursement)
-                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".patientIntervention", 0 - invoiceCode.patientIntervention)
-                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".doctorSupplement", 0 - invoiceCode.doctorSupplement)
-                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".totalAmount", 0 - invoiceCode.totalAmount)
+                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".reimbursement", _.round(0 - invoiceCode.reimbursement,2))
+                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".patientIntervention", _.round(0 - invoiceCode.patientIntervention,2))
+                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".doctorSupplement", _.round(0 - invoiceCode.doctorSupplement,2))
+                        this.set("selectedInvoice.invoicingCodes." + this.selectedInvoice.invoicingCodes.indexOf(invoiceCode) + ".totalAmount", _.round(0 - invoiceCode.totalAmount,2))
                     })
                 }
 
@@ -4361,7 +4376,7 @@
                         }
                     }
 
-                    if(this.prescriberType[code.prescriberNorm].prescriber){
+                    if(code.prescriberNorm && this.prescriberType[code.prescriberNorm].prescriber){
                         newCode.requestor = {
                             date: code.prescriptionDate,
                             hcp: {
@@ -4372,6 +4387,8 @@
                                 lastName: null
                             }
                         }
+
+                        newCode.requestorNorm=code.prescriberNorm;
                     }
 
                     eattest.codes.push(newCode)
@@ -4532,6 +4549,15 @@
                     totalDelta+=Number(code.reimbursement)+Number(code.patientIntervention)+Number(code.doctorSupplement)
                 })
 
+                invoice.round=0;
+                invoice.hasRound=false;
+                if(invoice.paymentType==="cash"){
+                    if(_.round((invoice.paid*100))%5===0 && _.round(invoice.paid-totalDelta,2)<=0.02 && _.round(invoice.paid-totalDelta,2)>=-0.02){
+                        invoice.round=_.round(totalDelta-invoice.paid,2)
+                        invoice.hasRound=true;
+                    }
+                }
+
                 let templatePat = _.clone(this.patient), templateHcp = _.clone(this.hcp)
                 templatePat.gender = (this.patient.gender === "male") ? "Mr" : "Mme"
                 templatePat.addresses.map(addr=>{addr.telecoms.map(telcom=>{
@@ -4573,7 +4599,7 @@
                             return Number(termes[0]).toFixed(2)+" €";
                         }
                     },
-                    "justif": this.localize('pdf_justif','justif',this.language),
+                    "justif": this.localize('pdf_justif','Numéro de suite',this.language),
                     "date": this.localize('pdf_date','date',this.language),
                     "patCord": this.localize('pdf_patCord','patCord',this.language),
                     "remboursPrest": this.localize('pdf_remboursPrest','remboursPrest',this.language),
@@ -4814,9 +4840,15 @@
                                 <th>Montant payé</th>
                                 <td class="right">{{#formatNumber}}{{invoice.paid}}{{/formatNumber}}</td>
                             </tr>
+                            {{#invoice.hasRound}}
+                                <tr>
+                                    <th>Arrondi</th>
+                                    <td class="right">{{#formatNumber}}{{invoice.round}}{{/formatNumber}}</td>
+                                </tr>
+                            {{/invoice.hasRound}}
                             <tr>
                                 <th>Solde</th>
-                                <td class="right">{{#formatNumber}}{{totalACharge}} + {{totalSuppl}} - {{totalACharge}} + {{totalConv}} - {{invoice.paid}}{{/formatNumber}}</td>
+                                <td class="right">{{#formatNumber}}{{totalACharge}} + {{totalSuppl}} - {{totalACharge}} + {{totalConv}} - {{invoice.paid}} - {{invoice.round}}{{/formatNumber}}</td>
                             </tr>
                         </table>
                     </div>
@@ -4839,7 +4871,8 @@
                             a.click();
                             window.URL.revokeObjectURL(url);
                         }
-                    }).then( () =>{
+                        return printed
+                    }).then( printed =>{
                         if(this.selectedInvoice)
                             this.set("selectedInvoice.printedDate",moment().format("YYYYMMDD"))
 
@@ -5133,10 +5166,10 @@
                 }
             }
 
-            getNoDerogCodes(){
+            hasNoDerogCodes(code){
                 if(!this.selectedInvoice || !this.invoices)return [];
                 const listOfCode= _.uniq(_.flattenDeep((this.invoices.filter(invoice => invoice.invoiceDate===this.selectedInvoice.invoiceDate && this.selectedInvoice.id!==invoice.id)||[]).map(invoice => invoice.invoicingCodes ? invoice.invoicingCodes.map(code=> code.code) : [])))
-                return listOfCode.length ? this.selectedInvoice.invoicingCodes.filter(code=> listOfCode.find(c=> c===code.code) && !code.derogationMaxNumber) : []
+                return listOfCode.length && listOfCode.find(c=> c===code.code) && !code.derogationMaxNumber
             }
 
             /*isInvoiceClosedOrEattest(){
@@ -5151,6 +5184,24 @@
                     this.set("selectedInvoice.encounterLocationNihii",hospital.nihii)
                     this.set("selectedInvoice.encounterLocationName",hospital.name)
                 }
+            }
+
+            _destroyInvoice(){
+                this.$["noDerogation"].close()
+                const invoice = this.selectedInvoice.id
+                this.set("invoices",this.invoices.filter(inv => inv.id!==invoice))
+                this.set("selectedInvoiceIndex",this.invoices.findIndex(inv => inv.id!==invoice))
+                this.api.invoice().deleteInvoice(invoice)
+            }
+
+            _confirmDerog(){
+                this.api.invoice().modifyInvoice(this.selectedInvoice)
+                    .then(inv => this.api.register(inv,"invoice"))
+                    .then(inv=>{
+                        this.set("selectedInvoice",inv)
+                        this._switchBetweenMethodForJustifAndCreation()
+                        this.$["noDerogation"].close()
+                })
             }
         }
 
