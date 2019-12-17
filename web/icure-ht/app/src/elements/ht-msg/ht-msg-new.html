@@ -497,6 +497,34 @@
                 justify-content: flex-start;
             }
 
+            #organizationQualitiesDropdown {
+                width:350px;
+                margin-top:-5px;
+            }
+
+            paper-dropdown-menu {
+                --paper-item: {
+                    height:22px!important;
+                    min-height:0px!important;
+                    padding:2px 5px
+                };
+            }
+
+            paper-dropdown-menu  paper-listbox {
+                display:flex;
+                align-items: center;
+                justify-content:flex-start;
+                padding: 0 8px;
+                flex-flow: column nowrap;
+                max-height:260px;
+            }
+
+            paper-dropdown-menu  paper-checkbox {
+                font-size:.7em;
+                width:100%;
+                margin:4px 0
+            }
+
         </style>
 
 
@@ -520,10 +548,21 @@
                                     <div class="cell">
                                     <div class="horizontal">
                                         <div class="modal-subtitle p-t-7 mw120">[[localize('recipient_s','Recipient(s)',language)]]:</div>
+
                                         <div class="cell">
+
                                             <vaadin-combo-box id="newMsg-To" label="[[localize('inputYourSearchQuery','What are you looking for ?',language)]]" filter="{{recipientFilter}}" filtered-items="[[filteredRecipientsList]]" item-label-path="displayName" allow-custom-value on-change="_addRecipient"><template>[[item.displayName]]</template></vaadin-combo-box>
-                                            <vaadin-combo-box class="type-to m-l-20" id="type-To" items="[[recipientTypes]]" item-label-path="label" item-value-path="id" required error-message="This field is required" label="[[localize('sch_by', 'Search by', language)]]" selected-item="{{recipientType}}"></vaadin-combo-box>
+                                            <vaadin-combo-box class="type-to m-l-20" id="type-To" items="[[recipientTypes]]" item-label-path="label" item-value-path="id" required error-message="This field is required" label="[[localize('recipientType', 'Recipient type', language)]]" selected-item="{{recipientType}}"></vaadin-combo-box>
+
+                                            <template is="dom-if" if="[[_recipientTypeIsOrg]]"></template>
+                                                <paper-dropdown-menu always-float-label id="organizationQualitiesDropdown" label="[[localize('organization', 'Organization', language)]]" class="m-l-20" close-on-activate="false">
+                                                    <paper-listbox slot="dropdown-content" attr-for-selected="value" selected="">
+                                                        <template is="dom-repeat" items="[[organizationQualities]]" as="item"><paper-checkbox value="[[item.id]]" id$="checkbox_[[item.id]]" checked="{{item.checked}}"> [[item.label]]</paper-checkbox></template>
+                                                    </paper-listbox>
+                                                </paper-dropdown-menu>
+
                                         </div>
+
                                         <div class="horizontal recipients-list">
                                             <template is="dom-if" if="[[newMessage.recipients]]">
                                                 <template is="dom-repeat" items="[[newMessage.recipients]]" as="singleRecipient" id="recipientsList">
@@ -535,6 +574,7 @@
                                                 </template>
                                             </template>
                                         </div>
+
                                     </div>
                                 </div>
                                     <div class="cell">
@@ -836,16 +876,35 @@
                             usePublicationReceipt:false
                         }
                     },
+
+                    // 20191217 - Refactor
+                    //      1) First level of search = [EITHER] person [OR] Organization
+                    //      2) Second level of search = Only applicable when "Organization" -> Organization qualities
+
+                    // recipientTypes: {
+                    //     type: Array,
+                    //     value: [
+                    //         {id: "CBE", label: "BCE"},
+                    //         {id: "EHP", label: "EHP (eHealth Partner)"},
+                    //         {id: "SSIN", label: "INSS"},
+                    //         {id: "NIHII", label: "NIHII"},
+                    //         {id: "NIHII-HOSPITAL", label: "NIHII-HOSPITAL"},
+                    //         {id: "NIHII-PHARMACY", label: "NIHII-PHARMACY"}
+                    //     ],
+                    //     noReset: true
+                    // },
+
                     recipientTypes: {
                         type: Array,
-                        value: [
-                            {id: "CBE", label: "BCE"},
-                            {id: "EHP", label: "EHP (eHealth Partner)"},
-                            {id: "SSIN", label: "INSS"},
-                            {id: "NIHII", label: "NIHII"},
-                            {id: "NIHII-HOSPITAL", label: "NIHII-HOSPITAL"},
-                            {id: "NIHII-PHARMACY", label: "NIHII-PHARMACY"}
+                        value: () => [
+                            {id: "hcp", label: "Person"},
+                            {id: "org", label: "Organization"},
                         ],
+                        noReset: true
+                    },
+                    organizationQualities: {
+                        type: Array,
+                        value: () => [],
                         noReset: true
                     },
                     filteredRecipientsList: {
@@ -961,6 +1020,10 @@
                         type: Boolean,
                         value: false
                     },
+                    _recipientTypeIsOrg: {
+                        type: Boolean,
+                        value: false
+                    },
                     _recipientWithMultipleEHealthBoxes: {
                         type: Object,
                         value: () => {}
@@ -972,6 +1035,7 @@
                 return [
                     '_userChanged(user)',
                     '_loadRecipientTypesTranslations(language)',
+                    '_loadOrganizationQualitiesTranslations(language)',
                     '_recipientsFilterChanged(recipientType, recipientFilter)',
                     '_patientFilterChanged(patientFilter)',
                     '_fileToBeUploadedChanged(files.*)',
@@ -993,21 +1057,40 @@
 
             _loadRecipientTypesTranslations() {
 
-                let cbe = this.recipientTypes.find(i=>i.id==="CBE")
-                let ehp = this.recipientTypes.find(i=>i.id==="EHP")
-                let inss = this.recipientTypes.find(i=>i.id==="SSIN")
-                let nihii = this.recipientTypes.find(i=>i.id==="NIHII")
-                let nihiiHospital = this.recipientTypes.find(i=>i.id==="NIHII-HOSPITAL")
-                let nihiiPharmacy = this.recipientTypes.find(i=>i.id==="NIHII-PHARMACY")
+                // 20191217 - Refactor
+                //      1) First level of search = [EITHER] person [OR] Organization
+                //      2) Second level of search = Only applicable when "Organization" -> Organization qualities
 
-                cbe.label = this.localize('cbe', 'CBE', this.language) + " / " + this.localize('name', 'Name', this.language)
-                ehp.label = "EHP (eHealth Partner) / " + this.localize('name', 'Name', this.language)
-                inss.label = this.localize('ssin', 'Registre national', this.language) + " / " + this.localize('name', 'Name', this.language)
-                nihii.label = this.localize('nihii', 'INAMI', this.language) + " / " + this.localize('name', 'Name', this.language)
-                nihiiHospital.label = this.localize('nihii', 'INAMI', this.language) + " " + this.localize('hospital', 'Hospital', this.language) + " / " + this.localize('name', 'Name', this.language)
-                nihiiPharmacy.label = this.localize('nihii', 'INAMI', this.language) + " " + this.localize('pharmacy', 'Pharmacy', this.language) + " / " + this.localize('name', 'Name', this.language)
+                // let cbe = this.recipientTypes.find(i=>i.id==="CBE")
+                // let ehp = this.recipientTypes.find(i=>i.id==="EHP")
+                // let inss = this.recipientTypes.find(i=>i.id==="SSIN")
+                // let nihii = this.recipientTypes.find(i=>i.id==="NIHII")
+                // let nihiiHospital = this.recipientTypes.find(i=>i.id==="NIHII-HOSPITAL")
+                // let nihiiPharmacy = this.recipientTypes.find(i=>i.id==="NIHII-PHARMACY")
+                //
+                // cbe.label = this.localize('cbe', 'CBE', this.language) + " / " + this.localize('name', 'Name', this.language)
+                // ehp.label = "EHP (eHealth Partner) / " + this.localize('name', 'Name', this.language)
+                // inss.label = this.localize('ssin', 'Registre national', this.language) + " / " + this.localize('name', 'Name', this.language)
+                // nihii.label = this.localize('nihii', 'INAMI', this.language) + " / " + this.localize('name', 'Name', this.language)
+                // nihiiHospital.label = this.localize('nihii', 'INAMI', this.language) + " " + this.localize('hospital', 'Hospital', this.language) + " / " + this.localize('name', 'Name', this.language)
+                // nihiiPharmacy.label = this.localize('nihii', 'INAMI', this.language) + " " + this.localize('pharmacy', 'Pharmacy', this.language) + " / " + this.localize('name', 'Name', this.language)
 
-                this.set("recipientType", nihii)
+                let hcp = this.recipientTypes.find(i=>i.id==="hcp")
+                let org = this.recipientTypes.find(i=>i.id==="org")
+
+                hcp.label = this.localize('person', 'Person', this.language)
+                org.label = this.localize('organization', 'organization', this.language)
+
+                // Assign default value to be a "person / hcp"
+                this.set("recipientType", hcp)
+
+            }
+
+            _loadOrganizationQualitiesTranslations() {
+
+                const defaultCheckedQualities = ["HOSPITAL", "PHARMACY", "INSTITUTION", "LABO"]
+
+                this.set("organizationQualities", _.orderBy(_.compact(_.map(_.get(this,"resources."+this.language,{}), (v,k) => !!_.trim(k).toLowerCase().startsWith("ehboxquality_organization_") ? {id:_.trim(k).replace(/ehboxquality_organization_/ig, ""),label:v, checked:(defaultCheckedQualities.indexOf(_.trim(k).replace(/ehboxquality_organization_/ig, "")) > -1)} : false)), ["label"],["asc"]))
 
             }
 
@@ -1837,7 +1920,7 @@
                 const componentProperties = HtMsgNew.properties
                 Object.keys(componentProperties).forEach(k => { if (!_.get(componentProperties[k],"noReset", false)) { this.set(k, (typeof componentProperties[k].value === 'function' ? componentProperties[k].value() : (componentProperties[k].value || null))) }})
 
-                this.set("recipientType", this.recipientTypes.find(i=>i.id==="NIHII"))
+                this.set("recipientType", this.recipientTypes.find(i=>i.id==="hcp"))
                 if(this.shadowRoot.querySelector('#linkedPatientComboxBox')) this.shadowRoot.querySelector('#linkedPatientComboxBox').value = "";
                 this.shadowRoot.querySelector('#recipientsList') && this.shadowRoot.querySelector('#recipientsList').render()
                 this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail') && this.shadowRoot.querySelector('#additionalAnnexesFromPatDetail').render()
@@ -1848,6 +1931,14 @@
             }
 
             _recipientsFilterChanged(recipientType, recipientFilter) {
+
+
+
+                // if(recipientType===) this.set("_recipientTypeIsOrg",true)
+
+                console.log("recipientType", recipientType);
+
+
 
                 if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
                 const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
@@ -1870,36 +1961,35 @@
                     const isValidEhp = !!patternsValidation.tenDigits.test(numericSearchQuery)
                     const isValidSsin = !!patternsValidation.elevenDigits.test(numericSearchQuery)
 
-                    const searchProm = recipientType.id === 'CBE' ?
-                        Promise.all([
-                            !isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'cbe',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
-                        ]) :
-                        recipientType.id === 'EHP' ? Promise.all([
-                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'ehp',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
-                        ]) :
-                        recipientType.id === 'SSIN' ? Promise.all([
-                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).value()),    // Looking for SSIN "53815994527" returns it but WITHOUT SSIN value, quite logical. Filtering on NIHII then
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
-                        ]) :
-                        (recipientType.id === 'NIHII-HOSPITAL' || recipientType.id === 'NIHII-PHARMACY')  ? Promise.all([
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', ( recipientType.id === 'NIHII-PHARMACY' ? "PHARMACY" : "HOSPITAL" ) ).catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('ehp').value())
-                        ]) :
+                    const getProms = recipientType.id === 'CBE' ? [!isValidBce ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([]))] :
+                        recipientType.id === 'EHP' ? [!isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([]))] :
+                        recipientType.id === 'SSIN' ? [!isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([]))] :
                         // Default type = NIHII
-                        Promise.all([
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])).then(searchResults=>_.chain([searchResults]).filter(i=>!!_.get(i,'nihii',false)).value()),
-                            this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])).then(searchResults=>_.chain(searchResults).filter(i=>!!_.get(i,'nihii',false) || !!_.get(i,'ssin',false) || !!_.get(i,'ehp',false) || !!_.get(i,'cbe',false)).uniqBy('nihii').value())
-                        ])
+                        [
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])),
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, numericSearchQuery ).catch(()=>Promise.resolve([])),
+                        ]
 
-                    searchProm
+                    const searchProms = [
+                        this.api.fhc().Addressbookcontroller().searchHcpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])),
+
+                        this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*').catch(()=>Promise.resolve([])),
+                        this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', "HOSPITAL" ).catch(()=>Promise.resolve([])),
+                        this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', "PHARMACY" ).catch(()=>Promise.resolve([])),
+                        this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', "INSTITUTION" ).catch(()=>Promise.resolve([])),
+                        this.api.fhc().Addressbookcontroller().searchOrgUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, _.trim(recipientFilter) + '*', "LABO" ).catch(()=>Promise.resolve([]))
+                    ]
+
+                    console.log("getProms", getProms);
+                    console.log("searchProms", searchProms);
+                    console.log("_.concat", _.concat(getProms, searchProms));
+
+                    Promise.all(_.concat(getProms, searchProms))
                         .then(searchResults => { if (reqIdx === this.recipientReqIdx) {
                             this.set("filteredRecipientsList", _
                                 .chain(searchResults)
                                 .flatMap()
+                                .filter(i=>!!_.trim(_.get(i,'nihii',"")) || !!_.trim(_.get(i,'ssin',"")) || !!_.trim(_.get(i,'ehp',"")) || !!_.trim(_.get(i,'cbe',"")))
 
                                 // 20191215 - Can't filter here anymore as we don't have qualities yet, filter when adding in method this._addRecipient()
                                 // .filter( singleSearchResult => { return (
@@ -1953,64 +2043,6 @@
                         this.shadowRoot.querySelector('#multipleEHealthBoxesSelectorDomRepeat') && this.shadowRoot.querySelector('#multipleEHealthBoxesSelectorDomRepeat').render()
                         return !_.size(_.get(this,"_recipientWithMultipleEHealthBoxes.ehealthBoxes",[])) ? multipleEHealthBoxesDialog && multipleEHealthBoxesDialog.close() : null
                     })
-
-            }
-
-            _addRecipient() {
-
-                const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
-                const multipleEHealthBoxesDialog = this.shadowRoot.querySelector('#recipientWithMultipleEHealthBoxesDialog')||false
-                if(!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) return false
-
-                this.set('_isLoading', true)
-
-                // Cobra sometimes returns cbe, ehp, nihii, ssin with hyphens, spaces or dots
-                const keysToClean = ["cbe","ehp","nihii","ssin"]
-                _.map(keysToClean, k => !_.trim(_.get(newMsgTo.selectedItem, k, "")) ? false : newMsgTo.selectedItem[k] = _.trim(newMsgTo.selectedItem[k].replace(/[^0-9]*/g,"")))
-
-                const patternsValidation = { heightDigits: /^([0-9]){8}$/i, tenDigits: /^([0-9]){10}$/i, elevenDigits: /^([0-9]){11}$/i}
-
-                const recipientCbe = _.trim(_.get(newMsgTo,"selectedItem.cbe", "")).replace( /([^\d]*)/gi, '' )
-                const recipientEhp = _.trim(_.get(newMsgTo,"selectedItem.ehp", "")).replace( /([^\d]*)/gi, '' )
-                const recipientNihii = _.trim(_.get(newMsgTo,"selectedItem.nihii", "")).replace( /([^\d]*)/gi, '' )
-                const recipientSsin = _.trim(_.get(newMsgTo,"selectedItem.ssin", "")).replace( /([^\d]*)/gi, '' )
-
-                const isValidCbe = !!patternsValidation.tenDigits.test(recipientCbe)
-                const isValidEhp = !!patternsValidation.tenDigits.test(recipientEhp)
-                const isValidNihii = !!patternsValidation.heightDigits.test(recipientNihii) || !!patternsValidation.elevenDigits.test(recipientNihii)
-                const isValidSsin = !!patternsValidation.elevenDigits.test(recipientSsin)
-
-                this.set("_recipientWithMultipleEHealthBoxes",{})
-
-                return (
-                    !!_.size(_.get(newMsgTo,"selectedItem.ehealthBoxes",[])) ?
-                        Promise.resolve(_.get(newMsgTo,"selectedItem",{})) :
-                        Promise.all([
-                            !isValidCbe ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientCbe).catch(()=>Promise.resolve([])),
-                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientEhp).catch(()=>Promise.resolve([])),
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii).catch(()=>Promise.resolve([])),
-                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii).catch(()=>Promise.resolve([])),
-                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientSsin).catch(()=>Promise.resolve([]))
-                        ]).then(searchResults => _.chain(searchResults).flatMap().filter(sr => !!_.size(_.get(sr,"ehealthBoxes"))).compact().uniq().head().value()||newMsgTo.selectedItem)
-                )
-                    .then(recipientAndEhealthBoxes => _.merge(newMsgTo.selectedItem, {
-                        type: !!_.trim(_.get(recipientAndEhealthBoxes,"cbe")) ? "CBE" : !!_.trim(_.get(recipientAndEhealthBoxes,"ehp")) ? "EHP" : !!_.trim(_.get(recipientAndEhealthBoxes,"ssin")) ? "SSIN" : "NIHII",
-                        ehealthBoxes: _
-                            .chain(_.get(recipientAndEhealthBoxes, "ehealthBoxes", []))
-                            .filter(x => !!_.trim(_.get(x, "id", "")))
-                            .map(x => _.assign(x, {
-                                qualityHr: this.localize("ehBoxQuality_" + _.trim(_.get(x, "quality")), _.trim(_.get(x, "quality")), this.language),
-                                typeHr: _.trim(_.get(x,"type")).toLowerCase() === "nihii" ? this.localize("cs-nihii", "Nihii", this.language) : _.trim(_.get(x,"type")).toLowerCase() === "inss" ? this.localize("cs-inss", "Inss", this.language) : _.upperFirst(_.trim(_.get(x,"type")).toLowerCase())
-                            }))
-                            .orderBy(['qualityHr','quality'],['asc','asc'])
-                            .value()
-                    }))
-                    .then(recipientAndEhealthBoxes => _.size(_.get(recipientAndEhealthBoxes,"ehealthBoxes",[])) < 2 ?
-                            !!this._notAlreadyInRecipients(recipientAndEhealthBoxes) && this.push('newMessage.recipients', recipientAndEhealthBoxes) :
-                            (this.set("_recipientWithMultipleEHealthBoxes", recipientAndEhealthBoxes)||true) && multipleEHealthBoxesDialog && multipleEHealthBoxesDialog.open()
-                    )
-                    .catch(e=>console.log("Error with get org/hcp", e))
-                    .finally(()=>(newMsgTo._clear()||true) && this.set('_isLoading', false))
 
             }
 
@@ -2213,6 +2245,64 @@
                     organizationName: !!_.trim(_.get(recipientObject,"companyName","")) ? _.trim(_.get(recipientObject, "companyName")) : "",
                     personInOrganisation: ""
                 }
+
+            }
+
+            _addRecipient() {
+
+                const newMsgTo = this.shadowRoot.querySelector('#newMsg-To')||false;
+                const multipleEHealthBoxesDialog = this.shadowRoot.querySelector('#recipientWithMultipleEHealthBoxesDialog')||false
+                if(!newMsgTo || !_.get(newMsgTo,"selectedItem",false) || !_.size(newMsgTo,"selectedItem",false)) return false
+
+                this.set('_isLoading', true)
+
+                // Cobra sometimes returns cbe, ehp, nihii, ssin with hyphens, spaces or dots
+                const keysToClean = ["cbe","ehp","nihii","ssin"]
+                _.map(keysToClean, k => !_.trim(_.get(newMsgTo.selectedItem, k, "")) ? false : newMsgTo.selectedItem[k] = _.trim(newMsgTo.selectedItem[k].replace(/[^0-9]*/g,"")))
+
+                const patternsValidation = { heightDigits: /^([0-9]){8}$/i, tenDigits: /^([0-9]){10}$/i, elevenDigits: /^([0-9]){11}$/i}
+
+                const recipientCbe = _.trim(_.get(newMsgTo,"selectedItem.cbe", "")).replace( /([^\d]*)/gi, '' )
+                const recipientEhp = _.trim(_.get(newMsgTo,"selectedItem.ehp", "")).replace( /([^\d]*)/gi, '' )
+                const recipientNihii = _.trim(_.get(newMsgTo,"selectedItem.nihii", "")).replace( /([^\d]*)/gi, '' )
+                const recipientSsin = _.trim(_.get(newMsgTo,"selectedItem.ssin", "")).replace( /([^\d]*)/gi, '' )
+
+                const isValidCbe = !!patternsValidation.tenDigits.test(recipientCbe)
+                const isValidEhp = !!patternsValidation.tenDigits.test(recipientEhp)
+                const isValidNihii = !!patternsValidation.heightDigits.test(recipientNihii) || !!patternsValidation.elevenDigits.test(recipientNihii)
+                const isValidSsin = !!patternsValidation.elevenDigits.test(recipientSsin)
+
+                this.set("_recipientWithMultipleEHealthBoxes",{})
+
+                return (
+                    !!_.size(_.get(newMsgTo,"selectedItem.ehealthBoxes",[])) ?
+                        Promise.resolve(_.get(newMsgTo,"selectedItem",{})) :
+                        Promise.all([
+                            !isValidCbe ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByCbeUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientCbe).catch(()=>Promise.resolve([])),
+                            !isValidEhp ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByEhpUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientEhp).catch(()=>Promise.resolve([])),
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii).catch(()=>Promise.resolve([])),
+                            !isValidNihii ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getOrgByNihiiUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientNihii).catch(()=>Promise.resolve([])),
+                            !isValidSsin ? Promise.resolve([]) : this.api.fhc().Addressbookcontroller().getHcpBySsinUsingGET(this.api.keystoreId, this.api.tokenId, this.credentials.ehpassword, recipientSsin).catch(()=>Promise.resolve([]))
+                        ]).then(searchResults => _.chain(searchResults).flatMap().filter(sr => !!_.size(_.get(sr,"ehealthBoxes"))).compact().uniq().head().value()||newMsgTo.selectedItem)
+                )
+                    .then(recipientAndEhealthBoxes => _.assign(newMsgTo.selectedItem, {
+                        type: !!_.trim(_.get(recipientAndEhealthBoxes,"cbe")) ? "CBE" : !!_.trim(_.get(recipientAndEhealthBoxes,"ehp")) ? "EHP" : !!_.trim(_.get(recipientAndEhealthBoxes,"ssin")) ? "SSIN" : "NIHII",
+                        ehealthBoxes: _
+                            .chain(_.get(recipientAndEhealthBoxes, "ehealthBoxes", []))
+                            .filter(x => !!_.trim(_.get(x, "id", "")))
+                            .map(x => _.assign(x, {
+                                qualityHr: this.localize("ehBoxQuality_" + _.trim(_.get(x, "quality")), _.trim(_.get(x, "quality")), this.language),
+                                typeHr: _.trim(_.get(x,"type")).toLowerCase() === "nihii" ? this.localize("cs-nihii", "Nihii", this.language) : _.trim(_.get(x,"type")).toLowerCase() === "inss" ? this.localize("cs-inss", "Inss", this.language) : _.upperFirst(_.trim(_.get(x,"type")).toLowerCase())
+                            }))
+                            .orderBy(['qualityHr','quality'],['asc','asc'])
+                            .value()
+                    }))
+                    .then(recipientAndEhealthBoxes => _.size(_.get(recipientAndEhealthBoxes,"ehealthBoxes",[])) < 2 ?
+                        !!this._notAlreadyInRecipients(recipientAndEhealthBoxes) && this.push('newMessage.recipients', recipientAndEhealthBoxes) :
+                        (this.set("_recipientWithMultipleEHealthBoxes", recipientAndEhealthBoxes)||true) && multipleEHealthBoxesDialog && multipleEHealthBoxesDialog.open()
+                    )
+                    .catch(e=>console.log("Error with get org/hcp", e))
+                    .finally(()=>(newMsgTo._clear()||true) && this.set('_isLoading', false))
 
             }
 
