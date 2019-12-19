@@ -6,6 +6,15 @@ import {UtilsClass} from "icc-api/dist/icc-x-api/crypto/utils"
 import moment from 'moment/src/moment'
 import levenshtein from 'js-levenshtein'
 import { Base64 } from 'js-base64';
+import {IccCryptoXApi} from "icc-api/icc-x-api/icc-crypto-x-api";
+import {IccContactXApi} from "icc-api/icc-x-api/icc-contact-x-api";
+import {IccFormXApi} from "icc-api/icc-x-api/icc-form-x-api";
+import {IccHelementXApi} from "icc-api/icc-x-api/icc-helement-x-api";
+import {IccInvoiceXApi} from "icc-api/icc-x-api/icc-invoice-x-api";
+import {IccDocumentXApi} from "icc-api/icc-x-api/icc-document-x-api";
+import {IccHcpartyXApi} from "icc-api/icc-x-api/icc-hcparty-x-api";
+import {IccClassificationXApi} from "icc-api/icc-x-api/icc-classification-x-api";
+import {IccCalendarItemXApi} from "icc-api/icc-x-api/icc-calendar-item-x-api";
 
 
 
@@ -54,7 +63,7 @@ onmessage = e => {
         const iccClassificationXApi = new iccXApi.IccClassificationXApi(iccHost, iccHeaders,iccCryptoXApi)
 
         const iccFormXApi		    = new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
+        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccFormXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
         const iccMessageXApi        = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi, iccInsuranceApi, iccEntityrefApi, iccIccInvoiceXApi, iccDocumentXApi, iccReceiptXApi, iccPatientXApi)
 
         let totalNewMessages = {
@@ -271,17 +280,17 @@ onmessage = e => {
 
                     // const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
                     const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0)) ? parseInt(_.get(docInfo,"demandDate",0)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
-
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
-                    if(_.size(candidates) === 1){
-                    	const log= {}
-						log.accessType= 'SYSTEM_ACCESS'
-						log.detail = "Save Assignment in Message panel"
-                    	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
-							accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
-						}).catch(e=>console.log("ERROR with createAccessLog: ", e))
-                    }
+                    // 20191217 - If you're using crypto, it would have been nice to instanciate the crypto class as well Mister Carolais :-)
+					// if(_.size(candidates) === 1){
+                    // 	const log= {}
+					// 	log.accessType= 'SYSTEM_ACCESS'
+					// 	log.detail = "Save Assignment in Message panel"
+                    // 	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
+					// 		accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
+					// 	}).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    // }
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
@@ -303,6 +312,7 @@ onmessage = e => {
                             subContacts: []
                         })
                         .then(contactInstance => {
+
                             // contactInstance.services.push({
                             //     id: iccCryptoXApi.randomUuid(),
                             //     label: 'labResult',
