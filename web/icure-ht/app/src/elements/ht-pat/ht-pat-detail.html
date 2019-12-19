@@ -3997,16 +3997,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$.planActionForm.open(svc)
             }
 
-            _cloneService(detail) {
-                const service = _.cloneDeep(detail.service);
+            _cloneService(event) {
+                const service = _.cloneDeep(event.detail.service);
                 delete service.id;
                 delete service.created;
                 delete service.modified;
-                service.valueDate = parseInt(detail.next);
+                service.valueDate = parseInt(event.detail.next);
                 let tag = service.tags.find(t => t.type == 'CD-LIFECYCLE');
                 if (tag)
                     tag.code = "pending";
-                return this.api.contact().service().newInstance(this.user, service);
+                event.detail.clone = this.api.contact().service().newInstance(this.user, service);
+                return event.detail.clone;
+            }
+
+            _updateClone(event, services) {
+                if (!event || !services) return;
+                const clone = _.get(event, "detail.clone", null);
+                if (!clone) return;
+                const service = services.find(s => s.id === clone.id);
+                if (!service) return;
+                event.detail.clone = service;
             }
 
             _hasService(object) {
@@ -4034,12 +4044,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (e.detail.service) {
                     services.push(this.api.contact().service().newInstance(this.user, e.detail.service));
                     if (e.detail.next)
-                        services.push(this._cloneService(e.detail));
+                        services.push(this._cloneService(e));
                 }
                 Promise.all(hes.map(he => he.id ? Promise.resolve(he) : this.contact().promoteServiceToHealthElement(he))).then(hes =>
                     //this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, this.api.contact().service().newInstance(this.user, e.detail.service), null, {}, hes.map(he => he.id), e.detail.function || undefined)
                     services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, hes.map(he => he.id), e.detail.function || undefined))
-                ).then(() => this.saveContact(this.currentContact))
+                ).then(() => this._saveContactAndNotify(this.currentContact, e))
             }
 
             _updateServices(e) {
@@ -4051,7 +4061,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     // A. Insert hes
                     const contact = this.contacts.find(c => c.id === service.contactId);
                     if (e.detail.next)
-                        contact.services.push(this._cloneService(e.detail));
+                        contact.services.push(this._cloneService(e));
                     this.api.contact().promoteServiceInContact(contact, this.user, this.contacts, service, null, {}, heIds, e.detail.function || undefined)
                     // B. Remove hes
                     this.contacts.filter(c => this._hasServiceRef(c, service.id)).forEach(contact => {
@@ -4085,10 +4095,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return this.api.contact().modifyContactWithUser(this.user, contact)
                     });
 
-                    Promise.all(promises).then(() => {
-                        console.log("contacts saved");
-                        this.saveContact(contact);
-                        this.set("refresher", this.refresher + 1);
+                    Promise.all(promises).then((contacts) => {
+                        contacts.forEach(contact => this._updateClone(e, contact.services));
+                        this._saveContactAndNotify(contact, e)
                     });
 
                     return;
@@ -4151,7 +4160,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$.savedIndicator.classList.add("saved");
             }
 
-            saveContact(ctc, preSave, postSave, postError) {
+            saveContact(ctc, preSave, postSave, postError, event) {
                 return (preSave ? preSave() : Promise.resolve()).catch(e => console.log(e)).then(() => (ctc.rev ? this.api.contact().modifyContactWithUser(this.user, ctc) : this.api.contact().createContactWithUser(this.user, ctc))).then(c=>{
                     console.log('Registering ...',c)
                     return this.api.register(c,'contact')
@@ -4169,6 +4178,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                     postSave && postSave(c)
 
+                    this._updateClone(event, c.services);
+                    const caller = _.get(event, "detail.caller", null)
+                    if (caller)
+                        caller.onActionChanged(event.detail);
+
                     this.set("refresher", this.refresher + 1)
 
                     return c;
@@ -4184,6 +4198,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _saveContact(event) {
                 this.saveContact(event.detail.contact, event.detail.preSave, event.detail.postSave, event.detail.postError);
+            }
+
+            _saveContactAndNotify(contact, event) {
+                this.saveContact(contact, null, null, null, event)
             }
 
             filterEvents() {
