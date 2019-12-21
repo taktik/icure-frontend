@@ -342,6 +342,7 @@ onmessage = e => {
                         .then(createdContact => { return {id: _.trim(_.get(createdContact,"id","")), protocolId: _.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id","")), patientId:_.trim(_.get(candidates,"[0].id",""))}; })
                         .catch(e => { console.log("ERROR with new contact: ",e); return {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))}; })
 
+                	}
                 })
                 .catch(e=>{ console.log("ERROR with filterByWithUser", e); return promResolve; })
 
