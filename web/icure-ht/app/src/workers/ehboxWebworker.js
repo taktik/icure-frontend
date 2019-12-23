@@ -282,7 +282,7 @@ onmessage = e => {
                     const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0)) ? parseInt(_.get(docInfo,"demandDate",0)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
-                    if(_.size(candidates) === 1){
+                    // if(_.size(candidates) === 1){
                     // 	const log= {}
 					// 	log.accessType= 'SYSTEM_ACCESS'
 					// 	log.detail = "Save Assignment in Message panel"
@@ -342,7 +342,6 @@ onmessage = e => {
                         .then(createdContact => { return {id: _.trim(_.get(createdContact,"id","")), protocolId: _.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id","")), patientId:_.trim(_.get(candidates,"[0].id",""))}; })
                         .catch(e => { console.log("ERROR with new contact: ",e); return {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))}; })
 
-                	}
                 })
                 .catch(e=>{ console.log("ERROR with filterByWithUser", e); return promResolve; })
 
