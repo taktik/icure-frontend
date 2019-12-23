@@ -18,13 +18,14 @@
 <link rel="import" href="../../styles/vaadin-icure-theme.html">
 <link rel="import" href="../../styles/spinner-style.html">
 <link rel="import" href="../ht-spinner/ht-spinner.html">
+<link rel="import" href="../../styles/dialog-style.html">
 
 <link rel="import" href="../ht-pat/dialogs/ht-pat-invoicing-dialog.html">
 
 <dom-module id="ht-msg-invoice">
     <template>
         <custom-style>
-            <style include="shared-styles vaadin-icure-theme spinner-style">
+            <style include="shared-styles vaadin-icure-theme spinner-style dialog-style">
 
                 :host {
                     display: block;
@@ -751,6 +752,29 @@
                     font-weight: 700!important;
                 }
 
+                #selectionDialog{
+                    height: calc(98% - 12vh);
+                    width: 98%;
+                    max-height: calc(100% - 64px - 48px - 20px); /* 100% - header - margin - footer*/
+                    min-height: 400px;
+                    min-width: 800px;
+                    top: 64px;
+                }
+
+                .selectionDialog{
+                    height: calc(100% - 45px);;
+                    width: auto;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                #selectionDialog .buttons{
+                    position: absolute;
+                    right: 0;
+                    bottom: 0;
+                    margin: 0;
+                }
+
             </style>
         </custom-style>
         <div class="invoice-panel">
@@ -777,7 +801,7 @@
 
             <div id="batchStatus" class="batch-status">
                 [[_displayInvoiceStatus(invoicesStatus)]]
-                <template is="dom-if" if="[[_isEqual(invoicesStatus,'toBeSend')]]"><span class="batchNumber batchPending">{{_forceZeroNum(selectedInvoicesToBeSend.length)}}</span></template>
+                <template is="dom-if" if="[[_isEqual(invoicesStatus,'toBeSend')]]"><span class="batchNumber batchPending">{{_forceZeroNum(availableInvoicesToBeSend.length)}}</span></template>
                 <template is="dom-if" if="[[_isEqual(invoicesStatus,'toBeCorrected')]]"><span class="batchNumber batchToBeCorrected">{{_forceZeroNum(messagesToBeCorrected.length)}}</span></template>
                 <template is="dom-if" if="[[_isEqual(invoicesStatus,'process')]]"><span class="batchNumber batchProcessed">{{_forceZeroNum(messagesProcessed.length)}}</span></template>
                 <template is="dom-if" if="[[_isEqual(invoicesStatus,'accept')]]"><span class="batchNumber batchAccepted">{{_forceZeroNum(messagesAccepted.length)}}</span></template>
@@ -1012,7 +1036,7 @@
                     <ht-spinner class="center" active="[[isSending]]"></ht-spinner>
                     <template is="dom-if" if="[[api.tokenId]]">
                         <paper-button on-tap="receiveInvoices" class="button button--other" disabled="[[cannotGet]]">[[localize('inv_get','Get',language)]]</paper-button>
-                        <paper-button on-tap="_checkBeforeSend" class="button button--save" disabled="[[cannotSend]]">[[localize('inv_send','Send',language)]]</paper-button>
+                        <paper-button on-tap="_openSelectionDialog" class="button button--save" disabled="[[cannotSend]]">[[localize('inv_send','Send',language)]]</paper-button>
                     </template>
                     <template is="dom-if" if="[[!api.tokenId]]">
                         <paper-button on-tap="" class="button button--error" disabled title="Pas de connexion ehealth active">[[localize('inv_get','Get',language)]]</paper-button>
@@ -1735,6 +1759,70 @@
                 <paper-button class="button button--save" on-tap="_flagInvoiceAsLost"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
             </div>
         </paper-dialog>
+
+        <paper-dialog id="selectionDialog">
+            <div class="selectionDialog">
+                <div class="">
+                    <div class="">
+                        OA100: Alliance nationale des mutualités chrétiennes
+                    </div>
+                    <div class="">
+                    </div>
+                </div>
+                <div class="">
+                    <div class="">
+                        OA200: Union nationale des mutualités neutres
+                    </div>
+                    <div class="">
+
+                    </div>
+                </div>
+                <div class="">
+                    <div class="">
+                        OA300: Union Nationale des Mutualités Socialistes
+                    </div>
+                    <div class="">
+
+                    </div>
+                </div>
+                <div class="">
+                    <div class="">
+                        OA400: Union nationale des mutualités libérales
+                    </div>
+                    <div class="">
+
+                    </div>
+                </div>
+                <div class="">
+                    <div class="">
+                        OA500: Union nationale des mutualités libres
+                    </div>
+                    <div class="">
+
+                    </div>
+                </div>
+                <div class="">
+                    <div class="">
+                        OA600: Caisse auxiliaire d'assurance maladie-invalidité
+                    </div>
+                    <div class="">
+
+                    </div>
+                </div>
+                <div class="">
+                    <div class="">
+                        OA900: Caisse des Soins de santé de HR Rail
+                    </div>
+                    <div class="">
+
+                    </div>
+                </div>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeSelectionDialogs"><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap=""><iron-icon icon="icons:plane" ></iron-icon> [[localize('send','Send',language)]]</paper-button>
+            </div>
+        </paper-dialog>
     </template>
 
     <script>
@@ -1795,6 +1883,10 @@
                     selectedInvoicesToBeSend:{
                         type: Object,
                         value : () => ({})
+                    },
+                    availableInvoicesToBeSend:{
+                      type: Array,
+                      value: () => []
                     },
                     messagesToBeCorrected:{
                         type: Object,
@@ -2066,12 +2158,13 @@
                     })).then(invoices => {
                         this.set("messagesToBeCorrected", invoices.filter(inv => inv.toBeCorrected === true))
                         this.set('selectedInvoicesToBeSend', invoices.filter(inv => inv.toBeCorrected === false && inv.invoice.printedDate))
+                        this.set('availableInvoicesToBeSend', invoices.filter(inv => inv.toBeCorrected === false && inv.invoice.printedDate))
 
-                        this.set("totalInvoicesToBeSend.totalPatientIntervention",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00)
-                        this.set("totalInvoicesToBeSend.totalDoctorSupplement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00)
-                        this.set("totalInvoicesToBeSend.totalReimbursement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00)
-                        this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
-                        this._toggleDataProvider(this.selectedInvoicesToBeSend)
+                        this.set("totalInvoicesToBeSend.totalPatientIntervention",this.availableInvoicesToBeSend ? this.availableInvoicesToBeSend.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00)
+                        this.set("totalInvoicesToBeSend.totalDoctorSupplement",this.availableInvoicesToBeSend ? this.availableInvoicesToBeSend.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00)
+                        this.set("totalInvoicesToBeSend.totalReimbursement",this.availableInvoicesToBeSend ? this.availableInvoicesToBeSend.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00)
+                        this.set("totalInvoicesToBeSend.totalAmount",this.availableInvoicesToBeSend ? this.availableInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
+                        this._toggleDataProvider(this.availableInvoicesToBeSend)
                     }).finally(() =>{
                         this.api.setPreventLogging(false)
                         return this.fetchMessages()
@@ -2081,69 +2174,6 @@
 
 
 
-            }
-
-
-            _fetchMessageToBeSendOrToBeCorrected(){
-
-                this.set("_isLoadingMessages",true)
-
-                if(this.shadowRoot.getElementById("messagesGridContainer") && this.shadowRoot.getElementById("messagesGridContainer").classList.contains("half")){
-                    this.shadowRoot.getElementById("messagesGridContainer").classList.contains("half") ? this.shadowRoot.getElementById("messagesGridContainer").classList.remove("half") : null
-                    this.shadowRoot.getElementById("invoiceDetailContainer") && this.shadowRoot.getElementById("invoiceDetailContainer").classList.contains("open") ? this.shadowRoot.getElementById("invoiceDetailContainer").classList.remove("open") : null
-                }
-
-                this.api.setPreventLogging()
-                this.api.invoice().listToInsurancesUnsent(this.user.id)
-                    .then(invoices => Promise.all(invoices.filter(i => i.sentMediumType === "efact").map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]]))))
-                    .then(invAndIdsPat =>
-                        this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])]))
-                    ).then(invAndPats =>
-                        this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : _.uniq(_.flatten(invAndPats).filter(i => i.insurabilities).map(i => i && i.insurabilities && i.insurabilities[0] && i.insurabilities[0].insuranceId))})).then(ins => invAndPats.map(it=>[it[0], it[1], ins.find(i=>it && (it[0] && it[0].insurabilities && it[0].insurabilities[0] && i.id === it[1].insurabilities[0].insuranceId) || (it[1] && it[1].insurabilities && it[1].insurabilities.find(patIns => (it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate && it[0].invoiceDate>=patIns.startDate && it[0].invoiceDate<=patIns.endDate && patIns.insuranceId===i.id) || (!(it[0] && it[0].invoiceDate && patIns.startDate && patIns.endDate) && patIns.insuranceId===i.id))))]))
-                    ).then(invAndPatsAndInsurances => {
-                        return _.flatMap(invAndPatsAndInsurances, ([inv, pat, ins]) => {
-                        let insurabilityComplete = false
-                        pat && pat.insurabilities ? pat.insurabilities = pat.insurabilities.filter(ins => ins.insuranceId && ins.insuranceId.length && ins.parameters && ins.parameters.tc1 && ins.parameters.tc1.length && ins.parameters.tc2 && ins.parameters.tc2.length) : []
-                        pat.insurabilities.length > 0 ? insurabilityComplete = true : insurabilityComplete = false
-                        return ({
-                            patientName: pat.lastName+" "+pat.firstName,
-                            invoiceId: inv.id,
-                            sentMediumType: inv.sentMediumType,
-                            insuranceCode: ins && ins.code ? ins.code : null,
-                            insuranceParent: ins && ins.parent ? ins.parent : null,
-                            invoiceReference: inv.invoiceReference,
-                            patientSsin: pat.ssin,
-                            invoiceDate: inv.invoiceDate,
-                            reimbursement: inv.invoicingCodes ? inv.invoicingCodes.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00,
-                            patientIntervention: inv.invoicingCodes ? inv.invoicingCodes.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00,
-                            totalAmount: inv.invoicingCodes ? inv.invoicingCodes.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00 ,
-                            doctorSupplement: inv.invoicingCodes ? inv.invoicingCodes.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00,
-                            statut : (!!inv.invoicingCodes.find(ic => ic.resent === true)) === true ? this.localize('inv_to_be_corrected','To be corrected',this.language) : this.localize('inv_to_be_send','To be send'),
-                            hasChildren : false,
-                            uuid : inv.id,
-                            parentUuid : ins && ins.code ? ins.code.charAt(0) : null,
-                            patient: pat,
-                            invoice: inv,
-                            toBeCorrected: !!inv.invoicingCodes.find(ic => ic.resent === true),
-                            error: inv.error || "",
-                            insurabilityCheck: insurabilityComplete,
-                            realizedByTrainee : inv.internshipNihii && inv.internshipNihii.length ? true : false
-                        })
-                    })
-                })
-                .then(invoiceStruct => {
-                    this.set("messagesToBeCorrected", invoiceStruct.filter(inv => inv.toBeCorrected === true))
-                    this.set('selectedInvoicesToBeSend', invoiceStruct.filter(inv => inv.toBeCorrected === false && inv.invoice.printedDate))
-
-                    this.set("totalInvoicesToBeSend.totalPatientIntervention",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00)
-                    this.set("totalInvoicesToBeSend.totalDoctorSupplement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00)
-                    this.set("totalInvoicesToBeSend.totalReimbursement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00)
-                    this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
-                    this._toggleDataProvider(this.selectedInvoicesToBeSend)
-                }).finally(() => {
-                    this.api.setPreventLogging(false)
-                    return this.fetchMessages()
-                })
             }
 
             fetchMessages() {
@@ -2282,7 +2312,7 @@
                 !!this.set("messagesAccepted", this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 15 | 1 << 16 )) !== 0 && !(m.message.status & (1<<21))))
                 !!this.set("messagesRejected", this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 17)) !== 0 && !(m.message.status & (1<<21))))
 
-                !!this.initializeBatchCounter(this.selectedInvoicesToBeSend.length ? this.selectedInvoicesToBeSend.length : 0, this.messagesToBeCorrected.length ? this.messagesToBeCorrected.length : 0 , this.allMessages.filter(m => m.message && m.message.status && (m.message.status & (1 << 15 | 1 << 16 | 1 << 17)) === 0 && !(m.message.status & (1<<21))).length, this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 15 | 1 << 16 )) !== 0 && !(m.message.status & (1<<21))).length, this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 17)) !== 0 && !(m.message.status & (1<<21))).length, this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 21)) !== 0).length)
+                !!this.initializeBatchCounter(this.availableInvoicesToBeSend.length ? this.availableInvoicesToBeSend.length : 0, this.messagesToBeCorrected.length ? this.messagesToBeCorrected.length : 0 , this.allMessages.filter(m => m.message && m.message.status && (m.message.status & (1 << 15 | 1 << 16 | 1 << 17)) === 0 && !(m.message.status & (1<<21))).length, this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 15 | 1 << 16 )) !== 0 && !(m.message.status & (1<<21))).length, this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 17)) !== 0 && !(m.message.status & (1<<21))).length, this.allMessages.filter( m => m.message && m.message.status && (m.message.status & (1 << 21)) !== 0).length)
             }
 
             _toggleDataProvider(input) {
@@ -2338,7 +2368,7 @@
                     totalDoctorSupplement :       Number(0.00),
                 }
 
-                this.selectedInvoicesToBeSend.map(invoice => {
+                this.availableInvoicesToBeSend.map(invoice => {
                     total.totalReimbursement          += Number(invoice.totalInvoice.reimbursement)
                     total.totalAmount                 += Number(invoice.totalInvoice.totalAmount)
                     total.totalPatientIntervention    += Number(invoice.totalInvoice.patientIntervention)
@@ -3460,6 +3490,22 @@
             _closeDialogs() {
                 this.set("_bodyOverlay", false);
                 _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
+            }
+
+            _openSelectionDialog(){
+                this.$['selectionDialog'].open()
+            }
+
+            _getParentOa(){
+                return _.get(this, 'availableInvoicesToBeSend', []).map(inv => inv.insuranceCode)
+            }
+
+            _selectedInvoiceForSending(){
+
+            }
+
+            _closeSelectionDialogs(){
+                this.$['selectionDialog'].close()
             }
 
         }
