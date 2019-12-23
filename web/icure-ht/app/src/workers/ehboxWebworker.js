@@ -6,15 +6,6 @@ import {UtilsClass} from "icc-api/dist/icc-x-api/crypto/utils"
 import moment from 'moment/src/moment'
 import levenshtein from 'js-levenshtein'
 import { Base64 } from 'js-base64';
-import {IccCryptoXApi} from "icc-api/icc-x-api/icc-crypto-x-api";
-import {IccContactXApi} from "icc-api/icc-x-api/icc-contact-x-api";
-import {IccFormXApi} from "icc-api/icc-x-api/icc-form-x-api";
-import {IccHelementXApi} from "icc-api/icc-x-api/icc-helement-x-api";
-import {IccInvoiceXApi} from "icc-api/icc-x-api/icc-invoice-x-api";
-import {IccDocumentXApi} from "icc-api/icc-x-api/icc-document-x-api";
-import {IccHcpartyXApi} from "icc-api/icc-x-api/icc-hcparty-x-api";
-import {IccClassificationXApi} from "icc-api/icc-x-api/icc-classification-x-api";
-import {IccCalendarItemXApi} from "icc-api/icc-x-api/icc-calendar-item-x-api";
 
 
 
@@ -63,7 +54,7 @@ onmessage = e => {
         const iccClassificationXApi = new iccXApi.IccClassificationXApi(iccHost, iccHeaders,iccCryptoXApi)
 
         const iccFormXApi		    = new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
+        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccFormXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
         const iccMessageXApi        = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi, iccInsuranceApi, iccEntityrefApi, iccIccInvoiceXApi, iccDocumentXApi, iccReceiptXApi, iccPatientXApi)
 
         let totalNewMessages = {
