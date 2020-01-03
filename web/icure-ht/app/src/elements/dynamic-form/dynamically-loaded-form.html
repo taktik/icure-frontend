@@ -217,9 +217,7 @@
 
             linkService(e) {
                 const he = e.detail.healthElement
-                if (!he) {
-                    return;
-                }
+                if (!he) return;
                 const ctc = this.currentContact
                 ;(he.id ? Promise.resolve(he) : this.promoteServiceToHealthElement(he)).then(he => {
                         this.dataProvider.getServicesInContact(e.detail.representedObject).forEach(svcStruc => svcStruc && svcStruc[0] && svcStruc[0].svc && !!svcStruc[0].svc.endOfLife && this.api.contact().promoteServiceInContact(ctc, this.user, this._allContacts(), svcStruc[0].svc, this.form.id, null, [he.id]))
@@ -230,9 +228,7 @@
 
             unlinkService(e){
                 const he = e.detail.healthElement
-                if (!he) {
-                    return;
-                }
+                if (!he) return;
                 const heIndex = _.findIndex(this.currentContact.subContacts,subC => subC.healthElementId === he.id);
                 this.splice("currentContact.subContacts", heIndex , 1)
                 this.scanServicesAndScheduleSave(this.currentContact)
@@ -240,47 +236,36 @@
 
             linkForm(e) {
                 const he = e.detail.healthElement
-                if (!he) {
-                    return;
-                }
+                if (!he) return;
                 const ctc = this.currentContact
                 if (!he.id) {
                     this.promoteServiceToHealthElement(he).then(he => {
                         _.assign(e.detail.healthElement, he) //Prevent subsequent promotions
-                        if (!ctc.subContacts.some(sc => sc.formId === this.formId && sc.healthElementId === he.id)) {
-                            if (this.contact === ctc) {
-                                this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
-                            } else {
-                                ctc.subContacts.push({formId: this.formId, healthElementId: he.id, services: []})
-                            }
-
-                            this.scanServicesAndScheduleSave(ctc);
-                        }
+                        if (!ctc.subContacts.some(sc => sc.formId === this.formId && sc.healthElementId === he.id))
+							this._link(he, ctc)
                     });
-                } else if (!this._selectedHes().includes(he.id)) {
-                    if (this.contact === ctc) {
-                        this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
-                    } else {
-                        ctc.subContacts.push({formId: this.formId, healthElementId: he.id, services: []})
-                    }
-
-                    this.scanServicesAndScheduleSave(ctc);
-                }
+                } else if (!this._selectedHes().includes(he.id))
+					this._link(he, ctc)
             }
+
+            _link(he, ctc) {
+				if (this.contact === ctc)
+					this.push('contact.subContacts', {formId: this.formId, healthElementId: he.id, services: []})
+				else
+					ctc.subContacts.push({formId: this.formId, healthElementId: he.id, services: []})
+				this.scanServicesAndScheduleSave(ctc);
+			}
 
             _openActionDialog(e, detail) {
                 this.dispatchEvent(new CustomEvent('plan-action', {detail: this.dataProvider && this.dataProvider.getStringValue(detail.representedObject), bubbles: true, composed: true})); //Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
             }
 
             _selectedHes() {
-                if (!this.dataProvider || !this.healthElements) {
+                if (!this.dataProvider || !this.healthElements)
                     return []
-                }
-
                 const svcsStructs = _.chain(this.dataProvider.servicesInHierarchy()).map(svcLine => svcLine[0]).compact().value()
                 const heIds = _.chain(svcsStructs).flatMap(svcstr => svcstr.ctc.subContacts.filter(sc => sc.services.some(s => s.serviceId === svcstr.svc.id)).map(sc => sc.healthElementId)).compact().uniq().value()
                 const scHeIds = _.chain(this.contact.subContacts.filter(sc => sc.formId === this.formId).map(sc => sc.healthElementId)).compact().uniq().value()
-
                 return this.healthElements.filter(he => he.id && (heIds.includes(he.id) || scHeIds.includes(he.id)))
             }
 
@@ -485,10 +470,13 @@
                 const self = {
                     subFormsMap: {},
                     servicesMap: {},
+					parentForm: form.parent ? this._getFormParent(this.dataProvider,form.parent) : {},
 					sortedItems: () => {
                         const layoutItems = form.template && form.template.layout && _.flatten(_.flatten((form||this.form).template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
                         return _.sortBy(_.compact(
-                            layoutItems && layoutItems.map(s => ({name:s.name, label:s.subForm ? s.label : s.name, isSubForm: s.subForm, type: s.type})) ||
+                            layoutItems && layoutItems.map(s => (_.assign({name:s.name, label:s.subForm ? s.label : s.name, isSubForm: s.subForm, type: s.type, unit:s.type==="TKMeasure" ?
+                            		s.defaultValue.find(value=> Object.keys(value).find(key=> key==="measureValue")).measureValue.unit : ""
+								}))) ||
 							_.uniq(self.services.map(s => s.svc && ({name:s.svc.label, label:s.svc.label})))
 						))
 					},
@@ -539,10 +527,20 @@
                                     x: _.keys(this.servicesMap).reduce((x, label) => {
                                         x[label] = self.getRawValue(label)
                                         return x
-                                    }, {})
+                                    }, {}),
+									parent: self.form().parent ? _.keys(this.servicesMap).reduce((x, label) => {
+										x[label] = self.parentForm.getRawValue(label)
+										return x
+									}, {}): {},
+									children: self.hasSubForms() ? self.subFormsMap.reduce((x,child) =>{
+										x[child.template.name] = _.keys(this.servicesMap).reduce((y, label) => {
+											y[label] =	child.dataProvider.getRawValue(label)
+											return y
+										}, {})
+										return x;
+									},{}) : {}
                                 });
                                 return Promise.all(orderedComputables.map(comp => {
-
                                     const f = (comp.li.formulas || []).find(f => f && f.lifecycle && lifecycles.includes(f.lifecycle.toString()))
 
 									const expr = f && `(function(x,patient,contact,contacts) { ${comp.shouldWrap[f.value] ? `return (${f.value});` : f.value} })(x,patient,contact,contacts)`
@@ -561,6 +559,7 @@
                                     ;['MeasureEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'object') && self.setMeasureValue(comp.name, Number(compValue.toFixed(3)) || null, false);
                                     ;['DateTimeEditor'].includes(comp.li.editor.key) && (!compValue || typeof compValue === 'number') && self.setDateValue(comp.name, status.value || null, false);
                                     ;['DateTimeEditor'].includes(comp.li.editor.key) && (typeof compValue === 'string') && self.setDateValue(comp.name,isNaN(Date.parse(compValue)) ? compValue : Date.parse(compValue) || null, false);
+                                    ;['CheckBoxEditor'].includes(comp.li.editor.key) && (typeof compValue === 'boolean') && self.setBooleanValue(comp.name, compValue || false,false);
 
                                     this.root.querySelector('#dynamic-form') && this.root.querySelector('#dynamic-form').notify((rootPath.length ? rootPath + '.' : '') + comp.name)
 
@@ -674,8 +673,15 @@
                                     _.pull(currentValueContainers, currentValueContainers.find(s => s.id === container.id));
                                 }
                                 if (!prevSvc || !_.isEqual(prevSvc.content, container.content)) {
-                                    self.dispatchService(_.extend(this.createService(label, form.id, null, (this.highlightedHes || []).map(he => he.id), container.id, initWrapper(label)),
-                                        {index: container.index, content: _.cloneDeep(container.content), codes: container.codes && container.codes.map(_.cloneDeep)}));
+                                	const createdSvc = this.createService(label, form.id, null, (this.highlightedHes || []).map(he => he.id), container.id, initWrapper(label));
+                                    self.dispatchService(_.extend(
+                                    		createdSvc,
+                                        	{
+                                        		index: container.index,
+												content: _.cloneDeep(container.content),
+												codes: container.codes && container.codes.map(_.cloneDeep),
+												tags: _.unionBy(createdSvc.tags, container.tags && container.tags.map(_.cloneDeep), "type")
+                                        	}));
                                     return true;
                                 }
                             }
@@ -706,7 +712,7 @@
                     getMeasureValue: (label, original) => {
                         const s = !original ? self.getServicesLineForContact(label)[0] : self.getServiceInContact(label);
                         const c = s && s.svc && ((s.svc.endOfLife && this.localize('service_mod_del','Modified or deleted service',this.language)===this.form.template.name) || !s.svc.endOfLife) && this.localizedContent(s.svc, this.language);
-                        return c && c.measureValue;
+                        return c && c.measureValue || {value:null, unit: self.sortedItems().find(item => item.label===label).unit};
                     },
                     getDateValue: (label, original) => {
                         const s = !original ? self.getServicesLineForContact(label)[0] : self.getServiceInContact(label);
@@ -851,7 +857,7 @@
 							}
 
 							return self.subFormsMap[[subForm.id, subForm.descr, idx]] || ((self.subFormsMap[[subForm.id, key, idx]] = {
-							dataMap: _.fromPairs(_.flatten(_.flatten(subForm.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList)).map(f => [f.name, 1])),
+								dataMap: _.fromPairs(_.flatten(_.flatten(subForm.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList)).map(f => [f.name, 1])),
                                 dataProvider: subDataProvider,
                                 template: subForm.template.layout,
 								reportsPromises: Promise.all((this.form && this.form.template && this.form.template.reports || [])
@@ -948,6 +954,11 @@
                             }
                         });
                     },
+					radioButtonChecked: (group,checkedName) =>{
+						form = form || this.form
+						const layoutItems = _.flatten(_.flatten(form.template.layout.sections.map(s => s.formColumns)).map(c => c.formDataList))
+						layoutItems.filter(item =>item.editor && item.editor.key==="CheckBoxEditor" && item.editor.groupRadio && item.editor.groupRadio===group && item.name!==checkedName).map(box =>  self.setBooleanValue(box.name,false,false))
+					},
                     filter: (data, text, deduplicationUuid, id) => {
                         if (data.source !== "codes") { return id ? Promise.resolve({}) : Promise.resolve([]) }
 
@@ -1029,7 +1040,6 @@
             deleteForm() {
                 this.dataProvider.deleteForm && this.dataProvider.deleteForm();
             }
-
 
             linkAllServicesInForm(he) {
                 _.compact(this.dataProvider.servicesInHierarchy().map(svcLine => svcLine[0])) //Latest version of all services
@@ -1140,6 +1150,18 @@
 			currentContactChanged(){
 				this.set('incapacityFirstResearch',true);
 				this.set('incapacityReasonFirstResearch',true);
+			}
+
+			_getFormParent(dataProvider,formId){
+            	if(dataProvider.getId()===formId){
+            		return dataProvider;
+				}
+            	else if(dataProvider.hasSubForms()){
+					const table = _.compact(dataProvider.getSubForms().map(child => this._getFormParent(child.dataProvider,formId)));
+            		return table.length ? _.first(table) : false;
+				}else{
+            		return false;
+				}
 			}
 
         }

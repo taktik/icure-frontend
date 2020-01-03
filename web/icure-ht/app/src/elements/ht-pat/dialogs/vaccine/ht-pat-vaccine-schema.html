@@ -16,7 +16,7 @@
 
 <link rel="import" href="ht-pat-vaccine-period.html">
 
-<dom-module id="ht-pat-vaccine-schema-wallonia">
+<dom-module id="ht-pat-vaccine-schema">
     <template>
         <style include="scrollbar-style dialog-style">
 
@@ -37,6 +37,8 @@
                 padding: 12px;
                 width: auto;
                 box-sizing: border-box;
+                position: relative;
+                background-color: white;
             }
 
             .schemaLine{
@@ -168,7 +170,6 @@
                                         procedure="[[row.procedure]]"
                                         on-open-action="_onOpenAction"
                                         on-date-changed="_dateChanged"
-                                        on-select-product="_onSelectProduct"
                                         on-update-service="_onUpdateService"></ht-pat-vaccine-period>
                                 </div>
                             </template>
@@ -194,10 +195,12 @@
     </template>
     <script>
 
-        class HtPatVaccineSchemaWallonia extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+        const procedureStatus = [ "aborted", "error", "refused", "pending", "planned", "completed", "proposed", "cancelled" ];
+
+        class HtPatVaccineSchema extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
 
             static get is() {
-                return 'ht-pat-vaccine-schema-wallonia';
+                return 'ht-pat-vaccine-schema';
             }
 
             static get properties() {
@@ -258,16 +261,11 @@
                 this._periodicities = [];
                 this._newServices = [];
                 this._oldServices = [];
+                this._schema = schema;
 
-                this.set("statuses", [
-                    { code: "aborted", value: this.localize("vacc_aborted", "aborted", this.language) },
-                    { code: "refused", value: this.localize("vacc_refused", "refused", this.language) },
-                    { code: "pending", value: this.localize("vacc_pending", "pending", this.language) },
-                    { code: "planned", value: this.localize("vacc_planned", "planned", this.language) },
-                    { code: "proposed", value: this.localize("vacc_proposed", "proposed", this.language) },
-                    { code: "cancelled", value: this.localize("vacc_cancelled", "cancelled", this.language) },
-                    { code: "completed", value: this.localize("vacc_completed", "completed", this.language) }
-                ]);
+                this.set("statuses", procedureStatus.map(code => { return {
+                    code : code, value: this.localize("proc_status_" + code, code)
+                }}));
 
                 this.set("periods", schema.periods);
                 this.api.code().getCodes(this.periods.map(period => "CD-PERIODICITY|" + period.code + "|1"))
@@ -289,12 +287,15 @@
                             row.services = services.filter(s => s.codes.some(c => c.type === "BE-THESAURUS-PROCEDURES" && c.code === row.procedure.code));
                             row.services = row.services.sort((a, b) => this.api.moment(a.valueDate).isBefore(this.api.moment(b.valueDate)) ? -1 : 0);
                             row.periods.filter(p => p.used).forEach(period => {
-                                const candidates = row.services.filter(s => s.tags.some(t => t.type === "CD-PERIODICITY" && t.code === period.code));
+                                let candidates = row.services.filter(s => s.tags.some(t => t.type === "CD-PERIODICITY" && t.code === period.code));
+                                if (candidates.length < 1) {
+                                    const assigned = row.periods.map(p => p.service);
+                                    candidates = row.services.filter(s => !assigned.includes(s));
+                                }
                                 if (candidates.length > 0) {
                                     candidates.forEach(s => this._resetPeriodicity(s));
                                     period.service = candidates[0];
                                 } else {
-                                    // TODO: search for another candidate before creating a new service
                                     period.service = this._createService(row.procedure, period);
                                     row.services.push(period.service);
                                 }
@@ -320,6 +321,20 @@
 
             _update() {
                 this._oldServices.forEach(service => {
+                    const tag = service.tags.find(t => t.type == "care.topaz.vaccineschema");
+                    if (tag) {
+                        tag.id = "care.topaz.vaccineschema|" + this._schema.code + "|1";
+                        tag.code = this._schema.code;
+                        tag.version = "1";
+                    }
+                    else service.tags.push({
+                        id: "care.topaz.vaccineschema|" + this._schema.code + "|1",
+                        type: "care.topaz.vaccineschema",
+                        code: this._schema.code,
+                        version: "1"
+                    })
+                })
+                this._oldServices.forEach(service => {
                     if (!service.tags.find(t => t.type == "CD-ITEM" && t.code == "vaccine"))
                         service.tags.push({ type: "CD-ITEM", code: "vaccine" })
                 })
@@ -338,26 +353,16 @@
             _setDoseNumber(content, doseNumber) {
                 if ((typeof content) == "string")
                     content = { stringValue: content };
-                if (!content.medicationValue)
-                    content.medicationValue = {};
-                if (!content.medicationValue.options)
-                    content.medicationValue.options = {};
-                if (!content.medicationValue.options.doseNumber)
-                    content.medicationValue.options.doseNumber = {}
-                content.medicationValue.options.doseNumber.stringValue = doseNumber.toString();
+                _.set(content, 'medicationValue.options.doseNumber.stringValue', doseNumber.toString());
                 return content;
             }
 
             _setMedication(content, product) {
                 if ((typeof content) == "string")
                     content = { stringValue: content };
-                if (!content.medicationValue)
-                    content.medicationValue = {};
-                if (!content.medicationValue.medicinalProduct)
-                    content.medicationValue.medicinalProduct = {}
                 const cds = product.code ? [{ type: "CD-DRUG-CNK", code: product.code }] : []
-                content.medicationValue.medicinalProduct.intendedcds = cds;
-                content.medicationValue.medicinalProduct.intendedname = product.name;
+                _.set(content, 'medicationValue.medicinalProduct.intendedcds', cds);
+                _.set(content, 'medicationValue.medicinalProduct.intendedname', product.name);
                 return content;
             }
 
@@ -377,12 +382,6 @@
                     return;
                 }
                 service.tags = service.tags.filter(t => t.type != "CD-DRUG-CNK");
-            }
-
-            selectProduct(detail) {
-                this._setProduct(detail.period.service, detail.period.product);
-                this._refresh(detail.procedure, detail.period);
-                this._dispatchEvent("update-service", detail);
             }
 
             updateService(detail) {
@@ -411,11 +410,6 @@
                         service: service
                     }
                 }));
-            }
-
-            _onSelectProduct(e) {
-                console.log("onSelectProduct1");
-                this._dispatchEvent("select-product", e.detail);
             }
 
             _onUpdateService(e) {
@@ -483,11 +477,11 @@
             }
 
             _confirmDate(e) {
-                if (e.currentTarget.id == "yes") {
+                if (_.get(e, 'currentTarget.id', null) == "yes") {
                     const periods = this._getPeriods(this._detail);
                     periods.forEach(period => {
                         const months = period.months - this._detail.period.months;
-                        const date = this.api.moment(this._detail.period.service.valueDate);
+                        const date = _.get(this._detail, 'period.service.valueDate', null) ? this.api.moment(_.get(this._detail, 'period.service.valueDate', null)) : null
                         period.service.valueDate = date.add(months, 'M').format("YYYYMMDD");
                         this._refresh(this._detail.procedure, period);
                     });
@@ -510,11 +504,8 @@
 
             _getProduct(svc) {
                 const content = this._getContent(svc);
-                if (content &&
-                    content.medicationValue &&
-                    content.medicationValue.medicinalProduct &&
-                    content.medicationValue.medicinalProduct.intendedname)
-                    return content.medicationValue.medicinalProduct.intendedname;
+                if (_.get(content, 'medicationValue.medicinalProduct.intendedname', null))
+                    return _.get(content, 'medicationValue.medicinalProduct.intendedname', null);
                 return svc.comment ? svc.comment : this.localize('not_specified', 'n/a', this.language)
             }
 
@@ -530,21 +521,22 @@
                 this._resetPeriodicity(service);
                 const periodicity = this._periodicities.find(code => code.code == period.code);
                 service.tags.push({
-                    id: periodicity.id || null,
-                    type: periodicity.type || null,
-                    code: periodicity.code || null,
-                    version: periodicity.version || null
+                    id: _.get(periodicity, 'id', null),
+                    type: _.get(periodicity, 'type', null),
+                    code: _.get(periodicity, 'code', null),
+                    version: _.get(periodicity, 'version', null)
                 })
             }
 
             _createService(procedure, period) {
+                const date = this.api.moment(this.patient.dateOfBirth).add(period.months, 'M').format("YYYYMMDD");
                 return {
                     content: {
                         "fr" : { stringValue: _.get(procedure, 'label.fr', null) },
                         "nl" : { stringValue: _.get(procedure, 'label.nl', null) }
                     },
                     label: "Actes",
-                    valueDate: this.api.moment(this.patient.dateOfBirth).add(period.months, 'M').format("YYYYMMDD"),
+                    valueDate: parseInt(date + "000000"),
                     codes: [
                         {
                             id: _.get(procedure, 'id', null),
@@ -561,8 +553,14 @@
                             code: "primaryprevention",
                             version: "1"
                         },
-                        { type: 'CD-ITEM', code:'vaccine' },
-                        { type: 'CD-LIFECYCLE', code:'pending' },
+                        { type: 'CD-ITEM', code: 'vaccine' },
+                        { type: 'CD-LIFECYCLE', code: 'pending' },
+                        {
+                            id: "care.topaz.vaccineschema|" + this._schema.code + "|1",
+                            type: 'care.topaz.vaccineschema',
+                            code: this._schema.code,
+                            version: "1"
+                        }
                     ]
                 }
             }
@@ -606,6 +604,13 @@
                         });
                     });
                 });
+            }
+
+            toggle(schema, services) {
+                // TODO: LDE: remove these two lines for production
+                //const clean = this.rows.flatMap(r => r.periods.filter(p => p.service).map(p => p.service));
+                //clean.forEach(s => this._resetPeriodicity(s));
+                this.initialize(schema, services);
             }
 
             clean() {
@@ -655,7 +660,7 @@
                             else html += "<div>";
                             html += this.api.moment(date).format('DD/MM/YYYY');
                             html += "</div>";
-                            html += "<div>" + this.localize("vacc_" + status, status) + "</div>";
+                            html += "<div>" + this.localize("proc_status_" + status, status) + "</div>";
                             html += "<div>" + this._getProduct(period.service) + "</div>";
                         }
                         html += '</div>';
@@ -669,7 +674,7 @@
             }
         }
 
-        customElements.define(HtPatVaccineSchemaWallonia.is, HtPatVaccineSchemaWallonia);
+        customElements.define(HtPatVaccineSchema.is, HtPatVaccineSchema);
     </script>
 </dom-module>
 

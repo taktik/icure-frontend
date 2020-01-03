@@ -857,9 +857,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     -->
                     <template>
                         <div class$="cell [[_boldIfIsUnread(item)]]">
-                            <template is="dom-if" if="[[_isImportant(item)]]"><iron-icon icon="warning" class="darkRed"></iron-icon></template>
+                            <template is="dom-if" if="[[_isImportant(item)]]"><iron-icon icon="vaadin:exclamation" class="darkRed"></iron-icon></template>
                             <template is="dom-if" if="[[!_isImportant(item)]]"><iron-icon icon="warning" class="darkGreen visibilityHidden"></iron-icon></template>
-                            <template is="dom-if" if="[[_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5 darkBlue"></iron-icon></template>
+                            <template is="dom-if" if="[[_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5"></iron-icon></template>
                             <template is="dom-if" if="[[!_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5 visibilityHidden"></iron-icon></template>
                             <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'sent')]]">[[item.fromAddress]]</template>
                             <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'sent')]]">[[_formatRecipientDetailsForSentFolder(item)]]</template>
@@ -1590,6 +1590,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _decryptAndResolvePatientsMetas(givenMessages) {
 
+                this.api.setPreventLogging()
+
                 let prom = Promise.resolve();
                 _.map(givenMessages, singleMessage => {
                     prom = prom.then(promisesCarrier => !_.trim(_.get(singleMessage,"metas.annexesInfos")) ?
@@ -1638,7 +1640,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             .catch(e=>{console.log("ERROR with getPatientsWithUser: ", e); return _.compact(messagesWithDecryptedPatientInfos);})
 
                     })
-                    .then(allMessages=>_.map(allMessages, m => { m.uniqueAnnexesInfos = _.uniqBy(_.get(m,"annexesInfos",[]), pi => [ _.get(pi,"patientData.id",""), _.get(pi,"patientId",""), _.get(pi,"docInfo.ssin",""), _.get(pi,"docInfo.dateOfBirth",""), _.get(pi,"docInfo.lastName",""),  _.get(pi,"docInfo.firstName","")].join() ); return m; }))
+                    .then(allMessages=>{
+                        this.api.setPreventLogging(false)
+                        return _.map(allMessages, m => { m.uniqueAnnexesInfos = _.uniqBy(_.get(m,"annexesInfos",[]), pi => [ _.get(pi,"patientData.id",""), _.get(pi,"patientId",""), _.get(pi,"docInfo.ssin",""), _.get(pi,"docInfo.dateOfBirth",""), _.get(pi,"docInfo.lastName",""),  _.get(pi,"docInfo.firstName","")].join() ); return m; })
+                    })
 
             }
 
@@ -1914,21 +1919,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const annexesInfosAlreadyExist = !!_.size(_.get(givenMessage,"annexesInfos",[]))
                 const totalAnnexes = parseInt(_.size(_.filter(additionalParameters.documentsOfMessage,dom=>_.trim(_.get(dom,"documentLocation","body")) !== "body" )))
                 const totalAssignedAnnexes = (parseInt(_.size(_.filter(_.get(givenMessage,"annexesInfos",[]),ai=>!!_.get(ai,"isAssigned",false))))) + 1 // "+1" as we are assigning now
-                const documentToAssignDemandDate = !!((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0))||0) > 1546300800000) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",undefined)) : parseInt(_.get(givenMessage,"created",undefined))
+
+                // const documentToAssignDemandDate = !!((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0))||0) > 1546300800000) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",undefined)) : parseInt(_.get(givenMessage,"created",undefined))
+                const documentToAssignDemandDate = !!((parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0))||0)) ? parseInt(_.get(documentToAssign,"docInfo[0].demandDate",0)) : parseInt(_.get(givenMessage,"created",undefined))
+
                 const importDescription = /* _.trim(documentTypeLabel) + ": " + */ (!!_.trim(_.get(documentToAssign,"docInfo[0].labo","")) ? _.trim(_.get(documentToAssign,"docInfo[0].labo","")) : _.trim(_.get(givenMessage,"subject")) ) + ( !!_.trim(_.get(documentToAssign,"docInfo[0].protocol","")) ? " (Protocole #" + _.trim(_.get(documentToAssign,"docInfo[0].protocol","")) + ")" : " " )
                 let annexInfosToUpdate = !annexesInfosAlreadyExist ? false : _.find(_.get(givenMessage,"annexesInfos",[]), {documentId:documentId})
 
                 return (!documentId || !patientId || !_.size(documentToAssign)) ?
-                    promResolve : this.api.accesslog().createAccessLog({
-                        id: this.api.crypto().randomUuid(),
-                        patientId: patientId,
-                        user: _.trim(_.get(this,"user.id","")),
-                        date: +new Date(),
-                        accessType: 'USER_ACCESS',
-                        detail : "Save Assignment in Message panel"
-                    })
-                    .then(log => this.api.patient().getPatientWithUser(this.user,patientId))
+                    promResolve : this.api.patient().getPatientWithUser(this.user,patientId)
                     .then(patientObject => {
+                        this.api.accesslog().newInstance(this.user,patientObject,{}).then(log =>{
+                            log.detail="Save Assignment in Message panel"
+                            this.api.accesslog().createAccessLogWithUser(this.user,log)
+                        })
                         let contactObjectForInstance = {
                             groupId: _.trim(_.get(givenMessage,"id","")),
                             created: +new Date,

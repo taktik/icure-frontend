@@ -15,15 +15,13 @@
 <link rel="import" href="../../../styles/paper-tabs-style.html">
 
 <link rel="import" href="./vaccine/ht-pat-vaccine-history.html">
-<link rel="import" href="./vaccine/ht-pat-vaccine-schema-wallonia.html">
-<link rel="import" href="./vaccine/ht-pat-vaccine-schema-flanders.html">
-<link rel="import" href="./ht-pat-vaccine-product-dialog.html">
+<link rel="import" href="./vaccine/ht-pat-vaccine-schema.html">
 <link rel="import" href="./ht-pat-vaccine-selection-dialog.html">
 
-<dom-module id="ht-pat-vaccine-schema-dialog">
+<dom-module id="ht-pat-vaccine-dialog">
     <template>
         <style include="scrollbar-style dialog-style paper-tabs-style">
-            #vaccineSchemaDialog{
+            #vaccineDialog{
                 height: calc(98% - 12vh);
                 width: 98%;
                 max-height: calc(100% - 64px - 48px - 20px); /* 100% - header - margin - footer*/
@@ -60,8 +58,11 @@
                 margin: 0;
             }
 
-            .content {
-                max-height: 100%;
+            .content-container {
+                margin: 0;
+                position: relative;
+                padding: 0px;
+                height: calc(100% - 45px);
             }
 
             .schemaSelector {
@@ -70,9 +71,19 @@
                 text-align: center;
             }
 
+            iron-pages{
+                height: calc(100% - 48px);
+                width: auto;
+                overflow: auto;
+            }
+
+            .content{
+                max-height: calc(100% - 45px)!important;
+            }
+
         </style>
 
-        <paper-dialog id="vaccineSchemaDialog">
+        <paper-dialog id="vaccineDialog">
             <div class="content">
                 <paper-tabs class="tab-selector" selected="{{tabs}}" >
                     <paper-tab>
@@ -89,15 +100,15 @@
                     <page>
                         <template is="dom-if" if="[[!hasSchema]]">
                             <div class="schemaSelector">
-                                <h2>Auncun schéma de vaccination détecté.</h2>
-                                <p>Veuillez sélectionner un schéma:</p>
+                                <h2>[[localize('vacc-no-schema-found', 'No vaccination schema found', language)]]</h2>
+                                <p>[[localize('vacc-select-schema', 'Please select a schema', language)]]:</p>
                                 <div class="schemaSelectorButtons">
-                                    <paper-button class="button" id="fr" on-tap="_createSchema">Wallonia</paper-button>
-                                    <paper-button class="button" id="nl" on-tap="_createSchema">Flanders</paper-button>
+                                    <paper-button class="button" id="fr" on-tap="_createSchema">[[localize('vacc-wallonia', 'Wallonia', language)]]</paper-button>
+                                    <paper-button class="button" id="nl" on-tap="_createSchema">[[localize('vacc-flanders', 'Flanders', language)]]</paper-button>
                                 </div>
                             </div>
                         </template>
-                        <ht-pat-vaccine-schema-wallonia id="schema" region="fr" api="[[api]]" user="[[user]]" patient="[[patient]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" hasSchema="[[hasSchema]]" contacts="[[contacts]]" on-open-action="_onOpenAction" on-update-service="_onUpdateService" on-select-product="_onSelectProduct" on-select-vaccines="_onSelectVaccines"></ht-pat-vaccine-schema-wallonia>
+                        <ht-pat-vaccine-schema id="schema" region="fr" api="[[api]]" user="[[user]]" patient="[[patient]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" hasSchema="[[hasSchema]]" contacts="[[contacts]]" on-open-action="_onOpenAction" on-update-service="_onUpdateService" on-select-vaccines="_onSelectVaccines"></ht-pat-vaccine-schema>
                     </page>
                 </iron-pages>
                 <template is="dom-if" if="[[isLoading]]">
@@ -111,21 +122,23 @@
             <div class="buttons">
                 <!--<paper-button class="button" on-tap="_clean">Clean</paper-button>-->
                 <paper-button class="button" on-tap="_close"><iron-icon icon="icons:close" class="mr5 smallIcon"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <template is="dom-if" if="[[detected]]">
+                    <paper-button class="button button--other" on-tap="_toggle">[[toggle]]</paper-button>
+                </template>
                 <paper-button class="button button--other" on-tap="_print"><iron-icon icon="vaadin:print" class="mr5 smallIcon"></iron-icon> [[localize('print','Print',language)]]</paper-button>
                 <paper-button class="button button--save" on-tap="_createMedicationSchema"><iron-icon icon="icons:save" class="mr5 smallIcon" ></iron-icon> [[localize('save','Save',language)]]</paper-button>
             </div>
         </paper-dialog>
 
-        <ht-pat-vaccine-product-dialog id="vaccineProductDialog" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" on-product-selected="_onProductSelected"></ht-pat-vaccine-product-dialog>
         <ht-pat-vaccine-selection-dialog id="vaccineSelectionDialog" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" on-vaccines-selected="_onVaccinesSelected"></ht-pat-vaccine-selection-dialog>
 
     </template>
     <script>
         import _ from 'lodash/lodash';
 
-        class HtPatVaccineShemaDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+        class HtPatVaccineDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
             static get is() {
-                return 'ht-pat-vaccine-schema-dialog';
+                return 'ht-pat-vaccine-dialog';
             }
 
             static get properties() {
@@ -144,6 +157,13 @@
                     tabs:{
                         type: Number,
                         value: 0
+                    },
+                    toggle: {
+                        type: String
+                    },
+                    detected: {
+                        type: Object,
+                        value: null
                     },
                     hasSchema: {
                         type: Boolean,
@@ -166,6 +186,7 @@
                 this._schemas = {
                     fr: {
                         id: "care.topaz.procedurepackage|schéma-de-vaccination-wallonie|1",
+                        code: "wallonia",
                         periods: [
                             {name: {fr: "2 mois", nl: "", en: ""}, code: "MT", months: 2},
                             {name: {fr: "3 mois", nl: "", en: ""}, code: "MD", months: 3},
@@ -182,6 +203,7 @@
                     },
                     nl: {
                         id: "care.topaz.procedurepackage|vlaams-vaccinatieschema|1",
+                        code: "flanders",
                         periods: [
                             {name: {fr: "2 mois", nl: "", en: ""}, code: "MT", months: 2},
                             {name: {fr: "3 mois", nl: "", en: ""}, code: "MD", months: 3},
@@ -200,7 +222,7 @@
             }
 
             _openDialog(){
-                this.$['vaccineSchemaDialog'].open();
+                this.$['vaccineDialog'].open();
                 this.set("isLoading", true);
                 this.api.contact().filterServices(this.contacts, s => s.label==='Actes')
                     .then(services => {
@@ -223,14 +245,29 @@
                         console.log("resolve nl");
                     }).then(() => {
                         console.log("resolve all");
-                        const ids = this._services.map(s => _.get(s.codes.find(c=> c.type == "BE-THESAURUS-PROCEDURES"), "id", null));
-                        this._schemas.fr.detected = this._schemas.fr.procedures.some(p => ids.some(id => id == p.id));
-                        this._schemas.nl.detected = this._schemas.nl.procedures.some(p => ids.some(id => id == p.id));
-                        this.set("hasSchema", this._schemas.fr.detected || this._schemas.nl.detected);
-                        this.$['schema'].initialize(this.hasSchema ? this._schemas.fr : null, this._services);
+                        const schema =
+                            this._detect(this._schemas.fr) ? this._schemas.fr :
+                            this._detect(this._schemas.nl) ? this._schemas.nl : null;
+                        this._setSchema(schema);
+                        this.$['schema'].initialize(this._schema, this._services);
                         this.$['history'].initialize(this._schemas, this._services);
+                        this.set("detected", schema);
                         this.set("isLoading", false);
                     })
+            }
+
+            _detect(schema) {
+                return this._services.some(s => s.tags.some(t => t.type === "care.topaz.vaccineschema" && t.code === schema.code));
+            }
+
+            _setSchema(schema) {
+                this.set("hasSchema", !!schema);
+                this._schema = schema;
+                if (!this._schema) return;
+                if (this._schema !== this._schemas.fr)
+                    this.set("toggle", this.localize("vacc_toggle_wallonia", "Basculer vers le schéma wallon"));
+                else
+                    this.set("toggle", this.localize("vacc_toggle_flanders", "Basculer vers le schéma flamand"));
             }
 
             _createSchema(e) {
@@ -250,15 +287,6 @@
                 if (e.detail.source != "history" )
                     this.$['history'].updateService(e.detail);
                 else this.$['schema'].updateService(e.detail);
-            }
-
-            _onSelectProduct(e) {
-                console.log("onSelectProduct2");
-                this.$['vaccineProductDialog'].openDialog(e.detail);
-            }
-
-            _onProductSelected(e) {
-                this.$['schema'].selectProduct(e.detail);
             }
 
             _onSelectVaccines(e) {
@@ -289,15 +317,23 @@
                 this._close();
             }
 
+            _toggle(){
+                this._setSchema(this._schema != this._schemas.fr ?
+                    this._schemas.fr :
+                    this._schemas.nl);
+                this.$['schema'].toggle(this._schema, this._services);
+                this.dispatchEvent(new CustomEvent("refresh-patient",{bubbles:true,composed:true}));
+            }
+
             _close(){
-                this.$['vaccineSchemaDialog'].close()
+                this.$['vaccineDialog'].close()
             }
 
             _print() {
                 const name = this.tabs < 1 ? "history.pdf" : "vaccine.pdf";
                 const html = this.tabs < 1 ? this.$['history'].print() : this.$['schema'].print();
                 this.api.pdfReport(this._getHtml(html), {type:"unknown",completionEvent:"pdfDoneRenderingEvent"})
-                .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", name, this.$['vaccineSchemaDialog']))
+                .then(printedPdf => !printedPdf.printed && this.api.triggerFileDownload(printedPdf.pdf, "application/pdf", name, this.$['vaccineDialog']))
                 .finally(() => {
                     console.log("Printed");
                 })
@@ -430,6 +466,6 @@
                 `
             }
         }
-        customElements.define(HtPatVaccineShemaDialog.is, HtPatVaccineShemaDialog);
+        customElements.define(HtPatVaccineDialog.is, HtPatVaccineDialog);
     </script>
 </dom-module>
