@@ -271,8 +271,7 @@ onmessage = e => {
                     const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0)) ? parseInt(_.get(docInfo,"demandDate",0)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
-                    // 20191217 - If you're using crypto, it would have been nice to instanciate the crypto class as well Mister Carolais :-)
-					// if(_.size(candidates) === 1){
+                    // if(_.size(candidates) === 1){
                     // 	const log= {}
 					// 	log.accessType= 'SYSTEM_ACCESS'
 					// 	log.detail = "Save Assignment in Message panel"
