@@ -18,7 +18,7 @@ import _ from 'lodash/lodash';
 import CodeMirror from 'codemirror/src/codemirror';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
 class HtAdminManagementForms extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

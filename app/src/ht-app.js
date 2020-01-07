@@ -1027,25 +1027,25 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               noReset: true,
               value: {
                   main() {
-                      import(/* webpackChunkName: "ht-main" */ './ht-main.html')
+                      import(/* webpackChunkName: "ht-main" */ './ht-main.js')
                   },
                   pat() {
-                      import(/* webpackChunkName: "ht-pat" */ './ht-pat.html')
+                      import(/* webpackChunkName: "ht-pat" */ './ht-pat.js')
                   },
                   hcp() {
-                      import(/* webpackChunkName: "ht-hcp" */ './ht-hcp.html')
+                      import(/* webpackChunkName: "ht-hcp" */ './ht-hcp.js')
                   },
                   msg() {
-                      import(/* webpackChunkName: "ht-msg" */ './ht-msg.html')
+                      import(/* webpackChunkName: "ht-msg" */ './ht-msg.js')
                   },
                   diary(){
-                      import(/* webpackChunkName: "ht-diary" */ './ht-diary.html')
+                      import(/* webpackChunkName: "ht-diary" */ './ht-diary.js')
                   },
                   admin(){
-                      import(/* webpackChunkName: "ht-admin" */ './ht-admin.html')
+                      import(/* webpackChunkName: "ht-admin" */ './ht-admin.js')
                   },
                   view404() {
-                      import(/* webpackChunkName: "ht-view404" */ './ht-view404.html')
+                      import(/* webpackChunkName: "ht-view404" */ './ht-view404.js')
                   }
               }
           },

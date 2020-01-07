@@ -1,7 +1,7 @@
 import '../../styles/buttons-style.js';
 import './dynamic-form.js';
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class DynamicSubForm extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

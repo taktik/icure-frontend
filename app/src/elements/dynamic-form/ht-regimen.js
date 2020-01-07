@@ -3,7 +3,7 @@ import '../../styles/buttons-style.js';
 import '../../styles/paper-input-style.js';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtRegimen extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

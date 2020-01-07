@@ -23,7 +23,7 @@ import * as models from 'icc-api/dist/icc-api/model/models'
 import { Base64 } from 'js-base64';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtMsgList extends TkLocalizerMixin(PolymerElement) {
 
     static get is() {

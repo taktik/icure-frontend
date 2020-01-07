@@ -11,7 +11,7 @@ import moment from 'moment/src/moment'
 import {parse} from "../../../../bower_components/shadycss/src/css-parse";
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
 class MedicationDetails extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

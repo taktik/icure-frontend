@@ -2,7 +2,7 @@ import '../dynamic-form/ckmeans-grouping.js';
 import '../dynamic-form/dynamic-form.js';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtPatDetailTable extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

@@ -7,7 +7,7 @@ import {parse} from 'acorn'
 import * as evaljs from "evaljs"
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

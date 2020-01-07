@@ -19,7 +19,7 @@ const STATUS_DELIVERED = 8;
 const STATUS_REVOKED = 16;
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
 class MedicationPlanDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

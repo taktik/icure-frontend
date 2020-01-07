@@ -4,7 +4,7 @@ import '../../styles/paper-input-style.js';
 import moment from '../../../bower_components/moment/src/moment';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class DynamicDateField extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

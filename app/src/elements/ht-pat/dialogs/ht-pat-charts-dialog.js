@@ -8,7 +8,7 @@ import '../../../styles/scrollbar-style.js';
 import '../../../styles/paper-tabs-style.js';
 import Chart from 'chart.js';
 
-import {TkLocalizerMixin} from "../tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
 import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
 import {PolymerElement, html} from '@polymer/polymer';

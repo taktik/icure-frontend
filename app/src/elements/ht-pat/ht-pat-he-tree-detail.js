@@ -4,7 +4,7 @@ import '../collapse-button/collapse-button.js';
 import styx from '../../../scripts/styx';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtPatHeTreeDetail extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

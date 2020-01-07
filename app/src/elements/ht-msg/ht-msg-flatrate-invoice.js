@@ -17,7 +17,7 @@ import promiseLimit from 'promise-limit';
 import * as retry from "icc-api/dist/icc-x-api/utils/net-utils"
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

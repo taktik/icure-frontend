@@ -4,7 +4,7 @@ import '../../../styles/dialog-style.js';
 import '../../../styles/scrollbar-style.js';
 import './ht-pat-action-plan-detail.js';
 
-import {TkLocalizerMixin} from "../tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
 import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
 import {PolymerElement, html} from '@polymer/polymer';

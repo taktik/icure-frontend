@@ -15,7 +15,7 @@ import './ht-hcp-pat-list.js';
 import './ht-hcp-member-list.js';
 import '../icons/icure-icons.js';
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtHcpDetail extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

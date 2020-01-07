@@ -5,7 +5,7 @@ import './dialogs/medication-details-dialog-old.js';
 import '../../styles/buttons-style.js';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class DynamicMedicationField extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

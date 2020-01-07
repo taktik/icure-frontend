@@ -20,7 +20,7 @@ import _ from 'lodash/lodash';
 import styx from '../../../scripts/styx';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtAdminMenu extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
