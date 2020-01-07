@@ -23,7 +23,6 @@ module.exports = {
     // bower_components folder.
     resolve: {
         modules: [
-            path.resolve(__dirname,  'app/bower_components'),
             path.resolve(__dirname,  'node_modules'),
         ],
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.html']
@@ -35,26 +34,10 @@ module.exports = {
 	module: {
         rules: [
 	        {
-		        test: /\.html$/,
-		        use: [
-			        {
-				        loader: 'babel-loader',
-
-				        options: {
-				        	/*presets: ['es2015'],*/
-					        plugins: ['babel-plugin-lodash', 'syntax-dynamic-import']
-				        }
-			        },
-			        {
-				        loader: 'polymer-webpack-loader'
-			        }
-		        ]
-	        },
-            {
                 // If you see a file that ends in .js, just send it to the babel-loader.
                 test: /\.js$/,
                 use: [{loader: 'babel-loader', options: {plugins: ['syntax-dynamic-import']}}],
-                exclude: /(node_modules|bower_components)/
+                exclude: /(node_modules)/
             },
             {
                 test: /\.ts$/,
@@ -106,8 +89,8 @@ module.exports = {
         // That's important because the custom-elements-es5-adapter.js MUST
         // remain in ES2015. We’ll talk about this a bit later :)
         new CopyWebpackPlugin([{
-            from: path.resolve(__dirname, 'app/bower_components/webcomponentsjs/*.js'),
-            to: 'bower_components/webcomponentsjs/[name].[ext]'
+            from: path.resolve(__dirname, 'node_modules/@webcomponents/webcomponentsjs/*.js'),
+            to: 'scripts/webcomponentsjs/[name].[ext]'
         },{
             from : path.resolve(__dirname, 'app/docs/*.pdf'),
             to: 'docs/[name].[ext]'

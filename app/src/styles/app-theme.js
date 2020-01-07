@@ -10,14 +10,18 @@ $_documentContainer.innerHTML = `<custom-style>
         --app-secondary-color-light: rgba(102, 222, 161, 0.51);
 		--app-secondary-color-dark: #2bab72;
 		--app-secondary-color-highlight:#07f87f;
+		--app-accent-color: #efa041;
+		--app-accent-color-light: #efd22e;
+		--app-accent-color-dark: #ac6837;
 
 		--app-error-color: #E53935;
+		--app-error-color-dark: #b42b29;
 
 		--app-status-color-ok: #07f87f;
 		--app-status-color-pending: #fcdf35;
 		--app-status-color-nok: #ff4d4d;
 
-		--app-text-color: rgba(0, 0, 0, 0.70);
+		--app-text-color: rgba(0, 0, 0, 0.75);
 		--app-text-color-disabled: rgba(0, 0, 0, 0.40);
 		--app-text-color-light: rgba(255, 255, 255, 1);
         --app-text-color-dark: rgba(0, 0, 0, 0.95);

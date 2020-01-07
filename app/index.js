@@ -9,7 +9,8 @@ flatMap.shim();
 
 document.addEventListener('WebComponentsReady', function componentsReady() {
     document.removeEventListener('WebComponentsReady', componentsReady, false);
-    import( /* webpackChunkName: "ht-app" */ "./src/ht-app.html")
+    import( /* webpackChunkName: "ht-app" */ "./src/ht-app.js")
+    import( /* webpackChunkName: "ht-spinner" */ "./src/elements/ht-spinner/ht-spinner.js")
 }, false);
 
 
@@ -62,21 +63,21 @@ document.addEventListener('WebComponentsReady', function componentsReady() {
         var seq = polyfills.join('-')
 
         if (seq === 'ce') {
-            import( /* webpackChunkName: "wcl-ce" */ 'webcomponentsjs/webcomponents-ce.js')
+            import( /* webpackChunkName: "wcl-ce" */ '@webcomponents/webcomponentsjs/webcomponents-ce.js')
         } else if (seq === 'hi') {
-            import( /* webpackChunkName: "wcl-hi" */ 'webcomponentsjs/webcomponents-hi.js')
+            import( /* webpackChunkName: "wcl-hi" */ '@webcomponents/webcomponentsjs/webcomponents-hi.js')
         } else if (seq === 'hi-ce') {
-            import( /* webpackChunkName: "wcl-hi-ce" */ 'webcomponentsjs/webcomponents-hi-ce.js')
+            import( /* webpackChunkName: "wcl-hi-ce" */ '@webcomponents/webcomponentsjs/webcomponents-hi-ce.js')
         } else if (seq === 'hi-sd') {
-            import( /* webpackChunkName: "wcl-hi-sd" */ 'webcomponentsjs/webcomponents-hi-sd.js')
+            import( /* webpackChunkName: "wcl-hi-sd" */ '@webcomponents/webcomponentsjs/webcomponents-hi-sd.js')
         } else if (seq === 'hi-sd-ce') {
-            import( /* webpackChunkName: "wcl-hi-sd-ce" */ 'webcomponentsjs/webcomponents-hi-sd-ce.js')
+            import( /* webpackChunkName: "wcl-hi-sd-ce" */ '@webcomponents/webcomponentsjs/webcomponents-hi-sd-ce.js')
         } else if (seq === 'sd') {
-            import( /* webpackChunkName: "wcl-sd" */ 'webcomponentsjs/webcomponents-sd.js')
+            import( /* webpackChunkName: "wcl-sd" */ '@webcomponents/webcomponentsjs/webcomponents-sd.js')
         } else if (seq === 'sd-ce') {
-            import( /* webpackChunkName: "wcl-sd-ce" */ 'webcomponentsjs/webcomponents-sd-ce.js')
+            import( /* webpackChunkName: "wcl-sd-ce" */ '@webcomponents/webcomponentsjs/webcomponents-sd-ce.js')
         }else if (seq === 'lite') {
-            import( /* webpackChunkName: "wcl-lite" */ 'webcomponentsjs/webcomponents-lite.js')
+            import( /* webpackChunkName: "wcl-lite" */ '@webcomponents/webcomponentsjs/webcomponents-lite.js')
         }
     } else {
         // Ensure `WebComponentsReady` is fired also when there are no polyfills loaded.

@@ -11,13 +11,6 @@ import './styles/app-theme.js';
 
 import './styles/shared-styles.js';
 import './styles/vaadin-icure-theme.js';
-import './ht-main.js';
-import './ht-pat.js';
-import './ht-hcp.js';
-import './ht-msg.js';
-import './ht-diary.js';
-import './ht-admin.js';
-import './ht-view404.js';
 import './elements/tk-localizer.js';
 import './elements/splash-screen/splash-screen.js';
 import './elements/ht-tools/ht-export-key.js';
@@ -1032,25 +1025,25 @@ class HtApp extends Polymer.TkLocalizerMixin(Polymer.Element) {
               noReset: true,
               value: {
                   main() {
-                      //import(/* webpackChunkName: "ht-main" */ './ht-main.html')
+                      import(/* webpackChunkName: "ht-main" */ './ht-main.html')
                   },
                   pat() {
-                      //import(/* webpackChunkName: "ht-pat" */ './ht-pat.html')
+                      import(/* webpackChunkName: "ht-pat" */ './ht-pat.html')
                   },
                   hcp() {
-                      //import(/* webpackChunkName: "ht-hcp" */ './ht-hcp.html')
+                      import(/* webpackChunkName: "ht-hcp" */ './ht-hcp.html')
                   },
                   msg() {
-                      //import(/* webpackChunkName: "ht-msg" */ './ht-msg.html')
+                      import(/* webpackChunkName: "ht-msg" */ './ht-msg.html')
                   },
                   diary(){
-                      //import(/* webpackChunkName: "ht-diary" */ './ht-diary.html')
+                      import(/* webpackChunkName: "ht-diary" */ './ht-diary.html')
                   },
                   admin(){
-                      //import(/* webpackChunkName: "ht-admin" */ './ht-admin.html')
+                      import(/* webpackChunkName: "ht-admin" */ './ht-admin.html')
                   },
                   view404() {
-                      //import(/* webpackChunkName: "ht-view404" */ './ht-view404.html')
+                      import(/* webpackChunkName: "ht-view404" */ './ht-view404.html')
                   }
               }
           },
