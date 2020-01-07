@@ -14,9 +14,10 @@ import './elements/ht-admin/ht-admin-account.js';
 import './elements/ht-admin/ht-admin-reports.js';
 import './elements/ht-admin/ht-admin-menu.js';
 import './styles/shared-styles.js';
-class HtAdmin extends Polymer.Element {
+import {PolymerElement, html} from '@polymer/polymer';
+class HtAdmin extends PolymerElement {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles">
             :host {
                 display: block;

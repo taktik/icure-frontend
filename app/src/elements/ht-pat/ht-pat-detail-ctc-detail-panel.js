@@ -85,7 +85,9 @@ $_documentContainer.innerHTML = `<dom-module id="my-date-picker" theme-for="vaad
 
 document.head.appendChild($_documentContainer.content);
 
-class HtPatDetailCtcDetailPanel extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
 
     static get is() {
 				return 'ht-pat-detail-ctc-detail-panel';

@@ -6,9 +6,11 @@ import "../../../../bower_components/paper-item/paper-item"
 import {customElement, property} from "taktik-polymer-typescript";
 import './font-picker.html'
 
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {PolymerElement, html} from '@polymer/polymer';
 
 @customElement('font-picker')
-export class FontPicker extends Polymer.mixinBehaviors([], Polymer.Element) {
+export class FontPicker extends mixinBehaviors([], PolymerElement) {
 
   $: { editor: HTMLElement, content: HTMLElement } | any
 
@@ -24,7 +26,7 @@ export class FontPicker extends Polymer.mixinBehaviors([], Polymer.Element) {
 
   _onTap(event : any) {
     this.set('font', event.target.id)
-    
+
     this.dispatchEvent(new CustomEvent('font-picker-selected', {detail: {value: this.font}, bubbles:true, composed:true} as EventInit) )
 
     this.$.fontMenuButton.opened = false

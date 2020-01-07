@@ -14,9 +14,11 @@ import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
 import mustache from "mustache/mustache.js"
 
-class HtMsgNew extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dialog-style buttons-style dropdown-style paper-tabs-style shared-styles">
             h2 {
                 margin-block-start:0;
@@ -1124,8 +1126,8 @@ class HtMsgNew extends Polymer.TkLocalizerMixin(Polymer.Element) {
   }
 
   _showSendingMessagePreload() {
-      this._resetLoadingMessage(); 
-      this.set('_isLoading', true ); 
+      this._resetLoadingMessage();
+      this.set('_isLoading', true );
       this._setLoadingMessage({ message:this.localize('ehb.sendingMessage',this.language), icon:"arrow-forward"});
   }
 

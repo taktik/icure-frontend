@@ -22,7 +22,9 @@ import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'
 import { Base64 } from 'js-base64';
 
-class HtMsgList extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtMsgList extends TkLocalizerMixin(PolymerElement) {
 
     static get is() {
         return 'ht-msg-list';

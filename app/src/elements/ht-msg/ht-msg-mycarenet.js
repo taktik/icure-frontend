@@ -5,9 +5,11 @@ import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'
 
-class HtMsgMycarenet extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtMsgMycarenet extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <custom-style>
             <style include="shared-styles">
 

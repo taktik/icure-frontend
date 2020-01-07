@@ -8,9 +8,13 @@ import moment from 'moment/src/moment';
 import promiseLimit from 'promise-limit';
 const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
-class HtImportMfDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtImportMfDialog extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style">
             .subcontent{
                 margin-top: 1px;

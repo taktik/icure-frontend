@@ -6,9 +6,11 @@ import "../../../../bower_components/paper-item/paper-item"
 import {customElement, property} from "taktik-polymer-typescript";
 import './heading-picker.html'
 
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {PolymerElement, html} from '@polymer/polymer';
 
 @customElement('heading-picker')
-export class HeadingPicker extends Polymer.mixinBehaviors([], Polymer.Element) {
+export class HeadingPicker extends mixinBehaviors([], PolymerElement) {
 
   $: { editor: HTMLElement, content: HTMLElement } | any
 

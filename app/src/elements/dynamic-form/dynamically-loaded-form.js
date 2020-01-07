@@ -6,9 +6,11 @@ import {simple} from 'acorn/dist/walk'
 import {parse} from 'acorn'
 import * as evaljs from "evaljs"
 
-class DynamicallyLoadedForm extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="icpc-styles buttons-style">
 
 			.title-bar {

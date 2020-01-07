@@ -4,9 +4,11 @@ import '../../styles/buttons-style.js';
 import juicy from 'juicy-html'
 import moment from 'moment/src/moment'
 
-class WidgetUpdatesHistory extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class WidgetUpdatesHistory extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dialog-style buttons-style">
             .card {
 				color: var(--app-text-color);
@@ -317,7 +319,7 @@ class WidgetUpdatesHistory extends Polymer.TkLocalizerMixin(Polymer.Element) {
       while (target && !target.dataset.update) {
           target = target.parentNode;
       }
-      const update = JSON.parse(target.dataset.update) 
+      const update = JSON.parse(target.dataset.update)
       this.set('selectedUpdate', update)
       this.$['updateDialog'].open()
   }

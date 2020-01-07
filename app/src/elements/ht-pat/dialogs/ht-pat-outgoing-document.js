@@ -19,9 +19,11 @@ import * as models from 'icc-api/dist/icc-api/model/models';
 
 
 
-class HtPatOutgoingDocument extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatOutgoingDocument extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dialog-style buttons-style dropdown-style paper-tabs-style shared-styles">
 
             #outgoingDocumentDialog {

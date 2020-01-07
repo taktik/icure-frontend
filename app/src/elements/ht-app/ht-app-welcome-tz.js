@@ -6,9 +6,11 @@ import _  from 'lodash/lodash'
 
 
 //noinspection JSUnusedGlobalSymbols
-class HtAppWelcomeTz extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAppWelcomeTz extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="shared-styles">
             .backdrop{
                 position: absolute;

@@ -3404,9 +3404,10 @@ module.exports = zScore;
 },{}]},{},[1])(1);
 });
 //# sourceMappingURL=simple-statistics.js.map
-class HtPat extends Polymer.Element {
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPat extends PolymerElement {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles scrollbar-style">
             :host {
                 display: block;

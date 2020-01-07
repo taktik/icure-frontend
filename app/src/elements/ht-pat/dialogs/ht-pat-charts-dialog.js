@@ -8,9 +8,13 @@ import '../../../styles/scrollbar-style.js';
 import '../../../styles/paper-tabs-style.js';
 import Chart from 'chart.js';
 
-class HtPatChartsDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatChartsDialog extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style scrollbar-style paper-tabs-style">
 
             #chartsDialog{
@@ -724,7 +728,7 @@ class HtPatChartsDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors(
 
       if (this.chart)
           this.chart.destroy();
-      
+
       this.chart = new Chart(this.$['chart'], {
           type: chart.info.type,
           data: chart.info.data,

@@ -1,8 +1,9 @@
 import * as api from 'fhc-api/dist/fhcApi'
 
-class FhcApi extends Polymer.Element {
+import {PolymerElement, html} from '@polymer/polymer';
+class FhcApi extends PolymerElement {
   static get template() {
-    return Polymer.html`
+    return html`
         <style>
         </style>
 `;

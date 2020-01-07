@@ -1,8 +1,10 @@
 import '../../styles/buttons-style.js';
 import './dynamic-form.js';
-class DynamicSubForm extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class DynamicSubForm extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="buttons-style">
 			:host {
 				flex-grow: 9999;

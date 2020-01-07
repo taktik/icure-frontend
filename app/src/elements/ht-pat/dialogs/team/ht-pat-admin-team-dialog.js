@@ -16,9 +16,11 @@ import '../../../../styles/shared-styles.js';
 import '../../../../styles/dialog-style.js';
 import '../../../../styles/icpc-styles.js';
 import moment from 'moment/src/moment';
-class HtPatAdminTeamDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatAdminTeamDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="icpc-styles scrollbar-style notification-style buttons-style paper-tabs-style shared-styles dialog-style">
             #hcpInfoDialog{
                 height: calc(98% - 12vh);

@@ -4,9 +4,13 @@ import '../../../styles/dialog-style.js';
 import '../../../styles/paper-tabs-style.js';
 import '../../ht-spinner/ht-spinner.js';
 
-class HtPatEdmgDialog extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatEdmgDialog extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style paper-tabs-style">
             #dialog .ch4-cons{
                 display: flex;

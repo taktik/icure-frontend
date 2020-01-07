@@ -1,9 +1,11 @@
 import '../../../styles/dialog-style.js';
 import _ from 'lodash/lodash';
 
-class HtPatFusionDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatFusionDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style">
             #fusion-dialog{
                 height: calc(100vh - 40px);

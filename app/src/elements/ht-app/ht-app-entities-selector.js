@@ -1,8 +1,11 @@
 import { sha256, sha224 } from 'js-sha256/src/sha256';
 //noinspection JSUnusedGlobalSymbols
-class HtAppEntitiesSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "../tk-localizer";
+
+class HtAppEntitiesSelector extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style>
 
             paper-dialog{

@@ -10,9 +10,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 import './styles/shared-styles.js';
 
 import './elements/ht-spinner/ht-spinner.js';
-class HtMsg extends Polymer.Element {
+import {PolymerElement, html} from '@polymer/polymer';
+class HtMsg extends PolymerElement {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles">
             :host {
                 display: block;

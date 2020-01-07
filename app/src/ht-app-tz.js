@@ -37,9 +37,11 @@ const runtime = require('offline-plugin/runtime');
 
 import io from 'socket.io-client';
 
-class HtAppTz extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAppTz extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dialog-style notification-style buttons-style">
             :host {
                 display: block;

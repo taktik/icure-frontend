@@ -1,9 +1,11 @@
 import './dynamic-link.js';
 import './validator/ht-ssin-validator.js';
 import '../../styles/paper-input-style.js';
-class DynamicTextField extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class DynamicTextField extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="paper-input-style">
 			:host {
 				position: relative;

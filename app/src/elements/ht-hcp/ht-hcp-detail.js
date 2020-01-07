@@ -14,9 +14,11 @@ import './ht-hcp-admin-card.js';
 import './ht-hcp-pat-list.js';
 import './ht-hcp-member-list.js';
 import '../icons/icure-icons.js';
-class HtHcpDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtHcpDetail extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="iron-flex iron-flex-alignment"></style>
 		<style>
 			:host {

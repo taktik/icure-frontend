@@ -14,9 +14,11 @@ import '../../../styles/buttons-style.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 
-class HtAdminAccountAgenda extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminAccountAgenda extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dialog-style buttons-style">
             :host {
                 display: block;

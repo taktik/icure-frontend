@@ -1,9 +1,11 @@
 import '../../styles/shared-styles.js';
 import '../../styles/buttons-style.js';
 
-class HtRegimenItem extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtRegimenItem extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="buttons-style">
             .base {
                 box-sizing: border-box;

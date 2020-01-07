@@ -10,9 +10,11 @@ import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
 import {parse} from "../../../../bower_components/shadycss/src/css-parse";
 
-class MedicationDetails extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class MedicationDetails extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dropdown-style dialog-style atc-styles paper-input-style">
             .container {
                 box-sizing: border-box;

@@ -6,9 +6,11 @@ import '../../../../styles/scrollbar-style.js';
 import * as models from 'icc-api/dist/icc-api/model/models';
 import moment from 'moment/src/moment';
 
-class HtPatHubMedicationSchemeView extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatHubMedicationSchemeView extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style atc-styles scrollbar-style">
             paper-dialog {
                 width: 90%;

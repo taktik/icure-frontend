@@ -15,9 +15,11 @@ import '../../../styles/paper-input-style.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 
-class HtAdminManagementFacturationFlatRate extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminManagementFacturationFlatRate extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dialog-style scrollbar-style paper-input-style">
             :host {
                 display: block;

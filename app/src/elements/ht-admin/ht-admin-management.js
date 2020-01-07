@@ -19,9 +19,11 @@ import './management/ht-admin-management-forms.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 
-class HtAdminManagement extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminManagement extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles">
             :host {
                 display: block;

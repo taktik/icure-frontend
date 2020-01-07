@@ -3,9 +3,11 @@ import '../collapse-button/collapse-button.js';
 
 import styx from '../../../scripts/styx';
 
-class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatHeTreeDetail extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="icpc-styles">
             paper-item.list-info {
                 font-weight: lighter;
@@ -644,7 +646,7 @@ class HtPatHeTreeDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
       switch(privacy) {
           case 'secret':
               return 'icure-svg-icons:privacy';
-          case 'notvisible': 
+          case 'notvisible':
               return 'icons:visibility-off';
           default:
               return ''

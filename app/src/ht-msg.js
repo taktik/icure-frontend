@@ -23,9 +23,11 @@ import './ht-upload-dialog.js';
 import './styles/buttons-style.js';
 import './styles/shared-styles.js';
 
-class HtMsg extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtMsg extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles">
             :host {
                 display: block;

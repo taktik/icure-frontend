@@ -4,9 +4,11 @@ import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 import { Base64 } from 'js-base64';
 
-class PrintDocument extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class PrintDocument extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style>
             .overlaySpinnerContainer {
                 position:absolute;

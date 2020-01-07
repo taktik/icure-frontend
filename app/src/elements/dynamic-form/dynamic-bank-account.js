@@ -1,9 +1,11 @@
 import './validator/ht-iban-validator.js';
 import '../../styles/buttons-style.js';
 
-class DynamicBankAccount extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "../tk-localizer";
+class DynamicBankAccount extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="buttons-style">
 
 			:host {

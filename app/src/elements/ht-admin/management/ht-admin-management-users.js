@@ -16,9 +16,11 @@ import '../../../styles/paper-tabs-style.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 
-class HtAdminManagementUsers extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminManagementUsers extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dialog-style buttons-style paper-input-style paper-tabs-style">
             :host {
                 display: block;

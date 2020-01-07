@@ -3,13 +3,18 @@ import '../ht-spinner/ht-spinner.js';
 import '../../styles/dialog-style.js';
 import '../../styles/buttons-style.js';
 import '../../styles/spinner-style.js';
-import moment from 'moment/src/moment';
-const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
-import _ from 'lodash/lodash';
 
-class HtExportKey extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import moment from 'moment';
+import XLSX from 'xlsx';
+import _ from 'lodash';
+
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style buttons-style spinner-style">
             paper-dialog {
                 width: 90%;

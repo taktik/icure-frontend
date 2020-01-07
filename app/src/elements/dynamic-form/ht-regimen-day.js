@@ -5,9 +5,11 @@ import './ht-regimen-item.js';
 import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
 
-class HtRegimenDay extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtRegimenDay extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="buttons-style dropdown-style dialog-style">
             .regimen-line {
                 display: flex;

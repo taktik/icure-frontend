@@ -35,7 +35,6 @@ import {dropCursor} from 'prosemirror-dropcursor';
 import {gapCursor} from 'prosemirror-gapcursor';
 import {ReplaceStep, StepMap} from "prosemirror-transform";
 import {history, undo, redo, undoDepth, redoDepth} from "prosemirror-history";
-import Element = Polymer.Element;
 import {addColumnAfter, addColumnBefore, addRowAfter, addRowBefore, columnResizing, deleteColumn, deleteRow, deleteTable, goToNextCell, mergeCells, splitCell, tableEditing, tableNodes, toggleHeaderCell, toggleHeaderColumn, toggleHeaderRow} from "prosemirror-tables";
 import {fixTables} from "./fixtables";
 
@@ -46,7 +45,8 @@ import _ from 'lodash';
  *
  */
 @customElement('prose-editor')
-export class ProseEditor extends Polymer.Element {
+export import {PolymerElement, html} from '@polymer/polymer';
+class ProseEditor extends PolymerElement {
   $: { editor: HTMLElement, content: HTMLElement } | any
 
   @property({type: Number})

@@ -10,9 +10,13 @@ import './ht-pat-hub-utils.js';
 import * as models from 'icc-api/dist/icc-api/model/models';
 import moment from 'moment/src/moment';
 
-class HtPatHubSumehrPreview extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatHubSumehrPreview extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style scrollbar-style">
 
             #sumehrPreviewDialog{
@@ -1037,7 +1041,7 @@ class HtPatHubSumehrPreview extends Polymer.TkLocalizerMixin(Polymer.mixinBehavi
                           this.saveCurrentContact().then(c => {
                               this.dispatchEvent(new CustomEvent('hub-download', {}))
                           }).then(res => res);
-                          
+
                       }).finally(() => {
                           console.log("finally of _logUpdateMessage")
                       }).catch(e => {

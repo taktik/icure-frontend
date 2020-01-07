@@ -1,8 +1,10 @@
 import kjua from './kjua-0.1.1.min';
 
-class QrcodePrinter extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class QrcodePrinter extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style>
 			img {
 				display: block;

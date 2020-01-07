@@ -2,9 +2,11 @@ import '../tk-localizer.js';
 import styx from '../../../scripts/styx';
 import moment from 'moment/src/moment'
 
-class PrintToPdfButton extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class PrintToPdfButton extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
       <style>
           paper-button {
               --paper-button-ink-color: var(--app-secondary-color-dark);

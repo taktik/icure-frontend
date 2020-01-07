@@ -1,6 +1,7 @@
-class HtPatMcnChapterIVVerse extends Polymer.Element {
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatMcnChapterIVVerse extends PolymerElement {
   static get template() {
-    return Polymer.html`
+    return html`
         <style>
             ul {
                 list-style: none;

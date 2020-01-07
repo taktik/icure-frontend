@@ -13,9 +13,13 @@ import './ht-pat-hub-utils.js';
 import * as models from 'icc-api/dist/icc-api/model/models';
 import moment from 'moment/src/moment';
 
-class HtPatHubDetail extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatHubDetail extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style scrollbar-style">
 
             #hubDetailDialog{
@@ -818,7 +822,7 @@ class HtPatHubDetail extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Po
       this.set("curHub", propHub.typedValue.stringValue);
       this.set("curEnv", propEnv.typedValue.stringValue);
       this.set("supportBreakTheGlass", false);
-      
+
       const hubConfig = this.$["htPatHubUtils"].getHubConfig(this.curHub, this.curEnv);
 
       this.set('isLoading',true);

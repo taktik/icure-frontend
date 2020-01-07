@@ -1,6 +1,9 @@
 import iban from 'iban';
 
-class HtIbanValidator extends Polymer.mixinBehaviors([Polymer.IronValidatorBehavior], Polymer.Element) {
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {PolymerElement, html} from '@polymer/polymer';
+import {IronValidatorBehavior} from "@polymer/iron-validator-behavior";
+class HtIbanValidator extends mixinBehaviors([IronValidatorBehavior], PolymerElement) {
     static get is() {
         return 'ht-iban-validator';
     }

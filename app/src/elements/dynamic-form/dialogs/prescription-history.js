@@ -14,9 +14,11 @@ const STATUS_PENDING = 4;
 const STATUS_DELIVERED = 8;
 const STATUS_REVOKED = 16;
 
-class PrescriptionHistory extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class PrescriptionHistory extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style paper-input-style dropdown-style buttons-style scrollbar-style atc-styles">
 
             .table-container {

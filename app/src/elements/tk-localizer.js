@@ -1,6 +1,6 @@
 import _ from 'lodash/lodash';
 
-Polymer.TkLocalizerMixin = superClass => class extends superClass {
+export const TkLocalizerMixin = superClass => class extends superClass {
     constructor() {
         super();
     }

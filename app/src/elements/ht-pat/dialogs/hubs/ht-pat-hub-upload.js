@@ -7,9 +7,13 @@ import './ht-pat-hub-transaction-view.js';
 import '../../../../styles/dialog-style.js';
 import * as models from 'icc-api/dist/icc-api/model/models';
 
-class HtPatHubUpload extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatHubUpload extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style">
 
             #hubUploadError{

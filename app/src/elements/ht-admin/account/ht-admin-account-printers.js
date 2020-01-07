@@ -12,9 +12,11 @@ import '../../../styles/dropdown-style.js';
 import '../../../styles/paper-input-style.js';
 import '../../../styles/buttons-style.js';
 
-class HtAdminAccountPrinters extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminAccountPrinters extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dropdown-style paper-input-style buttons-style">
             :host {
                 display: block;

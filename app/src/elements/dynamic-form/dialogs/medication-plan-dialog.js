@@ -18,9 +18,11 @@ const STATUS_PENDING = 4;
 const STATUS_DELIVERED = 8;
 const STATUS_REVOKED = 16;
 
-class MedicationPlanDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class MedicationPlanDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style atc-styles scrollbar-style paper-tabs-style paper-input-style">
             paper-dialog {
                 width: 90%;

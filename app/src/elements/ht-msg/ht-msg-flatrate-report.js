@@ -19,9 +19,11 @@ import jsZip from "jszip/dist/jszip.js";
 import promiseLimit from 'promise-limit';
 import * as retry from "icc-api/dist/icc-x-api/utils/net-utils"
 
-class HtMsgFlatrateReport extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtMsgFlatrateReport extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <custom-style>
             <style include="iron-flex iron-flex-alignment"></style>
             <style include="shared-styles vaadin-icure-theme spinner-style dialog-style buttons-style scrollbar-style paper-tabs-style">

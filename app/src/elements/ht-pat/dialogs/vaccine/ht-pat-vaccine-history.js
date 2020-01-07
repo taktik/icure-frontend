@@ -1,9 +1,11 @@
 import '../../../ht-spinner/ht-spinner.js';
 import _ from 'lodash/lodash';
 
-class HtPatVaccineHistory extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatVaccineHistory extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style">
             #dialog {
                 height: 60vh;

@@ -1,6 +1,8 @@
-class HtPatVaccinePeriod extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatVaccinePeriod extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dialog-style">
             .period{
                 display: flex;

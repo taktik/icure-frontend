@@ -6,9 +6,11 @@ import './dynamic-pills.js';
 
 
 
-class HtServicesList extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtServicesList extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="buttons-style icpc-styles dialog-style">
 
             .form-title-bar-btn {

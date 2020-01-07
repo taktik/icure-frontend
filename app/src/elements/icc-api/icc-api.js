@@ -19,9 +19,10 @@ import {IccInvoiceXApi} from 'icc-api/dist/icc-x-api/icc-invoice-x-api'
 import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
 import {IccClassificationXApi} from 'icc-api/dist/icc-x-api/icc-classification-x-api'
 
-class IccApi extends Polymer.Element {
+import {PolymerElement, html} from '@polymer/polymer';
+class IccApi extends PolymerElement {
   static get template() {
-    return Polymer.html`
+    return html`
         <fhc-api id="fhc-api" host="[[fhcHost]]"></fhc-api>
 `;
   }

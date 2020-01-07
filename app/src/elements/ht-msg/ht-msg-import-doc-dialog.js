@@ -5,9 +5,11 @@ import '../../styles/dialog-style.js';
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 
-class HtMsgImportDocDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtMsgImportDocDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="buttons-style dialog-style">
             .buttons{
                 display: flex;

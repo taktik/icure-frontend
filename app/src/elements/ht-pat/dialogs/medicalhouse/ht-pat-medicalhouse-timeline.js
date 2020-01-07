@@ -8,9 +8,13 @@ import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 
 
-class HtPatMedicalhouseTimeline extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatMedicalhouseTimeline extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="iron-flex iron-flex-alignment"></style>
         <!--suppress CssUnusedSymbol -->
         <style include="icpc-styles scrollbar-style dialog-style buttons-style">

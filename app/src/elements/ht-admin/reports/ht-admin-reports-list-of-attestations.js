@@ -17,9 +17,11 @@ import '../../../../bower_components/js-xlsx/shim.js'
 
 const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
-class HtAdminReportsListOfAttestations extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminReportsListOfAttestations extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dialog-style">
             :host {
                 display: block;

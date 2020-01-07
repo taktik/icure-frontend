@@ -1,9 +1,11 @@
 import '../../styles/icpc-styles.js';
 import '../../styles/buttons-style.js';
 
-class DynamicLink extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class DynamicLink extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="icpc-styles buttons-style">
             paper-menu-button {
                 padding: 0;

@@ -10,9 +10,11 @@ import mustache from "mustache/mustache.js";
 import moment from 'moment/src/moment';
 import base64js from 'base64-js';
 
-class DynamicDoc extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class DynamicDoc extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="buttons-style icpc-styles dialog-style">
 
             ht-spinner.center  {

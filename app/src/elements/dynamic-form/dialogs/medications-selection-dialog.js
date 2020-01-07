@@ -5,9 +5,11 @@ import '../../ht-spinner/ht-spinner.js';
 import _ from 'lodash/lodash'
 import accounting from '../../../../scripts/accounting';
 
-class MedicationsSelectionDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class MedicationsSelectionDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style atc-styles buttons-style">
 
             vaadin-grid {

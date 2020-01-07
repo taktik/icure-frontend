@@ -10,9 +10,11 @@ import './medication-details.js';
 import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
 
-class MedicationDetailsDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class MedicationDetailsDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dropdown-style dialog-style">
             paper-dialog {
                 position: absolute;

@@ -1,7 +1,10 @@
 //noinspection JSUnusedGlobalSymbols
-class HtAppSetupPrompt extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "../tk-localizer";
+
+class HtAppSetupPrompt extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style>
 			paper-dialog{
 				border-radius:2px;
@@ -114,7 +117,7 @@ class HtAppSetupPrompt extends Polymer.TkLocalizerMixin(Polymer.Element) {
 
   static get properties() {
       return {
-          
+
       };
 	}
 

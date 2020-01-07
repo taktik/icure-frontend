@@ -11,9 +11,13 @@ import * as models from 'icc-api/dist/icc-api/model/models';
 import moment from 'moment/src/moment';
 import { Base64 } from 'js-base64';
 
-class HtPatHubTransactionViewSecond extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+import {TkLocalizerMixin} from "../tk-localizer";
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
+import {PolymerElement, html} from '@polymer/polymer';
+class HtPatHubTransactionViewSecond extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dialog-style paper-tabs-style">
 
             #dialog .hub-cons{
@@ -1234,7 +1238,7 @@ class HtPatHubTransactionViewSecond extends Polymer.TkLocalizerMixin(Polymer.mix
           el.endmoment = suspendedMedicItem.endmoment;
           el.lifecycle = suspendedMedicItem.lifecycle;
           el.lnks = suspendedMedicItem.lnks;
-          
+
           //suspension reason
           const reasonItem = elTr.item.find(itm=>itm.cds.find(cd => cd.value === "transactionreason"))
           const reasonContent = reasonItem ? reasonItem.contents.find(it => it.cds.length === 0) : null;

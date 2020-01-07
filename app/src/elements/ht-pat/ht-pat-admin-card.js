@@ -20,9 +20,11 @@ import './ht-pat-admin-team.js';
 import moment from 'moment/src/moment';
 import levenshtein from 'js-levenshtein';
 
-class HtPatAdminCard extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="iron-flex iron-flex-alignment"></style>
 		<style include="scrollbar-style notification-style buttons-style paper-tabs-style shared-styles dialog-style">
 			:host {

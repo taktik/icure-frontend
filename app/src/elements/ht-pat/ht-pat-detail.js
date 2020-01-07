@@ -74,9 +74,11 @@ import { AccessLogDto } from "icc-api/dist/icc-api/model/AccessLogDto";
 const md5 = require('md5');
 const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
-class HtPatDetail extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="iron-flex iron-flex-alignment"></style>
         <!--suppress CssUnusedSymbol -->
         <style include="atc-styles icpc-styles scrollbar-style dialog-style buttons-style dropdown-style notification-style paper-input-style paper-tabs-style shared-styles">

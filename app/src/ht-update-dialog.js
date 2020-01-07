@@ -8,9 +8,11 @@ import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'
 import juicy from 'juicy-html'
 
-class HtUpdateDialog extends Polymer.TkLocalizerMixin(Polymer.Element)  {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtUpdateDialog extends TkLocalizerMixin(PolymerElement)  {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles scrollbar-style dialog-style">
             :host {
                 display: block;

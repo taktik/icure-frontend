@@ -1,8 +1,10 @@
 import '../../styles/notification-style.js';
 import '../../styles/scrollbar-style.js';
-class HtAutoReadEidOpening extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAutoReadEidOpening extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="notification-style scrollbar-style">
 
             #eidOthersChoicesNotif.notification-container{

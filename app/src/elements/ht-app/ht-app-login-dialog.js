@@ -3,9 +3,12 @@ import '../../styles/buttons-style.js';
 import '../ht-spinner/ht-spinner.js';
 
 //noinspection JSUnusedGlobalSymbols
-class HtAppLoginDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "../tk-localizer";
+
+class HtAppLoginDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="buttons-style">
 			paper-dialog{
 				border-radius:2px;

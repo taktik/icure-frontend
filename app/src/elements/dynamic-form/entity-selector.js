@@ -3,9 +3,11 @@ import '../../styles/paper-input-style.js';
 
 import _ from 'lodash/lodash';
 
-class EntitySelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class EntitySelector extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="dialog-style paper-input-style">
 			paper-dialog {
 				width: 80%;

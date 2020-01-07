@@ -16,9 +16,11 @@ import '../../styles/shared-styles.js';
 import '../../styles/dialog-style.js';
 import './dialogs/team/ht-pat-admin-team-dialog.js';
 import moment from 'moment/src/moment';
-class HtPatAdminTeam extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatAdminTeam extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="iron-flex iron-flex-alignment"></style>
         <style include="scrollbar-style notification-style buttons-style paper-tabs-style shared-styles dialog-style">
             :host {

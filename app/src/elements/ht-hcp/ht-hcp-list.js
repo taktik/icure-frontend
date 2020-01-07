@@ -14,9 +14,11 @@ import '../ht-spinner/ht-spinner.js';
 import '../../styles/buttons-style.js';
 import _ from '../../../bower_components/lodash/lodash';
 
-class HtHcpList extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtHcpList extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<custom-style>
 			<style is="custom-style" include="dialog-style paper-input-style buttons-style">
 				:host {

@@ -8,9 +8,11 @@ import '../../styles/tk-token-field-style.js';
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 
-class HealthProblemSelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
 		<style include="dialog-style scrollbar-style dropdown-style vaadin-icure-theme paper-input-style tk-token-field-style">
 			:host{
 				--paper-font-caption: {

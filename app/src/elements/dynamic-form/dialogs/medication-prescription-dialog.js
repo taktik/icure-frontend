@@ -17,9 +17,11 @@ const STATUS_PENDING = 4;
 const STATUS_DELIVERED = 8;
 const STATUS_REVOKED = 16;
 
-class MedicationPrescriptionDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles dialog-style atc-styles buttons-style vaadin-grid-scrollbar-style paper-input-style vaadin-grid-style">
             paper-input, paper-input-container {
                 --paper-input-container-focus-color: var(--app-primary-color);

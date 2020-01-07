@@ -2,7 +2,9 @@ import '../filter-panel/filter-panel.js';
 import '../dynamic-form/dynamically-loaded-form.js';
 import '../dynamic-form/entity-selector.js';
 
-class HtLabHealthone extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtLabHealthone extends TkLocalizerMixin(PolymerElement) {
     static get is() {
 				return 'ht-lab-healthone';
     }

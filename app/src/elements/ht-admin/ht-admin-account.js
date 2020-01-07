@@ -20,9 +20,11 @@ import './account/ht-admin-account-invoice.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 
-class HtAdminAccount extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtAdminAccount extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="shared-styles">
             :host {
                 display: block;

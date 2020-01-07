@@ -33,9 +33,11 @@ import '../../../bower_components/js-xlsx/shim.js'
 const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 import * as models from 'icc-api/dist/icc-api/model/models'
 
-class HtPatList extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class HtPatList extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="dialog-style notification-style paper-input-style dropdown-style"></style>
         <custom-style>
             <style include="custom-style buttons-style">

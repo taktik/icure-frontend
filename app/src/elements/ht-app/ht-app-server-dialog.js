@@ -1,7 +1,10 @@
 //noinspection JSUnusedGlobalSymbols
-class HtAppServerDialog extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "../tk-localizer";
+
+class HtAppServerDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style>
 
             .top-gradient{

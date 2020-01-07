@@ -6,9 +6,11 @@ import {customElement, property} from "taktik-polymer-typescript";
 import './color-picker.html'
 
 import * as chroma from "chroma-js"
+import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
+import {PolymerElement, html} from '@polymer/polymer';
 
 @customElement('color-picker')
-export class ColorPicker extends Polymer.mixinBehaviors([], Polymer.Element) {
+export class ColorPicker extends mixinBehaviors([], PolymerElement) {
 
   $: { editor: HTMLElement, content: HTMLElement } | any
 

@@ -8,9 +8,11 @@ import '../../../styles/vaadin-icure-theme.js';
 import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
 
-class MedicationDetailsDialogOld extends Polymer.TkLocalizerMixin(Polymer.Element) {
+import {PolymerElement, html} from '@polymer/polymer';
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+class MedicationDetailsDialogOld extends TkLocalizerMixin(PolymerElement) {
   static get template() {
-    return Polymer.html`
+    return html`
         <style include="scrollbar-style dropdown-style dialog-style vaadin-icure-theme">
             paper-dialog {
                 position: absolute;
