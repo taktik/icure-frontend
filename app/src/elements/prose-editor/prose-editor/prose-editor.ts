@@ -1,12 +1,14 @@
-import "polymer/polymer.html";
-import "../../../../bower_components/paper-toolbar/paper-toolbar"
-import "../../../../bower_components/paper-icon-button/paper-icon-button"
-import "../../../../bower_components/iron-icons/iron-icons"
-import "../../../../bower_components/iron-icons/editor-icons"
-import "../../../../bower_components/paper-dropdown-menu/paper-dropdown-menu"
-import "../../../../bower_components/paper-listbox/paper-listbox"
-import "../../../../bower_components/paper-item/paper-item"
-import "../../../../bower_components/neon-animation/web-animations"
+import {PolymerElement, html} from '@polymer/polymer';
+import '@polymer/paper-toolbar/paper-toolbar';
+import '@polymer/paper-icon-button/paper-icon-button';
+import '@polymer/iron-icons/iron-icons';
+import '@polymer/iron-icons/editor-icons';
+import '@polymer/paper-dropdown-menu/paper-dropdown-menu';
+import '@polymer/paper-listbox/paper-listbox';
+import '@polymer/paper-item/paper-item';
+import '@polymer/neon-animation/neon-animation';
+
+// import "../../../../bower_components/neon-animation/web-animations"
 
 import "../utils/color-picker.ts"
 import "../utils/heading-picker.ts"
@@ -45,8 +47,7 @@ import _ from 'lodash';
  *
  */
 @customElement('prose-editor')
-export import {PolymerElement, html} from '@polymer/polymer';
-class ProseEditor extends PolymerElement {
+export class ProseEditor extends PolymerElement {
   $: { editor: HTMLElement, content: HTMLElement } | any
 
   @property({type: Number})
