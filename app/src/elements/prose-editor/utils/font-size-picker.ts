@@ -1,13 +1,12 @@
-import "../../../../bower_components/polymer/polymer"
-import "../../../../bower_components/paper-menu-button/paper-menu-button"
-import "../../../../bower_components/paper-button/paper-button"
-import "../../../../bower_components/paper-item/paper-item"
+import {PolymerElement, html} from '@polymer/polymer';
+import '@polymer/paper-menu-button/paper-menu-button';
+import '@polymer/paper-button/paper-button';
+import '@polymer/paper-item/paper-item';
 
 import {customElement, property} from "taktik-polymer-typescript";
 import './font-size-picker.html'
 
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
-import {PolymerElement, html} from '@polymer/polymer';
 
 @customElement('font-size-picker')
 export class FontSizePicker extends mixinBehaviors([], PolymerElement) {
