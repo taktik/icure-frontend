@@ -1,11 +1,11 @@
 import '../../styles/scrollbar-style.js';
 import '../../styles/dialog-style.js';
 import '../../styles/buttons-style.js';
-import juicy from 'juicy-html'
 import moment from 'moment/src/moment'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
+
 class WidgetUpdatesHistory extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

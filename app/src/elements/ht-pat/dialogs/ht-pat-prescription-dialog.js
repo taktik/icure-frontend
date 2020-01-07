@@ -1,7 +1,7 @@
 import '../../../styles/dialog-style.js';
 
 import _ from 'lodash/lodash';
-import JsBarcode from 'JsBarcode';
+import JsBarcode from 'jsbarcode';
 import mustache from "mustache/mustache.js";
 import moment from 'moment/src/moment';
 
