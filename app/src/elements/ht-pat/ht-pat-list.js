@@ -28,13 +28,11 @@ import { filter as icrFilter } from '../../../scripts/filters'
 import {FilterExPrinter} from '../icc-x-api/filterExPrinter'
 
 // To generate download xlsx file
-import '../../../bower_components/js-xlsx/shim.js'
-
-const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 import * as models from 'icc-api/dist/icc-api/model/models'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
+import XLSX from 'xlsx/xlsx'
 class HtPatList extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
