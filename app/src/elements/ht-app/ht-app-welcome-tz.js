@@ -7,7 +7,7 @@ import _  from 'lodash/lodash'
 
 //noinspection JSUnusedGlobalSymbols
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtAppWelcomeTz extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

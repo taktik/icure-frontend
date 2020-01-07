@@ -6,7 +6,7 @@ import './ht-lab-healthone.js';
 // import Encoding from 'encoding-japanese/src/index.js'
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtLabDetails extends TkLocalizerMixin(PolymerElement) {
     static get is() {
 				return 'ht-lab-details';
