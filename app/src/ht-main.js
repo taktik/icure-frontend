@@ -25,7 +25,7 @@ import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "../tk-localizer";
+import {TkLocalizerMixin} from "./elements/tk-localizer";
 class HtMain extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
