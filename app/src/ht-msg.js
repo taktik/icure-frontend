@@ -24,7 +24,7 @@ import './styles/buttons-style.js';
 import './styles/shared-styles.js';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "../tk-localizer";
+import {TkLocalizerMixin} from "./elements/tk-localizer";
 class HtMsg extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

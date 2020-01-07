@@ -72,7 +72,8 @@ import styx from '../../../scripts/styx';
 import { AccessLogDto } from "icc-api/dist/icc-api/model/AccessLogDto";
 
 const md5 = require('md5');
-const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+import XLSX from 'xlsx'
+import 'xlsx/dist/shim.min'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";

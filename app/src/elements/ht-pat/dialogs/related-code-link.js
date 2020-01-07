@@ -1,5 +1,5 @@
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "../tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
 class RelatedCodeLink extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

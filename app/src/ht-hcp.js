@@ -12,7 +12,7 @@ import './styles/shared-styles.js';
 import './elements/ht-hcp/ht-hcp-list.js';
 import './elements/ht-hcp/ht-hcp-detail.js';
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "../tk-localizer";
+import {TkLocalizerMixin} from "./elements/tk-localizer";
 class HtHcp extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
