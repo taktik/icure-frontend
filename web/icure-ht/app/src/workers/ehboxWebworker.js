@@ -54,7 +54,7 @@ onmessage = e => {
         const iccClassificationXApi = new iccXApi.IccClassificationXApi(iccHost, iccHeaders,iccCryptoXApi)
 
         const iccFormXApi		    = new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
+		const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccFormXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
         const iccMessageXApi        = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi, iccInsuranceApi, iccEntityrefApi, iccIccInvoiceXApi, iccDocumentXApi, iccReceiptXApi, iccPatientXApi)
 
         let totalNewMessages = {
@@ -154,13 +154,6 @@ onmessage = e => {
 
                         if (!!_.get(singleAssignResult,"assigned",false)) {
                             assignedMap[_.trim(_.get(singleAssignResult,"contactId",""))] = _.trim(_.get(singleAssignResult,"protocolId",""))
-                            accesslogApi.createAccessLog({
-                                id: iccCryptoXApi.randomUuid(),
-                                patientId: _.trim(_.get(singleAssignResult,"patientId","")),
-                                user: _.trim(_.get(user,"id","")),
-                                date: +new Date(),
-                                accessType: 'USER_ACCESS'
-                            }).catch(e=>console.log("ERROR with createAccessLog: ", e))
                         } else {
                             unassignedList.push(singleAssignResult.protocolId)
                         }
@@ -276,8 +269,20 @@ onmessage = e => {
                         return (_.trim(_.get(docInfo,"ssin","something")) === _.trim(_.get(p,"ssin","else")))
                     })
 
-                    const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
+                    // const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
+                    const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0)) ? parseInt(_.get(docInfo,"demandDate",0)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
+
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
+
+					// 20191217 - If you're using crypto, it would have been nice to instanciate the crypto class as well Mister Carolais :-)
+					// if(_.size(candidates) === 1){
+                    // 	const log= {}
+					// 	log.accessType= 'SYSTEM_ACCESS'
+					// 	log.detail = "Save Assignment in Message panel"
+                    // 	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
+					// 		accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
+					// 	}).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    // }
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
@@ -408,13 +413,14 @@ onmessage = e => {
         const registerNewMessage = (fullMessageFromEHealthBox, boxId) => {
 
             const promResolve = Promise.resolve()
+			const excludedFileExtensions = ["pdf","jpg","jpeg","gif","png","doc","docx","xls","xlsx","ppt","pptx"]
             const base64RegExp = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/
             const ehBoxAnnexes = _.get(fullMessageFromEHealthBox,"annex",[])
             const labResultHeaderRegExp = /A1\\.*\\.*([\\])*([.*])*/gi
             const a1HeadersByAnnexesKey = _.map(ehBoxAnnexes, singleAnnex => {
-                // singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!(!!_.trim(_.get(singleAnnex,"content","")) && base64RegExp.test(_.trim(_.get(singleAnnex,"content","")))) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
+				const fileExtension = _.lowerCase(_.trim(( !!_.trim(_.get(singleAnnex,"filename","")) ? _.trim(_.get(singleAnnex,"filename","")) : _.trim(_.get(singleAnnex,"title","")) ).split(".").pop()));
                 singleAnnex.textContent = !!_.trim(_.get(singleAnnex,"textContent","")) ? _.trim(_.get(singleAnnex,"textContent","")) : !!_.trim(_.get(singleAnnex,"content","")) ? Base64.decode(_.trim(_.get(singleAnnex,"content",""))) : ""
-                return _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp)
+                return ( !_.trim(fileExtension) || excludedFileExtensions.indexOf(fileExtension) === -1) ? _.trim(_.get(singleAnnex,"textContent","")).match(labResultHeaderRegExp) : false
             })
             const splittedEhBoxAnnexes = _.flatMap(_.map(ehBoxAnnexes, (singleAnnex,annexKey) => ( !_.size(a1HeadersByAnnexesKey[annexKey]) || _.size(a1HeadersByAnnexesKey[annexKey]) === 1 ) ?
                 [singleAnnex] : // Not a lab result OR lab result with only one patient, let go as such
