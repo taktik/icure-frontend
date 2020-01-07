@@ -6,7 +6,8 @@ import '../../../styles/notification-style.js';
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 import promiseLimit from 'promise-limit';
-const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+
+import XLSX from 'xlsx'
 
 import {TkLocalizerMixin} from "../../tk-localizer";
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
