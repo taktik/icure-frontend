@@ -1,13 +1,12 @@
-import "../../../../bower_components/polymer/polymer"
-import "../../../../bower_components/paper-menu-button/paper-menu-button"
-import "../../../../bower_components/paper-icon-button/paper-icon-button"
-import "../../../../bower_components/iron-icons/editor-icons"
+import {PolymerElement, html} from '@polymer/polymer';
+import '@polymer/paper-menu-button/paper-menu-button';
+import '@polymer/paper-icon-button/paper-icon-button';
+import '@polymer/iron-icons/editor-icons';
 import {customElement, property} from "taktik-polymer-typescript";
 import './color-picker.html'
 
 import * as chroma from "chroma-js"
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
-import {PolymerElement, html} from '@polymer/polymer';
 
 @customElement('color-picker')
 export class ColorPicker extends mixinBehaviors([], PolymerElement) {
