@@ -1,10 +1,8 @@
-import '../tk-localizer.js';
-import styx from '../../../scripts/styx';
-import moment from 'moment/src/moment'
+<link rel="import" href="../../../bower_components/polymer/polymer.html">
+<script type="module" src="../tk-localizer.js"></script>
 
-class PrintToPdfButton extends Polymer.TkLocalizerMixin(Polymer.Element) {
-  static get template() {
-    return Polymer.html`
+<dom-module id="print-to-pdf-button">
+  <template>
       <style>
           paper-button {
               --paper-button-ink-color: var(--app-secondary-color-dark);
@@ -18,9 +16,14 @@ class PrintToPdfButton extends Polymer.TkLocalizerMixin(Polymer.Element) {
           }
       </style>
       <paper-button on-tap="_print">[[localize('print','Print',language)]]</paper-button>
-`;
-  }
+  </template>
+</dom-module>
+<script type="module">
+import '../tk-localizer.js';
+import styx from '../../../scripts/styx';
+import moment from 'moment/src/moment'
 
+class PrintToPdfButton extends Polymer.TkLocalizerMixin(Polymer.Element) {
   static get is() {
     return 'print-to-pdf-button';
   }
@@ -102,3 +105,4 @@ ${el.outerHTML}
   }
 }
 customElements.define(PrintToPdfButton.is, PrintToPdfButton);
+</script>

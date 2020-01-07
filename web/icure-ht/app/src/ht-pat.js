@@ -11,9 +11,6 @@ import './elements/icc-api/icc-api.js';
 
 import './elements/ht-pat/ht-pat-list.js';
 import './elements/ht-pat/ht-pat-detail.js';
-import './elements/ht-lab/ht-lab-details.js';
-import './elements/ht-pat/ht-pat-detail-chart.js';
-import './elements/utils/print-to-pdf-button.js';
 import './styles/shared-styles.js';
 import './styles/scrollbar-style.js';
 import './elements/ht-spinner/ht-spinner.js';
