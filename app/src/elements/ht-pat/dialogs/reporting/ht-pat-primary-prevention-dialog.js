@@ -7,10 +7,11 @@ import '../../../../styles/dialog-style.js';
 import '../../../../styles/scrollbar-style.js';
 import '../../../../styles/paper-tabs-style.js';
 import moment from 'moment/src/moment';
-import '../../../../../bower_components/js-xlsx/shim.js'
-const XLSX = require('../../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
-import {TkLocalizerMixin} from "../../tk-localizer";
+import XLSX from 'xlsx'
+import 'xlsx/dist/shim.min'
+
+import {TkLocalizerMixin} from "../../../tk-localizer";
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
 import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
 import {PolymerElement, html} from '@polymer/polymer';
