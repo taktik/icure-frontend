@@ -12,7 +12,7 @@ import '../../styles/dialog-style.js';
 import '../../styles/paper-input-style.js';
 import '../ht-spinner/ht-spinner.js';
 import '../../styles/buttons-style.js';
-import _ from '../../../bower_components/lodash/lodash';
+import _ from 'lodash'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
