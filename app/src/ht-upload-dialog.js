@@ -7,7 +7,8 @@ import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from ../tk-localizer";
+import {TkLocalizerMixin} from "./elements/tk-localizer";
+
 class HtUploadDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

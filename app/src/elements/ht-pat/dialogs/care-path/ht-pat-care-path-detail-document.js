@@ -12,7 +12,6 @@ import '../../../../styles/shared-styles.js';
 import '../../../../styles/paper-tabs-style.js';
 import * as models from 'icc-api/dist/icc-api/model/models';
 import moment from 'moment/src/moment';
-import juicy from 'juicy-html'
 import mustache from "mustache/mustache.js";
 import Chart from 'chart.js';
 

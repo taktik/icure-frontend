@@ -2,14 +2,92 @@ import {PolymerElement, html} from '@polymer/polymer';
 import '@polymer/paper-menu-button/paper-menu-button';
 import '@polymer/paper-icon-button/paper-icon-button';
 import '@polymer/iron-icons/editor-icons';
-import {customElement, property} from "taktik-polymer-typescript";
-import './color-picker.html'
+import {customElement, property} from "@polymer/decorators";
 
 import * as chroma from "chroma-js"
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
 
 @customElement('color-picker')
-export class ColorPicker extends mixinBehaviors([], PolymerElement) {
+export class ColorPicker extends PolymerElement {
+
+  static get template() {
+    return html`
+    <!--
+This is a very simple Polymer color-picker that will allow you to choose one
+of the Material Design colors.
+Example:
+    <polymer-color-picker></polymer-color-picker>
+    <polymer-color-picker color="{{selectedColor}}"></polymer-color-picker>
+You can configure the color palette being used using the \`colorList\` array and
+the \`columnCount\` property, which specifies how many "generic" colours (i.e. columns
+in the picker) you want to display.
+    <polymer-color-picker column-count=5 color-list='["#65a5f2", "#83be54", "#f0d551", "#e5943c", "#a96ddb"]'></polymer-color-picker>
+### Styling
+The following custom properties and mixins are available for styling:
+Custom property | Description | Default
+----------------|-------------|----------
+\`--polymer-color-picker-color-size\` | The size of each of the color boxes | \`20px\`
+\`--polymer-color-picker-icon-size\` | The size of the color picker icon | \`40px\`
+\`--polymer-color-picker-icon\` | Mixin applied to the color picker icon | \`{}\`
+@element polymer-color-picker
+@demo demo/index.html
+-->
+        <style>
+            .box {
+                font-size: 0;
+                overflow: hidden;
+                -ms-flex-direction: column;
+                -webkit-flex-direction: column;
+                flex-direction: column;
+                display: -ms-flexbox;
+                display: -webkit-flex;
+                display: flex;
+                -ms-flex-wrap: wrap;
+                -webkit-flex-wrap: wrap;
+                flex-wrap: wrap;
+                overflow: hidden;
+            }
+
+            .color {
+                box-sizing: border-box;
+                width: var(--polymer-color-picker-color-size, 20px);
+                height: var(--polymer-color-picker-color-size, 20px);
+                display: inline-block;
+                padding: 0;
+                margin: 0;
+                cursor: pointer;
+            }
+
+            .color:hover {
+                background: currentColor;
+                transform: scale(1.3, 1.3);
+            }
+
+            paper-menu-button {
+                padding: 0;
+            }
+
+            paper-icon-button {
+                width: var(--polymer-color-picker-icon-size, 40px);
+                height: var(--polymer-color-picker-icon-size, 40px);
+                @apply(--polymer-color-picker-icon);
+            }
+        </style>
+
+        <paper-menu-button id="button" vertical-offset="42" horizontal-offset="16" on-opened-changed="_layout">
+            <paper-icon-button
+                    id="iconButton"
+                    icon="[[icon]]"
+                    slot="dropdown-trigger"
+                    alt="color picker">
+            </paper-icon-button>
+            <div slot="dropdown-content" class="dropdown-content box" on-tap="_onTap" id="box">
+                <template is="dom-repeat" items="{{colorList}}">
+                    <div class="color">{{item}}</div>
+                </template>
+            </div>
+        </paper-menu-button>`
+  }
 
   $: { editor: HTMLElement, content: HTMLElement } | any
 
@@ -24,11 +102,6 @@ export class ColorPicker extends mixinBehaviors([], PolymerElement) {
 
   @property({type: Number})
   columnCount = 18
-
-
-  constructor() {
-    super()
-  }
 
   _layout() {
     const colorBoxes = this.root!!.querySelectorAll('.color')

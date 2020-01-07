@@ -12,16 +12,14 @@ import '../../../../styles/shared-styles.js';
 import '../../../../styles/paper-tabs-style.js';
 import './ht-pat-care-path-detail-document.js';
 import './ht-pat-care-path-detail-procedure.js';
-import * as models from 'icc-api/dist/icc-api/model/models';
 import moment from 'moment/src/moment';
-import juicy from 'juicy-html'
-import mustache from "mustache/mustache.js";
 import Chart from 'chart.js';
 
 import {TkLocalizerMixin} from "../../../tk-localizer";
 import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
 import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
 import {PolymerElement, html} from '@polymer/polymer';
+
 class HtPatCarePathDetailDialog extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
     return html`
