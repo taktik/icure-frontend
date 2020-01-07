@@ -15,15 +15,14 @@ import '../../../styles/dialog-style.js';
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 import { Base64 } from 'js-base64';
-import '../../../../bower_components/js-xlsx/shim.js'
 import jsZip from "jszip/dist/jszip.js";
 
-const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
-
-
+import XLSX from 'xlsx'
+import 'xlsx/dist/shim.min'
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../../tk-localizer";
+
 class HtPatDocumentsDirectoryDialog extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

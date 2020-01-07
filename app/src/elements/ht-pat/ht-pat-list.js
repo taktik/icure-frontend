@@ -28,9 +28,9 @@ import { filter as icrFilter } from '../../../scripts/filters'
 import {FilterExPrinter} from '../icc-x-api/filterExPrinter'
 
 // To generate download xlsx file
-import '../../../bower_components/js-xlsx/shim.js'
+import XLSX from 'xlsx'
+import 'xlsx/dist/shim.min'
 
-const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 import * as models from 'icc-api/dist/icc-api/model/models'
 
 import {PolymerElement, html} from '@polymer/polymer';

@@ -9,7 +9,6 @@ import './medication-details.js';
 import _ from 'lodash/lodash'
 import accounting from '../../../../scripts/accounting';
 import moment from 'moment/src/moment';
-import me from "../../../../bower_components/moment/src/locale/me";
 
 const STATUS_NOT_SENT = 1;
 const STATUS_SENT = 2;

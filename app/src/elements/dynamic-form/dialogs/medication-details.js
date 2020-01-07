@@ -8,7 +8,6 @@ import '../ht-regimen-day.js';
 
 import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
-import {parse} from "../../../../bower_components/shadycss/src/css-parse";
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../../tk-localizer";

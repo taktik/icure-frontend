@@ -11,14 +11,11 @@ import '../../../styles/dialog-style.js';
 
 
 import moment from 'moment/src/moment';
-import _ from 'lodash/lodash';
-import * as models from 'icc-api/dist/icc-api/model/models'
-
-import '../../../../bower_components/js-xlsx/shim.js'
 
 import Chart from 'chart.js';
 
-const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
+import XLSX from 'xlsx'
+import 'xlsx/dist/shim.min'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../../tk-localizer";
