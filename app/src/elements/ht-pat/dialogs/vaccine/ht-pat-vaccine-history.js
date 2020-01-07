@@ -2,7 +2,7 @@ import '../../../ht-spinner/ht-spinner.js';
 import _ from 'lodash/lodash';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../../../tk-localizer";
 class HtPatVaccineHistory extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

@@ -1,7 +1,7 @@
 import '../dynamic-form/ckmeans-grouping.js';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtPatDetailChart extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

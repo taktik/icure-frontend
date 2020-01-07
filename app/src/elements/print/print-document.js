@@ -5,7 +5,7 @@ import moment from 'moment/src/moment';
 import { Base64 } from 'js-base64';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class PrintDocument extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

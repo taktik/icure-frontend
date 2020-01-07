@@ -3,7 +3,7 @@ import '../dynamic-form/dynamically-loaded-form.js';
 import '../dynamic-form/entity-selector.js';
 
 import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "./elements/tk-localizer";
+import {TkLocalizerMixin} from "../tk-localizer";
 class HtLabHealthone extends TkLocalizerMixin(PolymerElement) {
     static get is() {
 				return 'ht-lab-healthone';
