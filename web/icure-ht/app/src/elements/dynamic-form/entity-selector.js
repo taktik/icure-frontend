@@ -1,0 +1,230 @@
+import '../../styles/dialog-style.js';
+import '../../styles/paper-input-style.js';
+
+import _ from 'lodash/lodash';
+
+class EntitySelector extends Polymer.TkLocalizerMixin(Polymer.Element) {
+  static get template() {
+    return Polymer.html`
+		<style include="dialog-style paper-input-style">
+			paper-dialog {
+				width: 80%;
+			}
+
+			paper-dialog .content{
+				padding-bottom: 45px;
+			}
+
+			paper-input{
+				margin: 0 12px 12px;
+				--paper-input-container-input: {
+					height: 22px;
+					font-size: var(--font-size-normal);
+					line-height: var(--font-size-normal);
+					padding: 0 8px;
+					box-sizing: border-box;
+					background: var(--app-input-background-color);
+					border-radius: 4px 4px 0 0;
+				}
+			}
+
+			vaadin-grid {
+				margin: 0 12px;
+				--vaadin-grid-body-row-hover-cell: {
+					background-color: var(--app-primary-color);
+					color: white;
+				};
+				--vaadin-grid-body-row-selected-cell: {
+					background-color: var(--app-primary-color);
+					color: white;
+				};
+			}
+
+			.modal-title{
+				justify-content: flex-start;
+			}
+		</style>
+
+		<paper-dialog id="dialog">
+			<h2 class="modal-title">
+			    <template is="dom-if" if="[[entityIcon]]"><iron-icon icon="[[entityIcon]]"></iron-icon> &nbsp;</template>
+			    [[localize('sel','Select',language)]] [[entityType]]
+			</h2>
+			<div class="content">
+				<paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" autofocus="" on-keydown="refresh" always-float-label=""></paper-input>
+				<vaadin-grid id="entities-list" class="material" active-item="{{activeItem}}" on-tap="click">
+					<template is="dom-repeat" items="[[columns]]" as="column">
+						<vaadin-grid-column width="100px">
+							<template class="header">
+								<vaadin-grid-sorter path="[[_key(column)]]">[[column.title]]</vaadin-grid-sorter>
+							</template>
+							<template>
+								<div class="cell frozen">[[_cellContent(item, column)]]</div>
+							</template>
+						</vaadin-grid-column>
+					</template>
+				</vaadin-grid>
+			</div>
+			<slot name="suffix"></slot>
+			<div class="buttons">
+				<paper-button class="button button--other" dialog-dismiss=""><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+				<paper-button class="button button--save" dialog-confirm="" on-tap="confirm"><iron-icon icon="icons:check"></iron-icon>[[localize('sel','Select',language)]]</paper-button>
+			</div>
+		</paper-dialog>
+`;
+  }
+
+  static get is() {
+      return 'entity-selector';
+	}
+
+  static get properties() {
+      return {
+          columns: {
+              type: Array,
+              value: function () {
+                  return [];
+              }
+          },
+
+          entityType: {
+              type: String,
+              value: 'entity'
+          },
+
+          entityIcon: {
+              type: String,
+              value: ""
+          },
+
+          entity: {
+              type: Object,
+              value: function () {
+                  return {};
+              },
+              notify: true
+          },
+
+          okLabel: {
+              type: String
+          },
+
+          filterValue: {
+              type: String
+          },
+
+          dataProvider: {
+              type: Object,
+              value: null
+          },
+
+          activeItem: {
+              type: Object,
+              value: null,
+              observer: "_activeItemChanged"
+          }
+
+      };
+	}
+
+  constructor() {
+      super();
+	}
+
+  ready() {
+      super.ready();
+
+      if(!_.trim(_.get(this,"entityType"))) this.set('entityType',this.localize('entity','entity',this.language))
+
+      var grid = this.$['entities-list'];
+
+      grid.lastParams = null; //Used to prevent double calls
+      grid.size = 0;
+      grid.pageSize = 50;
+      grid.dataProvider = function (params, callback) {
+          const sort = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].path || this.columns[0] && this._key(this.columns[0]);
+          const desc = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].direction === 'desc' || false;
+
+          const pageSize = params.pageSize || grid.pageSize;
+          const startIndex = (params.page || 0) * pageSize;
+          const endIndex = ((params.page || 0) + 1) * pageSize;
+
+          const thisParams = this.filterValue + "|" + sort + "|" + (desc ? "<|" : ">|") + startIndex + ":" + pageSize + ":";
+
+          let latestSearchValue = this.filterValue;
+          this.latestSearchValue = latestSearchValue;
+          if (!latestSearchValue || latestSearchValue.length < 2) {
+              //grid.set("size", 0);
+              callback([], 0);
+              return;
+          }
+
+          grid.lastParams = thisParams;
+          this.dataProvider && this.dataProvider.filter(latestSearchValue, endIndex || grid.pageSize, params.index, sort, desc).then(function (res) {
+              if (this.filterValue !== latestSearchValue) return;
+              callback(_.slice(res.rows, startIndex, endIndex), res.totalSize);
+          }.bind(this));
+      }.bind(this);
+	}
+
+  _cellContent(item, column) {
+      return _.isFunction(column.key) ? column.key(item) : _.get(item, column.key);
+	}
+
+  _key(column) {
+      return _.isFunction(column.key) ? column.sortKey : column.key;
+	}
+
+  click(e) {
+      const selected = this.activeItem;
+      if (this.inDoubleClick && (this.latestSelected === selected || this.latestSelected && !selected || !this.latestSelected && selected)) {
+          this.select(this.latestSelected || selected);
+      } else {
+          this.latestSelected = selected;
+          this.inDoubleClick = true;
+          this.set('entity', _.assign(_.assign({}, this.entity || {}), selected));
+          setTimeout(() => {
+              delete this.inDoubleClick;
+          }, 500);
+      }
+	}
+
+  forceRefresh() {
+      this.latestSearchValue = false
+      setTimeout(function () { this.shadowRoot.querySelector('#entities-list') && this.shadowRoot.querySelector('#entities-list').clearCache() }.bind(this), 500)
+	}
+
+  refresh() {
+      //Give the gui the time to update the field
+      setTimeout(function () {
+          let currentValue = this.filterValue;
+          if (this.latestSearchValue === currentValue) { return; }
+          // Imrpove with lodash _.defer
+          setTimeout(function () { if (currentValue === this.filterValue) { this.$['entities-list'].clearCache(); } }.bind(this), 500); //Wait for the user to stop typing
+      }.bind(this), 100);
+	}
+
+  confirm() {
+      if (this.entity || this.activeItem) {
+          this.select(this.entity || this.activeItem);
+      }
+	}
+
+  select(item) {
+      if (item) {
+          this.dispatchEvent(new CustomEvent('entity-selected', { detail: item, composed: true }));
+          this.$.dialog.close();
+      }
+	}
+
+  open() {
+      this.$.dialog.open();
+	}
+
+  _activeItemChanged(item) {
+      var grid = this.$['entities-list'];
+      grid.selectedItems = item ? [item] : [];
+	}
+}
+
+customElements.define(EntitySelector.is, EntitySelector);
