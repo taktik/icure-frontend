@@ -349,6 +349,7 @@ import moment from 'moment/src/moment';
     a.parentNode.removeChild(a);
   };
 
+  if (!window.Polymer) window.Polymer = {}
   window.Polymer.Reader = Reader;
 })(window);
 /**

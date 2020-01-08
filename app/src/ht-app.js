@@ -30,6 +30,47 @@ import './elements/ht-spinner/ht-spinner.js';
 import './elements/icons/icure-icons.js';
 import './styles/notification-style.js';
 import './styles/buttons-style.js';
+
+import "@polymer/app-layout/app-drawer-layout/app-drawer-layout"
+import "@polymer/app-layout/app-header/app-header"
+import "@polymer/app-layout/app-header-layout/app-header-layout"
+import "@polymer/app-layout/app-toolbar/app-toolbar"
+import "@polymer/app-route/app-location"
+import "@polymer/app-route/app-route"
+import "./elements/ht-app/ht-app-entities-selector"
+import "./elements/ht-app/ht-app-first-login-dialog"
+import "./elements/ht-app/ht-app-login-dialog"
+import "./elements/ht-app/ht-app-register-keypair-dialog"
+import "./elements/ht-app/ht-app-setup-prompt"
+import "./elements/ht-app/ht-app-welcome-tz"
+import "./elements/ht-spinner/ht-spinner"
+import "./elements/ht-tools/ht-access-log"
+import "./elements/ht-tools/ht-export-key"
+import "./elements/ht-tools/ht-import-keychain"
+import "./elements/ht-tools/ht-my-profile"
+import "./elements/splash-screen/splash-screen"
+import "./ht-admin"
+import "./ht-diary"
+import "./ht-hcp"
+import "./ht-main"
+import "./ht-msg"
+import "./ht-pat"
+import "./ht-view404"
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-pages/iron-pages"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-card/paper-card"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@polymer/paper-menu-button/paper-menu-button"
+import "@polymer/paper-tabs/paper-tab"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
 const runtime = require('offline-plugin/runtime');
@@ -810,8 +851,6 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
             <h3>Lien de première connexion</h3>
             <h4>[[invitedHcpLink]]</h4>
         </paper-dialog>
-
-
 
         <paper-dialog id="ht-invite-hcp-user-already-exists">
             <h3>[[localize('warning','Attention',language)]]</h3>
