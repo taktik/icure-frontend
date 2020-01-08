@@ -51,6 +51,18 @@ import './ht-view404'
 import './ht-update-dialog'
 
 import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-icons/iron-icons"
+import "@polymer/iron-icons/av-icons"
+import "@polymer/iron-icons/communication-icons"
+import "@polymer/iron-icons/device-icons"
+import "@polymer/iron-icons/editor-icons"
+import "@polymer/iron-icons/hardware-icons"
+import "@polymer/iron-icons/image-icons"
+import "@polymer/iron-icons/maps-icons"
+import "@polymer/iron-icons/notification-icons"
+import "@polymer/iron-icons/places-icons"
+import "@polymer/iron-icons/social-icons"
+
 import "@polymer/iron-pages/iron-pages"
 import "@polymer/iron-collapse/iron-collapse"
 
