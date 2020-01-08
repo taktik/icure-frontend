@@ -1,9 +1,16 @@
 import './ht-app-server-dialog.js';
 import '../../styles/shared-styles.js';
 
-import { HealthcarePartyDto } from 'icc-api/dist/icc-api/model/models'
-import _  from 'lodash/lodash'
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@polymer/paper-dialog/paper-dialog"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
 
+import { HealthcarePartyDto } from 'icc-api/dist/icc-api/model/models'
 
 //noinspection JSUnusedGlobalSymbols
 import {PolymerElement, html} from '@polymer/polymer';

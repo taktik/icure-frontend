@@ -9,7 +9,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 */
 import '../../../styles/dialog-style.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-input/paper-input"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models';
 
@@ -322,7 +327,7 @@ class HtAdminAccountInvoice extends TkLocalizerMixin(PolymerElement) {
                   this.$["modifyInvoiceReference"].close()
                   this._dataProvider()
               })
-       
+
           }else{
               this.set('batchReferenceError', this.localize("err-bat-num", "Error: batch number can't be lower than the previous", this.language))
           }

@@ -15,9 +15,16 @@ import '../../styles/buttons-style.js';
 import '../dynamic-form/dynamic-doc.js';
 import '../pdf-element/pdf-element.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-card/paper-card"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-date-picker/vaadin-date-picker"
+import "@vaadin/vaadin-text-field/vaadin-text-area"
+import "@vaadin/vaadin-text-field/vaadin-text-field"
+
 import _ from 'lodash/lodash';
-import moment from 'moment/src/moment';
-import XML from 'parse-xml/dist/parse-xml';
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";

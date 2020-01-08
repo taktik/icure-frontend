@@ -12,6 +12,16 @@ import "@polymer/paper-item/paper-item"
 import "@polymer/paper-listbox/paper-listbox"
 
 //noinspection JSUnusedGlobalSymbols
+
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 
@@ -178,27 +188,27 @@ class HtAppLoginDialog extends TkLocalizerMixin(PolymerElement) {
 		<paper-dialog id="loginDialog" opened="{{opened}}" modal="">
 			<div class="top-gradient">&nbsp;</div>
 			<div style="text-align: center;"><!--img src="images/logo.png" style="width: 100px;" /--><h1>[[localize('Topaz','Topaz',language)]]</h1></div>
-			<div hidden\$="{{!credentials.error}}" class="message error">
+			<div hidden$="{{!credentials.error}}" class="message error">
 				[[localize('inv_use_or_pas','Invalid username or password.',language)]]
 			</div>
-			<div hidden\$="{{!credentials.logout}}" class="message">
+			<div hidden$="{{!credentials.logout}}" class="message">
 				[[localize('you_hav_bee_log_out','You have been logged out.',language)]]
 			</div>
 			<form is="form" id="login-form">
 				<div class="layout vertical center flex">
-					<paper-input id="username" label="Username" name="username" always-float-label="true" value="{{credentials.username}}" invalid\$="{{credentials.error}}"></paper-input>
-					<paper-input label="Password" name="password" type="password" always-float-label="true" value="{{credentials.password}}" on-keydown="checkForEnter" invalid\$="{{credentials.error}}"></paper-input>
+					<paper-input id="username" label="Username" name="username" always-float-label="true" value="{{credentials.username}}" invalid$="{{credentials.error}}"></paper-input>
+					<paper-input label="Password" name="password" type="password" always-float-label="true" value="{{credentials.password}}" on-keydown="checkForEnter" invalid$="{{credentials.error}}"></paper-input>
                     <paper-input label="2FA (optional)" name="twofa" always-float-label="true" value="{{credentials.twofa}}" on-keydown="checkForEnter"></paper-input>
 					<paper-input label="Ehealth password (optional)" name="password" type="password" always-float-label="true" value="{{credentials.ehpassword}}" on-keydown="checkForEnter"></paper-input>
 					<!-- <paper-dropdown-menu  label="Database server" vertical-align="bottom" horizontal-align="left">
 						<paper-listbox class="server-list" slot="dropdown-content" selected="{{dbServerSelected}}" selected-item="{{dbServerObject}}">
 							<paper-item data-server="http://127.0.0.1">Local</paper-item>
 							<template is="dom-repeat" items="[[dbServers]]" as="server" index-as="index">
-								<paper-item class="server-item" data-server\$="[[server.url]]">
+								<paper-item class="server-item" data-server$="[[server.url]]">
 									<div>
 										[[server.name]]
 									</div>
-									<paper-icon-button noink icon="icons:clear" data-index\$="[[index]]" class="server-icon" title="delete" on-click="_handleServerDelete"></paper-icon-button>
+									<paper-icon-button noink icon="icons:clear" data-index$="[[index]]" class="server-icon" title="delete" on-click="_handleServerDelete"></paper-icon-button>
 								</paper-item>
 							</template>
 							<paper-item class="server-item">
@@ -218,8 +228,8 @@ class HtAppLoginDialog extends TkLocalizerMixin(PolymerElement) {
                         </paper-button>
                     </template>
                     <!--<template is="dom-if" if="[[showMoreOption]]">-->
-                    <div class\$="login-options-container visible-[[showMoreOption]]">
-                        <div class\$="login-options visible-[[showMoreOption]]">
+                    <div class$="login-options-container visible-[[showMoreOption]]">
+                        <div class$="login-options visible-[[showMoreOption]]">
                             <ht-app-server-dialog id="icure-servers-list" title="iCure [[localize('server', 'server', language)]]" server-name="icure" local-url="[[defaultIcureUrl]]" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]"></ht-app-server-dialog>
 
                             <ht-app-server-dialog id="fhc-servers-list" title="Free Health Connector [[localize('server', 'server', language)]]" server-name="fhc" local-url="[[defaultFhcUrl]]" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]"></ht-app-server-dialog>

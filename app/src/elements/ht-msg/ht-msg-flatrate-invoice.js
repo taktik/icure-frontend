@@ -7,6 +7,16 @@ import '../../styles/shared-styles.js';
 import '../ht-pat/dialogs/ht-pat-invoicing-dialog.js';
 import '../ht-pat/dialogs/medicalhouse/ht-pat-flatrate-utils.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-date-picker/vaadin-date-picker"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-column-group"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
+
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'

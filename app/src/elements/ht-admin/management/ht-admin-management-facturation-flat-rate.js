@@ -12,6 +12,18 @@ import '../../../styles/dialog-style.js';
 import '../../../styles/scrollbar-style.js';
 import '../../../styles/paper-input-style.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 

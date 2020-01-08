@@ -13,7 +13,17 @@ import '../../../styles/dialog-style.js';
 import '../../../styles/paper-tabs-style.js';
 import '../../../styles/paper-input-style.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-pages/iron-pages"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-fab/paper-fab"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-tabs/paper-tabs"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-upload/vaadin-upload"
+
 import _ from 'lodash/lodash';
 import CodeMirror from 'codemirror/src/codemirror';
 

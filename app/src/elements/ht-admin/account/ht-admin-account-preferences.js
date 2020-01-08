@@ -7,8 +7,13 @@ The complete set of contributors may be found at http://polymer.github.io/CONTRI
 Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
 */
-import moment from 'moment/src/moment';
-import _ from 'lodash/lodash';
+import "@polymer/paper-checkbox/paper-checkbox"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@polymer/paper-radio-button/paper-radio-button"
+import "@polymer/paper-radio-group/paper-radio-group"
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../../tk-localizer";

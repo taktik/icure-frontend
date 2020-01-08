@@ -37,15 +37,9 @@ import './elements/icc-api/icc-api';
 import './elements/icons/icure-icons';
 import './elements/menu-bar/menu-bar';
 import './elements/splash-screen/splash-screen'
-import './elements/splash-screen/splash-screen-tz'
 import './elements/tk-localizer';
-import './ht-admin'
-import './ht-diary'
-import './ht-hcp'
-import './ht-main'
-import './ht-msg'
-import './ht-pat'
 import './ht-view404'
+import './ht-update-dialog'
 
 import "@polymer/iron-icon/iron-icon"
 import "@polymer/iron-pages/iron-pages"

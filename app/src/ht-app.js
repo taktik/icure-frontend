@@ -37,13 +37,8 @@ import './elements/icons/icure-icons';
 import './elements/menu-bar/menu-bar';
 import './elements/splash-screen/splash-screen'
 import './elements/tk-localizer';
-import './ht-admin'
-import './ht-diary'
-import './ht-hcp'
-import './ht-main'
-import './ht-msg'
-import './ht-pat'
 import './ht-view404'
+import './ht-update-dialog'
 
 import "@polymer/iron-icon/iron-icon"
 import "@polymer/iron-pages/iron-pages"
@@ -273,6 +268,47 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                 opacity: 0;
             }
 
+            .patient-info{
+                display:flex;
+                flex-direction:row;
+                flex-wrap: nowrap;
+                width: auto;
+                position: absolute;
+                top: 50%;
+                right: 137px;
+                transform: scaleX(1) translateY(-50%);
+                color: var(--app-text-color-light);
+                opacity: 1;
+                transition: all .24s;
+                font-size: var(--font-size-small);
+            }
+
+            .patient-info-picture-container {
+                margin-top: 2px;
+                height: 14px;
+                width: 14px;
+                min-width: 14px;
+                border-radius:50%;
+                overflow: hidden;
+            }
+
+            .patient-info-picture-container img{
+                width:100%;
+                margin:50%;
+                transform: translate(-50%,-50%);
+            }
+
+            .patient-info-container{
+                display:flex;
+                flex-direction:row;
+                flex-wrap: nowrap;
+                margin-top: 4px;
+            }
+
+            .patient-info-text{
+                margin-left: 4px;
+                font-size: var(--font-size-small);
+            }
 
             footer.log-info {
                 position: fixed;
@@ -404,6 +440,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
             #ht-invite-hcp h3.modal-title {
                 margin: 0 !important;
             }
+            #ht-invite-hcp .content{
+                padding: 12px;
+                height : 400px;
+            }
             paper-dialog#ht-invite-hcp-user-already-exists{
                 width: 60%;
                 left: 0;
@@ -518,6 +558,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                 justify-content: space-around;
                 align-items: center;
                 color: var(--app-text-color-light);
+                box-shadow: 0 2px 4px 0 rgba(0,0,0,0.14),
+                0 3px 4px 0 rgba(0,0,0,0.12),
+                0 1px 5px 0 rgba(0,0,0,0.20),
+                0 0 0 200vw rgba(0,0,0,.24);
             }
 
             span.warn {
@@ -573,22 +617,37 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                 .logo {
                     display: none;
                 }
-
-                .ehBoxViewIcon {
-                    color:var(--app-primary-color-dark);
-                    opacity: 1!important;
-                    max-height: 30px;
-                    width: 30px;
-                    height: 30px;
-                }
-                #ehBoxMessage {
-                    cursor: pointer;
-                }
-                #ehBoxMessage .notification-msg {
-                    overflow:hidden
-                }
-
             }
+            .ehBoxViewIcon {
+                color:var(--app-primary-color-dark);
+                opacity: 1!important;
+                max-height: 30px;
+                width: 30px;
+                height: 30px;
+            }
+            #ehBoxMessage {
+                cursor: pointer;
+            }
+            #ehBoxMessage .notification-msg {
+                overflow:hidden
+            }
+            
+            #iconCloseErrorEID{
+                width:100%;
+                height: 100%;
+                max-height: 100%;
+            }
+
+            .keystoreExpIcon{
+                color: var(--app-status-color-nok)!important;
+                height: 13px;
+                width: 13px;
+            }
+
+            .timer-container{
+                font-size: var(--font-size-small);
+            }
+
         </style>
 
         <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
@@ -612,6 +671,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
          <ht-access-log id="ht-access-log" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" api="[[api]]" user="[[user]]"></ht-access-log>
          <ht-my-profile id="ht-my-profile" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" api="[[api]]" user="[[user]]" on-user-saved="_userSaved"></ht-my-profile>
 
+        <ht-update-dialog id="htUpdateDialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" api="[[api]]" user="[[user]]"></ht-update-dialog>
+
         <template is="dom-if" if="[[updateMessage]]">
             <paper-card id="update-notification">
                     <span>[[updateMessage]]</span>
@@ -623,6 +684,17 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                     </template>
             </paper-card>
         </template>
+
+        <paper-item id="electronErrorMessage" class="notification-container error">
+            <div class="notification-msg">
+                <h4>[[localize("err","Error",language)]]</h4>
+                <p>[[electronErrorMessage]]</p>
+            </div>
+            <paper-button class="notification-btn single-btn" on-tap="closeNotifElectron">
+                <iron-icon id="iconCloseErrorEID" icon="close"></iron-icon>
+            </paper-button>
+        </paper-item>
+
 
          <app-location route="{{route}}" query-param="{{queryParams}}" use-hash-as-path="true"></app-location>
          <app-route route="{{route}}" pattern="/:page" data="{{routeData}}" tail="{{subroute}}"></app-route>
@@ -721,6 +793,16 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                             c0.3-0.3,0.7-0.6,1.3-0.9l5.5-3.1h6.3l-8.7,4.9l-1.7,1L47.4,12.3z"></path>
                             </svg>
 
+                            <template is="dom-if" if="{{_isPatientView(route, subroute)}}">
+                                <div class="patient-info">
+                                    <div class="patient-info-picture-container"><img src\$="[[picture(patient,patient.picture)]]"></div>
+                                    <div class="patient-info-container">
+                                        <span class="patient-info-text">[[getGender(patient.gender)]] [[patient.firstName]] [[patient.lastName]]</span>
+                                        <span class="patient-info-text">°[[_timeFormat(patient.dateOfBirth)]] °[[_ageFormat(patient.dateOfBirth)]]</span>
+                                        <span class="patient-info-text">°[[patient.ssin]]</span>
+                                    </div>
+                                </div>
+                            </template>
 
                             <paper-tooltip class="big" position="left" for="tools-and-parameters">[[localize('tools_and_parameters','Tools and parameters',language)]]</paper-tooltip>
                             <paper-menu-button id="tools-and-parameters" horizontal-align="right" close-on-activate="" no-overlap="" no-animations="" focused="false">
@@ -776,12 +858,22 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
             </app-header-layout>
             <footer class="log-info">
                 <div>
-                    <div class="user-email"><iron-icon icon="icons:account-circle"></iron-icon>[[user.login]]</div>
+                    <div class="user-email" on-click="_debugPostUser"><iron-icon icon="icons:account-circle"></iron-icon>[[user.login]]</div>
                     <div class="eHealth-status-container">
                         <iron-icon icon="icure-svg-icons:ehealth"></iron-icon>
                         <span>eHealth</span>
                         <span id="eHealthStatus" class="ehealth-connection-status pending"></span>
                         <paper-tooltip for="eHealthStatus" position="top">[[localize('ehe','eHealth status',language)]]</paper-tooltip>
+                    </div>
+                    <div class="eHealth-status-container">
+                        <template is="dom-if" if="[[showKeystoreExpiredStatusIcon]]">
+                            <iron-icon id="keystoreExpiredStatusIcon" icon="vaadin:warning" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiredStatusIcon" position="top"> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</paper-tooltip>
+                        </template>
+                        <template is="dom-if" if="[[showKeystoreExpiresSoonStatusIcon]]">
+                            <iron-icon id="keystoreExpiresSoonStatusIcon" icon="alarm" class="keystoreExpIcon"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]
+                            <paper-tooltip for="keystoreExpiresSoonStatusIcon" position="top"> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]] </paper-tooltip>
+                        </template>
                     </div>
                     <template is="dom-if" if="[[hasMHCertificate]]">
                         <div class="eHealth-status-container">
@@ -792,11 +884,11 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                         </div>
                     </template>
                 </div>
-                <div class\$="versions [[_versionOk(electronVersionOk,backendVersionOk)]]">
+                <div class="versions">
                     <span class="frontVersion">frontend: [AIV]{version}[/AIV]</span>
                     <span class="backVersion">backend: [[backendVersion]]</span>
                     <template is="dom-if" if="[[isElectron]]">
-                        <span class\$="electronVersion [[_versionOk(electronVersionOk,'true')]]">e—[[electronVersion]]</span>
+                        <span class="version">e—[[electronVersion]]</span>
                     </template>
                 </div>
                 <paper-tooltip for="ehealth" position="top">
@@ -822,7 +914,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
         <paper-dialog id="ht-invite-hcp">
             <h2 class="modal-title">[[localize('inviteHCP','Invite a colleague ',language)]]</h2>
-            <div id="" class="content formNewHcp">
+            <div class="content">
                 <paper-input class="inviteHcpInput" label="[[localize('las_nam','Last name',language)]]" value="{{lastName}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('ema','Email',language)]]" value="{{email}}"></paper-input>
@@ -837,8 +929,13 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
             </div>
         </paper-dialog>
         <paper-dialog id="ht-invite-hcp-link">
-            <h3>Lien de première connexion</h3>
-            <h4>[[invitedHcpLink]]</h4>
+            <h2 class="modal-title">Lien de première connexion</h2>
+            <div class="content">
+                <div style="padding:12px;height: 100px;">[[invitedHcpLink]]</div>
+            </div>
+            <div class="buttons">
+                <paper-button dialog-dismiss="" class="button">[[localize('clo','Close',language)]]</paper-button>
+            </div>
         </paper-dialog>
 
         <paper-dialog id="ht-invite-hcp-user-already-exists">
@@ -907,6 +1004,14 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                 </vaadin-grid-column>
             </vaadin-grid>
         </paper-dialog>
+
+
+        <template is="dom-if" if="[[showKeystoreExpiredLabel]]">
+            <div class="failedLabel displayNotification" id="keystoreExpiredLabel"><iron-icon icon="clear"></iron-icon> [[localize('keystoreExpiredLabel','Votre keystore est expiré depuis le',language)]] [[keyStoreValidityLabel]]</div>
+        </template>
+        <template is="dom-if" if="[[showKeystoreExpiresSoonLabel]]">
+            <div class="warningLabel displayNotification" id="keystoreExpiresSoonLabel"><iron-icon icon="alarm"></iron-icon> [[localize('keystoreExpiresSoonLabel','Votre keystore va bientôt expirer',language)]] : [[keyStoreValidityLabel]]</div>
+        </template>
 `;
   }
 
@@ -1186,7 +1291,31 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           patientOpened:{
               type: String,
               value : ""
-          }
+          },
+          electronErrorMessage:{
+              type:String,
+              value:""
+          },
+          keyStoreValidityLabel : {
+              type : String,
+              value : ""
+          },
+          showKeystoreExpiresSoonLabel: {
+              type : Boolean,
+              value : false
+          },
+          showKeystoreExpiredLabel: {
+              type : Boolean,
+              value : false
+          },
+          showKeystoreExpiresSoonStatusIcon: {
+              type : Boolean,
+              value : false
+          },
+          showKeystoreExpiredStatusIcon: {
+              type : Boolean,
+              value : false
+          },
       }
   }
 
@@ -1194,7 +1323,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       return [
           '_routePageChanged(routeData.page)',
           '_isValidInvite(lastName,firstName,validMail)',
-          'isMailValid(email)'
+          'isMailValid(email)',
+          'resourceAndLanguageChanged(resources,language)'
       ]
   }
 
@@ -1236,8 +1366,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
   setUrls() {
       const params = this.route.__queryParams //_.fromPairs((this.route.path.split('?')[1] || "").split('&').map(p => p.split('=')))
-
-      this.set('icureUrl', params.icureUrl || `https://backend${window.location.href.replace(/https?:\/\/.+?(b?)\.icure\.cloud.*/,'$1')}.svc.icure.cloud/rest/v1`)
+      this.set('icureUrl', params.icureUrl || `https://backendb.svc.icure.cloud/rest/v1`)//`https://backend${window.location.href.replace(/https?:\/\/.+?(b?)\.icure\.cloud.*/,'$1')}.svc.icure.cloud/rest/v1`)
       this.set('fhcUrl', params.fhcUrl || (window.location.href.includes('https://tzb') ? 'https://fhctz.icure.cloud' : 'https://fhcprd.icure.cloud'))
 
       this.set('defaultIcureUrl', this.icureUrl)
@@ -1299,7 +1428,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
       //init socket io
       this.set("socket",null)
-      this.api && this.api.isElectronAvailable().then(electron => {
+      this.api.isElectronAvailable().then(electron => {
+          this.set("isElectron",electron)
           if (electron) {
               this.set("socket",io('http://localhost:16042'))
 
@@ -1314,7 +1444,61 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                       this.$['electronMessage'].classList.remove('notification');
                   }, 7500);
               })
+
+              this.socket.on("auto-read-card-eid", cards =>{
+                  if(typeof cards==="string" && cards.includes("Error"))return;
+                  if(this.route.path.includes("/pat")){
+                      this.$["ht-pat"] && typeof this.$["ht-pat"].autoReadCardEid ==="function" && this.$["ht-pat"].autoReadCardEid(cards)
+                  }else if(this.route.path.includes("/main") && !this.route.path.includes("/auth")){
+                      this.$["htmain"] && typeof this.$["htmain"].autoReadCardEid ==="function" && this.$["htmain"].autoReadCardEid(cards)
+                  }
+              })
+
+              fetch('http://localhost:16042/checkDrugs',{
+                  method: "GET",
+                  headers: {
+                      "Content-Type": "application/json; charset=utf-8"
+                  }
+              })
+
               this.notifyPath("socket");
+          }
+
+          if(this.isElectron){
+              fetch('http://127.0.0.1:16042/getVersion')
+                  .then((response) => {
+                      return response.json()
+                  })
+                  .then(res => {
+                      if (res.version) {
+                          this.set("electronVersion", res.version)
+                          this.set("electronVersionOk",this.versions.electron.includes(res.version))
+                      }
+                  })
+
+              fetch('http://127.0.0.1:16042/getConnexionData')
+                  .then((response) => {
+                      return response.json()
+                  })
+                  .then(res => {
+                      if(res.ok){
+                          this.set("api.isMH",res.tokenData.isMH)
+                          if(res.tokenData.isMH){
+                              this.set('api.tokenIdMH', res.tokenData.tokenId)
+                              this.set('api.tokenMH', res.tokenData.token)
+                              this.set('api.nihiiMH',res.tokenData.nihiiMH)
+                          }
+                          else {
+                              this.set('api.tokenId', res.tokenData.tokenId)
+                              this.set('api.token', res.tokenData.token)
+                          }
+                          if(res.credential){
+                              this.set("credentials",res.credential)
+                          }
+                      }
+                  })
+          } else {
+              this.set("electronVersionOk", true)
           }
 
       })
@@ -1344,24 +1528,6 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           }
       });
 
-      this.api && this.api.isElectronAvailable().then(electron => {
-          this.set("isElectron",electron)
-          if(this.isElectron){
-              fetch('http://127.0.0.1:16042/getVersion')
-                  .then((response) => {
-                      return response.json()
-                  })
-                  .then(res => {
-                      if (res.version) {
-                          this.set("electronVersion", res.version)
-                          this.set("electronVersionOk",this.versions.electron.includes(res.version))
-                      }
-                  })
-          } else {
-              this.set("electronVersionOk", true)
-          }
-      })
-
       this.api.icure().getVersion().then(v => {
           this.set("backendVersion", v.substring(0, v.indexOf('-')))
           this.set("backendVersionOk",this.versions.backend.includes(v))
@@ -1383,6 +1549,18 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
   _userSaved(e) {
       this.set('user', e.detail)
+  }
+
+  _debugPostUser() {
+      return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+          console.log("user:", this.user)
+          console.log("hcp:", hcp)
+          if(hcp.parentId) {
+              return this.$.api.hcparty().getHealthcareParty(hcp.parentId).then(hcp => {
+                  console.log("parentHcp:", hcp)
+              })
+          }
+      })
   }
 
   _openUtility(e) {
@@ -1464,15 +1642,21 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
   _routePageChanged(page) {
       if (page === 'logout') {
+
+          this.route.__queryParams.oldToken=this.route.__queryParams.token
+          this.route.__queryParams.token=""
+          this.route.__queryParams.oldUserId=this.route.__queryParams.userId
+          this.route.__queryParams.userId=""
+
           sessionStorage.removeItem('auth')
 
           this.authenticated = false
 
           this.worker && this.worker.terminate()
 
-          this.reset()
+          if(this.view!=="auth")this.reset()
           this.set('routeData.page', '/')
-          setTimeout(() => window.location.reload(), 100)
+          //setTimeout(() => window.location.reload(), 100) // don't reload at logout
       } else {
           console.log("page is -> " + page)
 
@@ -1482,17 +1666,18 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               if (sessionStorage.getItem('auth') || (this.route.__queryParams.token && this.route.__queryParams.userId)) {
                   this.loginAndRedirect(page)
               } else {
+                  fetch('http://127.0.0.1:16042/logout')
                   this.set('routeData.page', 'auth/' + (!page ? 'main' : page.startsWith('logout') ? 'main' : page))
               }
           } else {
               const dest = page ? page.replace(/\/$/, '') : 'main'
-
+              //keep patient opened
               if(dest==="pat" && this.subroute.path!=="/"){
                   this.set('patientOpened',this.subroute.path)
-              }else if(dest==="pat" && this.view!=="pat" && this.patientOpened!==""){
+              }else if(dest==="pat" && this.view!=="pat" && this.patientOpened){
                   this.set("subroute.path",this.patientOpened)
-              }else if(dest==="pat" && this.view==="pat" && this.patientOpened!==""){
-                  this.set('patientOpened',"")
+              }else if(dest==="pat" && this.view==="pat" && this.patientOpened){
+                  this.set('patientOpened',null)
               }
 
               if (dest !== this.view) { this.set('view', dest) }
@@ -1523,7 +1708,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       }
 
       if(this.view==="main"){
-          this.$["htmain"].apiReady()
+          this.$["htmain"].apiReady && this.$["htmain"].apiReady()
       }
   }
 
@@ -1561,6 +1746,34 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       this.$['ht-app-account-selector'].open()
   }
 
+  _showToasterMessage(id) {
+      this.set(id, true)
+      setTimeout(() => { this.set(id, false) }, 5000*2)
+  }
+
+  _checkKeystoreValidity() {
+      //console.log("_checkKeystoreValidity: ", this.showKeystoreExpiredLabel, this.showKeystoreExpiresSoonLabel)
+      const monthLimit = 2 // number of remaining months when to start warning the user
+
+      this.api.fhc().Stscontroller().getKeystoreInfoUsingGET(this.api.keystoreId, this.credentials.ehpassword).then(info => {
+          if(info.validity && info.validity - moment().valueOf() <= 0) {
+              this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+              this._showToasterMessage("showKeystoreExpiredLabel")
+              this.set("showKeystoreExpiredStatusIcon", true)
+              this.set("showKeystoreExpiresSoonStatusIcon", false)
+          } else if(info.validity && info.validity - moment().add(monthLimit, 'months').valueOf() <= 0) {
+              this.keyStoreValidityLabel = moment(info.validity).format("DD/MM/YYYY")
+              this._showToasterMessage("showKeystoreExpiresSoonLabel")
+              this.set("showKeystoreExpiresSoonStatusIcon", true)
+              this.set("showKeystoreExpiredStatusIcon", false)
+          } else {
+              this.set("showKeystoreExpiredStatusIcon", false)
+              this.set("showKeystoreExpiresSoonStatusIcon", false)
+          }
+      })
+
+  }
+
   _getToken() {
       return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
       {
@@ -1590,6 +1803,21 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               this.set('api.tokenId', res.tokenId)
               this.set('api.token', res.token)
               }
+
+              this.api.isElectronAvailable().then(electron =>{
+                  if(electron){
+                      fetch('http://127.0.0.1:16042/tokenFHC', {
+                          method: "POST",
+                          headers: {"Content-Type": "application/json"},
+                          body: !isMH ? JSON.stringify({isMH:false,tokenId:this.api.tokenId, token:this.api.token}) : JSON.stringify({isMH:true,keystoreIdMH:this.api.keystoreIdMH, tokenIdMH:this.api.tokenIdMH, tokenMH:this.api.tokenMH, nihiiMH:this.api.nihiiMH})
+                      }).then(response => response.json()).then(rep => {
+                          if(rep.ok){
+                              this.set('routeData.page', "diary")
+                              setTimeout(() => this.shadowRoot.querySelector("#htDiary").loadMikornoIframe(), 100)
+                          }
+                      })
+                  }
+              })
               return res.tokenId
           }).catch((e) => {
               this.$.eHealthStatus.classList.remove('pending')
@@ -1615,7 +1843,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpasswordMH, hcpMH.nihii.substr(0, 8), this.api.keystoreIdMH, true).then(res => {
                   if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('pending')
                   if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('disconnected')
-                  if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.add('connected')
+                  !_.isEmpty(res) ? this.root.getElementById('eHealthMHStatus') ? this.root.getElementById('eHealthMHStatus').classList.add('connected') : null : this.root.getElementById('eHealthMHStatus').classList.add('disconnected')
 
               this.set('api.tokenIdMH', res.tokenId)
               this.set('api.tokenMH', res.token)
@@ -1643,10 +1871,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           this.set('headers', _.assign(_.assign({}, this.headers),
               {Authorization: 'Basic ' + btoa(this.credentials.userId + ':' + this.credentials.appToken)}))
       }
-      else if ((this.credentials.username && this.credentials.password)) {
-          this.set('headers', _.assign(_.assign({}, this.headers),
+      // else if ((this.credentials.username && this.credentials.password)) {
+      else this.set('headers', _.assign(_.assign({}, this.headers),
               {Authorization: 'Basic ' + btoa(this.credentials.username + ':' + this.credentials.password + (this.credentials.twofa ? '|' + this.credentials.twofa : ''))}))
-      }
+      // }
 
       //Be careful not to use this.api here as it might not have been defined yet
       //TODD debounce here
@@ -1666,7 +1894,13 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
               this.$.loginDialog.opened = false
 
-              this.api && this.api.isElectronAvailable().then(electron => {
+              if(this.route.__queryParams.oldToken && Object.keys(this.user.applicationTokens).find(key =>this.user.applicationTokens[key]===this.route.__queryParams.oldToken) && this.route.__queryParams.oldUserId && this.route.__queryParams.oldUserId===this.user.id){
+                  this.route.__queryParams.token = this.route.__queryParams.oldToken
+                  this.route.__queryParams.userId =this.route.__queryParams.oldUserId
+              }
+
+              this.api.isElectronAvailable().then(electron => {
+                  this.set("isElectron",electron)
                   if (electron === true) {
                       //request electron tc.
                       fetch('http://localhost:16042/tc', {
@@ -1676,7 +1910,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                           },
                           body: JSON.stringify({
                               "userId": this.user.id,
-                              "token": this.user.applicationTokens.MIKRONO || this.user.applicationTokens.tmp || this.user.applicationTokens.tmpFirstLogin
+                              "token": this.user.applicationTokens.MIKRONO || this.user.applicationTokens.tmp || this.user.applicationTokens.tmpFirstLogin,
+                              "credential": this.api.credentials
                           })
                       })
                   }
@@ -1727,6 +1962,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               this._timeCheckMH(0)//Should launch directly, no wait in this case!!!
               this._inboxMessageCheck()
               this._checkForUpdateMessage()
+              //this._correctionGenderPatients();
+
           })
       }).catch(function (e) {
           this.authenticated = false
@@ -1772,6 +2009,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           if (ehKeychain) {
               return this.$.api.fhc().Stscontroller().uploadKeystoreUsingPOST(ehKeychain).then(res => {
                   this.$.api.keystoreId = res.uuid
+                  this._checkKeystoreValidity()
                   return this._getToken()
               }).catch((e) => {
                   this.$.eHealthStatus.classList.remove('pending')
@@ -1796,7 +2034,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
 
   uploadMHKeystoreAndCheckToken() {
-
+      if(!_.get(this, "user.healthcarePartyId", false)) return Promise.resolve()
       const ksKey  = "org.taktik.icure.ehealth.keychain.MMH."+ this.user.healthcarePartyId;
       Object.keys(localStorage).filter(k => k === ksKey).map(kM => {
           const val = localStorage.getItem(kM);
@@ -1829,7 +2067,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                               if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.remove('connected')
                               if(this.root.getElementById('eHealthMHStatus')) this.root.getElementById('eHealthMHStatus').classList.add('disconnected')
                           }
-                          return Promise.resolve(null);
+                          return Promise.resolve()
                       });
               }
           })
@@ -2014,6 +2252,31 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       this.$['ht-access-log'].open()
   }
 
+  _patientChanged(e) {
+      this.set("patient", e.detail.patient);
+  }
+
+  _timeFormat(date) {
+      return date ? this.api.moment(date).format(date > 99991231 ? 'DD/MM/YYYY HH:mm' : 'DD/MM/YYYY') : '';
+  }
+
+  _ageFormat(date) {
+      return date ? this.api.getCurrentAgeFromBirthDate(date,( e , s ) => this.localize(e, s, this.language)) : '';
+  }
+
+  getGender(gender){
+      if(gender==="male")return "M.";
+      if(gender==="female")return "Mme";
+      else return "";
+  }
+
+  picture(pat) {
+      if (!pat) {
+          return require('../images/male-placeholder.png');
+      }
+      return pat.picture ? 'data:image/png;base64,' + pat.picture : (pat.gender && pat.gender.substr(0,1).toLowerCase() === 'f') ? require('../images/female-placeholder.png') : require('../images/male-placeholder.png');
+  }
+
   createAndInviteUser(){
       this.api.hcparty().createHealthcareParty({
           "name": this.lastName + " " + this.firstName,
@@ -2060,7 +2323,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
 
               if(mikronoUrl && mikronoUser && mikronoPassword && applicationTokens && applicationTokens.MIKRONO){
-                  this.api && this.api.isElectronAvailable().then(electron =>{
+                  this.api.isElectronAvailable().then(electron =>{
                       if(electron === false){
                           window.open("https://"+mikronoUser+":"+mikronoPassword+"@"+mikronoUrl.replace("https://", "")+"/iCureShortcut.jsp?id="+this.user.id, '_blank')
                       }else{
@@ -2095,7 +2358,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                                   const mikronoUser = this.user && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.user") && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.user").typedValue.stringValue || null
                                   const mikronoPassword = this.user && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.password") && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.password").typedValue.stringValue || null
                                   if(mikronoUrl && mikronoUser && mikronoPassword && applicationTokens && applicationTokens.MIKRONO){
-                                      this.api && this.api.isElectronAvailable().then(electron =>{
+                                      this.api.isElectronAvailable().then(electron =>{
                                           if(electron === false){
                                                       window.open("https://" + mikronoUser + ":" + mikronoPassword + "@" + mikronoUrl.replace("https://", "") + "/iCureShortcut.jsp?id=" + this.user.id, '_blank')
                                           }else{
@@ -2234,6 +2497,151 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       if(this.user){
           this.$['htUpdateDialog']._openDialog()
       }
+  }
+
+  setElectronErrorMessage(e){
+      this.set("electronErrorMessage",e.detail.message)
+      this.$["electronErrorMessage"].classList.add('notification')
+      setTimeout(() => this.closeNotifElectron(), 5000)
+  }
+
+  closeNotifElectron(e){
+      this.$["electronErrorMessage"].classList.remove('notification')
+      this.set("electronErrorMessage","")
+  }
+
+  //Deprecated - restore date of brith of patients with the ssin of patient
+  _correctionDateOfBirth() {
+
+      if( !this.user || !this.api || !!this.busyCorrectingDatesOfBirth || moment().format("YYYYMMDD") > "20190901" ) return;
+      this.busyCorrectingDatesOfBirth = true;
+
+      this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""),this.filterForDate)
+          .then(myPatients=>_.chain(myPatients).filter(p => [6,8,11,13].indexOf(_.trim(p.ssin).length) > -1 && !(parseInt(p.dateOfBirth)||null)).value())
+          .then(patients => {
+
+              let prom = Promise.resolve([])
+
+              _.map(patients, pat => {
+                  prom = prom.then(promisesCarrier => {
+                      const patSsin = _.trim(_.get(pat,"ssin"))
+                      const patSsinLength = parseInt(patSsin.length)||0
+                      const evaluatedDateOfBirth = !!(patSsinLength === 6 && /^\d{2}(1[0-2])|(0[1-9])([0-2]\d)|(3[0-1])$/.test(patSsin)) ? (/^[0-1]/.test(patSsin) ? '20' : '19') + patSsin :
+                          !!(patSsinLength === 8 && /^\d{4}(1[0-2])|(0[1-9])([0-2]\d|3[0-1])$/.test(patSsin)) ? patSsin :
+                          !!(patSsinLength === 11 && this.api.patient().isValidSsin(patSsin)) ? (/^[0-1]/.test(patSsin) ? '20' : '19') + patSsin.substring(0, 6) :
+                          !!(patSsinLength === 13 && this.api.patient().isValidSsin(patSsin.substring(2))) ? patSsin.substring(0, 8) :
+                          false
+                      return !evaluatedDateOfBirth ?
+                          Promise.resolve() :
+                          this.api.patient().modifyPatientWithUser(this.user,_.merge({},pat,{dateOfBirth:parseInt(evaluatedDateOfBirth)||null}))
+                              .then(p=>this.api.register(p,"patient"))
+                              .then(p=>_.concat(promisesCarrier, p))
+                              .catch(()=>Promise.resolve())
+                  })
+              })
+
+              return prom
+                  .then(() => {
+                      this.busyCorrectingDatesOfBirth = false
+                      setTimeout(() => { this._correctionDateOfBirth() }, 3600000)
+                  })
+
+          })
+
+  }
+
+  // - restore gender of patients with the ssin of patient
+  _correctionGenderPatients(){
+      const isChecked = localStorage.getItem("checked_gender_"+_.get(this,"user.healthcarePartyId","0")) || false;
+      if( !this.user || isChecked || !!this.busyCorrectingGender || !this.api || moment().format("YYYYMMDD") > "20191201" ) return;
+      this.busyCorrectingGender = true;
+
+      this._getPatientsByHcp(_.get(this, "user.healthcarePartyId",""),this.filterForGender)
+          .then(patients => _.chain(patients).filter(p => this.api.patient().isValidSsin(p.ssin)).value())
+          .then(patients => {
+              let prom = Promise.resolve([])
+              let number = 1;
+              _.map(patients, pat => {
+                  prom = prom.then(promisesCarrier => {
+                      const gender = pat.ssin.slice(6, 9) % 2 === 1 ? "male" : "female";
+                      console.log("patient n°"+number+"/"+patients.length+" with ssin n°"+pat.ssin+" : gender de base ==="+pat.gender+" | nouveau gender ==="+gender)
+                      number+=1;
+                      if (gender !== pat.gender) {
+                          return this.api.patient().modifyPatientWithUser(this.user,_.merge({},pat,{gender : gender || "unknow"}))
+                              .then(p=>this.api.register(p,"patient"))
+                              .then(p=>_.concat(promisesCarrier, p))
+                              .catch(()=>Promise.resolve())
+                      }else{
+                          return Promise.resolve([])
+                      }
+                  })
+              })
+
+              return prom
+                  .then(() => {
+                      this.busyCorrectingGender = false
+                      console.log("fini")
+                      localStorage.setItem("checked_gender_"+_.get(this,"user.healthcarePartyId","0"),true);
+                  })
+          })
+  }
+
+  filterForDate(pl){
+      return _.filter( pl.rows, i => !_.trim(_.get(i,"dateOfBirth", "")) && !!_.trim(_.get(i,"ssin", "")) && parseInt(_.get(i,"ssin", "")) )
+}
+
+  filterForGender(pl){
+      return _.filter( pl.rows, i => parseInt(_.get(i,"ssin", "0")))
+  }
+
+  _getPatientsByHcp(hcpId,filterFunction) {
+      return this.api.getRowsUsingPagination(
+          (key,docId) =>
+              this.api.patient().listPatientsByHcPartyWithUser(this.user, hcpId, null, key && JSON.stringify(key), docId, 1000)
+                  .then(pl => {
+                      return {
+                          rows: filterFunction(pl),
+                          nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                          nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                          done: !pl.nextKeyPair
+                      }
+                  })
+                  .catch(()=>{ return Promise.resolve(); })
+      )||[];
+  }
+
+  _refreshPatient() {
+      const htPat = this.shadowRoot.querySelector("#ht-pat") || this.$['ht-pat'] || null
+      return !htPat || typeof _.get(htPat, "_refreshPatient", false) !== "function" ? null : htPat._refreshPatient()
+  }
+
+  forceReloadPatient(e){
+      if(e.detail && e.detail.origin && e.detail.origin.includes("ht-auto-read-eid-opening")){
+          this._refreshPatient();
+      }
+  }
+
+  resourceAndLanguageChanged(){
+      if(!this.resources || !this.language)return;
+      const months =  Array.from(Array(12).keys()).map(month =>this.localize("month_"+(month+1),month+1,this.language || "en"))
+      const weeks = Array.from(Array(7).keys()).map(month =>this.localize("weekDay_"+(month+1),"un jour",this.language || "en"))
+      weeks.unshift(weeks[6])
+      weeks.pop()
+      this.set("i18n.monthNames",months)
+      this.set("i18n.monthNamesShort",months.map(month => month.substr(0,3)))
+      this.set("i18n.weekdays",weeks)
+      this.set("i18n.weekdaysShort",weeks.map(day => day.substr(0,3)))
+      this.set("i18n.week",this.localize('week','Semaine',this.language));
+      this.set("i18n.calendar",this.localize('calendar','Calendrier',this.language))
+      this.set("i18n.clear",this.localize('clear','Clear',this.language))
+      this.set("i18n.today",this.localize("sel_tod",'Aujourd\'hui',this.language))
+      this.set("i18n.thisMonth",this.localize("this_month","ce mois-ci",this.language))
+      this.set("i18n.thisYear",this.localize("this_year","cette année",this.language))
+      this.set("i18n.cancel",this.localize("can",'Annuler',this.language))
+  }
+
+  _isPatientView(){
+      return this.route.path.includes("/pat")
   }
 }
 

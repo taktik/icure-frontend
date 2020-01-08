@@ -11,7 +11,11 @@ import '../../dynamic-form/validator/ht-iban-validator.js';
 
 import '../../../styles/buttons-style.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+
 import _ from 'lodash/lodash';
 
 import {PolymerElement, html} from '@polymer/polymer';

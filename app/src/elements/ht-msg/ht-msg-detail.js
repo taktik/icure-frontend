@@ -10,6 +10,16 @@ import '../../styles/dialog-style.js';
 import '../print/print-document.js';
 import '../../styles/shared-styles.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-card/paper-card"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-tabs/paper-tabs"
+import "@vaadin/vaadin-checkbox/vaadin-checkbox"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-date-picker/vaadin-date-picker"
+
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 import levenshtein from 'js-levenshtein'

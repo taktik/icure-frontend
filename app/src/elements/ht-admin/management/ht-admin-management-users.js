@@ -13,7 +13,19 @@ import '../../../styles/buttons-style.js';
 import '../../../styles/paper-input-style.js';
 import '../../../styles/paper-tabs-style.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-pages/iron-pages"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@polymer/paper-tabs/paper-tabs"
+import "@vaadin/vaadin-checkbox/vaadin-checkbox"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import _ from 'lodash/lodash';
 
 import {PolymerElement, html} from '@polymer/polymer';
