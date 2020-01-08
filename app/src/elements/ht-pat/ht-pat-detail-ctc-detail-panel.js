@@ -1,21 +1,24 @@
 import '../filter-panel/filter-panel.js';
-import '../dynamic-form/dynamically-loaded-form.js';
 import './dialogs/ht-pat-invoicing-dialog.js';
 import './dialogs/ht-pat-prescription-dialog.js';
 import './ht-pat-detail-table.js';
-import '../dynamic-form/ht-services-list.js';
-import '../dynamic-form/dynamic-doc.js';
-import '../dynamic-form/entity-selector.js';
+import './dialogs/ht-pat-outgoing-document.js';
+
+import '../ht-msg/ht-msg-new.js';
 import '../ht-spinner/ht-spinner.js';
+
 import '../../styles/scrollbar-style.js';
 import '../../styles/buttons-style.js';
 import '../../styles/dialog-style.js';
-import './dialogs/ht-pat-outgoing-document.js';
 import '../../styles/shared-styles.js';
+
+import '../dynamic-form/dynamically-loaded-form.js';
+import '../dynamic-form/ht-services-list.js';
+import '../dynamic-form/dynamic-doc.js';
+import '../dynamic-form/entity-selector.js';
 import '../dynamic-form/dynamic-subcontact-type-selector.js';
 import '../dynamic-form/dynamic-confidentiality-selector.js';
 import '../dynamic-form/dynamic-visibility-selector.js';
-import '../ht-msg/ht-msg-new.js';
 
 import '@polymer/paper-button/paper-button';
 import '@polymer/paper-item/paper-item';
@@ -54,8 +57,7 @@ class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
                 <style>
                     :host {
                         width: 160px;
-                        max-width: 100%;
-                        padding-top: 16px;
+                        max-width: 100%;                    
                         margin-bottom: 8px;
                         /* Align nicely with vaadin-text-field */
                         vertical-align: 3px;
@@ -94,6 +96,578 @@ class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
                         font-size: calc(var(--material-icon-font-size) - 8px);
                     }
                 </style>
+                <style include="scrollbar-style buttons-style dialog-style shared-styles">
+                        .notification-panel {
+                            position: fixed;
+                            top: 50%;
+                            right: 0;
+                            z-index: 1000;
+                            color: white;
+                            font-size: 13px;
+                            background: rgba(255, 0, 0, 0.55);
+                            height: 96px;
+                            padding: 0 8px 0 12px;
+                            border-radius: 3px 0 0 3px;
+                            overflow: hidden;
+                            white-space: nowrap;
+                            width: 0;
+                            opacity: 0;
+                        }
+                    
+                        .notification {
+                            animation: notificationAnim 7.5s ease-in;
+                        }
+                    
+                        @keyframes notificationAnim {
+                            0% {
+                                width: 0;
+                                opacity: 0;
+                            }
+                            5% {
+                                width: 440px;
+                                opacity: 1;
+                            }
+                            7% {
+                                width: 420px;
+                                opacity: 1;
+                            }
+                            95% {
+                                width: 420px;
+                                opacity: 1;
+                            }
+                            100% {
+                                width: 0;
+                                opacity: 0;
+                            }
+                        }
+                    
+                        .details-panel {
+                            height: 100%;
+                            background: var(--app-background-color-light);
+                            width: 100%;
+                            z-index: 1;
+                            position: relative;
+                        }
+                    
+                        .contact-card-frame {
+                            padding-bottom: 24px;
+                        }
+                    
+                        .ctc-header {
+                            position: relative;
+                            background: var(--app-background-color-dark);
+                            display: flex;
+                            flex-direction: row;
+                            justify-content: space-between;
+                            align-items: center;
+                            width: 100%;
+                            margin-bottom: 16px;
+                            padding: 0 12px;
+                            box-sizing: border-box;
+                        }
+                    
+                        .ctc-header .contact-title {
+                            flex-grow: 1;
+                        }
+                    
+                        .ctc-header .save {
+                            background: var(--app-secondary-color);
+                            border-radius: 50%;
+                            margin: 12px 36px;
+                            padding: 4px;
+                            cursor: pointer;
+                            box-shadow: var(--shadow-elevation-2dp_-_box-shadow);
+                            transition: .25s ease;
+                            width: 24px;
+                            height: 24px;
+                            text-align: center;
+                            line-height: 24px;
+                            margin-right: 12px;
+                        }
+                    
+                        .ctc-header .save iron-icon {
+                            width: 20px;
+                            margin-top: -3px;
+                        }
+                    
+                        .ctc-header .save:hover {
+                            transform: scale(1.05);
+                        }
+                    
+                        .ctc-header .save:active {
+                            background: var(--app-secondary-color-dark);
+                            box-shadow: none;
+                            transform: scale(.9);
+                        }
+                    
+                        .contact-title {
+                            display: block;
+                            @apply --paper-font-body2;
+                            @apply --padding-32;
+                            padding: 8px 0;
+                        }
+                    
+                        .pat-details-card > .card-content {
+                            padding: 16px 16px 32px !important;
+                        }
+                    
+                        .pat-details-card {
+                            width: calc(100% - 64px);
+                            margin: 0 32px 32px;
+                        }
+                    
+                        .horizontal {
+                            display: flex;
+                            flex-direction: row;
+                            flex-wrap: wrap;
+                            flex-basis: 100%;
+                        }
+                    
+                        .justified {
+                            justify-content: space-between;
+                        }
+                    
+                        .pat-details-input {
+                            flex-grow: 1;
+                            margin: 16px;
+                        }
+                    
+                        input {
+                            border: none;
+                            width: 100%;
+                        }
+                    
+                        .contact-card-container {
+                            position: relative;
+                            overflow-y: auto;
+                            height: calc(100% - 80px);
+                            padding-bottom: 32px;
+                        }
+                    
+                        .extra-info {
+                            color: var(--app-text-color-disabled);
+                            font-style: italic;
+                            font-size: 80%;
+                        }
+                    
+                        .close-button-icon {
+                            position: absolute;
+                            top: 0;
+                            right: 0;
+                            margin: 0;
+                            transform: translate(50%, -50%);
+                            height: 32px;
+                            width: 32px;
+                            padding: 8px;
+                            background: var(--app-primary-color);
+                        }
+                    
+                        paper-dialog {
+                            width: 80%;
+                            min-width: 30%;
+                            margin: 0;
+                        }
+                    
+                        paper-input {
+                            --paper-input-container-focus-color: var(--app-primary-color);
+                        }
+                    
+                        filter-panel {
+                            flex-grow: 1;
+                            flex-shrink: 1;
+                            width: 0;
+                            --panel-width: 100%;
+                        }
+                    
+                        .contact-actions {
+                            display: inline-flex;
+                            flex-flow: row nowrap;
+                            align-items: center;
+                            justify-content: space-around;
+                            height: 48px;
+                            padding: 0 12px;
+                            background: var(--app-background-color-dark);
+                            border-right: 1px solid var(--app-background-color-darker);
+                            border-bottom: 1px solid var(--app-background-color-darker);
+                            flex-grow: 6;
+                            flex-shrink: 1;
+                            width: 0;
+                        }
+                    
+                        .contact-actions div {
+                            height: 28px;
+                        }
+                    
+                        .contact-actions.mobile span {
+                            display: none;
+                        }
+                    
+                        .contact-actions.mobile paper-button {
+                            min-width: 0;
+                        }
+                    
+                        .layout-bar {
+                            display: inline-flex;
+                            flex-flow: row nowrap;
+                            align-items: center;
+                            justify-content: space-around;
+                            height: 48px;
+                            background: var(--app-background-color-dark);
+                            border-left: 1px solid var(--app-background-color-darker);
+                            border-bottom: 1px solid var(--app-background-color-darker)
+                        }
+                    
+                        .layout-bar .list, .layout-bar .graphique, .layout-bar .doc, .layout-bar .table {
+                            color: var(--app-text-color);
+                            background: #d8d8d8;
+                            border-radius: 50%;
+                            height: 28px;
+                            width: 28px;
+                            padding: 4px;
+                        }
+                    
+                        .layout-bar .list {
+                            padding: 2px;
+                            margin: 0 8px;
+                        }
+                    
+                        .layout-bar .doc {
+                            padding: 3px;
+                            margin: 0 8px;
+                        }
+                    
+                        .layout-bar .table {
+                            padding: 4px 6px;
+                        }
+                    
+                        .icn-selected {
+                            color: var(--app-secondary-color) !important;
+                        }
+                    
+                        .add-forms-container, .print-forms-container, .outgoing-docs-container {
+                            text-align: right;
+                            position: absolute;
+                            margin-top: 8px;
+                            top: 28px;
+                            left: 4px;
+                            background-color: var(--app-background-color);
+                            opacity: 1;
+                            border-radius: 2px;
+                            z-index: 200;
+                            height: auto !important;
+                            box-shadow: var(--app-shadow-elevation-2);
+                            display: flex;
+                            flex-flow: column nowrap;
+                            align-items: stretch;
+                            border-radius: 3px;
+                            overflow: hidden;
+                            padding: 0;
+                        }
+                    
+                        .outgoing-docs-container {
+                            min-height: 200px !important;
+                            display: block;
+                            overflow: auto;
+                            max-height: 75vh;
+                        }
+                    
+                        .add-forms-container paper-button, .print-forms-container paper-button, .outgoing-docs-container paper-button {
+                            display: flex;
+                            flex-flow: row nowrap;
+                            justify-content: flex-start;
+                            align-items: center;
+                            text-transform: capitalize;
+                            height: 28px;
+                            padding: 0 12px 0 8px;
+                            font-weight: 400;
+                            font-size: var(--font-size-normal);
+                            text-align: left;
+                            white-space: nowrap;
+                            text-overflow: ellipsis;
+                            overflow: hidden;
+                            flex-grow: 1;
+                            border-radius: 0;
+                            margin: 0;
+                        }
+                    
+                        .add-forms-container paper-button:hover, .print-forms-container paper-button:hover, .outgoing-docs-container paper-button:hover {
+                            background: var(--app-background-color-dark);
+                        }
+                    
+                        .add-forms-container paper-button iron-icon, .print-forms-container paper-button iron-icon, .outgoing-docs-container paper-button iron-icon {
+                            color: var(--app-secondary-color);
+                            height: 20px;
+                            width: 20px;
+                            margin-right: 4px;
+                            box-sizing: border-box;
+                        }
+                    
+                        .close-add-forms-btn, .close-print-forms-btn {
+                            background: var(--app-secondary-color-dark) !important;
+                        }
+                    
+                        .fleft {
+                            position: absolute;
+                            left: 8px;
+                        }
+                    
+                        .fright {
+                            position: absolute;
+                            right: 8px;
+                        }
+                    
+                        .horizontal {
+                            flex-flow: row nowrap;
+                        }
+                    
+                        .action-btn {
+                            white-space: nowrap;
+                        }
+                    
+                        ht-spinner.center {
+                            position: absolute;
+                            left: 50%;
+                            top: 50%;
+                            transform: translateX(-50%) translateY(-50%);
+                            height: 42px;
+                            width: 42px;
+                        }
+                    
+                        .add-form-container, .print-form-container {
+                            position: relative;
+                        }
+                    
+                        #prose-editor, #prose-editor-linking-letter {
+                            width: 90%;
+                            height: calc(90% - 64px);
+                            max-width: 1024px;
+                        }
+                    
+                        #prose-editor > prose-editor, #prose-editor-linking-letter > prose-editor {
+                            height: calc(100% - 60px - 56px);
+                            width: 100%;
+                            display: block;
+                            padding: 0;
+                            margin: 0;
+                            position: relative;
+                        }
+                    
+                        #prose-editor::slotted(*) {
+                            margin-top: 0;
+                            padding: 0;
+                        }
+                    
+                        .buttons {
+                            display: flex;
+                            flex-grow: 1;
+                            box-sizing: border-box;
+                            justify-content: flex-end;
+                            padding: 16px 12px 8px 16px;
+                        }
+                    
+                        #dynamicallyListForm,
+                        #dynamicallyTableForm {
+                            display: flex;
+                            flex-direction: column;
+                            height: 100%;
+                        }
+                    
+                        .mobile-only {
+                            display: none;
+                        }
+                    
+                        @media screen and (max-width: 952px) {
+                            paper-dialog#prescriptionDialog {
+                                position: fixed;
+                                max-height: none;
+                                max-width: none !important;
+                                top: 64px !important;
+                                left: 0 !important;
+                                height: calc(100vh - 84px) !important; /* 84 = app-header and log */
+                                width: 100% !important;
+                            }
+                    
+                            .contact-actions paper-button {
+                                min-width: 0 !important;
+                            }
+                    
+                            .contact-actions .no-mobile {
+                                display: none;
+                            }
+                    
+                            .mobile-only {
+                                display: initial;
+                            }
+                        }
+                    
+                        #templateSavedIndicator {
+                            position: fixed;
+                            top: 50%;
+                            right: -200px;
+                            z-index: 1000;
+                            color: white;
+                            font-size: 13px;
+                            background: rgba(0, 0, 0, 0.42);
+                            height: 24px;
+                            padding: 0 8px 0 12px;
+                            border-radius: 3px 0 0 3px;
+                            width: 170px;
+                            opacity: 1;
+                            transition: all 400ms ease;
+                            -moz-transition: all 400ms ease;
+                            -webkit-transition: all 400ms ease;
+                            -o-transition: all 400ms ease;
+                            -ms-transition: all 400ms ease;
+                        }
+                    
+                        .templateSaved {
+                            right: 0 !important;
+                        }
+                    
+                        #template-description-dialog {
+                            width: 60%;
+                            padding-bottom: 20px;
+                        }
+                    
+                        #template-description-dialog h2 {
+                            margin: 0 -24px
+                        }
+                    
+                        #busySpinner {
+                            position: absolute;
+                            height: 100%;
+                            width: 100%;
+                            background: rgba(255, 255, 255, .6);
+                            z-index: 110;
+                            margin-top: 0;
+                            top: 0;
+                            left: 0;
+                        }
+                    
+                        #busySpinnerContainer {
+                            position: absolute;
+                            left: 50%;
+                            top: 50%;
+                            transform: translateX(-50%) translateY(-50%);
+                            width: 100px;
+                            height: 100px;
+                        }
+                    
+                        @media screen and (max-height: 744px) {
+                            #entities-list {
+                                flex-grow: 1;
+                                height: auto !important;
+                            }
+                        }
+                    
+                        #chooseSizePrintFormDialog {
+                            width: 300px
+                        }
+                    
+                        .modalDialog {
+                            height: 300px;
+                            width: 600px;
+                        }
+                    
+                        .m-t-40 {
+                            margin-top: 40px;
+                        }
+                    
+                        .m-t-50 {
+                            margin-top: 50px !important;
+                        }
+                    
+                        .m-t-20 {
+                            margin-top: 20px !important;
+                        }
+                    
+                        .m-t-25 {
+                            margin-top: 25px !important;
+                        }
+                    
+                        .textAlignCenter {
+                            text-align: center;
+                        }
+                    
+                        .bold {
+                            font-weight: 700;
+                        }
+                    
+                        .smallIcon {
+                            width: 16px;
+                            height: 16px;
+                        }
+                    
+                        #loadingContainer, #loadingContainerSmall {
+                            position: absolute;
+                            width: 100%;
+                            height: 100%;
+                            top: 0;
+                            left: 0;
+                            background-color: rgba(0, 0, 0, .3);
+                            z-index: 10;
+                            text-align: center;
+                        }
+                    
+                        #loadingContentContainer, #loadingContentContainerSmall {
+                            position: relative;
+                            width: 400px;
+                            min-height: 200px;
+                            background-color: #ffffff;
+                            padding: 20px;
+                            border: 3px solid var(--app-secondary-color);
+                            margin: 40px auto 0 auto;
+                            text-align: center;
+                        }
+                    
+                        #loadingContentContainerSmall {
+                            width: 250px;
+                            min-height: 1px;
+                        }
+                    
+                        #loadingContent {
+                            text-align: left;
+                        }
+                    
+                        .dialogButtons {
+                            position: absolute;
+                            bottom: 40px;
+                            margin: 0;
+                            width: 100%;
+                            text-align: center;
+                        }
+                    
+                        .belRai-icon {
+                            height: 16px;
+                            width: 16px;
+                            padding: 4px;
+                        }
+                    
+                        .cdc-content {
+                            display: flex;
+                            flex-flow: column nowrap;
+                            font-size: 18px;
+                        }
+                    
+                        .m-l-40 {
+                            margin-left: 40px !important;
+                        }
+                    
+                        .m-l-80 {
+                            margin-left: 80px !important;
+                        }
+                    
+                        #editLabelAndTransactionDialog .modal-title, #deleteServiceDialog .modal-title {
+                            justify-content: flex-start;
+                        }
+                    
+                        .modalDialogSmall {
+                            min-width: 1px;
+                            height: 200px;
+                            width: 400px;
+                        }
+                </style>
+               
                 <template is="dom-if" if="[[_bodyOverlay]]">
                      <div id="loadingContainer"></div>
                 </template>

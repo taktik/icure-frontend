@@ -99,6 +99,7 @@ import "@vaadin/vaadin-grid/vaadin-grid-filter-column"
 import "@vaadin/vaadin-grid/vaadin-grid-tree-column"
 import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
 
+
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
 const runtime = require('offline-plugin/runtime');
