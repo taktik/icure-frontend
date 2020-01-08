@@ -20,6 +20,7 @@ import '../dynamic-form/dynamic-date-field.js';
 import '../../styles/dropdown-style.js';
 import '../ht-tools/ht-auto-read-eid-opening.js';
 import './dialogs/reporting/ht-pat-primary-prevention-dialog.js';
+import '../../styles/table-style';
 
 import moment from 'moment/src/moment'
 import _ from 'lodash/lodash'
