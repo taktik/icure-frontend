@@ -1299,7 +1299,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
       //init socket io
       this.set("socket",null)
-      this.api.isElectronAvailable().then(electron => {
+      this.api && this.api.isElectronAvailable().then(electron => {
           if (electron) {
               this.set("socket",io('http://localhost:16042'))
 
@@ -1344,7 +1344,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           }
       });
 
-      this.api.isElectronAvailable().then(electron => {
+      this.api && this.api.isElectronAvailable().then(electron => {
           this.set("isElectron",electron)
           if(this.isElectron){
               fetch('http://127.0.0.1:16042/getVersion')
@@ -1666,7 +1666,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
               this.$.loginDialog.opened = false
 
-              this.api.isElectronAvailable().then(electron => {
+              this.api && this.api.isElectronAvailable().then(electron => {
                   if (electron === true) {
                       //request electron tc.
                       fetch('http://localhost:16042/tc', {
@@ -2060,7 +2060,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
 
               if(mikronoUrl && mikronoUser && mikronoPassword && applicationTokens && applicationTokens.MIKRONO){
-                  this.api.isElectronAvailable().then(electron =>{
+                  this.api && this.api.isElectronAvailable().then(electron =>{
                       if(electron === false){
                           window.open("https://"+mikronoUser+":"+mikronoPassword+"@"+mikronoUrl.replace("https://", "")+"/iCureShortcut.jsp?id="+this.user.id, '_blank')
                       }else{
@@ -2095,7 +2095,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                                   const mikronoUser = this.user && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.user") && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.user").typedValue.stringValue || null
                                   const mikronoPassword = this.user && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.password") && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.password").typedValue.stringValue || null
                                   if(mikronoUrl && mikronoUser && mikronoPassword && applicationTokens && applicationTokens.MIKRONO){
-                                      this.api.isElectronAvailable().then(electron =>{
+                                      this.api && this.api.isElectronAvailable().then(electron =>{
                                           if(electron === false){
                                                       window.open("https://" + mikronoUser + ":" + mikronoPassword + "@" + mikronoUrl.replace("https://", "") + "/iCureShortcut.jsp?id=" + this.user.id, '_blank')
                                           }else{

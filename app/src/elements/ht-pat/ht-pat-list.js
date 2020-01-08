@@ -1876,7 +1876,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
   ready() {
       super.ready()
 
-      this.api.isElectronAvailable().then(electron => this.set('onElectron',electron))
+      this.api && this.api.isElectronAvailable().then(electron => this.set('onElectron',electron))
 
       var grid = this.$['patients-list']
 
@@ -1915,7 +1915,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
           }
 
           let svcFilter = null
-          this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(currentHcp => {
+          this.api && this.api.hcparty() && this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(currentHcp => {
               if (this.selectedFilters && this.selectedFilters.length) {
                   svcFilter = parse(`PAT[${this._selectedFiltersAsString()}]`, {hcpId: currentHcp.parentId || this.user.healthcarePartyId})
               } else {
@@ -2041,8 +2041,8 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
       // reset to tab one
       this.tabs = 0
 
-      this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(myHcp => {
-          if ( !!(myHcp && myHcp.parentId) || _.trim(_.get(myHcp,"type","")).toLowerCase() === "medicalhouse" ) {
+      this.api && this.api.hcparty() && this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(myHcp => {
+          if ( !!(myHcp && myHcp.parentId && this.api && this.api.hcparty()) || _.trim(_.get(myHcp,"type","")).toLowerCase() === "medicalhouse" ) {
               this.api.hcparty().getHealthcareParty(_.get(myHcp,"parentId", _.trim(myHcp.id) )).then(parentHcp => {
                   const parent = _.trim(_.get(myHcp,"type","")).toLowerCase() === "medicalhouse" ? myHcp : parentHcp;
                   this.mhListItem = parent ? [{
@@ -2626,7 +2626,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
       const filters =  _.get(this.user, 'properties', []).find(p => _.get(p, 'type.identifier', null) === 'org.taktik.icure.datafilters')
 
       const parsedFilters = _.get(filters, 'typedValue.stringValue', null) ? JSON.parse(filters.typedValue.stringValue) : {}
-      return _.concat(_.get(this, 'primaryPreventionFilters', []).map(f => ({name: f.name, filter: f.filter, id: this.api.crypto().randomUuid(), type: f.type})), Object.keys(parsedFilters).map(k => ({name: {[this.language] : k}, filter: parsedFilters[k], id: this.api.crypto().randomUuid(), type: "custom"}))) || []
+      return this.api && this.api.crypto() ? _.concat(_.get(this, 'primaryPreventionFilters', []).map(f => ({name: f.name, filter: f.filter, id: this.api.crypto().randomUuid(), type: f.type})), Object.keys(parsedFilters).map(k => ({name: {[this.language] : k}, filter: parsedFilters[k], id: this.api.crypto().randomUuid(), type: "custom"}))) || [] : []
 
   }
 
@@ -3222,7 +3222,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
 
   //TODO: check for flatrate invoice type of MH HCP: "billingType": "flatRate"
   checkForParentMedicalHouse() {
-      if (this.user && this.user.healthcarePartyId) {
+      if (this.user && this.user.healthcarePartyId && this.api && this.api.hcparty() ) {
           this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
               if ( !!(hcp && hcp.parentId) || _.trim(_.get(hcp,"type","")).toLowerCase() === "medicalhouse" ) {
                   this.api.hcparty().getHealthcareParty(_.get(hcp,"parentId", _.trim(hcp.id) )).then(parentHcp => {

@@ -376,8 +376,8 @@ class HtImportMfDialog extends TkLocalizerMixin(mixinBehaviors([IronResizableBeh
   ready() {
       super.ready();
       const vaadinUpload = this.root.querySelector('#vaadin-upload');
-      vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
-      vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
+      vaadinUpload && vaadinUpload.set && vaadinUpload.set('i18n.addFiles.many', this.localize('upl_fil','Upload file',this.language))
+      vaadinUpload && vaadinUpload.set && vaadinUpload.set('i18n.dropFiles.many', this.localize('uplabel','Drop files here...',this.language))
       this.checkLimit = promiseLimit(5)
       this.importLimit = promiseLimit(2)
       console.log("ready language", this.language)

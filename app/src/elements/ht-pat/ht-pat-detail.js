@@ -3258,7 +3258,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
       super.ready();
       this.set("SpinnerActive",true)
 
-      this.api.isElectronAvailable().then(electron =>{
+      this.api && this.api.isElectronAvailable().then(electron =>{
           if(electron){
               this._readEid()
           }

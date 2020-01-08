@@ -382,7 +382,7 @@ class HtAdminAccountPrinters extends TkLocalizerMixin(PolymerElement) {
 
   ready() {
       super.ready()
-      this.api.isElectronAvailable().then(elect=>this.set('electronAvailable',elect))
+      this.api && this.api.isElectronAvailable().then(elect=>this.set('electronAvailable',elect))
   }
 
   _electronInit(){

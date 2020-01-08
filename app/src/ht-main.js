@@ -1235,7 +1235,8 @@ class HtMain extends TkLocalizerMixin(PolymerElement) {
 
   setFromSavedLayout() {
 
-      const storage = JSON.parse(localStorage.getItem(`org.taktik.icure.${this.user.id}.settings.main.grid`))
+      // const storage = JSON.parse(localStorage.getItem(`org.taktik.icure.${this.user.id}.settings.main.grid`))
+      const storage = JSON.parse(localStorage.getItem("org.taktik.icure." + _.get(this,"user.id") + ".settings.main.grid"))
 
       if (storage) {
           this.set('selectedLayout', storage.layout)
@@ -1516,7 +1517,7 @@ class GridLayout {
 
     setFromStorage(user, widgets) {
 
-        const savedGridLayout = localStorage.getItem(`org.taktik.icure.${user.id}.settings.main.grid`)
+        const savedGridLayout = user && user.id && localStorage.getItem(`org.taktik.icure.${user.id}.settings.main.grid`)
 
         if (savedGridLayout) {
 
@@ -1557,7 +1558,7 @@ class GridLayout {
         data.widgets = widgets
         data.size = window.innerWidth
 
-        localStorage.setItem(`org.taktik.icure.${user.id}.settings.main.grid`, JSON.stringify(data))
+        user && user.id && localStorage.setItem(`org.taktik.icure.${user.id}.settings.main.grid`, JSON.stringify(data))
 
         return this
 

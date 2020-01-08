@@ -869,7 +869,7 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
 
   _userChanged(changedUser) {
       if( _.trim(_.get(changedUser, "healthcarePartyId", "something")) === _.trim(_.get(this,"currentHcp.id", "else")) ) return;
-      this.api.hcparty().getHealthcareParty(_.trim(_.get(changedUser, "healthcarePartyId", ""))).then(hcp => this.set("currentHcp",hcp)).catch(ignored=>{})
+      this.api && this.api.hcparty() && this.api.hcparty().getHealthcareParty(_.trim(_.get(changedUser, "healthcarePartyId", ""))).then(hcp => this.set("currentHcp",hcp)).catch(ignored=>{})
   }
 
   _loadRecipientTypesTranslations() {

@@ -3518,7 +3518,7 @@ class HtPat extends PolymerElement {
   }
 
   _routeChanged() {
-      if (this.route.prefix!=="/pat") {
+      if (_.trim(_.get(this,"route.prefix",""))!=="/pat") {
           this.set('isLoadingPat',false)
           return
       }

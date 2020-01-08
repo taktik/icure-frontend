@@ -664,7 +664,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
   }
 
   apiReady() {
-      this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
+      this.api && this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
       return !!_.size(_.get(this,"listType",[])) ? null : this.api.getDocumentTypes(this.resources, this.language).then(documentTypes => this.set("listType", documentTypes))
   }
 

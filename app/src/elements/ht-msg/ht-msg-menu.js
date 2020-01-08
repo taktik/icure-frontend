@@ -726,7 +726,7 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
   }
 
   _isConnectedToEhbox() {
-      this.set("ehealthSession", !!this.api.tokenId)
+      this.set("ehealthSession", !!_.get(this,"api.tokenId"))
   }
 
   toggleMenu(e) {

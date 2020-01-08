@@ -425,7 +425,7 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
   }
 
   _setIsConnectedToEhbox() {
-      this.set("ehealthSession", !!this.api.tokenId)
+      this.set("ehealthSession", !!_.get(this,"api.tokenId"))
   }
 
   _selectedElem(e) {

@@ -504,7 +504,7 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
   }
 
   format(logsWithoutPatient){
-      this.api.setPreventLogging();
+      this.api && this.api.setPreventLogging();
       this.setLinkPatient(logsWithoutPatient).then(logs =>{
           const logListTemp=logs.filter(log=> this.patientsList.find(pat=> pat.id===log.patientId) || this.usersList.find(user => user.id===log.user))
 
