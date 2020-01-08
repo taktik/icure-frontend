@@ -8,12 +8,21 @@ Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
 */
 import './styles/app-theme-tz.js';
-
-import './styles/shared-styles.js';
-import './styles/vaadin-icure-theme.js';
+import './styles/atc-styles';
 import './styles/buttons-style';
 import './styles/dialog-style';
+import './styles/dropdown-style';
+import './styles/icd-styles';
+import './styles/icpc-styles';
 import './styles/notification-style';
+import './styles/paper-input-style';
+import './styles/paper-tabs-style';
+import './styles/scrollbar-style';
+import './styles/shared-styles';
+import './styles/spinner-style';
+import './styles/table-style';
+import './styles/tk-token-field-style';
+import './styles/vaadin-icure-theme';
 
 import "@polymer/app-layout/app-drawer-layout/app-drawer-layout"
 import "@polymer/app-layout/app-header/app-header"
@@ -53,8 +62,19 @@ import "@polymer/paper-listbox/paper-listbox"
 import "@polymer/paper-menu-button/paper-menu-button"
 import "@polymer/paper-tabs/paper-tab"
 import "@polymer/paper-tooltip/paper-tooltip"
+
+import "@vaadin/vaadin-material-styles"
+import "@vaadin/vaadin-icons"
+import "@vaadin/vaadin-date-picker"
+import "@vaadin/vaadin-checkbox"
+import "@vaadin/vaadin-progress-bar"
+import "@vaadin/vaadin-combo-box"
+import "@vaadin/vaadin-tabs"
+import "@vaadin/vaadin-upload"
+import "@vaadin/vaadin-text-field"
 import "@vaadin/vaadin-grid/vaadin-grid"
 import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
 
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
@@ -747,7 +767,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                                 <paper-button data-name="main" name="main" on-tap="doRoute"><iron-icon data-name="main" class="iron-icon" icon="home"></iron-icon>[[localize('sum','Summary',language)]]</paper-button>
                                 <paper-button data-name="pat" name="pat" on-tap="doRoute"><iron-icon data-name="pat" icon="vaadin:user-heart"></iron-icon>[[localize('pat','Patients',language)]]</paper-button>
                                 <paper-button data-name="hcp" name="hcp" on-tap="doRoute"><iron-icon data-name="hcp" icon="vaadin:hospital"></iron-icon>[[localize('hc_par','HC parties',language)]]</paper-button>
-                                <paper-button data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" icon="communication:email"></iron-icon>[[localize('msg','Message',language)]]</paper-button>
+                                <paper-button data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" icon="vaadin:envelope"></iron-icon>[[localize('msg','Message',language)]]</paper-button>
                                 <paper-button data-name="diary" name="diary" on-tap="checkAndLoadMikrono"><iron-icon data-name="diary" icon="date-range"></iron-icon>[[localize('diary','Diary',language)]]</paper-button>
                                 <paper-button data-name="admin" name="admin" on-tap="doRoute"><iron-icon data-name="admin" icon="vaadin:cog-o"></iron-icon>[[localize('admin')]]</paper-button>
                             </paper-listbox>
@@ -758,7 +778,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                             <paper-tab data-name="main" name="main" on-tap="doRoute"><iron-icon data-name="main" name="main" class="iron-icon" icon="home"></iron-icon>[[localize('sum','Summary',language)]]</paper-tab>
                             <paper-tab data-name="pat" name="pat" on-tap="doRoute"><iron-icon data-name="pat" name="pat" class="smaller" icon="vaadin:user-heart"></iron-icon>[[localize('pat','Patients',language)]]</paper-tab>
                             <paper-tab data-name="hcp" name="hcp" on-tap="doRoute"><iron-icon data-name="hcp" name="hcp" class="smaller" icon="vaadin:hospital"></iron-icon>[[localize('hc_par','HC parties',language)]]</paper-tab>
-                            <paper-tab data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" name="msg" class="smaller" icon="communication:email"></iron-icon>[[localize('msg','Message',language)]]</paper-tab>
+                            <paper-tab data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" name="msg" class="smaller" icon="vaadin:envelope"></iron-icon>[[localize('msg','Message',language)]]</paper-tab>
                             <paper-tab data-name="diary" name="diary" on-tap="checkAndLoadMikrono"><iron-icon data-name="diary" name="diary" icon="date-range"></iron-icon>[[localize('diary','Diary',language)]]</paper-tab>
                             <paper-tab data-name="admin" name="admin" on-tap="doRoute"><iron-icon data-name="admin" name="admin" icon="settings"></iron-icon>[[localize('admin')]]</paper-tab>
                         </paper-tabs>
@@ -924,25 +944,27 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
         </paper-dialog>
 
         <paper-dialog id="ht-invite-hcp-user-already-exists">
-            <h3>[[localize('warning','Attention',language)]]</h3>
+            <h2 class="modal-title">[[localize('warning','Attention',language)]]</h2>
             <h4> [[localize( 'email_address_already_exists', 'L\\'adresse email de ce collègue existe déjà\\, veuillez svp en spécifier une autre', language)]]</h4>
             <paper-button dialog-confirm="" autofocus="" class="button" on-tap="_inviteHCP">[[localize('clo','Close',language)]]</paper-button>
         </paper-dialog>
 
         <paper-dialog id="tutorialDialog">
-            <h3>[[localize('tutorialList','Tutorial list',language)]]</h3>
-            <div id="tutorialContainer">
-                <ul>
-                    <li><a href="../docs/1_1_connexion.pdf" target="_blank">Connexion</a></li>
-                    <li><a href="../docs/1_2_Configuration_du_compte_utilisateur.pdf" target="_blank">Configuration du compte utilisateur</a></li>
-                    <li><a href="../docs/1_3_Configuration_et_importation_du_trousseau_eHealth.pdf" target="_blank">Configuration et importation du trousseau eHealth</a></li>
-                    <li><a href="../docs/1_4_dashboard_first_use.pdf" target="_blank">Tableau de bord</a></li>
-                    <li><a href="../docs/2_1_presentation_generale.pdf" target="_blank">Présentation générale</a></li>
-                    <li><a href="../docs/2_2_creation_et_configuration_patient.pdf" target="_blank">Création et configuration d'un patient</a></li>
-                    <li><a href="../docs/2_3_Partage_de_patients.pdf" target="_blank">Partager un patient</a></li>
-                    <li><a href="../docs/3_1_dossier_complet.pdf" target="_blank">Dossier complet</a></li>
-                    <li><a href="../docs/manuel.pdf" target="_blank">Manuel</a></li>
-                </ul>
+            <h2 class="modal-title">[[localize('tutorialList','Tutorial list',language)]]</h2>
+            <div class="content">
+                <div id="tutorialContainer">
+                    <ul>
+                        <li><a href="../docs/1_1_connexion.pdf" target="_blank">Connexion</a></li>
+                        <li><a href="../docs/1_2_Configuration_du_compte_utilisateur.pdf" target="_blank">Configuration du compte utilisateur</a></li>
+                        <li><a href="../docs/1_3_Configuration_et_importation_du_trousseau_eHealth.pdf" target="_blank">Configuration et importation du trousseau eHealth</a></li>
+                        <li><a href="../docs/1_4_dashboard_first_use.pdf" target="_blank">Tableau de bord</a></li>
+                        <li><a href="../docs/2_1_presentation_generale.pdf" target="_blank">Présentation générale</a></li>
+                        <li><a href="../docs/2_2_creation_et_configuration_patient.pdf" target="_blank">Création et configuration d'un patient</a></li>
+                        <li><a href="../docs/2_3_Partage_de_patients.pdf" target="_blank">Partager un patient</a></li>
+                        <li><a href="../docs/3_1_dossier_complet.pdf" target="_blank">Dossier complet</a></li>
+                        <li><a href="../docs/manuel.pdf" target="_blank">Manuel</a></li>
+                    </ul>
+                </div>
             </div>
             <div class="buttons">
                 <paper-button dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
@@ -963,14 +985,16 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
         </paper-item>
 
         <paper-dialog id="mikronoErrorDialog">
-            <h3>Erreur lors de la création de votre compte agenda</h3>
-            <div class="errorMikrono">
-                <template is="dom-if" if="[[!mikronoError.addresses]]"><h5>- Adresse manquante</h5></template>
-                <template is="dom-if" if="[[!mikronoError.workAddresses]]"><h5>- Adresse de type travail manquante</h5></template>
-                <template is="dom-if" if="[[!mikronoError.workMobile]]"><h5>- N° de gsm manquant</h5></template>
-                <template is="dom-if" if="[[!mikronoError.workEmail]]"><h5>- Email manquant</h5></template>
-                <template is="dom-if" if="[[!mikronoError.token]]"><h5>- Token manquant</h5></template>
-                <template is="dom-if" if="[[!mikronoError.error]]"><h5>- Erreur lors de la création du compte</h5></template>
+            <h2 class="modal-title">Erreur lors de la création de votre compte agenda</h2>
+            <div class="content">
+                <div class="errorMikrono">
+                    <template is="dom-if" if="[[!mikronoError.addresses]]"><h5>- Adresse manquante</h5></template>
+                    <template is="dom-if" if="[[!mikronoError.workAddresses]]"><h5>- Adresse de type travail manquante</h5></template>
+                    <template is="dom-if" if="[[!mikronoError.workMobile]]"><h5>- N° de gsm manquant</h5></template>
+                    <template is="dom-if" if="[[!mikronoError.workEmail]]"><h5>- Email manquant</h5></template>
+                    <template is="dom-if" if="[[!mikronoError.token]]"><h5>- Token manquant</h5></template>
+                    <template is="dom-if" if="[[!mikronoError.error]]"><h5>- Erreur lors de la création du compte</h5></template>
+                </div>
             </div>
             <div class="buttons">
                 <paper-button dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
@@ -979,18 +1003,41 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
 
 
         <paper-dialog id="appointmentsMigrationDialog">
-            <h4>Migration de vos rendez-vous</h4>
-            <vaadin-grid id="migrItem" class="material" items="[[migrationItems]]">
-                <vaadin-grid-column>
-                    <template class="header">
-                        Opération en cours
-                    </template>
-                    <template>
-                        <div>[[item.item]]</div>
-                    </template>
-                </vaadin-grid-column>
-            </vaadin-grid>
+            <h2 class="modal-title">Migration de vos rendez-vous</h2>
+            <div class="content">
+                <vaadin-grid id="migrItem" class="material" items="[[migrationItems]]">
+                    <vaadin-grid-column>
+                        <template class="header">
+                            Opération en cours
+                        </template>
+                        <template>
+                            <div>[[item.item]]</div>
+                        </template>
+                    </vaadin-grid-column>
+                </vaadin-grid>
+            </div>
         </paper-dialog>
+
+
+
+
+
+
+
+            <paper-dialog class="modalDialog" id="errorGettingEHealthBoxMessages" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                <div class="content textaligncenter pt20 pb70 pl20 pr20">
+                    <p>[[localize('errorGettingEHealthBoxMessages','An error occurred while getting your messages',language)]]</p>
+                    <p>[[localize('pleaseReloadPageOrApp','Please reload the page / the application',language)]]</p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                </div>
+            </paper-dialog>
+
+
+
+
 
 
         <template is="dom-if" if="[[showKeystoreExpiredLabel]]">

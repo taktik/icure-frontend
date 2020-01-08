@@ -508,7 +508,7 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
       this.setLinkPatient(logsWithoutPatient).then(logs =>{
           const logListTemp=logs.filter(log=> this.patientsList.find(pat=> pat.id===log.patientId) || this.usersList.find(user => user.id===log.user))
 
-          this.api.patient().getPatientsWithUser(this.user,{ids:_.uniq(_.flattenDeep(logListTemp.filter(log => !this.patientsList.find(pat=> log.patientId===pat.id) && !this.extraPatientsList.find(pat=> log.patientId===pat.id)).map(log => log.patientId)))}).then(extraPatients =>{
+          this.user && this.api.patient().getPatientsWithUser(this.user,{ids:_.uniq(_.flattenDeep(logListTemp.filter(log => !this.patientsList.find(pat=> log.patientId===pat.id) && !this.extraPatientsList.find(pat=> log.patientId===pat.id)).map(log => log.patientId)))}).then(extraPatients =>{
               this.set('extraPatientsList',this.extraPatientsList.concat(extraPatients))
               const logByPatient = _.groupBy(logListTemp,log=> log.patientId)
               const newLogs=_.flatMapDeep(Object.keys(logByPatient).map(patId =>{

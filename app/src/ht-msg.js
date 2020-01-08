@@ -30,13 +30,12 @@ import {TkLocalizerMixin} from "./elements/tk-localizer";
 class HtMsg extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
-        <style include="shared-styles">
+<style include="shared-styles">
             :host {
                 display: block;
                 height: calc(100% - 20px);
                 /*padding: 10px;*/
             }
-
             .container {
                 width: 100%;
                 height: calc(100vh - 64px - 20px);
@@ -49,7 +48,6 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 bottom: 0;
                 right: 0;
             }
-
             .sub-container {
                 width: 100%;
                 height: 100%;
@@ -58,7 +56,6 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 grid-template-rows: 100%;
                 background-color: var(--app-background-color);
             }
-
             ht-msg-detail{
                 padding: 16px;
                 z-index: 0;
@@ -76,14 +73,12 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 background-color: var(--app-background-color-light);
                 padding: 0;
                 transition: all .5s cubic-bezier(0.075, 0.82, 0.165, 1);
-
                 position: fixed;
                 top: 72px;
                 left: 16.5%;
                 width: 83%;
                 height: calc(100% - 91px);
             }
-
             ht-msg-document-detail{
                 padding: 16px;
                 z-index: 0;
@@ -102,7 +97,6 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 background-color: var(--app-background-color-light);
                 padding: 0;
             }
-
             .display-left-menu{
                 display:none;
                 position:fixed;
@@ -120,38 +114,29 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 border-radius: 0 50% 50% 0;
                 transform: translateY(-50%);
             }
-
             paper-dialog {
                 width: 40%;
                 height: 40%;
             }
-
-
             .modalDialog {
                 height: 300px;
                 width: 600px;
             }
-
             ht-msg-list.selected {
                 /*width: 152vw;*/
             }
-
             ht-msg-documents.selected {
                 width: 152vw;
             }
-
             ht-msg-menu{
                 z-index : 1;
             }
-
             ht-msg-invoice#invoicingForm {
                 z-index : 10;
             }
-
             @media screen and (max-width:1025px){
                 .container{
                     grid-template-columns: 0 40% 60%;
-
                 }
                 .container.expanded {
                     grid-template-columns: 20% 30% 50%;
@@ -171,31 +156,25 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 .display-left-menu{
                     display:inherit;
                 }
-
                 #msg-flatrate-invoice,
                 #msg-invoice,
                 #msg-mycarenet {
                     width: 100vw;
                 }
-
                 ht-msg-list {
                     transition: all .5s ease-out;
                 }
-
                 ht-msg-list.selected {
                     /*height: calc(40vh - 24px);*/
                     /*width: initial;*/
                 }
-
                 ht-msg-documents {
                     transition: all .5s ease-out;
                 }
-
                 ht-msg-documents.selected {
                     height: calc(40vh - 24px);
                     width: initial;
                 }
-
                 ht-msg-detail {
                     padding: 0 16px;
                     z-index: 2;
@@ -214,7 +193,6 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                     opacity: 1;
                     border-top: 1px solid var(--app-background-color-darker);
                 }
-
                 ht-msg-document-detail {
                     padding: 0 16px;
                     z-index: 2;
@@ -233,21 +211,16 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                     opacity: 1;
                     border-top: 1px solid var(--app-background-color-darker);
                 }
-
             }
-
             #msgDocuments {
                 padding-left:10px;
             }
-
             #msg-list {
                 z-index:2
             }
-
             #msg-detail {
                 z-index:3
             }
-
         </style>
 
         <div class="container">
@@ -258,52 +231,151 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 <paper-icon-button class="display-left-menu open" icon="chevron-left" on-tap="_closeColumn"></paper-icon-button>
             </template>
 
-            <ht-msg-menu id="msg-menu" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" on-selection-change="handleMenuChange"></ht-msg-menu>
+            <ht-msg-menu
+                id="msg-menu"
+                api="[[api]]"
+                i18n="[[i18n]]"
+                language="[[language]]"
+                resources="[[resources]]"
+                user="[[user]]"
+                on-selection-change="handleMenuChange"
+            ></ht-msg-menu>
 
             <template is="dom-if" if="[[isEHealthBox]]">
                 <div class="sub-container">
 
-                    <ht-msg-list id="msg-list" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" menu-selection-object="[[selectList]]" on-selected-message-changed="handleMessageChange" on-message-moved-to-assigned-folder="_handleMessageMovedToAssignedFolder" on-update-menu-folders-totals="callPersonalInboxUpdateMenuFoldersTotals" on-create-new-msg="_triggerCreateNewMessage" on-reply-to-or-forward-message="_triggerReplyToOrForwardMessage" on-user-got-updated="_userGotUpdatedFromList" class\$="[[_selectedElem(selectedMessage)]]"></ht-msg-list>
+                    <ht-msg-list
+                        id="msg-list"
+                        api="[[api]]"
+                        i18n="[[i18n]]"
+                        language="[[language]]"
+                        resources="[[resources]]"
+                        user="[[user]]"
+                        menu-selection-object="[[selectList]]"
+                        on-selected-message-changed="handleMessageChange"
+                        on-message-moved-to-assigned-folder="_handleMessageMovedToAssignedFolder"
+                        on-update-menu-folders-totals="callPersonalInboxUpdateMenuFoldersTotals"
+                        on-create-new-msg="_triggerCreateNewMessage"
+                        on-reply-to-or-forward-message="_triggerReplyToOrForwardMessage"
+                        on-user-got-updated="_userGotUpdatedFromList"
+                        class$="[[_selectedElem(selectedMessage)]]"
+                    ></ht-msg-list>
 
 
-                    <ht-msg-detail id="msg-detail" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" selected-message="[[selectedMessage]]" on-carry-out-action="_carryOutActionFromDetailComponent" on-msg-detail-closed="_triggerGridResize" on-item-delete="handleRefreshlist" on-item-restore="handleRefreshlist" on-user-got-updated="_userGotUpdatedFromDetail" class\$="[[_selectedElem(selectedMessage)]]"></ht-msg-detail>
+                    <ht-msg-detail
+                        id="msg-detail"
+                        api="[[api]]"
+                        i18n="[[i18n]]"
+                        language="[[language]]"
+                        resources="[[resources]]"
+                        user="[[user]]"
+                        credentials="[[credentials]]"
+                        selected-message="[[selectedMessage]]"
+                        on-carry-out-action="_carryOutActionFromDetailComponent"
+                        on-msg-detail-closed="_triggerGridResize"
+                        on-item-delete="handleRefreshlist"
+                        on-item-restore="handleRefreshlist"
+                        on-user-got-updated="_userGotUpdatedFromDetail"
+                        class$="[[_selectedElem(selectedMessage)]]"
+                    ></ht-msg-detail>
 
                 </div>
             </template>
 
             <template is="dom-if" if="[[documentLayout]]">
                 <div class="sub-container">
-                    <ht-msg-documents id="doc-list" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" menu-selection-object="[[selectList]]" on-selection-messages-change="handleMessageChange" on-open-upload-dialog="_openUploadDialog" on-show-error-message="showErrorMessage" on-initialize-doc-counter="callInitializeDocCounter" class\$="[[_selectedElem(selectedMessage)]]"></ht-msg-documents>
-                    <ht-msg-document-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" selected-message="[[selectedMessage]]" patient-list="[[patientList]]" on-msg-detail-closed="_triggerGridDocResize" on-item-delete="handleRefreshlist" on-item-restore="handleRefreshlist" on-document-update="_updateDoc" on-document-unassign="_unassignDoc" on-document-delete="_deleteDoc" on-show-error-message="showErrorMessage" class\$="[[_selectedElem(selectedMessage)]]"></ht-msg-document-detail>
+                    <ht-msg-documents id="doc-list" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"
+                        menu-selection-object="[[selectList]]"
+                        on-selection-messages-change="handleMessageChange"
+                        on-open-upload-dialog="_openUploadDialog"
+                        on-show-error-message="showErrorMessage"
+                        on-initialize-doc-counter="callInitializeDocCounter"
+                        class$="[[_selectedElem(selectedMessage)]]"
+                    ></ht-msg-documents>
+                    <ht-msg-document-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"
+                        selected-message="[[selectedMessage]]"
+                        patient-list="[[patientList]]"
+                        on-msg-detail-closed="_triggerGridDocResize"
+                        on-item-delete="handleRefreshlist"
+                        on-item-restore="handleRefreshlist"
+                        on-document-update="_updateDoc"
+                        on-document-unassign="_unassignDoc"
+                        on-document-delete="_deleteDoc"
+                        on-show-error-message="showErrorMessage"
+                        class$="[[_selectedElem(selectedMessage)]]"
+                    ></ht-msg-document-detail>
                 </div>
             </template>
 
             <template is="dom-if" if="[[invoicesLayout]]">
-                    <ht-msg-invoice id="msg-invoice" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" select-list="[[selectList]]" invoices-status="[[invoicesStatus]]" on-selection-messages-change="handleMessageChange" on-initialize-batch-counter="callInitializeBatchCounter"></ht-msg-invoice>
+                    <ht-msg-invoice id="msg-invoice" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
+                                 user="[[user]]"
+                                 select-list="[[selectList]]"
+                                 invoices-status="[[invoicesStatus]]"
+                                 on-selection-messages-change="handleMessageChange"
+                                 on-initialize-batch-counter="callInitializeBatchCounter"></ht-msg-invoice>
             </template>
 
             <template is="dom-if" if="[[flatrateinvoicesLayout]]">
-                <ht-msg-flatrate-invoice id="msg-flatrate-invoice" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" flatrate-menu-section="[[flatrateMenuSection]]" on-selection-messages-change="handleMessageChange" on-initialize-batch-counter-j20="callInitializeBatchCounterJ20" on-do-route="_doRouteFlatRate"></ht-msg-flatrate-invoice>
+                <ht-msg-flatrate-invoice
+                    id="msg-flatrate-invoice"
+                    api="[[api]]"
+                    i18n="[[i18n]]"
+                    language="[[language]]"
+                    resources="[[resources]]"
+                    user="[[user]]"
+                    flatrate-menu-section="[[flatrateMenuSection]]"
+                    on-selection-messages-change="handleMessageChange"
+                    on-initialize-batch-counter-j20="callInitializeBatchCounterJ20"
+                    on-do-route="_doRouteFlatRate"
+                ></ht-msg-flatrate-invoice>
             </template>
 
             <template is="dom-if" if="[[flatrateinvoicesReportLayout]]">
-                <ht-msg-flatrate-report id="msg-flatrate-report" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" flatrate-menu-section="[[flatrateMenuSection]]"></ht-msg-flatrate-report>
+                <ht-msg-flatrate-report
+                        id="msg-flatrate-report"
+                        api="[[api]]"
+                        i18n="[[i18n]]"
+                        language="[[language]]"
+                        resources="[[resources]]"
+                        user="[[user]]"
+                        flatrate-menu-section="[[flatrateMenuSection]]"
+                ></ht-msg-flatrate-report>
             </template>
 
             <template is="dom-if" if="[[mycarenetLayout]]">
-                <ht-msg-mycarenet id="msg-mycarenet" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" select-list="[[selectList]]">
+                <ht-msg-mycarenet id="msg-mycarenet" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
+                                  user="[[user]]"
+                                  select-list="[[selectList]]">
 
                 </ht-msg-mycarenet>
             </template>
 
         </div>
 
-        <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]">
+        <ht-msg-new
+                id="new-msg"
+                api="[[api]]"
+                i18n="[[i18n]]"
+                language="[[language]]"
+                resources="[[resources]]"
+                user="[[user]]"
+                credentials="[[credentials]]">
         </ht-msg-new>
 
 
-        <ht-upload-dialog id="upload-dialog" api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" on-save-documents="_saveDocuments" on-error-message="_handleError" on-post-process="_postProcess">
+        <ht-upload-dialog
+                id="upload-dialog"
+                api="[[api]]"
+                i18n="[[i18n]]"
+                user="[[user]]"
+                language="[[language]]"
+                resources="[[resources]]"
+                on-save-documents="_saveDocuments"
+                on-error-message="_handleError"
+                on-post-process="_postProcess">
         </ht-upload-dialog>
+
 `;
   }
 
