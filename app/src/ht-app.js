@@ -64,6 +64,7 @@ import "@polymer/paper-listbox/paper-listbox"
 import "@polymer/paper-menu-button/paper-menu-button"
 import "@polymer/paper-tabs/paper-tab"
 import "@polymer/paper-tooltip/paper-tooltip"
+import "@polymer/paper-fab"
 
 import "@vaadin/vaadin-material-styles"
 import "@vaadin/vaadin-icons"
