@@ -50,7 +50,8 @@ class EntitySelector extends TkLocalizerMixin(PolymerElement) {
 		<paper-dialog id="dialog">
 			<h2 class="modal-title">
 			    <template is="dom-if" if="[[entityIcon]]"><iron-icon icon="[[entityIcon]]"></iron-icon> &nbsp;</template>
-			    [[localize('sel','Select',language)]] [[entityType]]
+<!--			    [[localize('sel','Select',language)]] [[entityType]]-->
+                    [[localize('search','Search',language)]]
 			</h2>
 			<div class="content">
 				<paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" autofocus="" on-keydown="refresh" always-float-label=""></paper-input>
