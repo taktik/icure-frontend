@@ -1,14 +1,20 @@
 import '../ht-spinner/ht-spinner.js';
 import moment from 'moment/src/moment';
+import pdfjs from 'pdfjs-dist/webpack';
+
+
+
 (function(window, undefined) {
   var Reader = function(el) {
     this.element = el;
-    this.reader = Polymer.dom(el.root).querySelector('.pdf-viewer');
+    // this.reader = Polymer.dom(el.root).querySelector('.pdf-viewer');
+    this.reader = el.shadowRoot.querySelector('.pdf-viewer');
     this.viewportOut = this.reader.querySelector('.pdf-viewport-out');
     this.toolbar = this.reader.querySelector('.pdf-toolbar');
     this.toolbarHeight = this.toolbar.offsetHeight || 0;
     this.title = this.toolbar.querySelector('.title');
-    this.enableTextSelection = el.enableTextSelection;
+    // this.enableTextSelection = el.enableTextSelection;
+    this.enableTextSelection = false;
     this.fitWidth = el.fitWidth;
     this.fitHeight = el.fitHeight;
     this.HEIGHT = el.getAttribute('height');
@@ -88,7 +94,7 @@ import moment from 'moment/src/moment';
     this.setSize();
     var self = this;
     const docSrc = validURL(this.SRC) ? {url: this.SRC, withCredentials: true} : {data: atob(this.SRC)}
-    PDFJS.getDocument(docSrc).then(function(pdf) {
+      pdfjs.getDocument(docSrc).then(function(pdf) {
       self.PDF = pdf;
       self.queueRenderPage(1);
 
@@ -103,7 +109,7 @@ import moment from 'moment/src/moment';
   Reader.prototype.renderPages = function(pdf) {
     var self = this;
     self.viewportOut.innerHTML="";
-    PDFJS.getDocument({url: this.SRC, withCredentials: true}).then(function(pdf) {
+      pdfjs.getDocument({url: this.SRC, withCredentials: true}).then(function(pdf) {
       self.PDF = pdf;
 
       for(var num = 1; num <= self.PDF.numPages; num++){
@@ -135,7 +141,7 @@ import moment from 'moment/src/moment';
     self.spinner.active = true;
     this.PDF.getPage(pageNum).then(function(page) {
       var scaleW, scaleH, viewerViewport, scale, radians;
-      radians = page.pageInfo.rotate * Math.PI / 180;
+      radians = page._pageInfo.rotate * Math.PI / 180;
 
       self.pageW = Math.abs((page.view[2]*Math.cos(radians)) + (page.view[3]*Math.sin(radians)));
       self.pageH = Math.abs((page.view[3]*Math.cos(radians)) + (page.view[2]*Math.sin(radians)));
@@ -209,7 +215,7 @@ import moment from 'moment/src/moment';
           if (self.enableTextSelection){
             self.textLayerDiv.innerHTML="";
             page.getTextContent().then(function(textContent) {
-              PDFJS.renderTextLayer({
+                pdfjs.renderTextLayer({
                 textContent: textContent,
                 container: textLayer,
                 pageIndex : pageNum,
@@ -240,7 +246,7 @@ import moment from 'moment/src/moment';
         if (self.enableTextSelection){
           self.textLayerDiv.innerHTML="";
           page.getTextContent().then(function(textContent) {
-            const task = PDFJS.renderTextLayer({
+            const task = pdfjs.renderTextLayer({
               textContent: textContent,
               container: self.textLayerDiv,
               pageIndex : pageNum,
@@ -327,9 +333,9 @@ import moment from 'moment/src/moment';
     var self = this;
 
     this.PDF.getData().then(function(data) {
-      var blob = PDFJS.createBlob(data, 'application/pdf');
+      // var blob = pdfjs.createBlob(data, 'application/pdf');
 
-      self.downloadLink = URL.createObjectURL(blob);
+      self.downloadLink = URL.createObjectURL(new Blob([data],{type: 'application/pdf'}));
     });
   };
 
