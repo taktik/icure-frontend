@@ -9,7 +9,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 */
 import '../../../styles/dialog-style.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-input/paper-input"
+
 import _ from 'lodash/lodash';
 
 import {PolymerElement, html} from '@polymer/polymer';

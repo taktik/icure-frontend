@@ -12,6 +12,19 @@ import '../../../styles/dropdown-style.js';
 import '../../../styles/paper-input-style.js';
 import '../../../styles/buttons-style.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-checkbox/paper-checkbox"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-dropdown-menu-light/paper-dropdown-menu-light"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../../tk-localizer";
 class HtAdminAccountPrinters extends TkLocalizerMixin(PolymerElement) {

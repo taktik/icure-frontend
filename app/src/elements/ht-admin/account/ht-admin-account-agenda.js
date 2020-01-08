@@ -11,7 +11,14 @@ import '../../../styles/dialog-style.js';
 
 import '../../../styles/buttons-style.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@vaadin/vaadin-checkbox/vaadin-checkbox"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import _ from 'lodash/lodash';
 
 import {PolymerElement, html} from '@polymer/polymer';

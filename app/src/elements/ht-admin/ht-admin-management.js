@@ -16,9 +16,6 @@ import './management/ht-admin-management-facturation-flat-rate.js';
 import './management/ht-admin-management-facturation-service-fee.js';
 import './management/ht-admin-management-forms.js';
 
-import moment from 'moment/src/moment';
-import _ from 'lodash/lodash';
-
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 class HtAdminManagement extends TkLocalizerMixin(PolymerElement) {
