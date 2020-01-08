@@ -23,6 +23,8 @@ import './ht-upload-dialog.js';
 import './styles/buttons-style.js';
 import './styles/shared-styles.js';
 
+import "@polymer/paper-icon-button/paper-icon-button"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "./elements/tk-localizer";
 class HtMsg extends TkLocalizerMixin(PolymerElement) {

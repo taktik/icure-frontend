@@ -10,6 +10,17 @@ import '../../styles/dropdown-style.js';
 import '../../styles/paper-tabs-style.js';
 import '../ht-pat/dialogs/ht-pat-outgoing-document.js';
 
+import "@polymer/iron-autogrow-textarea/iron-autogrow-textarea"
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-checkbox/paper-checkbox"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-upload/vaadin-upload"
+
 import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
 import mustache from "mustache/mustache.js"

@@ -17,6 +17,8 @@ import '../../styles/paper-input-style.js';
 import '../../styles/buttons-style.js';
 import '../../styles/paper-tabs-style.js';
 
+import "@polymer/iron-icon/iron-icon"
+
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'

@@ -16,7 +16,11 @@ import '../dynamic-form/entity-selector.js';
 import '../dynamic-form/health-problem-selector.js';
 import '../ht-spinner/ht-spinner.js';
 
-import moment from 'moment/src/moment';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+
 import _ from 'lodash/lodash';
 import styx from '../../../scripts/styx';
 

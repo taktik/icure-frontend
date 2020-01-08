@@ -2,6 +2,17 @@ import '../dynamic-form/dynamic-subcontact-type-selector.js';
 import '../pdf-element/pdf-element.js';
 import '../../styles/buttons-style.js';
 import '../../styles/dialog-style.js';
+
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-date-picker/vaadin-date-picker"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-text-field/vaadin-text-field"
+import "@vaadin/vaadin-upload/vaadin-upload"
+
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 

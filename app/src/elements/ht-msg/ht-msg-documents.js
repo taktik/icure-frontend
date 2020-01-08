@@ -9,16 +9,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 */
 import '../dynamic-form/ckmeans-grouping.js';
 
-import '../ht-spinner/ht-spinner.js';
-import './ht-msg-import-doc-dialog.js';
-import '../../styles/buttons-style.js';
-import '../../styles/dialog-style.js';
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
+
+import '../ht-spinner/ht-spinner'
+import './ht-msg-import-doc-dialog'
+import '../../styles/buttons-style'
+import '../../styles/dialog-style'
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
-import * as models from 'icc-api/dist/icc-api/model/models'
 
-import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "../tk-localizer";
+import {PolymerElement, html} from '@polymer/polymer'
+import {TkLocalizerMixin} from "../tk-localizer"
+
 class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`

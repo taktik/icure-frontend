@@ -4,6 +4,19 @@ import '../../styles/spinner-style.js';
 import '../ht-spinner/ht-spinner.js';
 import '../ht-pat/dialogs/ht-pat-invoicing-dialog.js';
 
+//TODO import "@polymer/iron-collapse-button/iron-collapse-button"
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-input/paper-textarea"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-column-group"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
+import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
+
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'

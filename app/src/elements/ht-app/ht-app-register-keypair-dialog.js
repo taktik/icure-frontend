@@ -1,4 +1,9 @@
 import '../qrcode-manager/qrcode-capture.js';
+
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-input/paper-input"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 class HtAppRegisterKeypairDialog extends TkLocalizerMixin(PolymerElement) {

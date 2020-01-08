@@ -1,5 +1,9 @@
 import { sha256 } from 'js-sha256/src/sha256';
-//noinspection JSUnusedGlobalSymbols
+
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-input/paper-input"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 

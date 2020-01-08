@@ -1,4 +1,7 @@
 //noinspection JSUnusedGlobalSymbols
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-spinner/paper-spinner"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 

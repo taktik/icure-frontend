@@ -1,9 +1,18 @@
 import '../ht-spinner/ht-spinner.js';
 import '../dynamic-form/ckmeans-grouping.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-selection-column"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
+import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
+
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
-import * as models from 'icc-api/dist/icc-api/model/models'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";

@@ -6,6 +6,20 @@ import './styles/buttons-style.js';
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-checkbox/paper-checkbox"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-icon-button/paper-icon-button"
+
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-date-picker/vaadin-date-picker"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-text-field/vaadin-text-area"
+import "@vaadin/vaadin-text-field/vaadin-text-field"
+import "@vaadin/vaadin-upload/vaadin-upload"
+
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "./elements/tk-localizer";
 

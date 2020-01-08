@@ -13,11 +13,18 @@ import '../ht-pat/dialogs/medicalhouse/ht-pat-flatrate-utils.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'
-import * as fhcmodels from 'fhc-api/dist/model/models'
-import mustache from "mustache/mustache.js";
-import jsZip from "jszip/dist/jszip.js";
+
 import promiseLimit from 'promise-limit';
-import * as retry from "icc-api/dist/icc-x-api/utils/net-utils"
+
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-pages/iron-pages"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-tabs/paper-tabs"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
