@@ -17,6 +17,9 @@ import '../dynamic-form/dynamic-confidentiality-selector.js';
 import '../dynamic-form/dynamic-visibility-selector.js';
 import '../ht-msg/ht-msg-new.js';
 
+import '@polymer/paper-button/paper-button';
+import '@polymer/paper-item/paper-item';
+
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 import '../prose-editor/prose-editor/prose-editor';
@@ -26,21 +29,19 @@ import * as models from 'icc-api/dist/icc-api/model/models';
 
 const $_documentContainer = document.createElement('template');
 
-$_documentContainer.innerHTML = `<dom-module id="my-date-picker" theme-for="vaadin-date-picker">
-	<template>
-		
-	</template>
-</dom-module><dom-module id="my-date-picker-styles" theme-for="vaadin-date-picker-overlay">
-	<template>
-		<style>
-			:host {
-				max-height: 400px;
-				margin-top: 0px;
-			}
-		</style>
-	</template>
-	
-</dom-module>`;
+$_documentContainer.innerHTML = `
+       <dom-module id="my-date-picker" theme-for="vaadin-date-picker">
+	   </dom-module>
+	   <dom-module id="my-date-picker-styles" theme-for="vaadin-date-picker-overlay">
+        <template>
+            <style>
+                :host {
+                    max-height: 400px;
+                    margin-top: 0px;
+                }
+            </style>
+        </template>
+    </dom-module>`;
 
 document.head.appendChild($_documentContainer.content);
 
@@ -50,7 +51,6 @@ class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
 
     static get template() {
         return html`
-
                 <style>
                     :host {
                         width: 160px;

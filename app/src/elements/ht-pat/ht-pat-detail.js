@@ -67,6 +67,9 @@ import './dialogs/consent/ht-pat-consent-detail.js';
 import './dialogs/care-path/ht-pat-care-path-detail-dialog.js';
 import './dialogs/care-path/ht-pat-care-path-list-dialog.js';
 
+import '@vaadin/vaadin-split-layout/vaadin-split-layout';
+import '@polymer/paper-button/paper-button';
+
 
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
