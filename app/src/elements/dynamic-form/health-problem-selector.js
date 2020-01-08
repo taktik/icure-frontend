@@ -439,14 +439,14 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
       this.latestSearchValue = latestSearchValue;
 
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('items', []);
           return;
       }
 
       this.dataProvider && this.dataProvider.filter(latestSearchValue, 500, 0, 'descr', false).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('items', res.rows);
@@ -620,13 +620,13 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('allergenItems', []);
           return;
       }
       this.dataProvider && this.dataProvider.filter(latestSearchValue, 500, 0, 'descr', false, ['BE-ALLERGEN','CD-ATC']).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('allergenItems', res.rows);
@@ -637,7 +637,7 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('drugItems', []);
           return;
       }
@@ -651,7 +651,7 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
 
       this.drugFilterTimeout = setTimeout(() => search().then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
 
@@ -665,13 +665,13 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('familyLinkItems', []);
           return;
       }
       this.dataProvider && this.dataProvider.filter(latestSearchValue, 500, 0, 'descr', false, ['BE-FAMILY-LINK']).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('familyLinkItems', res.rows);
@@ -682,13 +682,13 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('surgeryItems', []);
           return;
       }
       this.dataProvider && this.dataProvider.filter(latestSearchValue, 500, 0, 'descr', false, ['BE-THESAURUS-SURGICAL-PROCEDURES']).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('surgeryItems', res.rows);

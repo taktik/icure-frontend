@@ -676,13 +676,13 @@ class HtAdminReportsListOfAttestations extends TkLocalizerMixin(PolymerElement) 
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('hcpListItem', []);
           return;
       }
       this._hcpDataProvider() && this._hcpDataProvider().filter(latestSearchValue).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('hcpListItem', res.rows);
@@ -719,13 +719,13 @@ class HtAdminReportsListOfAttestations extends TkLocalizerMixin(PolymerElement) 
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('patientListItem', []);
           return;
       }
       this._patientDataProvider() && this._patientDataProvider().filter(latestSearchValue).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('patientListItem', res.rows);

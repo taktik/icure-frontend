@@ -1904,7 +1904,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
           this.latestSearchValue = latestSearchValue
 
           if ((!latestSearchValue || latestSearchValue.length < 2) && !(this.selectedFilters && this.selectedFilters.length)) {
-              console.log("Cancelling empty search")
+              // console.log("Cancelling empty search")
               this.btnSelectionPatient = false
               this.shareOption = false
               this.exportOption = false
@@ -1977,7 +1977,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
 
               if (grid.lastParamsWithIdx !== thisParamsWithIdx) {
                   grid.lastParamsWithIdx = thisParamsWithIdx
-                  console.log("Starting search for " + thisParamsWithIdx)
+                  // console.log("Starting search for " + thisParamsWithIdx)
 
                   this.set('hideSpinner', false)
                   this.set('isLoadingPatient', true)
@@ -2081,7 +2081,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
       this.latestSearchValue = latestSearchValue
 
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search")
+          // console.log("Cancelling empty search")
           const hcps = (_.values(this.api.hcParties || {}) || []).filter(hcp => hcp.publicKey && (!hcp.parentId || this._allHcpsChecked) && ((hcp.lastName || '').length || (hcp.name || '').length))
           this.set('hcp', _.orderBy(hcps, ['lastName'], ['asc']))
           return
