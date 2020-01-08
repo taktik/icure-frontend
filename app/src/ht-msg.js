@@ -292,7 +292,7 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                         on-initialize-doc-counter="callInitializeDocCounter"
                         class$="[[_selectedElem(selectedMessage)]]"
                     ></ht-msg-documents>
-                    <ht-msg-document-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"
+                    <ht-msg-document-detail id="msg-document-detail" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]"
                         selected-message="[[selectedMessage]]"
                         patient-list="[[patientList]]"
                         on-msg-detail-closed="_triggerGridDocResize"

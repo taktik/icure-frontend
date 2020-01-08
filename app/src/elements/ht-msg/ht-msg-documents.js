@@ -781,7 +781,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
           .then(messages => messages.filter(m => (currentFolder === 'todealwith' ? this._toDealWith(m) : !this._toDealWith(m)) && this._filterType(m, documentFilter)))
           .then(messages => Promise.all(messages.map(m => this._getCachedDecryptedBlobs(m))))
           .then(messages => {
-              console.log('got complete list');
+              // console.log('got complete list');
               return _.orderBy(messages, ['created', 'transportGuid'], ['desc', 'desc'])
           })
       ))
@@ -816,7 +816,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
                               data['patientId'] = patient.id;
                               data['patientName'] = patient.firstName + " " + patient.lastName;
                               data['patientSsin'] = patient.ssin;
-                              console.log('_getCachedDecryptedBlobs -> Patient: ', data['patientId'] + ' - ' + data['patientName'] + ' (' + data['patientSsin'] + ')');
+                              // console.log('_getCachedDecryptedBlobs -> Patient: ', data['patientId'] + ' - ' + data['patientName'] + ' (' + data['patientSsin'] + ')');
                               msgExtra.data = data;
                               this.msgExtras.push(msgExtra);
                               _.merge(message, msgExtra.data);
@@ -850,7 +850,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
                           .then(patient => {
                               message['patientName'] = patient.firstName + " " + patient.lastName;
                               message['patientSsin'] = patient.ssin;
-                              console.log('_getCachedMessage -> Patient: ', message['patientId'] + ' - ' + message['patientName'] + ' (' + message['patientSsin'] + ')');
+                              // console.log('_getCachedMessage -> Patient: ', message['patientId'] + ' - ' + message['patientName'] + ' (' + message['patientSsin'] + ')');
                               this.msgIds.push(message.id);
                               return message;
                           })
@@ -880,7 +880,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
                           .then(patient => {
                               message['patientName'] = patient.firstName + " " + patient.lastName;
                               message['patientSsin'] = patient.ssin;
-                              console.log('_getCachedMessage -> Patient: ', message['patientId'] + ' - ' + message['patientName'] + ' (' + message['patientSsin'] + ')');
+                              // console.log('_getCachedMessage -> Patient: ', message['patientId'] + ' - ' + message['patientName'] + ' (' + message['patientSsin'] + ')');
                               return message;
                           })
                   }
@@ -900,7 +900,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
           let index = this.msgIds.indexOf(message.id);
           if (index > -1)
               this.msgIds.splice(index, 1);
-          console.log('Discarded message: ', message);
+          // console.log('Discarded message: ', message);
           resolve();
       });
   }
@@ -1091,7 +1091,7 @@ class HtMsgDocuments extends TkLocalizerMixin(PolymerElement) {
               .then(secretInfo => {
                   if (secretInfo.length > 0) {
                       _.merge(message, secretInfo[0])
-                      console.log('decryptInfo -> Message patient id: ', message.patientId);
+                      // console.log('decryptInfo -> Message patient id: ', message.patientId);
                   }
                   return message;
               });

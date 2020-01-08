@@ -1216,7 +1216,16 @@ class HtMsgDocDetail extends TkLocalizerMixin(PolymerElement) {
               type: Number,
               value: 1
           },
-
+          currentHcp: {
+              type: Object,
+              value: {},
+              noReset: true
+          },
+          parentHcp: {
+              type: Object,
+              value: {},
+              noReset: true
+          },
       };
 	}
 
@@ -1440,6 +1449,108 @@ class HtMsgDocDetail extends TkLocalizerMixin(PolymerElement) {
       })
   }
 
+    _filterPatChanged_v2(){
+        const searchedValue = this.filterPatient
+        if(_.trim(searchedValue).length < 3 || !this.selectedMessage) return
+        const reqIdx = (this._patientSearchReqIdx = (this._patientSearchReqIdx || 0) + 1)
+
+        this.api.hcparty().getHealthcareParty(_.get(this,"selectedMessage.fromHealthcarePartyId"))
+            .then(currentHcp => (this.set("currentHcp",currentHcp)||true) && currentHcp)
+            .then(currentHcp => !_.trim(_.get(currentHcp, "parentId", "")) ? false : this.api.hcparty().getHealthcareParty(_.trim(_.get(currentHcp, "parentId", ""))).then(parentHcp => this.set("parentHcp",parentHcp)))
+            .then(() => {
+
+                const parentOrCurrentHcpId = !!_.trim(_.get(this,"parentHcp.id","")) ? _.trim(_.get(this,"parentHcp.id","")) : !!_.trim(_.get(this,"user.healthcarePartyId","")) ? _.trim(_.get(this,"user.healthcarePartyId","")) : _.get(this,"selectedMessage.fromHealthcarePartyId")
+
+                const filter = {
+                    '$type': 'IntersectionFilter',
+                    'healthcarePartyId': parentOrCurrentHcpId,
+                    'filters': _.compact(_.trim(searchedValue).split(/[ ,;:]+/).filter(w => w.length >= 2).map( word => /^[0-9]{11}$/.test(word) ? {
+                        '$type': 'PatientByHcPartyAndSsinFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'ssin': word
+                    } : /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? {
+                        '$type': 'PatientByHcPartyDateOfBirthFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'dateOfBirth': parseInt(word.replace(/([0-3]?[0-9])[\/-](1[0-2]|0?[0-9])[\/-]((?:[1-2][89012])?[0-9][0-9])/g, (correspondance, p1, p2, p3) => (p3.length === 4 ? p3 : (p3 > 20) ? "19" + p3 : "20" + p3) + (p2.length === 2 ? p2 : "0" + p2) + (p1.length === 2 ? p1 : "0" + p1)))||0
+                    } : /^[0-9]{3}[0-9]+$/.test(word) ? {
+                        '$type': 'UnionFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'filters': [
+                            {
+                                '$type': 'PatientByHcPartyDateOfBirthBetweenFilter',
+                                'healthcarePartyId': parentOrCurrentHcpId,
+                                'minDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '00') : Number(word.substr(0,4) + '0000'),
+                                'maxDateOfBirth': word.length >= 8  ? Number(word.substr(0,8)) : word.length >= 6 ? Number(word.substr(0,6) + '99') : Number(word.substr(0,4) + '9999')
+                            },
+                            {
+                                '$type': 'PatientByHcPartyAndSsinFilter',
+                                'healthcarePartyId': parentOrCurrentHcpId,
+                                'ssin': word
+                            },
+                            {
+                                '$type': 'PatientByHcPartyAndExternalIdFilter',
+                                'healthcarePartyId': parentOrCurrentHcpId,
+                                'externalId': word
+                            }
+                        ]
+                    } : /^[0-9]+$/.test(word) ? {
+                        '$type': 'PatientByHcPartyAndSsinFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'ssin': word
+                    } : word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').length >= 2 ? {
+                        '$type': 'PatientByHcPartyNameContainsFuzzyFilter',
+                        'healthcarePartyId': parentOrCurrentHcpId,
+                        'searchString': word
+                    } : null))
+                }
+                const predicates = _.trim(searchedValue).split(/[ ,;:]+/).filter(w => w.length >= 2).map( word =>
+                    /^[0-9]{11}$/.test(word) ? (() => true) :
+                        /^[0-3]?[0-9][\/-](1[0-2]|0?[0-9])[\/-]([1-2][89012])?[0-9][0-9]$/.test(word) ? (() => true) :
+                            /^[0-9]{3}[0-9]+$/.test(word) ? ((p) => (p.dateOfBirth && (`${p.dateOfBirth}`.includes(word))) || (p.externalId && p.externalId.includes(word))) :
+                                (p => {
+                                    const w = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'')
+                                    return w.length<2 ?
+                                        true :
+                                        (p.firstName && p.firstName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w)) ||
+                                        (p.lastName && p.lastName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z]/g,'').includes(w))
+                                })
+                )
+                setTimeout(() => {
+                    if (reqIdx !== this._patientSearchReqIdx || !this.selectedMessage) return;
+                    this.api.getRowsUsingPagination((key, docId, pageSize) =>
+                            this.api.patient().filterByWithUser(this.user, key, docId, pageSize || 50, 0, "lastName", false, { filter: _.assign({}, filter, {filters: filter.filters}) })
+                                .then(pl => {
+                                    const filteredRows = pl.rows.filter(p => predicates.every(f => f(p)))
+                                    return {
+                                        rows: filteredRows,
+                                        nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
+                                        nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                                        done: !pl.nextKeyPair
+                                    }
+                                })
+                                .catch(() => { return Promise.resolve() }),
+                        p => ( !!_.get(p,"active",false)  ), 0, 50, []
+                    )
+                        .then(searchResults => { if (reqIdx === this._patientSearchReqIdx) {
+                            return this.set("patientList", _
+                                .chain(searchResults)
+                                .map(patientData =>{return {
+                                    id: _.trim(_.get(patientData, "id", "")),
+                                    name: _.map(_.trim(_.get(patientData, "lastName", "")).split(" "), i => _.capitalize(i)).join(" ") + " " + _.map(_.trim(_.get(patientData, "firstName", "")).split(" "), i => _.capitalize(i)).join(" "),
+                                    dateOfBirth: _.trim(_.get(patientData, "dateOfBirth", "")),
+                                    ssin: _.trim(_.get(patientData, "ssin", "")),
+                                }})
+                                .orderBy(['name', 'dateOfBirth','ssin'],['asc','asc','asc'])
+                                .uniqBy('patientData.id')
+                                .value()
+                            )
+                        }})
+                        .catch(e=>{console.log("ERROR with search for patient: ", e);})
+                }, 300)
+
+            })
+    }
+
   _closeSingleMessageComponent() {
       this.set('selectedMessage',null)
       this._focusChanged()
@@ -1524,6 +1635,7 @@ class HtMsgDocDetail extends TkLocalizerMixin(PolymerElement) {
   _gotoNextGridPage() {
       if ( parseInt(_.get(this,"_currentPageNumber",1)) < parseInt(_.get(this,"_totalPagesForCurrentFolderAndCurrentFilter",1)) ) this.set('_currentPageNumber', ( parseInt(_.get(this,"_currentPageNumber",1)) + 1 ) )
   }
+
 }
 
 customElements.define(HtMsgDocDetail.is, HtMsgDocDetail);
