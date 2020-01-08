@@ -52,6 +52,8 @@ import './ht-update-dialog'
 
 import "@polymer/iron-icon/iron-icon"
 import "@polymer/iron-pages/iron-pages"
+import "@polymer/iron-collapse"
+
 import "@polymer/paper-button/paper-button"
 import "@polymer/paper-card/paper-card"
 import "@polymer/paper-dialog/paper-dialog"
@@ -75,13 +77,16 @@ import "@vaadin/vaadin-text-field"
 import "@vaadin/vaadin-grid/vaadin-grid"
 import "@vaadin/vaadin-grid/vaadin-grid-column"
 import "@vaadin/vaadin-grid/vaadin-grid-sorter"
+import "@vaadin/vaadin-grid/vaadin-grid-column-group"
+import "@vaadin/vaadin-grid/vaadin-grid-filter-column"
+import "@vaadin/vaadin-grid/vaadin-grid-tree-column"
+import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
 
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
 const runtime = require('offline-plugin/runtime');
 
 import io from 'socket.io-client';
-
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "./elements/tk-localizer";
 
