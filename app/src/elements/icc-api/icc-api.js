@@ -1,6 +1,6 @@
 import '../fhc-api/fhc-api.js';
 import * as api from 'icc-api/dist/icc-api/iccApi'
-import moment from 'moment/src/moment'
+import moment from 'moment'
 
 import {IccBedrugsXApi} from 'icc-api/dist/icc-x-api/icc-bedrugs-x-api'
 import {IccBekmehrXApi} from 'icc-api/dist/icc-x-api/icc-bekmehr-x-api'
