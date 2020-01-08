@@ -246,7 +246,7 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
             
                                     <template is="dom-if" if="[[_shouldDisplayPrintSubFormIcon(isSubForm, template)]]">
                                         <paper-icon-button icon="print" on-tap="printSubForm" id="printSubForm"
-                                                           class="add-button"></paper-icon-button>
+                                                           class="add-button button--icon-btn"></paper-icon-button>
                                         <paper-tooltip position="bottom" for="printSubForm">[[localize('print','Print',language)]]
                                         </paper-tooltip>
                                     </template>
