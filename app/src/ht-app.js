@@ -8,28 +8,58 @@ Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
 */
 import './styles/app-theme.js';
-
 import './styles/shared-styles.js';
 import './styles/vaadin-icure-theme.js';
-import './elements/tk-localizer.js';
-import './elements/splash-screen/splash-screen.js';
-import './elements/ht-tools/ht-export-key.js';
-import './elements/ht-tools/ht-import-keychain.js';
-import './elements/ht-tools/ht-access-log.js';
-import './elements/ht-tools/ht-my-profile.js';
-import './elements/ht-app/ht-app-login-dialog.js';
-import './elements/ht-app/ht-app-first-login-dialog.js';
-import './elements/ht-app/ht-app-welcome.js';
-import './elements/ht-app/ht-app-register-keypair-dialog.js';
-import './elements/menu-bar/menu-bar.js';
-import './elements/ht-app/ht-app-entities-selector.js';
-import './elements/ht-app/ht-app-setup-prompt.js';
-import './elements/icc-api/icc-api.js';
-import './styles/dialog-style.js';
-import './elements/ht-spinner/ht-spinner.js';
-import './elements/icons/icure-icons.js';
-import './styles/notification-style.js';
-import './styles/buttons-style.js';
+import './styles/buttons-style';
+import './styles/dialog-style';
+import './styles/notification-style';
+
+import "@polymer/app-layout/app-drawer-layout/app-drawer-layout"
+import "@polymer/app-layout/app-header/app-header"
+import "@polymer/app-layout/app-header-layout/app-header-layout"
+import "@polymer/app-layout/app-toolbar/app-toolbar"
+import "@polymer/app-route/app-location"
+import "@polymer/app-route/app-route"
+
+import './elements/ht-app/ht-app-entities-selector'
+import './elements/ht-app/ht-app-first-login-dialog'
+import './elements/ht-app/ht-app-login-dialog'
+import './elements/ht-app/ht-app-register-keypair-dialog'
+import './elements/ht-app/ht-app-setup-prompt'
+import './elements/ht-app/ht-app-welcome';
+import './elements/ht-spinner/ht-spinner'
+import './elements/ht-tools/ht-access-log'
+import './elements/ht-tools/ht-export-key'
+import './elements/ht-tools/ht-import-keychain'
+import './elements/ht-tools/ht-my-profile'
+import './elements/icc-api/icc-api';
+import './elements/icons/icure-icons';
+import './elements/menu-bar/menu-bar';
+import './elements/splash-screen/splash-screen'
+import './elements/tk-localizer';
+import './ht-admin'
+import './ht-diary'
+import './ht-hcp'
+import './ht-main'
+import './ht-msg'
+import './ht-pat'
+import './ht-view404'
+
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-pages/iron-pages"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-card/paper-card"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+import "@polymer/paper-menu-button/paper-menu-button"
+import "@polymer/paper-tabs/paper-tab"
+import "@polymer/paper-tooltip/paper-tooltip"
+import "@vaadin/vaadin-grid/vaadin-grid"
+import "@vaadin/vaadin-grid/vaadin-grid-column"
+
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
 const runtime = require('offline-plugin/runtime');
@@ -569,9 +599,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
         <ht-app-setup-prompt id="setupPrompt"></ht-app-setup-prompt>
 
-        <ht-app-welcome-tz id="welcome" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" credentials="[[credentials]]" api="[[api]]" hidden="[[!showWelcomePage]]" on-login="login" default-icure-url="[[defaultIcureUrl]]" default-fhc-url="[[defaultFhcUrl]]"></ht-app-welcome-tz>
+        <ht-app-welcome id="welcome" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" credentials="[[credentials]]" api="[[api]]" hidden="[[!showWelcomePage]]" on-login="login" default-icure-url="[[defaultIcureUrl]]" default-fhc-url="[[defaultFhcUrl]]"></ht-app-welcome>
 
-         <ht-app-login-dialog id="loginDialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" credentials="[[credentials]]" on-login="login" default-icure-url="[[defaultIcureUrl]]" default-fhc-url="[[defaultFhcUrl]]"></ht-app-login-dialog>
+        <ht-app-login-dialog id="loginDialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" credentials="[[credentials]]" on-login="login" default-icure-url="[[defaultIcureUrl]]" default-fhc-url="[[defaultFhcUrl]]"></ht-app-login-dialog>
 
         <ht-app-entities-selector id="ht-app-account-selector" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" credentials="[[credentials]]" api="[[api]]" user="[[user]]" entities="[[entities]]" on-redirect-another-entity="_redirectToAnotherEntity"></ht-app-entities-selector>
 
@@ -810,8 +840,6 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
             <h3>Lien de première connexion</h3>
             <h4>[[invitedHcpLink]]</h4>
         </paper-dialog>
-
-
 
         <paper-dialog id="ht-invite-hcp-user-already-exists">
             <h3>[[localize('warning','Attention',language)]]</h3>

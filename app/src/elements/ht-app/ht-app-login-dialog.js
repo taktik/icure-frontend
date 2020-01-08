@@ -2,6 +2,15 @@ import './ht-app-server-dialog.js';
 import '../../styles/buttons-style.js';
 import '../ht-spinner/ht-spinner.js';
 
+import "@polymer/iron-icon/iron-icon"
+import "@polymer/paper-button/paper-button"
+import "@polymer/paper-dialog/paper-dialog"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-icon-button/paper-icon-button"
+import "@polymer/paper-input/paper-input"
+import "@polymer/paper-item/paper-item"
+import "@polymer/paper-listbox/paper-listbox"
+
 //noinspection JSUnusedGlobalSymbols
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
