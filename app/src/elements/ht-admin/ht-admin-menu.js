@@ -442,7 +442,7 @@ class HtAdminMenu extends TkLocalizerMixin(PolymerElement) {
 
   apiReady(){
       this.user && this.user.roles && this.user.roles.find(r => r === 'ADMIN' || r === 'MS-ADMIN' || r === 'MS_ADMIN') ? this.set('isAdmin', true) : this.set('isAdmin', false)
-      this.api.isElectronAvailable().then(x=> this.set("_isElectronAvailable", !!x) ).catch(e=>{ /* False anyway */ })
+      this.api && this.api.isElectronAvailable().then(x=> this.set("_isElectronAvailable", !!x) ).catch(e=>{ /* False anyway */ })
   }
 
   _select(id, name) {

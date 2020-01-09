@@ -102,7 +102,7 @@ class HtHcp extends TkLocalizerMixin(PolymerElement) {
               this.set('selectedHcp', null);
           }
       } else if (!this.selectedHcp || this.selectedHcp.id !== this.routeData.selectedHcpId || Object.keys(this.selectedHcp).length!==2) {
-          this.api.hcparty().getHealthcareParty(this.routeData.selectedHcpId).then(hcp => this.api.register(hcp,"hcp")).then(hcp => this.set('selectedHcp',hcp))
+          this.api && this.api.hcparty() && this.api.hcparty().getHealthcareParty(this.routeData.selectedHcpId).then(hcp => this.api.register(hcp,"hcp")).then(hcp => this.set('selectedHcp',hcp))
       }
   }
 }

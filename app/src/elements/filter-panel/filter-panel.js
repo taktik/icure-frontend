@@ -295,9 +295,7 @@ class FilterPanel extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
 
   selectMenu(e) {
       if(e.detail.value.length !== 0) {
-          this.set('selectedFilters',e.detail.value.map(
-              val => this.$.filterPanelMenu.modelForElement(val).menu.filter
-          ))
+          this.set('selectedFilters',e.detail.value.map(val =>this.shadowRoot.querySelector("#filterPanelMenu").modelForElement(val).menu.filter))
       } else {
           this.set('selectedFilters',[])
       }

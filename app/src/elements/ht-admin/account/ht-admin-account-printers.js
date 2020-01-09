@@ -17,7 +17,7 @@ import "@polymer/paper-button/paper-button"
 import "@polymer/paper-checkbox/paper-checkbox"
 import "@polymer/paper-dialog/paper-dialog"
 import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
-import "@polymer/paper-dropdown-menu-light/paper-dropdown-menu-light"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu-light"
 import "@polymer/paper-icon-button/paper-icon-button"
 import "@polymer/paper-input/paper-input"
 import "@polymer/paper-item/paper-item"
@@ -395,7 +395,7 @@ class HtAdminAccountPrinters extends TkLocalizerMixin(PolymerElement) {
 
   ready() {
       super.ready()
-      this.api.isElectronAvailable().then(elect=>this.set('electronAvailable',elect))
+      this.api && this.api.isElectronAvailable().then(elect=>this.set('electronAvailable',elect))
   }
 
   _electronInit(){

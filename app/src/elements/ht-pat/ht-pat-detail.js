@@ -66,6 +66,12 @@ import './dialogs/therlink/ht-pat-therlink-detail.js';
 import './dialogs/consent/ht-pat-consent-detail.js';
 import './dialogs/care-path/ht-pat-care-path-detail-dialog.js';
 import './dialogs/care-path/ht-pat-care-path-list-dialog.js';
+
+import '@vaadin/vaadin-split-layout/vaadin-split-layout';
+import '@polymer/paper-button/paper-button';
+import '@polymer/paper-toast/paper-toast';
+
+
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import styx from '../../../scripts/styx';
@@ -2798,6 +2804,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 `;
   }
 
+
   static get is() {
       return 'ht-pat-detail';
   }
@@ -3258,7 +3265,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
       super.ready();
       this.set("SpinnerActive",true)
 
-      this.api.isElectronAvailable().then(electron =>{
+      this.api && this.api.isElectronAvailable().then(electron =>{
           if(electron){
               this._readEid()
           }
@@ -3453,7 +3460,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
               this.api.patient().modifyPatientWithUser(this.user, this.patient).catch(e => defer.resolve(this.patient)).then(p => this.api.register(p,'patient', defer)).then(p => {
                   this.dispatchEvent(new CustomEvent("patient-saved", {bubbles: true, composed: true}))
-                  Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
+                  this.shadowRoot.querySelector('#pat-admin-card').patientChanged()
                   //this.patient && (this.set('patient.rev', p.rev))
               })
           })
@@ -4051,7 +4058,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   }
 
   openToast() {
-      const fitbottom = Polymer.dom(this.root).querySelector('#selectionToast') || null
+      const fitbottom = this.shadowRoot.querySelector('#selectionToast') || null
       if (fitbottom) {
           fitbottom.classList.add('open')
           setTimeout(()=>fitbottom.classList.remove('open'),10000)
@@ -4283,7 +4290,8 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
           this.refreshPatient()
       }
 
-      let cfp = Polymer.dom(this.root).querySelector("#contactFilterPanel"); cfp && cfp.reset();
+      let cfp = this.shadowRoot.querySelector('#contactFilterPanel')
+      cfp && cfp.reset();
       this.set('refPeriods', patient && this._myReferralPeriods(patient.patientHealthCareParties) || [])
   }
 
@@ -4776,7 +4784,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                                       bubbles: true,
                                                       composed: true
                                                   }));
-                                                  Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
+                                                  this.shadowRoot.querySelector('#pat-admin-card').patientChanged()
                                               })
                                           })
                                       }
@@ -4808,7 +4816,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                   this.api.queue(this.patient, 'patient').then (([pat, defer])  => {
                                       return this.api.patient().modifyPatientWithUser(this.user,this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
                                            this.dispatchEvent(new CustomEvent("patient-saved", {bubbles: true, composed: true}))
-                                          Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
+                                          this.shadowRoot.querySelector('#pat-admin-card').patientChanged()
                                       })
                                   })
                               }
@@ -5941,9 +5949,9 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
   _updateFilterPanels() {
       setTimeout(() => {
-          const cfp = Polymer.dom(this.root).querySelector("#contactFilterPanel");
+          const cfp = this.shadowRoot.querySelector('#contactFilterPanel')
           cfp && cfp.refreshIcons();
-          const hpd = Polymer.dom(this.root).querySelector("ht-pat-detail-ctc-detail-panel");
+          const hpd = this.shadowRoot.querySelector('#ht-pat-detail-ctc-detail-panel')
           hpd && hpd.refreshIcons();
           this.set("SpinnerActive",false)
       }, 10);

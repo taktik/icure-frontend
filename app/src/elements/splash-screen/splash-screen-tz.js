@@ -1,5 +1,5 @@
 import {PolymerElement, html} from '@polymer/polymer';
-class SplashScreen extends PolymerElement {
+class SplashScreenTz extends PolymerElement {
   static get template() {
     return html`
 		<style>
@@ -90,7 +90,7 @@ class SplashScreen extends PolymerElement {
   }
 
   static get is() {
-      return 'splash-screen';
+      return 'splash-screen-tz';
 	}
 
   static get properties() {
@@ -102,4 +102,4 @@ class SplashScreen extends PolymerElement {
 	}
 }
 
-customElements.define(SplashScreen.is, SplashScreen);
+customElements.define(SplashScreenTz.is, SplashScreenTz);

@@ -885,7 +885,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
 
   ready() {
       super.ready();
-      this.api.isElectronAvailable().then(electron => this.set('onElectron',electron))
+      this.api && this.api.isElectronAvailable().then(electron => this.set('onElectron',electron))
   }
 
   printMutualVignette() {
