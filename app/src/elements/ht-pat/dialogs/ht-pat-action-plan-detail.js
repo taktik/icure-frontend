@@ -478,13 +478,13 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          // //console.log("Cancelling empty search");
           this.set('hcpListItem', []);
           return;
       }
       this._hcpDataProvider() && this._hcpDataProvider().filter(latestSearchValue).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              // //console.log("Cancelling obsolete search");
               return;
           }
           this.set('hcpListItem', res.rows);
@@ -532,13 +532,13 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
       let latestSearchValue = e && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          // //console.log("Cancelling empty search");
           this.set('proceduresListItem', []);
           return;
       }
       this._proceduresDataProvider() && this._proceduresDataProvider().filter(latestSearchValue).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              // //console.log("Cancelling obsolete search");
               return [];
           }
           if (!(res && res.rows && res.rows.length))
@@ -551,7 +551,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
   }
 
   _drugsChanged(e) {
-      console.log("drug changed")
+      // console.log("drug changed")
       if (!e.detail.value || e.detail.value === "") {
           this.set("selectedVaccineItem", null)
           this.set("plannedAction.VaccineCommercialNameId", null)
@@ -574,13 +574,13 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
       let latestSearchValue = e && e.detail && e.detail.value;
       this.latestSearchValue = latestSearchValue;
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('drugsListItem', []);
           return;
       }
       this._drugsDataProvider() && this._drugsDataProvider().filter(latestSearchValue).then(res => {
           if (latestSearchValue !== this.latestSearchValue) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               return;
           }
           this.set('drugsListItem', res.rows);
@@ -588,7 +588,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
   }
 
   planAction() {
-      console.log('planAction',this.plannedAction)
+      // console.log('planAction',this.plannedAction)
       this.set('plannedAction.VaccineInfo', null)
       if (this.plannedAction && this.plannedAction.ProcedureId && this.plannedAction.Status !== '') {
           const tabProfession = this.plannedAction.ProfessionId ? this.plannedAction.ProfessionId.split("|") : []
@@ -630,7 +630,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
   }
 
   _planAction(procedureInfo, professionInfo) {
-      console.log('_planAction',this.plannedAction)
+      // console.log('_planAction',this.plannedAction)
       this.set('plannedAction.ProcedureInfo', procedureInfo)
       this.set('plannedAction.ProfessionInfo', professionInfo)
       if (!this.plannedAction.ProcedureInfo)
@@ -708,7 +708,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
       if (action.isSurgical)
           this.service.content.isSurgical = { booleanValue: action.isSurgical }
 
-      console.log(this.service)
+      // console.log(this.service)
       if (!this.vaccineOnly) {
           if (!this.isExistingSvc) {
               this.service.created = +new Date()
@@ -939,7 +939,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
               critical = false;
               return _.get(codeVaccine, 'id', null) && _.get(codeMedication, 'code', null) ? this.api.bedrugs().getMppInfos(_.get(codeMedication, 'code', null), this.language) : Promise.resolve({})
           }).then((resultVaccine) => {
-              console.log(resultVaccine)
+              // console.log(resultVaccine)
               this.plannedAction.VaccineInfo = resultVaccine
           }).catch(err => {
               if (critical)
@@ -1039,7 +1039,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
                               //this.set("selectedProfessionItem", this.hcpartyTypeList.find(type => type.id === this.plannedAction.ProfessionId))
                               const promise = _.get(codeVaccine, 'id', null) && _.get(codeMedication, 'code', null) ? this.api.bedrugs().getMppInfos(_.get(codeMedication, 'code', null), this.language) : Promise.resolve({})
                               return promise.then(vaccine => {
-                                  console.log(vaccine)
+                                  // console.log(vaccine)
                                   plannedAction.VaccineInfo = vaccine
                                   return Promise.resolve(plannedAction);
                               }).catch(error => {
@@ -1086,7 +1086,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
   }
 
   _setError(error) {
-      console.log(error);
+      // console.log(error);
       this.set("error", error);
       this._dispatchChangedEvent();
   }
@@ -1105,7 +1105,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
   }
 
   _checkValidity(){
-      console.log(this.plannedAction)
+      // console.log(this.plannedAction)
       this.set("isValid",
           this.plannedAction.Deadline && this.plannedAction.Deadline != "" &&
           this.plannedAction.ProcedureId && this.plannedAction.ProcedureId!= "" &&

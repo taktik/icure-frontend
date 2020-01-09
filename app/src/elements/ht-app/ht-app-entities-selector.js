@@ -102,7 +102,7 @@ class HtAppEntitiesSelector extends TkLocalizerMixin(PolymerElement) {
   }
 
   open() {
-      this.api.user().getMatchingUsers()
+      this.api && this.api.user() && this.api.user().getMatchingUsers()
           .then(ent => {
               console.log(ent)
               this.set("entities", ent)

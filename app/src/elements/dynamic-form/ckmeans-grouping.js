@@ -1,4 +1,4 @@
-import ss from 'simple-statistics';
+import ckmeans from 'simple-statistics/src/ckmeans';
 
 import {PolymerElement, html} from '@polymer/polymer';
 class CkmeansGrouping extends PolymerElement {
@@ -38,7 +38,7 @@ class CkmeansGrouping extends PolymerElement {
       while (isntStable) {
           history.push(K);
           isntStable = false;
-          clusters = ss.ckmeans(data, K);
+          clusters = ckmeans(data, K);
           if (clusters.find(c => !c.length)) {
               isntStable = true;
               K--;

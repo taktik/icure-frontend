@@ -491,7 +491,7 @@ class HtPatPrescriptionDialog extends TkLocalizerMixin(mixinBehaviors([IronResiz
   open() {
       this.$.dialog.open()
       this._refreshDrugsToBePrescribed()
-      this.api.isElectronAvailable()
+      this.api && this.api.isElectronAvailable()
           .then(hasElectron => hasElectron ? fetch('http://localhost:16042/getPrinterSetting', {
               method: "POST",
               headers: {

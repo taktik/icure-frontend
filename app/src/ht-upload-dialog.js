@@ -783,8 +783,8 @@ class HtUploadDialog extends TkLocalizerMixin(PolymerElement) {
   }
 
   apiReady() {
-      this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
-      return !!_.size(_.get(this, "listType", [])) ? null : this.api.getDocumentTypes(this.resources, this.language).then(documentTypes => this.set("listType", documentTypes))
+      this.api && this.api.isElectronAvailable().then(electron => this.set("hasElectron", electron)).catch(error => console.log(error));
+      return !!_.size(_.get(this, "listType", [])) || !this.api ? null : this.api.getDocumentTypes(this.resources, this.language).then(documentTypes => this.set("listType", documentTypes))
   }
 
   // _isSynchronizedContact(contactOption) {

@@ -667,7 +667,7 @@ class DynamicDoc extends TkLocalizerMixin(PolymerElement) {
 
                                 <template is="dom-if" if="[[!isPatDetail]]">
                                     <template is="dom-if" if="[[!forceNoAssignation]]">
-                                        <paper-icon-button icon="icons:assignment-ind" on-tap="_triggerOpenAssignmentDialog" document-id\$="[[item.id]]" class="actionIcons form-title-bar-btn" id="assign-ico-lab"></paper-icon-button>
+                                        <paper-icon-button icon="icons:assignment-ind" on-tap="_triggerOpenAssignmentDialog" document-id\$="[[item.id]]" class="actionIcons form-title-bar-btn button--icon-btn" id="assign-ico-lab"></paper-icon-button>
                                         <paper-tooltip for="assign-ico-lab" position="left">[[localize('assign_to_pat','Assign to a patient',language)]]</paper-tooltip>
                                     </template>
                                 </template>

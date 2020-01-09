@@ -2400,7 +2400,7 @@ class HtPatInvoicingDialog extends TkLocalizerMixin(mixinBehaviors([IronResizabl
       let latestSearchValue = e && e.detail.value
       this.latestSearchValue = latestSearchValue
       if (!latestSearchValue || latestSearchValue.length < 2) {
-          console.log("Cancelling empty search")
+          // console.log("Cancelling empty search")
           this.set('nmclListItem', [])
           return
       }

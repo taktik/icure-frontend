@@ -8,11 +8,21 @@ Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
 */
 import './styles/app-theme.js';
-import './styles/shared-styles.js';
-import './styles/vaadin-icure-theme.js';
+import './styles/atc-styles';
 import './styles/buttons-style';
 import './styles/dialog-style';
+import './styles/dropdown-style';
+import './styles/icd-styles';
+import './styles/icpc-styles';
 import './styles/notification-style';
+import './styles/paper-input-style';
+import './styles/paper-tabs-style';
+import './styles/scrollbar-style';
+import './styles/shared-styles';
+import './styles/spinner-style';
+import './styles/table-style';
+import './styles/tk-token-field-style';
+import './styles/vaadin-icure-theme';
 
 import "@polymer/app-layout/app-drawer-layout/app-drawer-layout"
 import "@polymer/app-layout/app-header/app-header"
@@ -41,7 +51,21 @@ import './ht-view404'
 import './ht-update-dialog'
 
 import "@polymer/iron-icon/iron-icon"
+import "@polymer/iron-icons/iron-icons"
+import "@polymer/iron-icons/av-icons"
+import "@polymer/iron-icons/communication-icons"
+import "@polymer/iron-icons/device-icons"
+import "@polymer/iron-icons/editor-icons"
+import "@polymer/iron-icons/hardware-icons"
+import "@polymer/iron-icons/image-icons"
+import "@polymer/iron-icons/maps-icons"
+import "@polymer/iron-icons/notification-icons"
+import "@polymer/iron-icons/places-icons"
+import "@polymer/iron-icons/social-icons"
+
 import "@polymer/iron-pages/iron-pages"
+import "@polymer/iron-collapse/iron-collapse"
+
 import "@polymer/paper-button/paper-button"
 import "@polymer/paper-card/paper-card"
 import "@polymer/paper-dialog/paper-dialog"
@@ -52,15 +76,34 @@ import "@polymer/paper-listbox/paper-listbox"
 import "@polymer/paper-menu-button/paper-menu-button"
 import "@polymer/paper-tabs/paper-tab"
 import "@polymer/paper-tooltip/paper-tooltip"
+import "@polymer/paper-fab/paper-fab"
+import "@polymer/paper-dropdown-menu/paper-dropdown-menu"
+import "@polymer/paper-listbox/paper-listbox"
+import "@polymer/paper-checkbox/paper-checkbox"
+import "@polymer/paper-toolbar/paper-toolbar"
+
+import "@vaadin/vaadin-material-styles/all-imports"
+import "@vaadin/vaadin-icons/vaadin-icons"
+import "@vaadin/vaadin-date-picker/vaadin-date-picker"
+import "@vaadin/vaadin-checkbox/vaadin-checkbox"
+import "@vaadin/vaadin-progress-bar/vaadin-progress-bar"
+import "@vaadin/vaadin-combo-box/vaadin-combo-box"
+import "@vaadin/vaadin-tabs/vaadin-tabs"
+import "@vaadin/vaadin-upload/vaadin-upload"
+import "@vaadin/vaadin-text-field/vaadin-text-field"
 import "@vaadin/vaadin-grid/vaadin-grid"
 import "@vaadin/vaadin-grid/vaadin-grid-column"
+import "@vaadin/vaadin-grid/vaadin-grid-sorter"
+import "@vaadin/vaadin-grid/vaadin-grid-column-group"
+import "@vaadin/vaadin-grid/vaadin-grid-filter-column"
+import "@vaadin/vaadin-grid/vaadin-grid-tree-column"
+import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
 
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
 const runtime = require('offline-plugin/runtime');
 
 import io from 'socket.io-client';
-
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "./elements/tk-localizer";
 
@@ -764,7 +807,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                                 <paper-tab data-name="main" name="main" on-tap="doRoute"><iron-icon data-name="main" name="main" class="iron-icon" icon="home"></iron-icon>[[localize('sum','Summary',language)]]</paper-tab>
                                 <paper-tab data-name="pat" name="pat" on-tap="doRoute"><iron-icon data-name="pat" name="pat" class="smaller" icon="vaadin:user-heart"></iron-icon>[[localize('pat','Patients',language)]]</paper-tab>
                                 <paper-tab data-name="hcp" name="hcp" on-tap="doRoute"><iron-icon data-name="hcp" name="hcp" class="smaller" icon="vaadin:hospital"></iron-icon>[[localize('hc_par','HC parties',language)]]</paper-tab>
-                                <paper-tab data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" name="msg" class="smaller" icon="communication:email"></iron-icon>[[localize('msg','Message',language)]]</paper-tab>
+                                <paper-tab data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" name="msg" class="smaller" icon="vaadin:envelope"></iron-icon>[[localize('msg','Message',language)]]</paper-tab>
                                 <paper-tab data-name="diary" name="diary" on-tap="checkAndLoadMikrono"><iron-icon data-name="diary" name="diary" icon="date-range"></iron-icon>[[localize('diary','Diary',language)]]</paper-tab>
                                 <paper-tab data-name="admin" name="admin" on-tap="doRoute"><iron-icon data-name="admin" name="admin" icon="settings"></iron-icon>[[localize('admin')]]</paper-tab>
                             </paper-tabs>
@@ -939,13 +982,13 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
         </paper-dialog>
 
         <paper-dialog id="ht-invite-hcp-user-already-exists">
-            <h3>[[localize('warning','Attention',language)]]</h3>
+            <h2 class="modal-title">[[localize('warning','Attention',language)]]</h2>
             <h4> [[localize( 'email_address_already_exists', 'L\\'adresse email de ce collègue existe déjà\\, veuillez svp en spécifier une autre', language)]]</h4>
             <paper-button dialog-confirm="" autofocus="" class="button" on-tap="_inviteHCP">[[localize('clo','Close',language)]]</paper-button>
         </paper-dialog>
 
         <paper-dialog id="tutorialDialog">
-            <h3>[[localize('tutorialList','Tutorial list',language)]]</h3>
+            <h2 class="modal-title">[[localize('tutorialList','Tutorial list',language)]]</h2>
             <div id="tutorialContainer">
                 <ul>
                     <li><a href="../docs/1_1_connexion.pdf" target="_blank">Connexion</a></li>
@@ -977,7 +1020,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
         </paper-item>
 
         <paper-dialog id="mikronoErrorDialog">
-            <h3>Erreur lors de la création de votre compte agenda</h3>
+            <h2 class="modal-title">Erreur lors de la création de votre compte agenda</h2>
             <div class="errorMikrono">
                 <template is="dom-if" if="[[!mikronoError.addresses]]"><h5>- Adresse manquante</h5></template>
                 <template is="dom-if" if="[[!mikronoError.workAddresses]]"><h5>- Adresse de type travail manquante</h5></template>
@@ -992,7 +1035,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
         </paper-dialog>
 
         <paper-dialog id="appointmentsMigrationDialog">
-            <h4>Migration de vos rendez-vous</h4>
+            <h2 class="modal-title">Migration de vos rendez-vous</h2>
             <vaadin-grid id="migrItem" class="material" items="[[migrationItems]]">
                 <vaadin-grid-column>
                     <template class="header">

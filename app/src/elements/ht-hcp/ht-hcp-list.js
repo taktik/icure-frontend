@@ -655,7 +655,7 @@ class HtHcpList extends TkLocalizerMixin(PolymerElement) {
           let latestSearchDirection = desc;
 
           if (!latestSearchValue || latestSearchValue.length < 1) {
-              console.log("Cancelling empty search");
+              //console.log("Cancelling empty search");
               grid.set("size", 0);
               callback([]);
               return;
@@ -671,7 +671,7 @@ class HtHcpList extends TkLocalizerMixin(PolymerElement) {
 
           if (grid.lastParams !== thisParams) {
               grid.lastParams = thisParams;
-              console.log("Starting search for " + thisParams);
+              // console.log("Starting search for " + thisParams);
               grid.latestPromise = this.api.hcparty().findByName(latestSearchValue, keyPair.startKey || null, keyPair.startKeyDocId || null, count, desc);
           }
 
@@ -679,7 +679,7 @@ class HtHcpList extends TkLocalizerMixin(PolymerElement) {
               const desc = params.sortOrders && params.sortOrders[0] && params.sortOrders[0].direction === 'desc' || false;
               if (this.filterValue !== latestSearchValue || desc !== latestSearchDirection) {
                   grid.searchMilestones = {};
-                  console.log("Cancelling obsolete search");
+                  //console.log("Cancelling obsolete search");
                   return;
               }
               if (res.nextKeyPair) {

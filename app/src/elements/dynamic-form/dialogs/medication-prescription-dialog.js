@@ -2629,7 +2629,7 @@ class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
           let latestSearchValue = this.filterValue && this.filterValue.trim();
           this.latestSearchValue = latestSearchValue;
 
-          console.log("Starting search for " + this.filterValue + "|" + sort + "|" + search.toString() + "|" + (desc ? "<|" : ">|") + startIndex + ":" + pageSize + ":");
+          // console.log("Starting search for " + this.filterValue + "|" + sort + "|" + search.toString() + "|" + (desc ? "<|" : ">|") + startIndex + ":" + pageSize + ":");
 
           this._setSpinnerBusy();
           const limit = endIndex || grid.pageSize;
@@ -2643,7 +2643,7 @@ class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
               })
               .then(function (res) {
                   if (this.filterValue !== latestSearchValue) {
-                      console.log("Cancelling obsolete search");
+                      //console.log("Cancelling obsolete search");
                       return;
                   }
 
@@ -3136,14 +3136,14 @@ class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
 
       this.compoundSearchString = searchString;
       if (!searchString || searchString.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('compoundListItems', []);
           return;
       }
 
       this.api.entitytemplate().findAllEntityTemplates('org.taktik.icure.entities.embed.Medication', searchString, true).then(res => {
           if (searchString !== this.compoundSearchString) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               this.set('compoundListItems', []);
           }
           this.set('compoundListItems', res);

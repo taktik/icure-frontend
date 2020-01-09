@@ -554,13 +554,13 @@ class MedicationsSelectionDialog extends TkLocalizerMixin(PolymerElement) {
           let latestSearchValue = this.filterValue
           this.latestSearchValue = latestSearchValue
           if (!latestSearchValue || latestSearchValue.length < 2) {
-              console.log("Cancelling empty search")
+              // console.log("Cancelling empty search")
               this.setGridSize(grid, 0)
               callback([])
               return
           }
 
-          console.log("Starting search for " + thisParams)
+          // console.log("Starting search for " + thisParams)
 
           const limit = endIndex || grid.pageSize
           const offset = params.index
@@ -987,14 +987,14 @@ class MedicationsSelectionDialog extends TkLocalizerMixin(PolymerElement) {
 
       this.compoundSearchString = searchString;
       if (!searchString || searchString.length < 2) {
-          console.log("Cancelling empty search");
+          //console.log("Cancelling empty search");
           this.set('compoundListItems', []);
           return;
       }
 
       this.api.entitytemplate().findAllEntityTemplates('org.taktik.icure.entities.embed.Medication',searchString,true).then(res => {
           if (searchString !== this.compoundSearchString) {
-              console.log("Cancelling obsolete search");
+              //console.log("Cancelling obsolete search");
               this.set('compoundListItems', []);
           }
           this.set('compoundListItems', res);

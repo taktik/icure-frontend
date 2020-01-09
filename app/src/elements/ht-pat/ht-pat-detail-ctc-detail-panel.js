@@ -1,21 +1,27 @@
 import '../filter-panel/filter-panel.js';
-import '../dynamic-form/dynamically-loaded-form.js';
 import './dialogs/ht-pat-invoicing-dialog.js';
 import './dialogs/ht-pat-prescription-dialog.js';
 import './ht-pat-detail-table.js';
-import '../dynamic-form/ht-services-list.js';
-import '../dynamic-form/dynamic-doc.js';
-import '../dynamic-form/entity-selector.js';
+import './dialogs/ht-pat-outgoing-document.js';
+
+import '../ht-msg/ht-msg-new.js';
 import '../ht-spinner/ht-spinner.js';
+
 import '../../styles/scrollbar-style.js';
 import '../../styles/buttons-style.js';
 import '../../styles/dialog-style.js';
-import './dialogs/ht-pat-outgoing-document.js';
 import '../../styles/shared-styles.js';
+
+import '../dynamic-form/dynamically-loaded-form.js';
+import '../dynamic-form/ht-services-list.js';
+import '../dynamic-form/dynamic-doc.js';
+import '../dynamic-form/entity-selector.js';
 import '../dynamic-form/dynamic-subcontact-type-selector.js';
 import '../dynamic-form/dynamic-confidentiality-selector.js';
 import '../dynamic-form/dynamic-visibility-selector.js';
-import '../ht-msg/ht-msg-new.js';
+
+import '@polymer/paper-button/paper-button';
+import '@polymer/paper-item/paper-item';
 
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
@@ -26,68 +32,1287 @@ import * as models from 'icc-api/dist/icc-api/model/models';
 
 const $_documentContainer = document.createElement('template');
 
-$_documentContainer.innerHTML = `<dom-module id="my-date-picker" theme-for="vaadin-date-picker">
-	<template>
-		<style>
-			:host {
-				width: 160px;
-				max-width: 100%;
-				padding-top: 16px;
-				margin-bottom: 8px;
-				/* Align nicely with vaadin-text-field */
-				vertical-align: 3px;
-				-webkit-tap-highlight-color: transparent;
-			}
-
-			[part="text-field"] {
-				max-width: 100%;
-				/* Text field margin is moved to the host */
-				padding-top: 0;
-				margin-bottom: 0;
-			}
-
-			[part="clear-button"],
-			[part="toggle-button"] {
-				width: 24px;
-				height: 24px;
-				box-sizing: border-box;
-				margin-left: 4px;
-				margin-bottom: 2px;
-				color: var(--material-disabled-text-color);
-				font-size: var(--material-icon-font-size);
-				line-height: 24px;
-				text-align: center;
-				cursor: pointer;
-			}
-
-			[part="clear-button"]:hover,
-			[part="toggle-button"]:hover {
-				color: inherit;
-			}
-
-			[part="clear-button"] {
-				border-radius: 50%;
-				background-color: var(--material-divider-color);
-				font-size: calc(var(--material-icon-font-size) - 8px);
-			}
-		</style>
-	</template>
-</dom-module><dom-module id="my-date-picker-styles" theme-for="vaadin-date-picker-overlay">
-	<template>
-		<style>
-			:host {
-				max-height: 400px;
-				margin-top: 0px;
-			}
-		</style>
-	</template>
-</dom-module>`;
+$_documentContainer.innerHTML = `
+       <dom-module id="my-date-picker" theme-for="vaadin-date-picker">
+	   </dom-module>
+	   <dom-module id="my-date-picker-styles" theme-for="vaadin-date-picker-overlay">
+        <template>
+            <style>
+                :host {
+                    max-height: 400px;
+                    margin-top: 0px;
+                }
+            </style>
+        </template>
+    </dom-module>`;
 
 document.head.appendChild($_documentContainer.content);
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
+
+    static get template() {
+        return html`
+                <style>
+                    :host {
+                        width: 160px;
+                        max-width: 100%;                    
+                        margin-bottom: 8px;
+                        /* Align nicely with vaadin-text-field */
+                        vertical-align: 3px;
+                        -webkit-tap-highlight-color: transparent;
+                    }
+        
+                    [part="text-field"] {
+                        max-width: 100%;
+                        /* Text field margin is moved to the host */
+                        padding-top: 0;
+                        margin-bottom: 0;
+                    }
+        
+                    [part="clear-button"],
+                    [part="toggle-button"] {
+                        width: 24px;
+                        height: 24px;
+                        box-sizing: border-box;
+                        margin-left: 4px;
+                        margin-bottom: 2px;
+                        color: var(--material-disabled-text-color);
+                        font-size: var(--material-icon-font-size);
+                        line-height: 24px;
+                        text-align: center;
+                        cursor: pointer;
+                    }
+        
+                    [part="clear-button"]:hover,
+                    [part="toggle-button"]:hover {
+                        color: inherit;
+                    }
+        
+                    [part="clear-button"] {
+                        border-radius: 50%;
+                        background-color: var(--material-divider-color);
+                        font-size: calc(var(--material-icon-font-size) - 8px);
+                    }
+                </style>
+                <style include="scrollbar-style buttons-style dialog-style shared-styles">
+                        .notification-panel {
+                            position: fixed;
+                            top: 50%;
+                            right: 0;
+                            z-index: 1000;
+                            color: white;
+                            font-size: 13px;
+                            background: rgba(255, 0, 0, 0.55);
+                            height: 96px;
+                            padding: 0 8px 0 12px;
+                            border-radius: 3px 0 0 3px;
+                            overflow: hidden;
+                            white-space: nowrap;
+                            width: 0;
+                            opacity: 0;
+                        }
+                    
+                        .notification {
+                            animation: notificationAnim 7.5s ease-in;
+                        }
+                    
+                        @keyframes notificationAnim {
+                            0% {
+                                width: 0;
+                                opacity: 0;
+                            }
+                            5% {
+                                width: 440px;
+                                opacity: 1;
+                            }
+                            7% {
+                                width: 420px;
+                                opacity: 1;
+                            }
+                            95% {
+                                width: 420px;
+                                opacity: 1;
+                            }
+                            100% {
+                                width: 0;
+                                opacity: 0;
+                            }
+                        }
+                    
+                        .details-panel {
+                            height: 100%;
+                            background: var(--app-background-color-light);
+                            width: 100%;
+                            z-index: 1;
+                            position: relative;
+                        }
+                    
+                        .contact-card-frame {
+                            padding-bottom: 24px;
+                        }
+                    
+                        .ctc-header {
+                            position: relative;
+                            background: var(--app-background-color-dark);
+                            display: flex;
+                            flex-direction: row;
+                            justify-content: space-between;
+                            align-items: center;
+                            width: 100%;
+                            margin-bottom: 16px;
+                            padding: 0 12px;
+                            box-sizing: border-box;
+                        }
+                    
+                        .ctc-header .contact-title {
+                            flex-grow: 1;
+                        }
+                    
+                        .ctc-header .save {
+                            background: var(--app-secondary-color);
+                            border-radius: 50%;
+                            margin: 12px 36px;
+                            padding: 4px;
+                            cursor: pointer;
+                            box-shadow: var(--shadow-elevation-2dp_-_box-shadow);
+                            transition: .25s ease;
+                            width: 24px;
+                            height: 24px;
+                            text-align: center;
+                            line-height: 24px;
+                            margin-right: 12px;
+                        }
+                    
+                        .ctc-header .save iron-icon {
+                            width: 20px;
+                            margin-top: -3px;
+                        }
+                    
+                        .ctc-header .save:hover {
+                            transform: scale(1.05);
+                        }
+                    
+                        .ctc-header .save:active {
+                            background: var(--app-secondary-color-dark);
+                            box-shadow: none;
+                            transform: scale(.9);
+                        }
+                    
+                        .contact-title {
+                            display: block;
+                            @apply --paper-font-body2;
+                            @apply --padding-32;
+                            padding: 8px 0;
+                        }
+                    
+                        .pat-details-card > .card-content {
+                            padding: 16px 16px 32px !important;
+                        }
+                    
+                        .pat-details-card {
+                            width: calc(100% - 64px);
+                            margin: 0 32px 32px;
+                        }
+                    
+                        .horizontal {
+                            display: flex;
+                            flex-direction: row;
+                            flex-wrap: wrap;
+                            flex-basis: 100%;
+                        }
+                    
+                        .justified {
+                            justify-content: space-between;
+                        }
+                    
+                        .pat-details-input {
+                            flex-grow: 1;
+                            margin: 16px;
+                        }
+                    
+                        input {
+                            border: none;
+                            width: 100%;
+                        }
+                    
+                        .contact-card-container {
+                            position: relative;
+                            overflow-y: auto;
+                            height: calc(100% - 80px);
+                            padding-bottom: 32px;
+                        }
+                    
+                        .extra-info {
+                            color: var(--app-text-color-disabled);
+                            font-style: italic;
+                            font-size: 80%;
+                        }
+                    
+                        .close-button-icon {
+                            position: absolute;
+                            top: 0;
+                            right: 0;
+                            margin: 0;
+                            transform: translate(50%, -50%);
+                            height: 32px;
+                            width: 32px;
+                            padding: 8px;
+                            background: var(--app-primary-color);
+                        }
+                    
+                        paper-dialog {
+                            width: 80%;
+                            min-width: 30%;
+                            margin: 0;
+                        }
+                    
+                        paper-input {
+                            --paper-input-container-focus-color: var(--app-primary-color);
+                        }
+                    
+                        filter-panel {
+                            flex-grow: 1;
+                            flex-shrink: 1;
+                            width: 0;
+                            --panel-width: 100%;
+                        }
+                    
+                        .contact-actions {
+                            display: inline-flex;
+                            flex-flow: row nowrap;
+                            align-items: center;
+                            justify-content: space-around;
+                            height: 48px;
+                            padding: 0 12px;
+                            background: var(--app-background-color-dark);
+                            border-right: 1px solid var(--app-background-color-darker);
+                            border-bottom: 1px solid var(--app-background-color-darker);
+                            flex-grow: 6;
+                            flex-shrink: 1;
+                            width: 0;
+                        }
+                    
+                        .contact-actions div {
+                            height: 28px;
+                        }
+                    
+                        .contact-actions.mobile span {
+                            display: none;
+                        }
+                    
+                        .contact-actions.mobile paper-button {
+                            min-width: 0;
+                        }
+                    
+                        .layout-bar {
+                            display: inline-flex;
+                            flex-flow: row nowrap;
+                            align-items: center;
+                            justify-content: space-around;
+                            height: 48px;
+                            background: var(--app-background-color-dark);
+                            border-left: 1px solid var(--app-background-color-darker);
+                            border-bottom: 1px solid var(--app-background-color-darker)
+                        }
+                    
+                        .layout-bar .list, .layout-bar .graphique, .layout-bar .doc, .layout-bar .table {
+                            color: var(--app-text-color);
+                            background: #d8d8d8;
+                            border-radius: 50%;
+                            height: 28px;
+                            width: 28px;
+                            padding: 4px;
+                        }
+                    
+                        .layout-bar .list {
+                            padding: 2px;
+                            margin: 0 8px;
+                        }
+                    
+                        .layout-bar .doc {
+                            padding: 3px;
+                            margin: 0 8px;
+                        }
+                    
+                        .layout-bar .table {
+                            padding: 4px 6px;
+                        }
+                    
+                        .icn-selected {
+                            color: var(--app-secondary-color) !important;
+                        }
+                    
+                        .add-forms-container, .print-forms-container, .outgoing-docs-container {
+                            text-align: right;
+                            position: absolute;
+                            margin-top: 8px;
+                            top: 28px;
+                            left: 4px;
+                            background-color: var(--app-background-color);
+                            opacity: 1;
+                            border-radius: 2px;
+                            z-index: 200;
+                            height: auto !important;
+                            box-shadow: var(--app-shadow-elevation-2);
+                            display: flex;
+                            flex-flow: column nowrap;
+                            align-items: stretch;
+                            border-radius: 3px;
+                            overflow: hidden;
+                            padding: 0;
+                        }
+                    
+                        .outgoing-docs-container {
+                            min-height: 200px !important;
+                            display: block;
+                            overflow: auto;
+                            max-height: 75vh;
+                        }
+                    
+                        .add-forms-container paper-button, .print-forms-container paper-button, .outgoing-docs-container paper-button {
+                            display: flex;
+                            flex-flow: row nowrap;
+                            justify-content: flex-start;
+                            align-items: center;
+                            text-transform: capitalize;
+                            height: 28px;
+                            padding: 0 12px 0 8px;
+                            font-weight: 400;
+                            font-size: var(--font-size-normal);
+                            text-align: left;
+                            white-space: nowrap;
+                            text-overflow: ellipsis;
+                            overflow: hidden;
+                            flex-grow: 1;
+                            border-radius: 0;
+                            margin: 0;
+                        }
+                    
+                        .add-forms-container paper-button:hover, .print-forms-container paper-button:hover, .outgoing-docs-container paper-button:hover {
+                            background: var(--app-background-color-dark);
+                        }
+                    
+                        .add-forms-container paper-button iron-icon, .print-forms-container paper-button iron-icon, .outgoing-docs-container paper-button iron-icon {
+                            color: var(--app-secondary-color);
+                            height: 20px;
+                            width: 20px;
+                            margin-right: 4px;
+                            box-sizing: border-box;
+                        }
+                    
+                        .close-add-forms-btn, .close-print-forms-btn {
+                            background: var(--app-secondary-color-dark) !important;
+                        }
+                    
+                        .fleft {
+                            position: absolute;
+                            left: 8px;
+                        }
+                    
+                        .fright {
+                            position: absolute;
+                            right: 8px;
+                        }
+                    
+                        .horizontal {
+                            flex-flow: row nowrap;
+                        }
+                    
+                        .action-btn {
+                            white-space: nowrap;
+                        }
+                    
+                        ht-spinner.center {
+                            position: absolute;
+                            left: 50%;
+                            top: 50%;
+                            transform: translateX(-50%) translateY(-50%);
+                            height: 42px;
+                            width: 42px;
+                        }
+                    
+                        .add-form-container, .print-form-container {
+                            position: relative;
+                        }
+                    
+                        #prose-editor, #prose-editor-linking-letter {
+                            width: 90%;
+                            height: calc(90% - 64px);
+                            max-width: 1024px;
+                        }
+                    
+                        #prose-editor > prose-editor, #prose-editor-linking-letter > prose-editor {
+                            height: calc(100% - 60px - 56px);
+                            width: 100%;
+                            display: block;
+                            padding: 0;
+                            margin: 0;
+                            position: relative;
+                        }
+                    
+                        #prose-editor::slotted(*) {
+                            margin-top: 0;
+                            padding: 0;
+                        }
+                    
+                        .buttons {
+                            display: flex;
+                            flex-grow: 1;
+                            box-sizing: border-box;
+                            justify-content: flex-end;
+                            padding: 16px 12px 8px 16px;
+                        }
+                    
+                        #dynamicallyListForm,
+                        #dynamicallyTableForm {
+                            display: flex;
+                            flex-direction: column;
+                            height: 100%;
+                        }
+                    
+                        .mobile-only {
+                            display: none;
+                        }
+                    
+                        @media screen and (max-width: 952px) {
+                            paper-dialog#prescriptionDialog {
+                                position: fixed;
+                                max-height: none;
+                                max-width: none !important;
+                                top: 64px !important;
+                                left: 0 !important;
+                                height: calc(100vh - 84px) !important; /* 84 = app-header and log */
+                                width: 100% !important;
+                            }
+                    
+                            .contact-actions paper-button {
+                                min-width: 0 !important;
+                            }
+                    
+                            .contact-actions .no-mobile {
+                                display: none;
+                            }
+                    
+                            .mobile-only {
+                                display: initial;
+                            }
+                        }
+                    
+                        #templateSavedIndicator {
+                            position: fixed;
+                            top: 50%;
+                            right: -200px;
+                            z-index: 1000;
+                            color: white;
+                            font-size: 13px;
+                            background: rgba(0, 0, 0, 0.42);
+                            height: 24px;
+                            padding: 0 8px 0 12px;
+                            border-radius: 3px 0 0 3px;
+                            width: 170px;
+                            opacity: 1;
+                            transition: all 400ms ease;
+                            -moz-transition: all 400ms ease;
+                            -webkit-transition: all 400ms ease;
+                            -o-transition: all 400ms ease;
+                            -ms-transition: all 400ms ease;
+                        }
+                    
+                        .templateSaved {
+                            right: 0 !important;
+                        }
+                    
+                        #template-description-dialog {
+                            width: 60%;
+                            padding-bottom: 20px;
+                        }
+                    
+                        #template-description-dialog h2 {
+                            margin: 0 -24px
+                        }
+                    
+                        #busySpinner {
+                            position: absolute;
+                            height: 100%;
+                            width: 100%;
+                            background: rgba(255, 255, 255, .6);
+                            z-index: 110;
+                            margin-top: 0;
+                            top: 0;
+                            left: 0;
+                        }
+                    
+                        #busySpinnerContainer {
+                            position: absolute;
+                            left: 50%;
+                            top: 50%;
+                            transform: translateX(-50%) translateY(-50%);
+                            width: 100px;
+                            height: 100px;
+                        }
+                    
+                        @media screen and (max-height: 744px) {
+                            #entities-list {
+                                flex-grow: 1;
+                                height: auto !important;
+                            }
+                        }
+                    
+                        #chooseSizePrintFormDialog {
+                            width: 300px
+                        }
+                    
+                        .modalDialog {
+                            height: 300px;
+                            width: 600px;
+                        }
+                    
+                        .m-t-40 {
+                            margin-top: 40px;
+                        }
+                    
+                        .m-t-50 {
+                            margin-top: 50px !important;
+                        }
+                    
+                        .m-t-20 {
+                            margin-top: 20px !important;
+                        }
+                    
+                        .m-t-25 {
+                            margin-top: 25px !important;
+                        }
+                    
+                        .textAlignCenter {
+                            text-align: center;
+                        }
+                    
+                        .bold {
+                            font-weight: 700;
+                        }
+                    
+                        .smallIcon {
+                            width: 16px;
+                            height: 16px;
+                        }
+                    
+                        #loadingContainer, #loadingContainerSmall {
+                            position: absolute;
+                            width: 100%;
+                            height: 100%;
+                            top: 0;
+                            left: 0;
+                            background-color: rgba(0, 0, 0, .3);
+                            z-index: 10;
+                            text-align: center;
+                        }
+                    
+                        #loadingContentContainer, #loadingContentContainerSmall {
+                            position: relative;
+                            width: 400px;
+                            min-height: 200px;
+                            background-color: #ffffff;
+                            padding: 20px;
+                            border: 3px solid var(--app-secondary-color);
+                            margin: 40px auto 0 auto;
+                            text-align: center;
+                        }
+                    
+                        #loadingContentContainerSmall {
+                            width: 250px;
+                            min-height: 1px;
+                        }
+                    
+                        #loadingContent {
+                            text-align: left;
+                        }
+                    
+                        .dialogButtons {
+                            position: absolute;
+                            bottom: 40px;
+                            margin: 0;
+                            width: 100%;
+                            text-align: center;
+                        }
+                    
+                        .belRai-icon {
+                            height: 16px;
+                            width: 16px;
+                            padding: 4px;
+                        }
+                    
+                        .cdc-content {
+                            display: flex;
+                            flex-flow: column nowrap;
+                            font-size: 18px;
+                        }
+                    
+                        .m-l-40 {
+                            margin-left: 40px !important;
+                        }
+                    
+                        .m-l-80 {
+                            margin-left: 80px !important;
+                        }
+                    
+                        #editLabelAndTransactionDialog .modal-title, #deleteServiceDialog .modal-title {
+                            justify-content: flex-start;
+                        }
+                    
+                        .modalDialogSmall {
+                            min-width: 1px;
+                            height: 200px;
+                            width: 400px;
+                        }
+                </style>
+               
+                <template is="dom-if" if="[[_bodyOverlay]]">
+                     <div id="loadingContainer"></div>
+                </template>
+
+                <paper-item id="prescriptionError" class="notification-panel prescriptionError">
+                    <template is="dom-if" if="[[!api.tokenId]]">[[localize('you_mus_be_con_to_ehe_to_be_all_to_pre','You must be
+                        connected to eHealth to be allowed to prescribe',language)]]<br></template>
+                    <template is="dom-if" if="[[!_validSsin(patient.ssin)]]">[[localize('the_ni_of_the_pat_is_not_val_or_mis','The niss
+                        of the patient is not valid or missing ',language)]]([[patient.ssin]])<br></template>
+                    <template is="dom-if"
+                              if="[[!_hasDrugsToBePrescribed(servicesMap.*,currentContact,currentContact.services,currentContact.services.*)]]">
+                        [[localize('add_pre_dru_to_cur_con_to_pre','Add prescription drugs to current contact to prescribe',language)]]
+                    </template>
+                    <iron-icon icon="icons:warning"></iron-icon>
+                </paper-item>
+                
+                <div class="details-panel" on-dragover="_onDrag">
+                    <div class="layout horizontal">
+                        <div class="contact-actions">
+                            <template is="dom-if" if="[[_hasCurrentContact(contacts)]]">
+                
+                                <template is="dom-if" if=[[!showAddFormsContainer]]>
+                                    <paper-button id="newFormBtn" class="button button--menu" on-tap="_toggleAddActions">
+                                        <span class="no-mobile">[[localize('add_for','Add forms',language)]]</span>
+                                        <iron-icon icon="[[_actionIcon(showAddFormsContainer)]]"></iron-icon>
+                                    </paper-button>
+                                </template>
+                
+                                <template is="dom-if" if=[[showAddFormsContainer]]>
+                                    <div class="add-form-container">
+                                        <paper-button class="button button--menu" on-tap="_toggleAddActions">
+                                            <span class="no-mobile">[[localize('clo','Close',language)]]</span>
+                                            <iron-icon icon="[[_actionIcon(showAddFormsContainer)]]"></iron-icon>
+                                        </paper-button>
+                                        <div class="add-forms-container">
+                                            <!--<paper-fab-speed-dial-action icon="vaadin:chart-line" on-tap="addMedicalHistory">[[localize('med_his','Medical history',language)]]</paper-fab-speed-dial-action>-->
+                                            <paper-button on-tap="addConsultation">
+                                                <iron-icon icon="vaadin:doctor-briefcase"></iron-icon>
+                                                [[localize('con_mso','Consultation MSOAP',language)]]
+                                            </paper-button>
+                                            <template is="dom-if" if="[[_isSpecialist(globalHcp)]]">
+                                                <paper-button on-tap="addWhiteConsultation">
+                                                    <iron-icon icon="vaadin:clipboard"></iron-icon>
+                                                    [[localize('con_lib','Consultation libre',language)]]
+                                                </paper-button>
+                                            </template>
+                                            <paper-button on-tap="addPrescriptionForm">
+                                                <iron-icon icon="vaadin:pill"></iron-icon>
+                                                [[localize('presc_of_med','Ordonnance',language)]]
+                                            </paper-button>
+                                            <!--<paper-button icon="vaadin:file-o" on-tap="newReport"><iron-icon icon=""></iron-icon>[[localize('new_rep','Nouveau rapport',language)]]</paper-button>-->
+                                            <!--<paper-button icon="vaadin:stethoscope" on-tap="addFirstContact"><iron-icon icon=""></iron-icon>[[localize('first_ctc','First contact',language)]]</paper-button>-->
+                                            <paper-button on-tap="addOther">
+                                                <iron-icon icon="vaadin:records"></iron-icon>
+                                                [[localize('oth_for','Other form',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="addDocument">
+                                                <iron-icon icon="editor:attach-file"></iron-icon>
+                                                [[localize('add_doc','Add document',language)]]
+                                            </paper-button>
+                                            <!--<paper-button on-tap="writeLinkingLetter"><iron-icon icon="vaadin:clipboard-text"></iron-icon>[[localize('linkingLetter','Lettre de liaison',language)]]</paper-button>-->
+                                            <paper-button on-tap="showCarePath">
+                                                <iron-icon icon="vaadin:ambulance"></iron-icon>
+                                                [[localize('care-path', 'Care path', language)]]
+                                            </paper-button>
+                                        </div>
+                                    </div>
+                                </template>
+                
+                                <template is="dom-if" if=[[!showOutGoingDocContainer]]>
+                                    <paper-button id="newOutgoingDocBtn" class="button button--menu button--menu--other"
+                                                  on-tap="_toggleOutGoingDocActions">
+                                        <span class="no-mobile">[[localize('outGoingDoc','Outgoing docs',language)]]</span>
+                                        <iron-icon icon="[[_actionIcon(showOutGoingDocContainer)]]"></iron-icon>
+                                    </paper-button>
+                                </template>
+                
+                                <template is="dom-if" if=[[showOutGoingDocContainer]]>
+                                    <div class="add-form-container">
+                                        <paper-button class="button button--menu button--menu--other"
+                                                      on-tap="_toggleOutGoingDocActions">
+                                            <span class="no-mobile">[[localize('clo','Close',language)]]</span>
+                                            <iron-icon icon="[[_actionIcon(showOutGoingDocContainer)]]"></iron-icon>
+                                        </paper-button>
+                                        <div class="outgoing-docs-container">
+                                            <template is="dom-repeat" id="outGoingDocumentTemplates"
+                                                      items="[[outGoingDocumentTemplates]]" as="outGoingDocumentTemplate">
+                                                <template is="dom-if" if=[[outGoingDocumentTemplate.isLast]]>
+                                                    <hr style="margin: 3px 0 3px 0;padding: 0;border: 0;border-top: 1px dashed #ccc;"/>
+                                                </template>
+                                                <paper-button on-tap="_triggerOutGoingDocumentDialog"
+                                                              data-ogdt-template-id$="[[outGoingDocumentTemplate.id]]">
+                                                    <iron-icon icon="icons:description"></iron-icon>
+                                                    [[outGoingDocumentTemplate.name]]
+                                                </paper-button>
+                                            </template>
+                                            <paper-button on-tap="_exportSumehrDialog">
+                                                <iron-icon icon="icons:description"></iron-icon>
+                                                [[localize('export_sumehr','Export Sumehr', language)]]
+                                            </paper-button>
+                                        </div>
+                                    </div>
+                                </template>
+                
+                                <template is="dom-if" if=[[!showPrintFormsContainer]]>
+                                    <paper-button id="prescribeBtnCtnr" class="button button--menu button--menu--other"
+                                                  on-tap="_togglePrintActions">
+                                        <span class="no-mobile">[[localize('print','Print',language)]]</span>
+                                        <iron-icon icon="[[_actionIcon(showPrintFormsContainer)]]"></iron-icon>
+                                    </paper-button>
+                                </template>
+                                <template is="dom-if" if=[[showPrintFormsContainer]]>
+                                    <div class="print-form-container" on-tap="_displayPrescriptionError">
+                                        <paper-button id="prescribeBtnCtnr" class="button button--menu button--menu--other"
+                                                      on-tap="_togglePrintActions">
+                                            <span class="no-mobile">[[localize('clo','Close',language)]]</span>
+                                            <iron-icon icon="[[_actionIcon(showPrintFormsContainer)]]"></iron-icon>
+                                        </paper-button>
+                                        <div class="print-forms-container">
+                                            <paper-button id="prescribeBtn" on-tap="_prescribe">
+                                                <iron-icon icon="vaadin:pill"></iron-icon>
+                                                [[localize('prescription','Prescription',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="_printContact">
+                                                <iron-icon icon="vaadin:doctor-briefcase"></iron-icon>
+                                                [[localize('contact','Contact',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="_printContact">
+                                                <iron-icon icon="vaadin:clipboard-text"></iron-icon>
+                                                [[localize('itt','ITT',language)]]
+                                            </paper-button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template is="dom-if" if=[[!showAddEvaFormsContainer]]>
+                                    <paper-button id="newFormBtn" class="button button--menu button--menu--other"
+                                                  on-tap="_toggleAddEvaActions">
+                                        <span class="no-mobile">[[localize('add_eva','Add Evals',language)]]</span>
+                                        <iron-icon icon="[[_actionIcon(showAddEvaFormsContainer)]]"></iron-icon>
+                                    </paper-button>
+                                </template>
+                
+                                <template is="dom-if" if=[[showAddEvaFormsContainer]]>
+                                    <div class="add-form-container">
+                                        <paper-button class="button button--menu button--menu--other" on-tap="_toggleAddEvaActions">
+                                            <span class="no-mobile">[[localize('clo','Close',language)]]</span>
+                                            <iron-icon icon="[[_actionIcon(showAddFormsContainer)]]"></iron-icon>
+                                        </paper-button>
+                                        <div class="add-forms-container">
+                                            <paper-button on-tap="openKatz">
+                                                <iron-icon icon="vaadin:calc-book"></iron-icon>
+                                                [[localize('Katz','Katz',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="addChads">
+                                                <iron-icon icon="vaadin:calc-book"></iron-icon>
+                                                [[localize('chads','CHADS',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="openBackPain">
+                                                <iron-icon icon="vaadin:calc-book"></iron-icon>
+                                                [[localize('backPain','Maux de dos',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="openPain">
+                                                <iron-icon icon="vaadin:calc-book"></iron-icon>
+                                                [[localize('eval_pain','Douleur',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="openGold">
+                                                <iron-icon icon="vaadin:calc-book"></iron-icon>
+                                                [[localize('gold','GOLD',language)]]
+                                            </paper-button>
+                                            <paper-button on-tap="openBelRai"><img class="belRai-icon"
+                                                                                   src="../../../images/belrai-logo.png"/>[[localize('BelRai','BelRai',language)]]
+                                            </paper-button>
+                                        </div>
+                                    </div>
+                                </template>
+                
+                                <paper-button id="procedureBtn" class="button button--other" on-tap="_planAction">
+                                    <iron-icon icon="vaadin:tools"></iron-icon>
+                                    <span class="no-mobile">[[localize('proc','Procedure',language)]]</span>
+                                </paper-button>
+                
+                                <paper-button id="invoicingBtn" class="button button--other" on-tap="_invoicing">
+                                    <iron-icon icon="vaadin:invoice"></iron-icon>
+                                    <span class="no-mobile">[[localize('inv','Invoice',language)]]</span>
+                                </paper-button>
+                
+                            </template>
+                        </div>
+                        <filter-panel id="serviceFilterPanel" selected-filters="{{serviceFilters}}" items="[[detailPanelItems]]"
+                                      i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"></filter-panel>
+                        <div class="layout-bar">
+                            <paper-icon-button id="list_icn" class$="list [[_activeIconClass(list)]]" icon="icons:view-list"
+                                               on-tap="_list"></paper-icon-button>
+                            <paper-icon-button id="table_icn" class$="table [[_activeIconClass(table)]]" icon="vaadin:table"
+                                               on-tap="_table"></paper-icon-button>
+                            <!--<paper-icon-button id="graph_icn" class$="graph [[_activeIconClass(graph)]]" icon="icons:timeline" on-tap="_graphique"></paper-icon-button>-->
+                            <paper-icon-button id="graph_icn" class$="graph [[_activeIconClass(graph)]]" icon="icons:timeline"
+                                               on-tap="_openChartsDialog"></paper-icon-button>
+                            <paper-icon-button id="form_icn" class$="doc [[_activeIconClass(doc)]]" icon="icons:assignment"
+                                               on-tap="_default"></paper-icon-button>
+                
+                            <paper-tooltip for="list_icn" position="bottom" animation-delay="0">[[localize('lis_vie','List
+                                view',language)]]
+                            </paper-tooltip>
+                            <paper-tooltip for="table_icn" position="bottom" animation-delay="0">[[localize('tab_vie','Table
+                                view',language)]]
+                            </paper-tooltip>
+                            <paper-tooltip for="graph_icn" position="bottom" animation-delay="0">[[localize('gra','Graph
+                                view',language)]]
+                            </paper-tooltip>
+                            <paper-tooltip for="form_icn" position="bottom" animation-delay="0">[[localize('form_view','Forms
+                                view',language)]]
+                            </paper-tooltip>
+                        </div>
+                    </div>
+                    <div class="contact-actions-tooltips mobile-only">
+                        <paper-tooltip for="newFormBtn" position="top">[[localize('add_for','Add forms',language)]]</paper-tooltip>
+                        <paper-tooltip for="prescribeBtn" position="top">[[localize('pri_pre','Print prescription',language)]]
+                        </paper-tooltip>
+                        <paper-tooltip for="procedureBtn" position="top">[[localize('proc','Procedure',language)]]</paper-tooltip>
+                        <paper-tooltip for="invoicingBtn" position="top">[[localize('inv','Invoice',language)]]</paper-tooltip>
+                    </div>
+                    <paper-tooltip for="prescribeBtnCtnr" position="top">
+                        <template is="dom-if"
+                                  if="[[_canPrescribe(api.tokenId,patient.ssin,servicesMap.*,currentContact,currentContact.services,currentContact.services.*)]]">
+                            [[localize('pre_thi_but_to_pre','Press this button to prescribe',language)]]<br></template>
+                        <template is="dom-if" if="[[!api.tokenId]]">[[localize('you_mus_be_con_to_ehe_to_be_all_to_pre','You must be
+                            connected to eHealth to be allowed to prescribe',language)]]<br></template>
+                        <template is="dom-if" if="[[!_validSsin(patient.ssin)]]">[[localize('the_ni_of_the_pat_is_not_val_or_mis','The
+                            niss of the patient is not valid or missing ',language)]]([[patient.ssin]])<br></template>
+                        <template is="dom-if"
+                                  if="[[!_hasDrugsToBePrescribed(servicesMap.*,currentContact,currentContact.services,currentContact.services.*)]]">
+                            [[localize('add_pre_dru_to_cur_con_to_pre','Add prescription drugs to current contact to
+                            prescribe',language)]]
+                        </template>
+                    </paper-tooltip>
+                    <div class="contact-card-container">
+                
+                        <ht-spinner class="center" active="[[isLoadingDoc]]"></ht-spinner>
+                        <template is="dom-if" if="[[list]]">
+                            <div class="ctc-header">
+                <span class="contact-title"> [[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
+                                        </span>
+                                <template is="dom-if" if="[[_canChangeDate()]]">
+                                    <vaadin-date-picker-light id="dp" on-value-changed="_dateChanged" max="[[_maxDate()]]"
+                                                              value="[[_getOpeningDate()]]" initialPosition="[[_getOpeningDate()]]"
+                                                              i18n="[[i18n]]">
+                                        <paper-icon-button class="button--icon-btn" icon="vaadin:date-input"
+                                                           on-tap="_dateChanged"></paper-icon-button>
+                                    </vaadin-date-picker-light>
+                                </template>
+                            </div>
+                            <ht-services-list
+                                    id="dynamicallyListForm"
+                                    api="[[api]]"
+                                    user="[[user]]"
+                                    patient="[[patient]]"
+                                    contact="[[dof.ctc]]"
+                                    health-elements="[[healthElements]]"
+                                    contacts="[[contacts]]"
+                                    i18n="[[i18n]]"
+                                    language="[[language]]"
+                                    resources="[[resources]]"
+                                    forwardable="true"
+                                    printable="true"
+                                    allow-es-link="true"
+                                    linkable-health-elements="[[mainHealthElements]]"
+                                    health-elements="[[healthElements]]"
+                                    on-link-doc="_linkServicesAndEs"
+                                    on-unlink-doc="_unlinkServicesAndEs"
+                                    allow-edit-label-and-transaction="true"
+                                    on-edit-label-and-transaction="_editLabelAndTransactionDialogServices"
+                                    on-delete-service="_deleteServiceDialog"
+                            ></ht-services-list>
+                        </template>
+                        <template is="dom-if" if="[[table]]">
+                            <div class="ctc-header">
+                <span class="contact-title"> [[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
+                                        </span>
+                                <template is="dom-if" if="[[_canChangeDate()]]">
+                                    <vaadin-date-picker-light id="dp" on-value-changed="_dateChanged" max="[[_maxDate()]]"
+                                                              value="[[_getOpeningDate()]]" initialPosition="[[_getOpeningDate()]]"
+                                                              i18n="[[i18n]]">
+                                        <paper-icon-button class="button--icon-btn" icon="vaadin:date-input"
+                                                           on-tap="_dateChanged"></paper-icon-button>
+                                    </vaadin-date-picker-light>
+                                </template>
+                            </div>
+                            <ht-pat-detail-table id="dynamicallyTableForm" api="[[api]]" user="[[user]]" patient="[[patient]]"
+                                                 contact="[[dof.ctc]]" health-elements="[[healthElements]]"
+                                                 contacts="[[contacts]]" i18n="[[i18n]]" language="[[language]]"
+                                                 resources="[[resources]]"></ht-pat-detail-table>
+                        </template>
+                        <template is="dom-if" if="[[graphique]]">
+                            <div class="ctc-header">
+                <span class="contact-title">[[_selectedContactsHeaderLabel(contacts, currentContact.tags.*)]]
+                                            <template is="dom-if" if="[[_hasCurrentContact()]]">
+                                                <dynamic-subcontact-type-selector id="subctc-type-c"
+                                                                                  subcontact-type="[[contactTypeList]]"
+                                                                                  language="[[language]]" resources="[[resources]]"
+                                                                                  on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
+                                                <!--
+                                                <dynamic-confidentiality-selector id="dynamicConfidentialitySelector" list-of-confidentiality-type="[[listOfConfidentialityType]]" language="[[language]]" resources="[[resources]]" on-confidentiality-tag-changed="_confidentialityChanged"></dynamic-confidentiality-selector>
+                                                <dynamic-visibility-selector id="dynamicVisibilitySelector" list-of-visibility-type="[[listOfVisibilityType]]" language="[[language]]" resources="[[resources]]" on-visibility-changed="_visibilityChanged"></dynamic-visibility-selector>
+                                                -->
+                                            </template>
+                                        </span>
+                                <template is="dom-if" if="[[_canChangeDate()]]">
+                                    <vaadin-date-picker-light id="dp" on-value-changed="_dateChanged" max="[[_maxDate()]]"
+                                                              value="[[_getOpeningDate()]]" initialPosition="[[_getOpeningDate()]]"
+                                                              i18n="[[i18n]]">
+                                        <paper-icon-button class="button--icon-btn" icon="vaadin:date-input"
+                                                           on-tap="_dateChanged"></paper-icon-button>
+                                    </vaadin-date-picker-light>
+                                </template>
+                                <template is="dom-if" if="[[_hasCurrentContact()]]">
+                                    <paper-icon-button class="button--icon-btn" id="force-save-ctc-graph" icon="save"
+                                                       on-tap="forceSaveCtc"></paper-icon-button>
+                                    <paper-tooltip position="left" for="force-save-ctc-graph">[[localize('save_ctc','Save
+                                        contact',language)]]
+                                    </paper-tooltip>
+                                </template>
+                            </div>
+                        </template>
+                        <template is="dom-if" if="[[doc]]">
+                            <div class="contact-card-frame">
+                                <template is="dom-if" if="[[!contactsFormsAndDocuments.length]]">
+                                    <div class="ctc-header">
+                                                <span class="contact-title">[[_contactHeaderLabel(currentContact, currentContact.tags.*)]]
+                                                    <template is="dom-if" if="[[_hasCurrentContact(contacts)]]">
+                                                        <dynamic-subcontact-type-selector id="subctc-type-b"
+                                                                                          subcontact-type="[[contactTypeList]]"
+                                                                                          language="[[language]]"
+                                                                                          resources="[[resources]]"
+                                                                                          on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
+                                                        <!--
+                                                        <dynamic-confidentiality-selector id="dynamicConfidentialitySelector" list-of-confidentiality-type="[[listOfConfidentialityType]]" language="[[language]]" resources="[[resources]]" on-confidentiality-changed="_confidentiality"></dynamic-confidentiality-selector>
+                                                                                            <dynamic-visibility-selector id="dynamicVisibilitySelector" list-of-visibility-type="[[listOfVisibilityType]]" language="[[language]]" resources="[[resources]]" on-visibility-changed="_visibilityChanged"></dynamic-visibility-selector>
+                                                                                            -->
+                </template>
+                                                </span>
+                                        <template is="dom-if" if="[[_canChangeDate()]]">
+                                            <vaadin-date-picker-light id="dp" on-value-changed="_dateChanged" max="[[_maxDate()]]"
+                                                                      value="[[_getOpeningDate()]]"
+                                                                      initialPosition="[[_getOpeningDate()]]" i18n="[[i18n]]">
+                                                <paper-icon-button class="button--icon-btn" icon="vaadin:date-input"
+                                                                   on-tap="_dateChanged"></paper-icon-button>
+                                            </vaadin-date-picker-light>
+                                        </template>
+                                        <template is="dom-if" if="[[_hasCurrentContact(contacts)]]">
+                                            <paper-icon-button class="button--icon-btn" id="force-save-ctc-table" icon="save"
+                                                               on-tap="forceSaveCtc"></paper-icon-button>
+                                            <paper-tooltip position="left" for="force-save-ctc-table">[[localize('save_ctc','Save
+                                                contact',language)]]
+                                            </paper-tooltip>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template is="dom-repeat" items="[[contactsFormsAndDocuments]]" as="dof">
+                                    <div class="ctc-header">
+                                            <span class="contact-title">[[_contactHeaderLabel(dof.ctc, currentContact.tags.*)]]
+                <template is="dom-if" if="[[_isCurrentContact(dof.ctc)]]">
+                                                    <dynamic-subcontact-type-selector id="subctc-type-d"
+                                                                                      subcontact-type="[[contactTypeList]]"
+                                                                                      language="[[language]]" resources="[[resources]]"
+                                                                                      on-link-to-subcontact-type="_contactTypeChange"></dynamic-subcontact-type-selector>
+                    <!--
+                                                    <dynamic-confidentiality-selector id="dynamicConfidentialitySelector" list-of-confidentiality-type="[[listOfConfidentialityType]]" language="[[language]]" resources="[[resources]]" on-confidentiality-changed="_confidentiality"></dynamic-confidentiality-selector>
+                    <dynamic-visibility-selector id="dynamicVisibilitySelector" list-of-visibility-type="[[listOfVisibilityType]]" language="[[language]]" resources="[[resources]]" on-visibility-changed="_visibilityChanged"></dynamic-visibility-selector>
+                      -->
+                </template>
+                </span>
+                                        <template is="dom-if" if="[[_canChangeDate()]]">
+                                            <vaadin-date-picker-light id="dp" on-value-changed="_dateChanged" max="[[_maxDate()]]"
+                                                                      value="[[_getOpeningDate()]]"
+                                                                      initialPosition="[[_getOpeningDate()]]" i18n="[[i18n]]">
+                                                <paper-icon-button class="button--icon-btn" icon="vaadin:date-input"
+                                                                   on-tap="_dateChanged"></paper-icon-button>
+                                            </vaadin-date-picker-light>
+                                        </template>
+                                        <template is="dom-if" if="[[_isCurrentContact(dof.ctc)]]">
+                                            <paper-icon-button class="button--icon-btn" id="force-save-ctc-forms" icon="save"
+                                                               on-tap="forceSaveCtc"></paper-icon-button>
+                                            <paper-tooltip position="left" for="force-save-ctc-forms">[[localize('save_ctc','Save
+                                                contact',language)]]
+                                            </paper-tooltip>
+                                        </template>
+                                    </div>
+                                    <template id="formsRepeat" is="dom-repeat" items="[[dof.forms]]" as="form">
+                                        <template is="dom-if" if="[[form.id]]">
+                                            <dynamically-loaded-form id="dynamicallyLoadedForm" api="[[api]]" user="[[user]]"
+                                                                     patient="[[patient]]" form-id="[[form.id]]" contact="[[dof.ctc]]"
+                                                                     current-contact="[[currentContact]]"
+                                                                     on-open-prescription-dialog="_prescribe"
+                                                                     main-health-elements="[[mainHealthElements]]"
+                                                                     health-elements="[[healthElements]]" contacts="[[allContacts]]"
+                                                                     services-map="[[servicesMap]]" i18n="[[i18n]]"
+                                                                     language="[[language]]"
+                                                                     resources="[[resources]]" on-edit-form="edit"
+                                                                     on-form-deleted="formDeleted" on-new-service="_newService"
+                                                                     on-data-change="_refreshFromServices" on-new-report="newReport_v2"
+                                                                     on-print-subform="printSubForm"
+                                                                     subcontact-type="[[subcontactType]]"></dynamically-loaded-form>
+                                        </template>
+                                        <template is="dom-repeat" items="[[form.docs]]">
+                                            <dynamic-doc
+                                                    api="[[api]]"
+                                                    user="[[user]]"
+                                                    patient="[[patient]]"
+                                                    document-id="[[_documentId(item)]]"
+                                                    i18n="[[i18n]]"
+                                                    language="[[language]]"
+                                                    resources="[[resources]]"
+                                                    title="[[item.label]]"
+                                                    downloadable="true"
+                                                    forwardable="true"
+                                                    hubuploadable="true"
+                                                    printable="true"
+                                                    preview="true"
+                                                    is-pat-detail="true"
+                                                    show-extended-title="true"
+                                                    contacts="[[allContacts]]"
+                                                    allow-es-link="true"
+                                                    linkable-health-elements="[[mainHealthElements]]"
+                                                    health-elements="[[healthElements]]"
+                                                    on-link-doc="_linkDocumentAndEs"
+                                                    on-unlink-doc="_unlinkDocumentAndEs"
+                                                    allow-edit-label-and-transaction="true"
+                                                    on-edit-label-and-transaction="_editLabelAndTransactionDialog"
+                                                    on-delete-service="_deleteServiceDialog"
+                                            ></dynamic-doc>
+                                            <!--<div>[[_getComment(item, comments)]]</div>-->
+                                        </template>
+                                    </template>
+                                    <template is="dom-if" if="[[dof.unmappedServices.length]]">
+                                        <dynamically-loaded-form api="[[api]]" user="[[user]]" patient="[[patient]]"
+                                                                 contact="[[dof.ctc]]"
+                                                                 current-contact="[[currentContact]]"
+                                                                 form="[[_virtualForm(dof.unmappedServices)]]"
+                                                                 main-health-elements="[[mainHealthElements]]"
+                                                                 health-elements="[[healthElements]]" contacts="[[allContacts]]"
+                                                                 services-map="[[servicesMap]]" i18n="[[i18n]]" language="[[language]]"
+                                                                 resources="[[resources]]"></dynamically-loaded-form>
+                                    </template>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <entity-selector id="load-template-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
+                                 columns="[[reportTemplatesSelectorColumns()]]"
+                                 data-provider="[[reportCustomTemplatesSelectorDataProvider()]]" entity-icon="vaadin:doctor"
+                                 entity-type="[[localize('template','Template',language)]]"
+                                 on-entity-selected="_reportTemplateSelected"></entity-selector>
+                
+                <entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"
+                                 columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]"
+                                 on-entity-selected="_addedFormSelected"></entity-selector>
+                
+                <ht-pat-prescription-dialog id="prescriptionDialog" api="[[api]]" user="[[user]]" i18n="[[i18n]]"
+                                            language="[[language]]" patient="[[patient]]" resources="[[resources]]"
+                                            current-contact="[[currentContact]]" services-map="[[servicesMap]]"
+                                            drugs-refresher="[[_drugsRefresher]]" global-hcp=[[globalHcp]]
+                                            on-save-document-as-service="[[_handleSaveDocumentAsService]]"
+                                            on-pdf-report="_handlePdfReport"></ht-pat-prescription-dialog>
+                
+                <ht-pat-invoicing-dialog id="invoicingForm" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]"
+                                         current-contact="[[currentContact]]" i18n="[[i18n]]"
+                                         resources="[[resources]]"></ht-pat-invoicing-dialog>
+                
+                <template is="dom-if" if="[[busySpinner]]">
+                    <div id="busySpinner">
+                        <div id="busySpinnerContainer">
+                            <ht-spinner class="spinner" active></ht-spinner>
+                        </div>
+                    </div>
+                </template>
+                
+                <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+                    <h2 class="modal-title">
+                        <iron-icon icon="icons:warning"></iron-icon>
+                        [[localize('warning','Warning',language)]]
+                    </h2>
+                    <div class="modalDialogContent m-t-50">
+                        <h3 class="textAlignCenter">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox
+                            yet',language)]]</h3>
+                        <p class="textAlignCenter m-t-20">[[localize('pleaseConnecteHealthBoxFirst','Please connect your eHealthBox
+                            first',language)]].</p>
+                    </div>
+                    <div class="dialogButtons">
+                        <paper-button class="button" on-tap="_closeDialogs">[[localize('clo','Close',language)]]</paper-button>
+                    </div>
+                </paper-dialog>
+                
+                <paper-dialog class="modalDialog" id="confirmDateChangeDialog">
+                    <h2 class="modal-title">[[localize('','Changement de date',language)]]</h2>
+                    <div class="content">
+                        <div class="cdc-content m-t-50">
+                            <div class="m-l-40">Voulez-vous déplacer le contact [[confirmDateChange.id]]</div>
+                            <div class="m-l-80">du [[_formatDate(confirmDateChange.source)]]</div>
+                            <div class="m-l-80">au [[_formatDate(confirmDateChange.target)]] ?</div>
+                        </div>
+                    </div>
+                    <div class="buttons">
+                        <paper-button class="button button--save" on-tap="_confirmDateChange">[[localize('yes','Oui',language)]]
+                        </paper-button>
+                        <paper-button class="button" on-tap="_cancelDateChange">[[localize('no','Non',language)]]</paper-button>
+                    </div>
+                </paper-dialog>
+                
+                <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"
+                            credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
+                
+                <paper-dialog id="prose-editor-dialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                    <paper-item id="templateSavedIndicator">
+                        [[localize('saved_template','Template saved',language)]] &nbsp;
+                        <iron-icon icon="icons:check"></iron-icon>
+                    </paper-item>
+                    <h2 class="modal-title">[[localize('new_out-doc','New outgoing document',language)]]</h2>
+                    <prose-editor id="prose-editor" class="content" on-refresh-context="_refreshContext"></prose-editor>
+                
+                    <paper-dialog id="template-description-dialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                        <h2 class="modal-title">[[localize('template_description','Template description',language)]]</h2>
+                        <paper-input label="[[localize('template_description','Template description',language)]]" autofocus value=""
+                                     id="templateDescription" style="padding:0"></paper-input>
+                        <div class="fright">
+                            <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
+                        </div>
+                        <template is="dom-if" if="[[!savedDocTemplateId]]">
+                            <paper-button class="button button--save" dialog-confirm on-tap="saveTemplate">
+                                [[localize('save','Save',language)]]
+                            </paper-button>
+                        </template>
+                        <template is="dom-if" if="[[savedDocTemplateId]]">
+                            <paper-button class="button button--save" dialog-confirm on-tap="saveTemplate">
+                                [[localize('save_current_version','Save current version',language)]]
+                            </paper-button>
+                            <paper-button class="button button--save" dialog-confirm on-tap="saveTemplate" data-version="new">
+                                [[localize('save_new_version','Save new version',language)]]
+                            </paper-button>
+                        </template>
+                    </paper-dialog>
+                
+                    <div class="buttons">
+                        <div class="fleft">
+                            <paper-button class="button button--other" on-tap="_openTemplateDescriptionDialog">
+                                [[localize('sav_mod','Save model',language)]]
+                            </paper-button>
+                            <paper-button class="button button--other" on-tap="loadTemplate">[[localize('load_mod','Load
+                                model',language)]]
+                            </paper-button>
+                            <paper-button class="button button--other" on-tap="printDocument">[[localize('print','Print',language)]]
+                            </paper-button>
+                        </div>
+                        <paper-button class="button" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
+                        <paper-button class="button button--save" dialog-confirm autofocus on-tap="_saveReport">
+                            [[localize('save','Save',language)]]
+                        </paper-button>
+                    </div>
+                </paper-dialog>
+                
+                <ht-pat-outgoing-document
+                        id="outgoingDocument"
+                        api="[[api]]"
+                        i18n="[[i18n]]"
+                        user="[[user]]"
+                        patient="[[patient]]"
+                        language="[[language]]"
+                        resources="[[resources]]"
+                ></ht-pat-outgoing-document>
+                
+                <template is="dom-if" if="[[busySpinner]]">
+                    <div id="busySpinner">
+                        <div id="busySpinnerContainer">
+                            <ht-spinner class="spinner" active></ht-spinner>
+                        </div>
+                    </div>
+                </template>
+                
+                <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+                    <h2 class="modal-title">
+                        <iron-icon icon="icons:warning"></iron-icon>
+                        [[localize('warning','Warning',language)]]
+                    </h2>
+                    <div class="modalDialogContent m-t-50">
+                        <h3 class="textAlignCenter">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox
+                            yet',language)]]</h3>
+                        <p class="textAlignCenter m-t-20">[[localize('pleaseConnecteHealthBoxFirst','Please connect your eHealthBox
+                            first',language)]].</p>
+                    </div>
+                    <div class="dialogButtons">
+                        <paper-button class="button" on-tap="_closeDialogs">[[localize('clo','Close',language)]]</paper-button>
+                    </div>
+                </paper-dialog>
+                
+                <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]"
+                            credentials="[[credentials]]" patient="[[patient]]"></ht-msg-new>
+                
+                <paper-dialog class="modalDialog" id="editLabelAndTransactionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                    <h2 class="modal-title">
+                        <iron-icon icon="create" class="mr5"></iron-icon>
+                        [[localize('modifyInformation','Modify information',language)]]
+                    </h2>
+                    <div class="content pt10 pr20 pl20">
+                        <div class="">
+                            <paper-input value="{{editLabelAndTransactionData.label}}"
+                                         placeHolder="[[localize('doc-title','Titre du document',language)]]"
+                                         label="[[localize('doc-title','Titre du document',language)]]"></paper-input>
+                        </div>
+                        <div class="mt30">
+                            <vaadin-combo-box class="w100pc" filtered-items="[[listType]]" item-label-path="name" item-value-path="code"
+                                              value="{{editLabelAndTransactionData.transactionCode}}"
+                                              label="[[localize('docType','Type de document',language)]]"></vaadin-combo-box>
+                        </div>
+                    </div>
+                    <div class="buttons">
+                        <paper-button class="button button--other" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
+                        <paper-button class="button button--save" on-tap="_saveLabelAndTransactionDialog">
+                            <iron-icon icon="save"></iron-icon>
+                            [[localize('save','Save',language)]]
+                        </paper-button>
+                    </div>
+                </paper-dialog>
+                
+                <paper-dialog class="modalDialog modalDialogSmall" id="deleteServiceDialog" no-cancel-on-outside-click
+                              no-cancel-on-esc-key>
+                    <h2 class="modal-title">
+                        <iron-icon icon="delete" class="mr5"></iron-icon>
+                        [[localize('areYouSure','Are you sure?',language)]]
+                    </h2>
+                    <div class="content pt40 pr20 pl20 textaligncenter fw700">[[localize('pleaseConfirm','Please confirm',language)]].
+                    </div>
+                    <div class="buttons">
+                        <paper-button class="button button--other" dialog-dismiss>[[localize('can','Cancel',language)]]</paper-button>
+                        <paper-button class="button button--save" on-tap="_doDeleteService">
+                            <iron-icon icon="check-circle"></iron-icon>
+                            [[localize('confirm','Confirm',language)]]
+                        </paper-button>
+                    </div>
+                </paper-dialog>
+                
+                </template>
+    `;
+    }
 
     static get is() {
 				return 'ht-pat-detail-ctc-detail-panel';

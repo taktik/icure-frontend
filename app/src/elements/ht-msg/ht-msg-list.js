@@ -28,6 +28,816 @@ import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 class HtMsgList extends TkLocalizerMixin(PolymerElement) {
 
+    static get template() {
+        return html`
+            <custom-style>
+                <style include="scrollbar-style dialog-style buttons-style dropdown-style paper-input-style paper-tabs-style shared-styles">
+                    :host {
+                        display: flex;
+                        flex-direction: column;
+                        z-index:0;
+                    }
+                    :host *:focus {
+                        outline: 0 !important;
+                    }
+                    .boxes-list {
+                        margin: 20px auto;
+                        padding: 0;
+                        min-width: 80%;
+                    }
+                    .col-right {
+                        position: relative;
+                        box-sizing: border-box;
+                        grid-column: 2 / span 1;
+                        grid-row: 1 / span 1;
+                        /*background:var(--app-background-color);*/
+                        float:left;
+                        padding: 12px 20px;
+                        padding-top: 0;
+                        display:flex;
+                        flex-flow: column nowrap;
+                        align-items: flex-start;
+                        height: calc(100% - 56px);
+                        width: calc(100vw - 38%);
+                        /*width: calc(100vw - 19%)*/
+                    }
+                    .card-title-container{
+                        padding: 8px 0;
+                        height: 34px;
+                    }
+                    .card-title{
+                        margin: 0;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        -webkit-font-smoothing: antialiased;
+                        font-family: 'Roboto',Helvetica,Arial,sans-serif;
+                        font-size: 14px;
+                        letter-spacing: .15px;
+                        color: var(--app-text-color);
+                        font-weight: 500;
+                        letter-spacing: 0;
+                        line-height: 16px;
+                        -webkit-box-ordinal-group: 0;
+                        -webkit-order: 0;
+                        order: 0;
+                    }
+                    .card-title iron-icon{
+                        width:16px;
+                        width: 16px;
+                        color: var(--app-text-color-disabled);
+                    }
+                    .has-unread {
+                        font-weight: bold;
+                    }
+                    paper-item {
+                        outline: 0;
+                        cursor: pointer;
+                        --paper-item: { margin: 0; };
+                        font-size:.9em;
+                        min-height:36px;
+                        --paper-item-selected: { background: rgba(0, 0, 0, 0.1); color: var(--google-green-700); };
+                        --paper-item-focused: { background: rgba(0, 0, 0, 0.1); color: var(--google-green-700); };
+                        --paper-item-focused-before: { background: rgba(0, 0, 0, 0.1); }
+                    }
+                    paper-item:hover {
+                        background: rgba(0, 0, 0, 0.1);
+                        color:var(--dark-primary-color)
+                    }
+                    paper-listbox {
+                        width:320px;
+                        padding:5px;
+                    }
+                    paper-listbox:focus {
+                        outline: 0;
+                    }
+                    .sublist {
+                        padding-left: 20px;
+                        outline: 0;
+                    }
+                    .sublist paper-item {
+                        --paper-item-min-height: 28px;
+                    }
+                    vaadin-grid {
+                        height: calc(100% - 16px - 32px - 50px);
+                        width: 100%;
+                        box-shadow: var(--app-shadow-elevation-1);
+                        border: none;
+                        box-sizing: border-box;
+                    }
+                    vaadin-grid.material {
+                        outline: 0 !important;
+                        font-family: Roboto, sans-serif;
+                        background: rgba(0, 0, 0, 0);
+                        border: none;
+                        --divider-color: rgba(0, 0, 0, var(--dark-divider-opacity));
+                        --vaadin-grid-cell: {
+                            padding: 8px;
+                        };
+                        --vaadin-grid-header-cell: {
+                            height: 48px;
+                            padding: 11.2px;
+                            color: rgba(0, 0, 0, var(--dark-secondary-opacity));
+                            font-size: 12px;
+                            background: rgba(0, 0, 0, 0);
+                            border-top: 0;
+                        };
+                        --vaadin-grid-body-cell: {
+                            height: 48px;
+                            color: rgba(0, 0, 0, var(--dark-primary-opacity));
+                            font-size: 13px;
+                        };
+                        --vaadin-grid-body-row-hover-cell: {
+                            background-color: var(--paper-grey-200);
+                        };
+                        --vaadin-grid-body-row-selected-cell: {
+                            background-color: var(--paper-grey-100);
+                        };
+                        --vaadin-grid-focused-cell: {
+                            box-shadow: none;
+                            font-weight: bold;
+                        };
+                    }
+                    vaadin-grid.material .cell {
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        padding-right: 8px;
+                    }
+                    vaadin-grid.material .cell.last {
+                        padding-right: 8px;
+                    }
+                    vaadin-grid.material .cell.numeric {
+                        text-align: right;
+                    }
+                    vaadin-grid.material paper-checkbox {
+                        --primary-color: var(--paper-indigo-500);
+                        margin: 0 24px;
+                    }
+                    vaadin-grid.material vaadin-grid-sorter {
+                        --vaadin-grid-sorter-arrow: {
+                            display: none !important;
+                        };
+                    }
+                    vaadin-grid.material vaadin-grid-sorter .cell {
+                        flex: 1;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+                    vaadin-grid.material vaadin-grid-sorter iron-icon {
+                        transform: scale(0.8);
+                    }
+                    vaadin-grid.material vaadin-grid-sorter:not([direction]) iron-icon {
+                        color: rgba(0, 0, 0, var(--dark-disabled-opacity));
+                    }
+                    vaadin-grid.material vaadin-grid-sorter[direction] {
+                        color: rgba(0, 0, 0, var(--dark-primary-opacity));
+                    }
+                    vaadin-grid.material vaadin-grid-sorter[direction=desc] iron-icon {
+                        transform: scale(0.8) rotate(180deg);
+                    }
+                    vaadin-grid.material::slotted(div) {
+                        outline: 0 !important;
+                        background: red;
+                    }
+                    paper-checkbox {
+                        --paper-checkbox-unchecked-color: var(--app-text-color);
+                        --paper-checkbox-label-color: var(--app-text-color);
+                        --paper-checkbox-checked-color: var(--app-secondary-color);
+                        --paper-checkbox-checked-ink-color: var(--app-secondary-color-dark);
+                    }
+                    .table-top {
+                        width: calc(100vw - 38%);
+                        /*width: calc(100vw - 19%);*/
+                        min-height: 56px;
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: flex-end;
+                        padding-top:5px;
+                        position: relative;
+                    }
+                    .table-top > .checkbox {
+                        width: 16px;
+                        margin-left: 20px;
+                        display: flex;
+                        justify-content: space-around;
+                        padding-left: 12px;
+                        flex-direction: column;
+                    }
+                    .table-top > div {
+                        display: flex;
+                        flex-direction: row;
+                        z-index: 1;
+                        align-items: center;
+                    }
+                    .table-top > div > div {
+                        text-align: center;
+                    }
+                    .table-top > div.indicators {
+                        justify-content: flex-end;
+                        padding-right: 20px;
+                    }
+                    .table-top > div.indicators > div {
+                        display: flex;
+                        flex-direction: column;
+                        padding: 8px;
+                        justify-content: center;
+                    }
+                    .table-top > div.indicators > div > * {
+                        margin: 0 auto;
+                    }
+                    .table-top > div.indicators > div#stamp-indicator.hasNew span {color: var(--app-error-color);}
+                    .table-top > div.indicators > div#capacity-indicator > * {
+                        display: inline-block;
+                    }
+                    .table-top > div.actions {
+                        flex-grow: 1;
+                        margin: 0 16px;
+                    }
+                    .table-top paper-dropdown-menu#filterLabresult {
+                        min-width: 256px;
+                        margin-left: 22%;
+                    }
+                    .table-top > div.actions paper-icon-button {
+                        margin: 0;
+                        height: 28px;
+                        width: 28px;
+                        padding: 4px;
+                        box-sizing: border-box;
+                    }
+                    .mb4 iron-icon{
+                        opacity: 0.7;
+                        margin-right: 4px;
+                    }
+                    .mb4 span{
+                        font-size: 12px;
+                        font-weight: 400;
+                    }
+                    paper-progress {
+                        --paper-progress-active-color: var(--app-secondary-color);
+                        width:130px;
+                    }
+                    paper-progress.full {
+                        --paper-progress-active-color: var(--app-error-color);
+                    }
+                    .errorColor {
+                        color: var(--app-error-color);
+                    }
+                    .errorColorDark {
+                        color: var(--app-error-color-dark);
+                    }
+                    #vaadinMessagesGrid {
+                        padding-right: 0;
+                        margin-right: 0;
+                        flex-grow: 1;
+                        margin-bottom: 16px;
+                        transition: opacity .25s ease;
+                    }
+                    #vaadinMessagesGrid iron-icon{
+                        color: var(--app-text-color);
+                        height: 18px;
+                        width: 18px;
+                        padding: 0px;
+                    }
+                    .labicon {
+                        content: '';
+                        display: inline-block;
+                        height: 8px;
+                        width: 8px;
+                        margin: 0 auto;
+                        border-radius: 50%;
+                        background: var(--app-status-color-ok);
+                        margin-right:5px;
+                    }
+                    .labicon.unassigned-true {
+                        background: var(--app-status-color-nok);
+                    }
+                    .actions .labicon {
+                        margin: 8px;
+                    }
+                    .get-msg-btn{
+                        margin-bottom: 16px;
+                        --paper-button: {
+                            background: var(--app-secondary-color);
+                            color: var(--app-text-color);
+                            width: 100%;
+                            margin: 0 auto;
+                            font-size: 14px;
+                            font-weight: bold;
+                            text-transform: capitalize;
+                        };
+                        --paper-button-ink-color: var(--app-secondary-color-dark);
+                    }
+                    paper-icon-button.change-page {
+                        cursor: pointer;
+                        width: 24px;
+                        height: 24px;
+                        min-width: 0;
+                        padding: 2px;
+                        color: var(--app-text-color);
+                        margin:0 4px;
+                    }
+                    .selector {
+                        overflow-x: auto;
+                        overflow-y: hidden;
+                        white-space: nowrap;
+                        max-width: 360px;
+                    }
+                    div.bottom-commands {
+                        display: flex;
+                        width: 100%;
+                        justify-content: flex-end;
+                        align-items: center;
+                    }
+                    div.bottom-commands > div.grid-size-indicator {
+                        max-width: 208px;
+                        overflow: hidden;
+                        white-space: nowrap;
+                        text-overflow: ellipsis;
+                        color: var(--app-text-color);
+                        font-size: 13px;
+                        font-weight: 400;
+                        letter-spacing: 0.3px;
+                    }
+                    .scroll-top {
+                        background: var(--app-secondary-color);
+                        padding: 0 4px;
+                        height: 24px;
+                        width: 24px;
+                        box-sizing: border-box;
+                        border-radius: 50%;
+                    }
+                    .warn {
+                        color: var(--app-status-color-nok);
+                    }
+                    @media screen and (max-width:1696px) {
+                        .table-top paper-dropdown-menu#filterLabresult {
+                            margin-left: 0;
+                        }
+                    }
+                    @media screen and (max-width:1025px) {
+                        .col-right {
+                            width: 100vw;
+                            transition: all .5s ease;
+                            box-shadow: none;
+                        }
+                        ht-spinner.center {
+                            left: 50vw;
+                        }
+                    }
+                    @media screen and (max-width: 1025px) {
+                        div.bottom-commands {
+                            justify-content: center;
+                        }
+                    }
+                    @media screen and (max-width: 800px) {
+                        .table-top paper-dropdown-menu#filterLabresult {
+                            min-width: 0;
+                            margin-left: initial;
+                        }
+                        .mb4 span {
+                            display: none;
+                        }
+                        #capacity-indicator paper-progress {
+                            width: 64px;
+                        }
+                        .table-top paper-dropdown-menu#filterLabresult {
+                            min-width: 0;
+                            margin-left: initial;
+                        }
+                    }
+                    @media screen and (max-width: 640px) {
+                        .hideOnMobile {
+                            display: none;
+                        }
+                    }
+                    .bold {
+                        font-weight: 700;
+                    }
+                    #loadingContainer, #loadingContainerSmall {
+                        position:absolute;
+                        width: 100%;
+                        height: 100%;
+                        top: 0;left: 0;
+                        background-color: rgba(0,0,0,.3);
+                        z-index: 10;
+                        text-align: center;
+                    }
+                    #loadingContentContainer, #loadingContentContainerSmall {
+                        position:relative;
+                        width: 400px;
+                        /*min-height: 200px;*/
+                        background-color: #ffffff;
+                        padding:20px;
+                        border:1px solid var(--app-secondary-color);
+                        margin:40px auto 0 auto;
+                        text-align: center;
+                    }
+                    .sub-container {
+                        position:relative;
+                    }
+                    .loadingIcon {
+                        margin-right:5px;
+                    }
+                    .loadingIcon.done {
+                        color: var(--app-secondary-color);
+                    }
+                    .mr5 {margin-right:5px}
+                    .ml5 {margin-left:5px}
+                    .smallIcon { width:16px; height:16px; }
+                    .bottom30 {
+                        bottom:30px!important;
+                    }
+                    .m-t-20 {
+                                        margin-top:20px!important;
+                                    }
+                    .m-t-25 {
+                        margin-top:25px!important;
+                    }
+                    .m-t-30 {
+                        margin-top:30px!important;
+                    }
+                    .m-t-40 {
+                        margin-top:40px;
+                    }
+                    .m-t-50 {
+                        margin-top:50px!important;
+                    }
+                    .textAlignCenter {
+                        text-align: center;
+                    }
+                    .dialogButtons {
+                        position: absolute;
+                        bottom: 40px;
+                        margin: 0;
+                        width:100%;
+                        text-align:center;
+                    }
+                    .fs12 {
+                        font-size:12px;
+                    }
+                    .m-r-5 {
+                        margin-right:5px;
+                    }
+                    .m-t-minus-2 {
+                        margin-top:-2px;
+                    }
+                    .w-20 {
+                        width:20px
+                    }
+                    .darkRed {
+                        color:#a00000!important;
+                    }
+                    .modal-title {
+                        justify-content: flex-start;
+                    }
+                    .modal-title iron-icon{
+                        margin-right: 8px;
+                    }
+                    .eHealthBoxProcessErrorMessage {
+                        border: 1px dashed #999999;
+                        padding: 10px 10px 0 10px;
+                        margin-top: 10px;
+                        max-height: 240px;
+                        overflow: auto;
+                    }
+                    .eHealthBoxProcessErrorMessage p {
+                        margin:0 0 5px 0;
+                        border-bottom:1px dashed #dddddd;
+                        padding-bottom:5px;
+                    }
+                    .eHealthBoxProcessErrorMessage p:last-child {
+                        border-bottom:0;
+                    }
+                    .italic {
+                        font-style:italic;
+                    }
+                    .fs9em {
+                        font-size:.9em;
+                    }
+                    .fs8em {
+                        font-size:.8em;
+                    }
+                    .displayBlock {
+                        display: block;
+                    }
+                    .header {
+                        padding: 10px;
+                        color: #ffffff;
+                        text-transform: uppercase;
+                        margin: 0;
+                        font-weight: 700;
+                        background-color: #777777;
+                        cursor: pointer;
+                    }
+                    #messagesFilters {
+                        margin:0 auto;
+                        position: relative;
+                    }
+                    #messagesFiltersDropDown {
+                        width:220px;
+                        margin-left:150px;
+                    }
+                    #messagesFiltersDropDown hr {
+                        margin: 5px 10px;
+                        border: 0;
+                        border-top: 1px dashed #aaaaaa;
+                    }
+                    .w20 {
+                        width:20px;
+                    }
+                    .h20 {
+                        height:20px;
+                    }
+                    .w22 {
+                        width:22px;
+                    }
+                    .darkBlue {
+                        color:var(--dark-primary-color)!important;
+                    }
+                    .darkGreen {
+                        color:#41671e!important
+                    }
+                    .visibilityHidden {
+                        visibility:hidden;
+                    }
+                    .searchIconContainer {
+                        display:inline-block;
+                    }
+                    .searchIcon {
+                        margin:0
+                    }
+                    #searchContainer {
+                        display: block;
+                        width: 100%;
+                        position: absolute;
+                        left: 0;
+                        top: -100px;
+                        background: #fff;
+                        padding: 5px 25px 8px 25px;
+                        z-index: 10;
+                        border-bottom: 1px solid #ddd;
+                        border-left: 1px solid #ddd;
+                        height: 40px;
+                        transition: all .3s ease-in-out;
+                        -webkit-transition: all .3s ease-in-out;
+                    }
+                    #searchContainer.opened {
+                        top:0;
+                    }
+                    #searchInputField {
+                        display: inline-block;
+                        width: calc(100% - 330px);
+                        margin: -15px 0 0 0;
+                        padding: 0;
+                    }
+                    .action-btn {
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: var(--app-text-color);
+                        transition: all .12s cubic-bezier(0.075, 0.82, 0.165, 1);
+                        margin-bottom: 8px;
+                        height: 40px;
+                        text-transform: none;
+                        background-color: #eeeeee;
+                        padding-right:15px;
+                        border:1px solid #cccccc;
+                    }
+                    .action-btn.searchButtons.triggerSearchButton {
+                        right:180px;
+                    }
+                    .action-btn:hover{
+                        background-color: var(--app-secondary-color);
+                    }
+                    .action-btn iron-icon{
+                        height: 20px;
+                        width: 20px;
+                        padding: 4px;
+                        opacity: .7;
+                        color: var(--app-text-color);
+                    }
+                    .searchButtonContainer {
+                        position: absolute;
+                        top: 5px;
+                    }
+                </style>
+            </custom-style>
+    
+    
+    
+            <template is="dom-if" if="[[_isLoading]]">
+                <div id="loadingContainer">
+                    <div id="loadingContentContainer">
+                        <div style="max-width:80px; margin:0 auto"><ht-spinner class="spinner" alt="Loading..." active></ht-spinner></div>
+                        <div id="loadingContent"></div>
+                    </div>
+                </div>
+            </template>
+    
+    
+    
+            <div class="table-top">
+    
+                <div id="searchContainer">
+                    <iron-icon class="searchIcon m-r-5" icon="icons:search"></iron-icon>
+                    <paper-input id="searchInputField" value="{{_searchedValue}}" placeholder="[[localize('inputYourSearchQuery','Input your search query...',language)]]" autofocus on-keyup="_submitSearchWhenEnterIsPressed"></paper-input>
+                    <paper-button class="button button--save triggerSearchButton" on-tap="_getEHealthBoxData"><iron-icon icon="icons:search" on-tap="_getEHealthBoxData"></iron-icon> [[localize('sch','Search',language)]]</paper-button>
+                    <paper-button class="button" on-tap="_closeSearch"><iron-icon icon="icons:close" on-tap="_closeSearch"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                </div>
+    
+                <div class="actions">
+    
+                    <template is="dom-if" if="[[_haveGridSelectedMessages]]">
+                        <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'assigned')]]"><template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'deleted')]]"><template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'hidden')]]"><paper-icon-button id="hidebutton" icon="visibility-off" on-tap="_hideUnHideMessages"></paper-icon-button><paper-tooltip for="hidebutton" offset="0">[[localize('ehb.hideMessages','Hide messages',language)]]</paper-tooltip></template></template></template>
+                        <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'assigned')]]"><template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'hidden')]]"><paper-icon-button id="restoreHiddenMessagesButton" icon="undo" on-tap="_hideUnHideMessages"></paper-icon-button><paper-tooltip for="restoreHiddenMessagesButton" offset="0">[[localize('ehb.restoreHiddenMessages','Restore hidden messages',language)]]</paper-tooltip></template></template>
+                        <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'deleted')]]"><paper-icon-button id="del-button" icon="delete" on-tap="_deletedUndeleteMessages"></paper-icon-button></template>
+                        <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'deleted')]]"><paper-icon-button id="restore-button" icon="undo" on-tap="_deletedUndeleteMessages"></paper-icon-button><paper-icon-button id="del-for-button" icon="delete-forever" on-tap="_confirmDeleteMessagesForEver"></paper-icon-button></template>
+                        <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'assigned')]]"><paper-icon-button id="flagAsUnreadButton" icon="markunread-mailbox" on-tap="_flagAsUnred"></paper-icon-button><paper-tooltip for="flagAsUnreadButton" offset="0">[[localize('ehb.flagAsUnread','Flag as unread',language)]]</paper-tooltip></template>
+                    </template>
+    
+                    <template is="dom-if" if="[[!_haveGridSelectedMessages]]"><paper-icon-button id="refresh-button" icon="icons:refresh" on-tap="_triggerGetEHealthBoxDataForceRefresh"></paper-icon-button></template>
+    
+                    <paper-button id="new-msg-btn" class$="button button--save new-msg-btn [[_disabledCssClassWhenNoeHealthSession]]" on-tap="_createNewMessage">
+                        <template is="dom-if" if="[[!ehealthSession]]"><iron-icon icon="icons:block" class="mr8"></iron-icon></template>
+                        <template is="dom-if" if="[[ehealthSession]]"><iron-icon icon="icons:mail" class="mr8"></iron-icon></template>
+                         &nbsp; [[localize('new_mes','New Message',language)]]
+                    </paper-button>
+    
+                    <div id="messagesFilters">
+                        <div class="searchButtonContainer"><paper-button class="button button--other" on-tap="_openSearch"><iron-icon icon="icons:search" on-tap="_openSearch" class="m-r-5"></iron-icon> [[localize('sch','Search',language)]]</paper-button></div>
+                        <paper-dropdown-menu id="messagesFiltersDropDown" label="[[localize('filterMessages','Filter messages',language)]]" no-label-float selected-item="{{_messageFilterSelectedItem}}">
+                            <paper-listbox slot="dropdown-content">
+                                <paper-item data-filter="" id="allMessagesFilter"><iron-icon icon="icons:home" class="m-r-5 w22"></iron-icon>[[localize('ehb.all','All',language)]]</paper-item>
+                                <hr />
+                                <paper-item data-filter="read"><iron-icon icon="icons:visibility" class="m-r-5 w22"></iron-icon>[[localize('ehb.read','Read',language)]]</paper-item>
+                                <paper-item data-filter="unread"><iron-icon icon="icons:visibility-off" class="m-r-5 w22"></iron-icon>[[localize('ehb.unread','Unread',language)]]</paper-item>
+                                <hr />
+                                <paper-item data-filter="withAttachment"><iron-icon icon="editor:attach-file" class="m-r-5 w22"></iron-icon>[[localize('ehb.withAttachments','With attachments',language)]]</paper-item>
+                                <paper-item data-filter="withoutAttachment"><iron-icon icon="icons:check-box-outline-blank" class="m-r-5 w22"></iron-icon>[[localize('ehb.withoutAttachments','Without attachments',language)]]</paper-item>
+                                <hr />
+                                <paper-item data-filter="important"><iron-icon icon="icons:arrow-upward" class="m-r-5 w22"></iron-icon>[[localize('ehb.important','High importance',language)]]</paper-item>
+                                <paper-item data-filter="notImportant"><iron-icon icon="icons:arrow-downward" class="m-r-5 w22"></iron-icon>[[localize('ehb.notImportant','Low importance',language)]]</paper-item>
+                                <hr />
+                                <paper-item data-filter="assignedResults"><iron-icon icon="icons:folder-shared" class="m-r-5 w22"></iron-icon>[[localize('ehb.assignedResults','Assigned results',language)]]</paper-item>
+                                <paper-item data-filter="unassignedResults"><iron-icon icon="icons:folder-open" class="m-r-5 w22"></iron-icon>[[localize('ehb.unassignedResults','Unassigned results',language)]]</paper-item>
+                                <paper-item data-filter="labResults"><iron-icon icon="vaadin:flask" class="m-r-5 w22"></iron-icon>[[localize('ehb.labResults','Lab results',language)]]</paper-item>
+                                <hr />
+                                <paper-item data-filter="allButLabResults"><iron-icon icon="icons:mail" class="m-r-5 w22"></iron-icon>[[localize('ehb.allButLabProtocol','All but lab / protocol',language)]]</paper-item>
+                            </paper-listbox>
+                        </paper-dropdown-menu>
+                    </div>
+    
+                </div>
+    
+                <div class="indicators">
+    
+                    <template is="dom-if" if="[[!_isEqual(nbrMessagesInStandBy,0)]]">
+                        <div id="stamp-indicator" class="stamp-indicator hasNew errorColor"><iron-icon icon="warning" class="errorColor"></iron-icon><span class="label errorColor fs12">[[nbrMessagesInStandBy]] [[localize('pendingMessages','Pending messages',language)]]</span></div>
+                        <paper-tooltip for="stamp-indicator" offset="0">[[localize('becauseEhBoxIsFull','Because your e-Health Box is full',language)]]</paper-tooltip>
+                    </template>
+    
+                    <div id="capacity-indicator">
+                        <div class="mb4"><iron-icon icon="cloud"></iron-icon>
+                            <span>
+                                <template is="dom-if" if="[[ehealthSession]]">[[localize('ehb.capacity','Capacity',language)]]: [[currentCapacityPercentage]]%</template>
+                                <template is="dom-if" if="[[!ehealthSession]]"><span class="warn">[[localize('ehb.disconnected','Disconnected',language)]]</span></template>
+                            </span>
+                        </div>
+                        <template is="dom-if" if="[[ehealthSession]]"><paper-progress value$="[[currentCapacityPercentage]]" min="0" max="100" class$="[[_ehBoxCurrentSizeColor]]"></paper-progress></template>
+                    </div>
+    
+                    <template is="dom-if" if="[[ehealthSession]]">
+                        <paper-tooltip for="capacity-indicator" offset="0">[[currentStorageCapacity]]%</paper-tooltip>
+                    </template>
+    
+                </div>
+    
+            </div>
+    
+            <div class="second-panel col-right">
+    
+                <vaadin-grid
+                    id="vaadinMessagesGrid"
+                    class="material"
+                    width="100%"
+                    items="[[_vaadinGridDataToShow]]"
+                    active-item="{{_vaadinGridMessagesActiveItem}}"
+                    pageSize="[[_vaadinGridMaxItemsPerPage]]"
+                    on-selected-items-changed="_gridSelectedItemsChanged"
+                >
+    
+                    <vaadin-grid-selection-column></vaadin-grid-selection-column>
+    
+                    <vaadin-grid-column flex-grow="1">
+                        <template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('ehb.senderRecipient','Sender / recipient',language)]]</b></vaadin-grid-sorter></template>
+                        <!--
+                            <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'sent')]]"><template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('sen','Sender',language)]]</b></vaadin-grid-sorter></template></template>
+                            <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'sent')]]"><template class="header"><vaadin-grid-sorter path="fromAddress"><b>[[localize('rec','Recipient',language)]]</b></vaadin-grid-sorter></template></template>
+                        -->
+                        <template>
+                            <div class$="cell [[_boldIfIsUnread(item)]]">
+                                <template is="dom-if" if="[[_isImportant(item)]]"><iron-icon icon="warning" class="darkRed"></iron-icon></template>
+                                <template is="dom-if" if="[[!_isImportant(item)]]"><iron-icon icon="warning" class="darkGreen visibilityHidden"></iron-icon></template>
+                                <template is="dom-if" if="[[_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5 darkBlue"></iron-icon></template>
+                                <template is="dom-if" if="[[!_hasAnnex(item)]]"><iron-icon icon="editor:attach-file" class="m-r-5 visibilityHidden"></iron-icon></template>
+                                <template is="dom-if" if="[[!_isEqual(menuSelectionObject.selection.folder,'sent')]]">[[item.fromAddress]]</template>
+                                <template is="dom-if" if="[[_isEqual(menuSelectionObject.selection.folder,'sent')]]">[[_formatRecipientDetailsForSentFolder(item)]]</template>
+                            </div>
+                        </template>
+                    </vaadin-grid-column>
+    
+                    <vaadin-grid-column flex-grow="1">
+                        <template class="header"><vaadin-grid-sorter path="subject">[[localize('sub','Subject',language)]]</vaadin-grid-sorter></template>
+                        <template><div class$="cell [[_boldIfIsUnread(item)]]">[[item.subject]]</div></template>
+                    </vaadin-grid-column>
+    
+                    <vaadin-grid-column flex-grow="1">
+                        <template class="header">[[localize('pat','Patient',language)]]</template>
+                        <template>
+                            <template is="dom-repeat" items="[[item.uniqueAnnexesInfos]]" as="annexesInfos">
+                                <div class$="singlePatientInfo [[_boldIfIsUnread(item)]]">
+                                    <template is="dom-if" if="[[annexesInfos.isAssigned]]"><div id="hasLab-[[annexesInfos.patientData.uniqueId]]" class="labicon"></div><paper-tooltip position="right" for="hasLab-[[annexesInfos.patientData.uniqueId]]">[[localize('assigned_labresults','Assigned lab results',language)]]</paper-tooltip></template>
+                                    <template is="dom-if" if="[[!annexesInfos.isAssigned]]"><div id="hasLab-[[annexesInfos.patientData.uniqueId]]" class="labicon unassigned-true"></div><paper-tooltip position="right" for="hasLab-[[annexesInfos.patientData.uniqueId]]">[[localize('unassigned_labresults','Unassigned lab results',language)]]</paper-tooltip></template>
+                                    [[annexesInfos.patientData.lastName]]
+                                    [[annexesInfos.patientData.firstName]]
+                                    [[annexesInfos.patientData.dateOfBirthHr]]
+                                </div>
+                            </template>
+                        </template>
+                    </vaadin-grid-column>
+    
+                    <vaadin-grid-column width="100px" flex-grow="0">
+                        <template class="header"><vaadin-grid-sorter path="created" direction="asc">[[localize('dat','Date',language)]]</vaadin-grid-sorter></template>
+                        <template><div class$="cell [[_boldIfIsUnread(item)]]">[[_msTstampToDDMMYYYY(item.created)]]</div></template>
+                    </vaadin-grid-column>
+    
+                </vaadin-grid>
+    
+                <div class="bottom-commands">
+                    <div class="grid-size-indicator hideOnMobile"> [[pageStart]] – [[pageEnd]] [[localize('sur','sur',language)]] [[_totalMessagesForCurrentFolderAndCurrentFilter]]</div>
+                    <paper-icon-button id="previous-page-change" icon="chevron-left"class="change-page" on-tap="_gotoPreviousGridPage"></paper-icon-button>
+                    <paper-icon-button id="next-page-change" icon="chevron-right" class="change-page" on-tap="_gotoNextGridPage"></paper-icon-button>
+                    <div class="hideOnMobile"><paper-icon-button id="scrolltop" class="button--icon-btn" icon="arrow-upward" on-tap="_scrollToTop"></paper-icon-button></div>
+                </div>
+    
+            </div>
+    
+    
+    
+            <paper-dialog class="modalDialog" id="notConnctedToeHealthBox" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                <div class="content textaligncenter pt20 pb70 pl20 pr20">
+                    <p class="fw700">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox yet',language)]]</p>
+                    <p>[[localize('someFunctionalitiesAreDisabled','Some functionalities are disabled',language)]].</p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                </div>
+            </paper-dialog>
+            <paper-dialog class="modalDialog" id="confirmPermanentDeletionDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                <div class="content textaligncenter pt20 pb70 pl20 pr20">
+                    <p class="fw700">[[localize('confirmDeletePermanently','Are you sure you wish to delete PERMANENTLY ?',language)]]</p>
+                    <p>[[localize('cantBeUndone',"This can't be undone",language)]].</p>
+                    <p><vaadin-checkbox checked="{{_confirmationDialogAcknowledgementsProperties.confirmPermanentDeletionDialog}}"> [[localize('acknowledgementDontShowAnymore','I understand\\, don\\'t ask for confirmation in the future',language)]]</vaadin-checkbox></p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('can','Cancel',language)]]</paper-button>
+                    <paper-button class="button button--save" on-tap="_deleteMessagesForEver"><iron-icon icon="check-circle"></iron-icon>[[localize('confirm','Confirm',language)]]</paper-button>
+                </div>
+            </paper-dialog>
+            <paper-dialog class="modalDialog" id="errorWithEHealthBoxProcessing" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('errorDealingWithYourRequest','An error occurred while processing your request',language)]]</h2>
+                <div class="content textaligncenter pt20 pb70 pl20 pr20">
+                    <p class="fw700">[[localize('followingMessagesCouldNotBeDeletedRestored','Following message(s) could not be deleted / restored',language)]]:</p>
+                    <div class="eHealthBoxProcessErrorMessage">
+                        <template is="dom-repeat" items="[[_eHealthBoxProcessErrorMessages]]" as="singleErrorMessage" id="eHealthBoxProcessErrorMessageDomRepeat">
+                            <p>
+                                <span class="fs9em bold italic displayBlock "><iron-icon icon="icons:mail" class="errorColorDark"></iron-icon> [[singleErrorMessage.subject]]</span>
+                                <span class="fs8em displayBlock">[[[_msTstampToDDMMYYYY(singleErrorMessage.created)]]] [[singleErrorMessage.fromAddress]]</span>
+                            </p>
+                        </template>
+                    </div>
+                    <p class="fw700">[[localize('toContactUs','To contact us',language)]]: <iron-icon icon="communication:phone" class="mr5 ml5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="tel:+3223192241" class="textDecorationNone">+32(0)2/319.22.41</a> - <iron-icon icon="icons:mail" class="mr5 smallIcon colorAppSecondaryColorDark" ></iron-icon> <a href="mailto:support@topaz.care" class="textDecorationNone">support@topaz.care</a>.</p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                    <paper-button class="button button--save" on-tap="_moveErrorMessagesToHiddenFolder button--save"><iron-icon icon="icons:visibility-off"></iron-icon>[[localize('moveMessagesToHiddenFolder','Move messages to hidden box',language)]]</paper-button>
+                </div>
+            </paper-dialog>
+            <paper-dialog class="modalDialog" id="errorGettingEHealthBoxMessages" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                <div class="content textaligncenter pt20 pb70 pl20 pr20">
+                    <p>[[localize('errorGettingEHealthBoxMessages','An error occurred while getting your messages',language)]]</p>
+                    <p>[[localize('pleaseReloadPageOrApp','Please reload the page / the application',language)]]</p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                </div>
+            </paper-dialog>
+        `;
+    }
+
     static get is() {
         return 'ht-msg-list';
     }
@@ -236,8 +1046,8 @@ class HtMsgList extends TkLocalizerMixin(PolymerElement) {
     }
 
     _setIsConnectedToEhbox() {
-        this.set("ehealthSession", !!this.api.tokenId)
-        this.set("_disabledCssClassWhenNoeHealthSession", !!this.api.tokenId ? "" : "disabled")
+        this.set("ehealthSession", !!_.get(this,"api.tokenId"))
+        this.set("_disabledCssClassWhenNoeHealthSession", !!_.get(this,"api.tokenId") ? "" : "disabled")
     }
 
     _isUnread(m) {
@@ -286,7 +1096,7 @@ class HtMsgList extends TkLocalizerMixin(PolymerElement) {
     _getBoxCapacity() {
         return !(_.get(this,"api.keystoreId",false) && _.get(this,"api.tokenId",false) && _.get(this,"api.credentials.ehpassword",false)) ?
             Promise.resolve() :
-            this.api.fhc().Ehboxcontroller().getInfosUsingGET(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword)
+            this.api.fhc().Ehboxcontroller().getInfosUsingGET(this.api.keystoreId, _.get(this,"api.tokenId"), this.api.credentials.ehpassword)
                 .then(boxInfo=>{
                     this.set('nbrMessagesInStandBy',parseInt(_.get(boxInfo,"nbrMessagesInStandBy",0)))
                     this.set('ehBoxCurrentSize',parseInt(_.get(boxInfo,"currentSize",0)))
@@ -442,7 +1252,7 @@ class HtMsgList extends TkLocalizerMixin(PolymerElement) {
                 const newStatus = action === "delete" ? (_.get(singleSelectedMessage,"status",0)|(1<<20)) : (_.get(singleSelectedMessage,"status",0)^(1<<20))
                 return !eHealthBoxMessageId || !sourceBox || !destinationBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
                     false :
-                    this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox).catch(e=>{})
+                    this.api.fhc().Ehboxcontroller().moveMessagesUsingPOST(this.api.keystoreId, _.get(this,"api.tokenId"), this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox, destinationBox).catch(e=>{})
                         .then(()=> this.api.message().modifyMessage(_.merge(singleSelectedMessage, {transportGuid:destinationBox+":"+eHealthBoxMessageId, status:newStatus})).then(modifiedMessage=>_.concat(promisesCarrier, {action:action, message:modifiedMessage, success:true})).catch(e=>{console.log("ERROR with modifyMessage: ", e); return Promise.resolve();}))
                         .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
             })
@@ -903,7 +1713,7 @@ class HtMsgList extends TkLocalizerMixin(PolymerElement) {
                 const action = "deleteForEver"
                 return !eHealthBoxMessageId || !sourceBox || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ?
                     false :
-                    this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox).catch(e=>{})
+                    this.api.fhc().Ehboxcontroller().deleteMessagesUsingPOST(this.api.keystoreId, _.get(this,"api.tokenId"), this.api.credentials.ehpassword, [eHealthBoxMessageId], sourceBox).catch(e=>{})
                         .then(()=> this.api.message().deleteMessages(_.trim(_.get(singleSelectedMessage,"id",""))).then(deletetionResult=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:!!deletetionResult})).catch(e=>{console.log("ERROR with deleteMessages: ", e); return Promise.resolve();}))
                         .catch(()=>_.concat(promisesCarrier, {action:action, message:singleSelectedMessage, success:false}))
             })
