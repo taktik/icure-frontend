@@ -633,7 +633,7 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
             });
 
             const joinedId = pathParts.slice(0,composedNameLength).join('-')
-            const item = Polymer.dom(this.root).querySelector('#sf_' + joinedId);
+            const item = this.shadowRoot.querySelector('#sf_' + joinedId);
 
             if (item) {
                 if (pathParts.length > 1) {
@@ -917,13 +917,13 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
 
     _deleteSubForm(e, detail) {
 				e.stopPropagation();
-				const layoutItem = Polymer.dom(this.root).querySelector('#layoutitems-repeat').itemForElement(e.target);
+				const layoutItem = this.shadowRoot.querySelector('#layoutitems-repeat').itemForElement(e.target);
 				this.dataProvider.deleteSubForm && this.dataProvider.deleteSubForm(layoutItem.name, detail.id, detail.index);
     }
 
     _addSubForm(e, detail) {
 				e.stopPropagation();
-				const layoutItem = Polymer.dom(this.root).querySelector('#layoutitems-repeat').itemForElement(e.target);
+				const layoutItem = this.shadowRoot.querySelector('#layoutitems-repeat').itemForElement(e.target);
 				this.dataProvider.addSubForm && this.dataProvider.addSubForm(layoutItem.name, detail.guid);
     }
 
