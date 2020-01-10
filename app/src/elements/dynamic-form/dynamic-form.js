@@ -15,6 +15,7 @@ import '../../styles/icpc-styles.js';
 import '../../styles/dialog-style.js';
 import '../../styles/buttons-style.js';
 import './ckmeans-grouping.js';
+import '@vaadin/vaadin-combo-box/vaadin-combo-box';
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
 class DynamicForm extends TkLocalizerMixin(PolymerElement) {

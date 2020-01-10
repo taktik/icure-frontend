@@ -7,6 +7,7 @@ import '../../icons/medication-icons.js';
 import '../../../styles/paper-tabs-style.js';
 import '../../../styles/paper-input-style.js';
 import '../../ht-spinner/ht-spinner.js';
+import '@polymer/paper-tabs/paper-tabs';
 
 import _ from 'lodash/lodash'
 import moment from 'moment/src/moment'
