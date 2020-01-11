@@ -689,7 +689,7 @@ class HtPatCarePathDetailDialog extends TkLocalizerMixin(mixinBehaviors([IronRes
                                     </template>
                                     <template is="dom-if" if="[[!isRenal(selectedHealthElement)]]">
                                         <div class="p4">
-                                            <template is="juicy-html" html="[[localize('care-path-dia-crit-incl', 'Inclusion critera', language)]]"></template>
+                                            <div inner-h-t-m-l="[[localize('care-path-dia-crit-incl', 'Inclusion critera', language)]]"></div>
                                             [[localize('care-path-dia-crit-excl', 'Exclusion criteria for a type 2 diabetes care path', language)]]
                                             <ul>
                                                 <li>
