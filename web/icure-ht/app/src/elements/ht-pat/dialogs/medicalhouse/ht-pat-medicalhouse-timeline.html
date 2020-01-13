@@ -751,41 +751,74 @@
             }
 
             _generateTimeLine(){
-                if(this.patient && this.patient.medicalHouseContracts && this.patient.medicalHouseContracts.length > 0) {
-                    const mhc = _.orderBy(this.patient.medicalHouseContracts, ['startOfContract'], ['asc'])[0];
-                    const startOfCoverage = mhc.startOfCoverage;
-                    const endOfCoverage = mhc.endOfCoverage ? mhc.endOfCoverage : parseInt(moment().startOf('month').format("YYYYMMDD"));
-                    const startMoment = this.api.moment(startOfCoverage);
-                    const curMoment = this.api.moment(endOfCoverage);
-                    const endMoment = this.api.moment(endOfCoverage);
-                    console.log('start, end', startOfCoverage, endOfCoverage);
-                    this.set('months', []);
-                    let aMonths = [];
-                    while(startMoment <= curMoment){
-                        console.log('curMoment', curMoment.format('YYYYMMDD'));
-                        aMonths.push({date: this.api.moment(parseInt(curMoment.format('YYYYMMDD'))), data: {}});
-                        curMoment.subtract(1, 'month');
-                        //aMonths.push({date: curMoment, data: {}});
-                    }
-                    // let i;
-                    // for (i = 0; i < 24; i++) {
-                    //     aMonths.push({date: moment().startOf('month').subtract(i, 'month'), data: {}});
-                    // }
-                    if (this.invoices) {
+                const flatRateUtil = this.$.flatrateUtils;
+                let invoices = [];
+                let insurancesData = [];
+                flatRateUtil.getPatientInvoices(this.patient).then(invs => {
+                    invoices = invs;
+                    return flatRateUtil._getInsurancesDataByIds(_.compact(_.uniq(_.map(invoices,"recipientId",""))));
+                }).then(ins => {
+                    insurancesData = ins;
+                    if(this.patient && this.patient.medicalHouseContracts && this.patient.medicalHouseContracts.length > 0) {
+                        const mhc = _.orderBy(this.patient.medicalHouseContracts, ['startOfContract'], ['asc'])[0];
+                        const startOfCoverage = mhc.startOfCoverage;
+                        const endOfCoverage = mhc.endOfCoverage ? mhc.endOfCoverage : parseInt(moment().startOf('month').format("YYYYMMDD"));
+                        const startMoment = this.api.moment(startOfCoverage);
+                        const curMoment = this.api.moment(endOfCoverage);
+                        const endMoment = this.api.moment(endOfCoverage);
+                        console.log('start, end', startOfCoverage, endOfCoverage);
+                        this.set('months', []);
+                        let aMonths = [];
+                        while(startMoment <= curMoment){
+                            console.log('curMoment', curMoment.format('YYYYMMDD'));
+                            aMonths.push({date: this.api.moment(parseInt(curMoment.format('YYYYMMDD'))), data: {}});
+                            curMoment.subtract(1, 'month');
+                        }
+
+                        if (invoices) {
+                            aMonths.forEach(m => {
+                                const dateCode = parseInt(m.date.format("YYYYMMDD"));
+
+                                const invs = invoices.filter(inv => inv.invoicingCodes.filter(ic => ic.dateCode === dateCode).length > 0);
+                                invs.forEach(inv => {
+
+                                    //TODO: get display values
+                                    //Send Date/envoi
+                                    inv.DateEnvoi = this.api.moment(inv.invoiceDate).format("DD/MM/YYYY");
+                                    //Mut
+                                    inv.Insurance = insurancesData.find(ins => ins.id === inv.recipientId);
+                                    inv.InsuranceCode = inv.Insurance.code;
+                                    inv.InsuranceName = inv.Insurance.finalName;
+                                    //m, k, i
+                                    inv.m = inv.invoicingCodes.find(ic => ic.code === "109616" && ic.dateCode === dateCode);
+                                    inv.k = inv.invoicingCodes.find(ic => ic.code === "509611" && ic.dateCode === dateCode);
+                                    inv.i = inv.invoicingCodes.find(ic => ic.code === "409614" && ic.dateCode === dateCode);
+                                    //tM, tK, tI
+                                    inv.tM = inv.m ? inv.m.totalAmount : 0;
+                                    inv.tK = inv.m ? inv.k.totalAmount : 0;
+                                    inv.tI = inv.m ? inv.i.totalAmount : 0;
+                                    //Status
+                                    const icode = inv.m ? inv.m : inv.k ? inv.k : inv.i ? inv.i : {canceled: false, accepted: false, pending: false, resent: false, lost: false};
+                                    inv.status = icode.canceled ? "canceled " : "" + icode.accepted ? "accepted " : "" + icode.pending ? "pending " : "" + icode.resent ? "resent " : "" + icode.lost ? "lost " : "";
+                                    //reference
+                                    //reason/error
+                                    inv.comment = inv.error ? inv.error : "";
+                                });
+                                m.data.invoices = invs;
+                            })
+                        }
                         aMonths.forEach(m => {
                             const dateCode = parseInt(m.date.format("YYYYMMDD"));
-                            const invs = this.invoices.filter(inv => inv.invoicingCodes.filter(ic => ic.dateCode === dateCode).length > 0);
-                            m.data.invoices = invs;
-                        })
+                            m.dateCode = dateCode;
+                            const lins = this.patient.insurabilies && this.patient.insurabilities.length > 0 ? this.patient.insurabilities.filter(ins => ins.startDate <= dateCode && (ins.endDate >= dateCode || !ins.endDate)) : [];
+                            m.data.insurability = lins.length > 0 ? _.orderBy(lins, ['startDate'], ['desc'])[0] : null;
+                        });
+                        this.set('months', aMonths);
                     }
-                    aMonths.forEach(m => {
-                        m.data.insurability = {};
-                    });
-                    this.set('months', aMonths);
-                }
-                else{
-                    this.set('months', []);
-                }
+                    else{
+                        this.set('months', []);
+                    }
+                });
             }
         }
         customElements.define(HtPatMedicalhouseTimeline.is, HtPatMedicalhouseTimeline);
