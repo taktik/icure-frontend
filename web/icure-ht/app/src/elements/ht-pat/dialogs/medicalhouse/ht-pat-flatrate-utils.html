@@ -571,6 +571,127 @@
                 ).then(messages=>messages)
             }
 
+            createInvoice(pat, date){
+                //get tarifs
+                return this.getValorisation(date).then(valorisation => {
+                    console.log("valorisation", valorisation);
+                    this._createMedicalHousePatientInvoice(pat, valorisation, date);
+                    return valorisation;
+                })
+                //create invoice
+            }
+
+            _createMedicalHousePatientInvoice(pat, valorisation, date) {
+                pat.finalMedicalHouseContracts = pat.medicalHouseContracts.filter(mhc => mhc.startOfCoverage <= date && (mhc.endOfCoverage >= date || !mhc.endOfCoverage))[0];
+                pat.finalInsurability = pat.insurabilities.filter(ins => ins.startDate <= date && (ins.endDate >= date || !ins.endDate))[0];
+                const codesList = valorisation.valorisations;
+                const originalInvoicingCodes = codesList.filter(code =>
+                    parseFloat(code.price) && (
+                        (code.flatRateType === "physician" && pat.finalMedicalHouseContracts.gp === true ) ||
+                        (code.flatRateType === "nurse" && pat.finalMedicalHouseContracts.nurse === true) ||
+                        (code.flatRateType === "physiotherapist" && pat.finalMedicalHouseContracts.kine === true)
+                    )
+                );
+
+                _.assign(pat, {
+                    invoicingCodes: _.compact(originalInvoicingCodes).map(val => ({
+                        code: val.code,
+                        tarificationId: "INAMI-RIZIV|" + val.code + "|1.0",
+                        label: _.get(val, "label."+this.language,""),
+                        totalAmount: Number(_.get(val,"price",0)),
+                        reimbursement: Number(_.get(val,"price",0)),
+                        patientIntervention: Number(0.00).toFixed(2),
+                        doctorSupplement: Number(0.00).toFixed(2),
+                        units: 1,
+                        canceled: false,
+                        accepted: false,
+                        pending: true,
+                        resent: false,
+                        lost: false,
+                        dateCode: parseInt(_.get(val,"valorisationMonth",0))||null,
+                        id: this.api.crypto().randomUuid(),
+                        logicalId: this.api.crypto().randomUuid()
+                    }))
+                });
+
+                console.log("pat after add invoicingCodes", pat);
+                let insurance = {};
+                let insParent = {};
+                this._getInsurancesDataByIds([pat.finalInsurability.insuranceId]).then(ins => {
+                    insurance = ins[0];
+                    return this._getInsurancesDataByIds([insurance.parent])
+                }).then(insP => {
+                    insParent = insP[0];
+                    console.log("insurance, insParent", insurance, insParent);
+
+                this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
+                    .then(secretForeignKeys => {
+                         this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
+                         .then(invoices => {
+                             console.log("invoices", invoices);
+                             this.api.invoice().newInstance(this.user, pat, invoices[0])
+                                 .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
+                                 .then(inv => {
+                                     console.log(inv);
+                                     return inv;
+                                 })
+                     })
+                })
+                })
+            }
+
+            getChangeParentCode306(code){
+                return code === "306" ? "300" : code;
+            }
+
+            getValorisation(valorisationMonth){
+                return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                    return {
+                        month: parseInt(valorisationMonth),
+                        valorisations: _.merge(
+                            [
+                                {code: "109616", price: 0.00, flatRateType: "physician"},           // Doctor
+                                {code: "509611", price: 0.00, flatRateType: "physiotherapist"},     // Kine
+                                {code: "409614", price: 0.00, flatRateType: "nurse"}                // Nurse
+                            ],
+                            _.compact(
+                                _.chain(_.get(hcp, "flatRateTarifications", []))
+                                    .map(singleNomenclature => {
+                                        const valorisationObject = _.head(
+                                            _.orderBy(
+                                                _
+                                                    .chain(singleNomenclature.valorisations)
+                                                    .filter(singleValorisation => {
+                                                        return (
+                                                            !!singleValorisation
+                                                            && parseFloat(_.get(singleValorisation, "reimbursement", 0))
+                                                            && (
+                                                                (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).isBefore(moment(_.trim(valorisationMonth), "YYYYMMDD").startOf('month')) ||
+                                                                (moment(_.trim(_.get(singleValorisation, "startOfValidity", "0")), "YYYYMMDD").startOf('month')).format("YYYYMMDD") === moment(_.trim(valorisationMonth), "YYYYMMDD").startOf('month').format("YYYYMMDD")
+                                                            )
+                                                        )
+
+                                                    })
+                                                    .value(),
+                                                ["startOfValidity"],
+                                                ["desc"]
+                                            )
+                                        )
+                                        return parseFloat(_.get(valorisationObject, "reimbursement", 0)) ? {
+                                            code: _.trim(_.get(singleNomenclature, "code")),
+                                            label: _.get(singleNomenclature, "label"),
+                                            flatRateType: _.trim(_.get(singleNomenclature, "flatRateType")),
+                                            price: parseFloat(_.get(valorisationObject, "reimbursement", 0)),
+                                            valorisationMonth: parseInt(valorisationMonth)
+                                        } : false
+                                    })
+                                    .value()
+                            )
+                        )
+                    }
+                })
+            }
+
 
         }
         customElements.define(HtPatFlatRateUtils.is, HtPatFlatRateUtils);
