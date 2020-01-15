@@ -493,20 +493,6 @@
                 return niss.replace(/ /g, "").replace(/-/g,"").replace(/\./g,"").replace(/_/g,"").replace(/\//g,"")
             }
 
-            // _runTest(){
-            //     let mhcs = this.patient.medicalHouseContracts
-            //     mhcs.map(
-            //         mhc =>{
-            //             let tmp = mhc.suspensionSource;
-            //         }
-            //     )
-            //     const amounts = this.getForfaitAmounts();
-            //     const amount = this.getForfaitAmountOnDate(20161101);
-            //     const amount1 = this.getForfaitAmountOnDate(20171101);
-            //     const amount2 = this.getForfaitAmountOnDate(20181101);
-            // }
-
-
             getForfaitAmountOnDate(date){
                 const amounts = this.getForfaitAmounts();
                 let amount = amounts.find(am => am.startDate <= date && (!am.endDate || am.endDate >= date ));
@@ -531,11 +517,7 @@
             //Patient invoices/Messages
             //
             getPatientInvoices(pat){
-
                 return this.api.invoice().findBy(this.user.healthcarePartyId, pat).then(invoices => invoices);
-                    //, this.api.invoice().findBy(this.user.healthcarePartyId, this.patient).then(invoices => invoices.map(i => this.api.register(i, 'invoice')))]).then(([hcp, invoices]) => {
-
-                    //return Promise.resolve([]);
             }
 
             _getInsurancesDataByIds(insurancesIds) {
@@ -575,8 +557,7 @@
                 //get tarifs
                 return this.getValorisation(date).then(valorisation => {
                     console.log("valorisation", valorisation);
-                    this._createMedicalHousePatientInvoice(pat, valorisation, date);
-                    return valorisation;
+                    return this._createMedicalHousePatientInvoice(pat, valorisation, date);
                 })
                 //create invoice
             }
@@ -592,7 +573,6 @@
                         (code.flatRateType === "physiotherapist" && pat.finalMedicalHouseContracts.kine === true)
                     )
                 );
-
                 _.assign(pat, {
                     invoicingCodes: _.compact(originalInvoicingCodes).map(val => ({
                         code: val.code,
@@ -613,31 +593,31 @@
                         logicalId: this.api.crypto().randomUuid()
                     }))
                 });
-
                 console.log("pat after add invoicingCodes", pat);
                 let insurance = {};
                 let insParent = {};
-                this._getInsurancesDataByIds([pat.finalInsurability.insuranceId]).then(ins => {
+                return this._getInsurancesDataByIds([pat.finalInsurability.insuranceId])
+                    .then(ins => {
                     insurance = ins[0];
                     return this._getInsurancesDataByIds([insurance.parent])
-                }).then(insP => {
-                    insParent = insP[0];
-                    console.log("insurance, insParent", insurance, insParent);
-
-                this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
+                    })
+                    .then(insP => {
+                        insParent = insP[0];
+                        console.log("insurance, insParent", insurance, insParent);
+                        return this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
+                    })
                     .then(secretForeignKeys => {
-                         this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
-                         .then(invoices => {
-                             console.log("invoices", invoices);
-                             this.api.invoice().newInstance(this.user, pat, invoices[0])
-                                 .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
-                                 .then(inv => {
-                                     console.log(inv);
-                                     return inv;
-                                 })
-                     })
-                })
-                })
+                        return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)
+                    })
+                    .then(invoices => {
+                        console.log("invoices", invoices);
+                        return this.api.invoice().newInstance(this.user, pat, invoices[0])
+                    })
+                    .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
+                    .then(inv => {
+                        console.log(inv);
+                        return inv;
+                    })
             }
 
             getChangeParentCode306(code){
