@@ -235,7 +235,7 @@ class WidgetUpdatesHistory extends TkLocalizerMixin(PolymerElement) {
                 <template is="dom-if" if="[[_isNews(selectedUpdate)]]">
                     <div class="newsContent">
                         <template is="dom-repeat" items="[[selectedUpdate.modules]]" as="module">
-                            <template is="juicy-html" html="[[_localizeContent(module.description)]]"></template>
+                            <div inner-h-t-m-l="[[_localizeContent(module.description)]]"></div>
                         </template>
                     </div>
                 </template>

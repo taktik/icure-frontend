@@ -23,6 +23,8 @@ import '../dynamic-form/dynamic-visibility-selector.js';
 import '@polymer/paper-button/paper-button';
 import '@polymer/paper-item/paper-item';
 
+import '@vaadin/vaadin-combo-box/vaadin-combo-box';
+
 import _ from 'lodash/lodash';
 import moment from 'moment/src/moment';
 import '../prose-editor/prose-editor/prose-editor';

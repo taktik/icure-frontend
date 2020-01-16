@@ -17,6 +17,7 @@ import "@vaadin/vaadin-grid/vaadin-grid-column-group"
 import "@vaadin/vaadin-grid/vaadin-grid-sorter"
 import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
 import '@vaadin/vaadin-accordion/vaadin-accordion'
+import '@vaadin/vaadin-details/vaadin-details'
 
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
@@ -872,8 +873,7 @@ class HtMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                         </vaadin-grid>
                      
                         <template is="dom-repeat" items="[[toggledDatas]]">  
-                             <vaadin-accordion>                       
-                                <vaadin-accordion-panel>
+                            <vaadin-details>
                                     <div slot="summary" class="flex-header">
                                         <span class="center hideOnMobile" style="width: 4%;">[[localize('grp','Groupe',language)]]</span>
                                         <span style="width: 54%;">OA: [[item.code]]</span>
@@ -882,8 +882,8 @@ class HtMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                         <span class="center" style="width: 7%;">[[_formatAmount(item.sum.sup)]]€</span>
                                         <span class="center" style="width: 7%;">[[_formatAmount(item.sum.tot)]]€</span>
                                     </div>
-                                   
-                                    <div>
+                                   <div>
+                                  
                                         <vaadin-grid id="invoiceGrid" class="invoiceGrid" items="[[item.pat]]" multi-sort="[[multiSort]]" active-item="{{activeGridItem}}" on-tap="_showInvoiceToBeSendDetails">
                                             <vaadin-grid-column flex-grow="0" width="4%" class="recipient-col">
                                                 <template>
@@ -976,9 +976,9 @@ class HtMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                             <vaadin-grid-column flex-grow="0" width="4%" class="recipient-col">
                                             </vaadin-grid-column>
                                         </vaadin-grid>
-                                    </div>                                
-                                </vaadin-accordion-panel>  
-                             </vaadin-accordion>                                                
+                                    </div>
+                                    </vaadin-details>
+                                                                        
                         </template>
                           
                         <vaadin-grid>
