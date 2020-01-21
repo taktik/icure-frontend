@@ -3,6 +3,10 @@ import '../../dynamic-form/dynamic-link.js';
 import '../../dynamic-form/dynamic-pills.js';
 import '../../../styles/scrollbar-style.js';
 import '../../../styles/paper-input-style.js';
+import '../../../styles/dropdown-style.js';
+
+import '@vaadin/vaadin-date-picker';
+import '@vaadin/vaadin-combo-box';
 
 import moment from 'moment/src/moment';
 
@@ -15,16 +19,20 @@ import {PolymerElement, html} from '@polymer/polymer';
 class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
   static get template() {
     return html`
-        <style include="paper-input-style scrollbar-style">
+        <style include="paper-input-style scrollbar-style dropdown-style">
 
-            #actionPlanDetail {
-                background: var(--app-background-color-light);
+            :host {
                 min-height: 400px;
+                display: flex;
+                flex-flow: row wrap;
+                align-items: center;
+                justify-content: flex-start;
+                position: relative;
             }
 
             .links {
-                position: absolute;
-                right: 0;
+                flex-grow: 2;
+                width: 100%;
             }
 
             .pills {
@@ -58,60 +66,21 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
                 margin-right: 4px;
             }
 
-            vaadin-date-picker {
-                margin-top: 0px;
-            }
-
-            vaadin-combo-box {
-                width: 100%;
-            }
-
-            vaadin-text-area {
-                width: 100%;
-            }
-
-            paper-input {
-                --paper-input-container-focus-color: var(--app-primary-color);
-                width: 100%;
-                margin-top: -10px;
-                margin-bottom: 10px;
-            }
-
-            paper-input, paper-input-container {
-                --paper-input-container-input: {
-                    height: 22px;
-                    font-size: var(--font-size-normal);
-                    line-height: var(--font-size-normal);
-                    margin-top: 6px;
-                    padding: 4px 8px 0;
-                    padding-top: 4px;
-                    box-sizing: border-box;
-                    background: var(--app-input-background-color);
-                    border-radius: 4px 4px 0 0;
-                };
-            }
-
             .row {
                 display: flex;
                 flex-flow: row nowrap;
             }
 
             .cs1 {
-                width: 50%;
-                padding-left: 2px;
+                flex-grow: 1;
+                width: calc(50% - 16px);
+                margin: 0 8px 12px;
             }
 
             .cs2 {
-                width: 100%;
-                padding-left: 2px;
-            }
-
-            .h1 {
-                height: 50px;
-            }
-
-            .h2 {
-                height: 100px;
+                flex-grow: 2;
+                width: calc(100% - 16px);
+                margin: 0 8px 12px;
             }
 
             ht-spinner {
@@ -126,23 +95,21 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
 
         </style>
 
-        <div id="actionPlanDetail">
+       
 
-            <ht-spinner active="[[isLoading]]"></ht-spinner>
+        <ht-spinner active="[[isLoading]]"></ht-spinner>
 
-            <template is="dom-if" if="[[!vaccineOnly]]">
-                <div class="links">
-                    <!--
-                    <template is="dom-if" if="[[!readonly]]">
-                        <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="linkToHealthElement" api="[[api]]" no-status></dynamic-link>
-                    </template>
-                    <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="_link" api="[[api]]" no-status></dynamic-link>
-                    -->
-                    <div class="pills">
-                        <dynamic-pills health-elements="[[linkedHes]]" on-unlink-to-health-element="_unlink"></dynamic-pills>
-                    </div>
+        <template is="dom-if" if="[[!vaccineOnly]]">
+            <div class="links">
+                <!--
+                <template is="dom-if" if="[[!readonly]]">
+                    <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="linkToHealthElement" api="[[api]]" no-status></dynamic-link>
+                </template>
+                <dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" on-link-to-health-element="_link" api="[[api]]" no-status></dynamic-link>
+                -->
+                <div class="pills">
+                    <dynamic-pills health-elements="[[linkedHes]]" on-unlink-to-health-element="_unlink"></dynamic-pills>
                 </div>
-
                 <paper-tooltip position="bottom" for="linkhe">[[localize('link_he','Link Health Element',language)]]</paper-tooltip>
                 <paper-menu-button class="form-title-bar-btn" horizontal-align="right" dynamic-align="true" vertical-offset="26">
                     <paper-icon-button id="linkhe" class="form-title-bar-btn" icon="icons:link" slot="dropdown-trigger" alt="menu"></paper-icon-button>
@@ -163,77 +130,71 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
                         </template>
                     </paper-listbox>
                 </paper-menu-button>
-            </template>
+            </div>
 
-            <div class="row h1">
-                <div class="cs1"><vaadin-date-picker style="min-width: 180px" id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker></div>
-                <div class="cs1"><vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box></div>
-            </div>
-            <div class="row h1">
-                <div class="cs2"><vaadin-combo-box filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]" disabled="[[vaccineOnly]]"></vaadin-combo-box></div>
-            </div>
-            <template is="dom-if" if="[[isVaccineProcedure]]">
-                <div class="row h1">
-                    <div class="cs2"><vaadin-combo-box id="vaccine" filtered-items="[[drugsListItem]]" item-label-path="name" item-value-path="id" on-filter-changed="_drugsFilterChanged" on-value-changed="_drugsChanged" selected-item="{{selectedVaccineItem}}" label="[[localize('commercial_name','Commercial name',language)]]" readonly="[[readonly]]"></vaadin-combo-box></div>
-                </div>
-                <div class="row h1">
-                    <div class="cs2"><paper-input label="Autre" value="{{plannedAction.VaccineName}}" disabled="[[!hasNoMedication(plannedAction.VaccineCommercialNameId)]]" always-float-label=""></paper-input></div>
-                </div>
-                <div class="row h1">
-                    <div class="cs1"><paper-input label="N° de la dose" value="{{plannedAction.DoseNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label=""></paper-input></div>
-                    <div class="cs1"><paper-input label="N° de lot" value="{{plannedAction.BatchNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label=""></paper-input></div>
-                </div>
-            </template>
-            <div class="row h2">
-                <div class="cs2"><vaadin-text-area class="textarea-style" id="cpa_description" label="Description" value="{{plannedAction.Description}}" readonly="[[readonly]]"></vaadin-text-area></div>
-            </div>
+            
+        </template>
+
+        
+        <vaadin-date-picker class="cs1" theme="tk-theme" id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+        <vaadin-combo-box class="cs1" filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
+        <!-- <tk-combo-box class="cs1" label="Statut*" items="[[comboStatus]]" item-label-path="label" item-value-path="id" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></tk-combo-box> -->
+    
+       <vaadin-combo-box class="cs2" filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]" disabled="[[vaccineOnly]]"></vaadin-combo-box>
+        <!-- <tk-combo-box id="procedures-list" class="cs2" label="Procédure*" items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]" disabled="[[vaccineOnly]]"></tk-combo-box> -->
+
+        <template is="dom-if" if="[[isVaccineProcedure]]">
+            
+            <vaadin-combo-box class="cs2" id="vaccine" filtered-items="[[drugsListItem]]" item-label-path="name" item-value-path="id" on-filter-changed="_drugsFilterChanged" on-value-changed="_drugsChanged" selected-item="{{selectedVaccineItem}}" label="[[localize('commercial_name','Commercial name',language)]]" readonly="[[readonly]]"></vaadin-combo-box>
+            <!-- <tk-combo-box id="vaccine" class="cs2" label="[[localize('commercial_name','Commercial name',language)]]" items="[[drugsListItem]]" item-value-path="id" selected="{{selectedVaccineItem}}" readonly="[[readonly]]"></tk-combo-box> -->
+    
+            <paper-input class="cs2" label="Autre" value="{{plannedAction.VaccineName}}" disabled="[[!hasNoMedication(plannedAction.VaccineCommercialNameId)]]" always-float-label=""></paper-input>
+        
+            <paper-input class="cs1" label="N° de la dose" value="{{plannedAction.DoseNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label=""></paper-input>
+            <paper-input class="cs1" label="N° de lot" value="{{plannedAction.BatchNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label=""></paper-input>
+            
+        </template>
+        
+        <vaadin-text-area class="cs2 textarea-style" id="cpa_description" label="Description" value="{{plannedAction.Description}}" readonly="[[readonly]]"></vaadin-text-area>
+        <template is="dom-if" if="[[!vaccineOnly]]">    
+           <vaadin-combo-box class="cs2" filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" selected-item="{{selectedHcpItem}}" label="Prestataire lié" readonly="[[readonly]]"></vaadin-combo-box>
+            <vaadin-combo-box class="cs2" filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{selectedProfessionItem}}" readonly="[[readonly]]"></vaadin-combo-box>
+        </template>
+        <template is="dom-if" if="[[isStatusRefusal]]">
+            <vaadin-text-area class="cs2" id="cpa_description" label="Motif de refus" value="{{plannedAction.ReasonOfRef}}" readonly="[[readonly]]"></vaadin-text-area>
+        </template>
+        <template is="dom-if" if="[[isStatusComplete]]">
             <template is="dom-if" if="[[!vaccineOnly]]">
-                <div class="row h1">
-                    <div class="cs2"><vaadin-combo-box filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" selected-item="{{selectedHcpItem}}" label="Prestataire lié" readonly="[[readonly]]"></vaadin-combo-box></div>
-                </div>
-                <div class="row h1">
-                    <div class="cs2"><vaadin-combo-box filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{selectedProfessionItem}}" readonly="[[readonly]]"></vaadin-combo-box></div>
-                </div>
+                <vaadin-date-picker class="cs1" label="Prochaine échéance" value="{{nextDate}}" i18n="[[i18n]]" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+            </template>
+            <vaadin-checkbox class="cs1" on-checked-changed="_isSurgical" checked="[[plannedAction.isSurgical]]" disabled="[[readonly]]">Chirurgical</vaadin-checkbox>
+        </template>
+
+        <!--
+        <vaadin-form-layout>
+            <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+            <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
+            <vaadin-combo-box colspan="2" filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]" disabled="[[vaccineOnly]]"></vaadin-combo-box>
+            <template is="dom-if" if="[[isVaccineProcedure]]">
+                <vaadin-combo-box colspan="2" id="vaccine" filtered-items="[[drugsListItem]]" item-label-path="name" item-value-path="id" on-filter-changed="_drugsFilterChanged" on-value-changed="_drugsChanged" selected-item="{{selectedVaccineItem}}" label="[[localize('commercial_name','Commercial name',language)]]" readonly="[[readonly]]"></vaadin-combo-box>
+                <paper-input colspan="2" label="Autre" value="{{plannedAction.VaccineName}}" disabled="[[!hasNoMedication(plannedAction.VaccineCommercialNameId)]]" always-float-label></paper-input>
+                <paper-input label="N° de la dose" value="{{plannedAction.DoseNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label></paper-input>
+                <paper-input label="N° de lot" value="{{plannedAction.BatchNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label></paper-input>
+            </template>
+            <vaadin-text-area colspan="2" class="textarea-style" id="cpa_description" label="Description" value="{{plannedAction.Description}}" readonly="[[readonly]]"></vaadin-text-area>
+            <template is="dom-if" if="[[!vaccineOnly]]">
+                <vaadin-combo-box colspan="2" filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" selected-item="{{selectedHcpItem}}" label="Prestataire lié" readonly="[[readonly]]"></vaadin-combo-box>
+                <vaadin-combo-box colspan="2" filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{selectedProfessionItem}}" readonly="[[readonly]]"></vaadin-combo-box>
             </template>
             <template is="dom-if" if="[[isStatusRefusal]]">
-                <div class="row h2">
-                    <div class="cs2"><vaadin-text-area id="cpa_description" label="Motif de refus" value="{{plannedAction.ReasonOfRef}}" readonly="[[readonly]]"></vaadin-text-area></div>
-                </div>
+                <vaadin-text-area colspan="2" id="cpa_description" label="Motif de refus" value="{{plannedAction.ReasonOfRef}}" readonly="[[readonly]]"></vaadin-text-area>
             </template>
             <template is="dom-if" if="[[isStatusComplete]]">
-                <div class="row h1">
-                    <template is="dom-if" if="[[!vaccineOnly]]">
-                        <div class="cs1"><vaadin-date-picker style="min-width: 180px" label="Prochaine échéance" value="{{nextDate}}" i18n="[[i18n]]" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker></div>
-                    </template>
-                    <div class="cs1"><vaadin-checkbox style="margin-top: 14px" on-checked-changed="_isSurgical" checked="[[plannedAction.isSurgical]]" disabled="[[readonly]]">Chirurgical</vaadin-checkbox></div>
-                </div>
+                <vaadin-checkbox colspan="2" on-checked-changed="_isSurgical" checked="[[plannedAction.isSurgical]]" disabled="[[readonly]]">Chirurgical</vaadin-checkbox>
             </template>
+        </vaadin-form-layout>
+        -->
 
-            <!--
-            <vaadin-form-layout>
-                <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
-                <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
-                <vaadin-combo-box colspan="2" filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]" disabled="[[vaccineOnly]]"></vaadin-combo-box>
-                <template is="dom-if" if="[[isVaccineProcedure]]">
-                    <vaadin-combo-box colspan="2" id="vaccine" filtered-items="[[drugsListItem]]" item-label-path="name" item-value-path="id" on-filter-changed="_drugsFilterChanged" on-value-changed="_drugsChanged" selected-item="{{selectedVaccineItem}}" label="[[localize('commercial_name','Commercial name',language)]]" readonly="[[readonly]]"></vaadin-combo-box>
-                    <paper-input colspan="2" label="Autre" value="{{plannedAction.VaccineName}}" disabled="[[!hasNoMedication(plannedAction.VaccineCommercialNameId)]]" always-float-label></paper-input>
-                    <paper-input label="N° de la dose" value="{{plannedAction.DoseNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label></paper-input>
-                    <paper-input label="N° de lot" value="{{plannedAction.BatchNumber}}" disabled="[[hasNoMedication(plannedAction.VaccineCommercialNameId)]]" readonly="[[readonly]]" always-float-label></paper-input>
-                </template>
-                <vaadin-text-area colspan="2" class="textarea-style" id="cpa_description" label="Description" value="{{plannedAction.Description}}" readonly="[[readonly]]"></vaadin-text-area>
-                <template is="dom-if" if="[[!vaccineOnly]]">
-                    <vaadin-combo-box colspan="2" filtered-items="[[hcpListItem]]" id="hcp-list" item-label-path="name" item-value-path="id" on-filter-changed="_hcpFilterChanged" selected-item="{{selectedHcpItem}}" label="Prestataire lié" readonly="[[readonly]]"></vaadin-combo-box>
-                    <vaadin-combo-box colspan="2" filtered-items="[[hcpartyTypeListFiltered]]" item-label-path="label.[[language]]" item-value-path="id" on-filter-changed="" label="Profession liée" selected-item="{{selectedProfessionItem}}" readonly="[[readonly]]"></vaadin-combo-box>
-                </template>
-                <template is="dom-if" if="[[isStatusRefusal]]">
-                    <vaadin-text-area colspan="2" id="cpa_description" label="Motif de refus" value="{{plannedAction.ReasonOfRef}}" readonly="[[readonly]]"></vaadin-text-area>
-                </template>
-                <template is="dom-if" if="[[isStatusComplete]]">
-                    <vaadin-checkbox colspan="2" on-checked-changed="_isSurgical" checked="[[plannedAction.isSurgical]]" disabled="[[readonly]]">Chirurgical</vaadin-checkbox>
-                </template>
-            </vaadin-form-layout>
-            -->
-        </div>
 `;
   }
 

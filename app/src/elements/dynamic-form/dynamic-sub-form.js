@@ -228,7 +228,7 @@ class DynamicSubForm extends TkLocalizerMixin(PolymerElement) {
       } else if (firstPathElement.match(/[0-9]+/)) {
           if (pathParts.length > 1) {
               const idx = parseInt(firstPathElement);
-              const item = Polymer.dom(this.root).querySelector('#sf-' + idx);
+              const item = this.shadowRoot.querySelector('#sf-' + idx);
               item.notify(pathParts.slice(1).join('.'));
           } else {
               this.notifyPath('subContexts.' + firstPathElement);

@@ -70,6 +70,7 @@ import './dialogs/care-path/ht-pat-care-path-list-dialog.js';
 import '@vaadin/vaadin-split-layout/vaadin-split-layout';
 import '@polymer/paper-button/paper-button';
 import '@polymer/paper-toast/paper-toast';
+import '@polymer/paper-radio-button/paper-radio-button';
 
 
 import moment from 'moment/src/moment';
