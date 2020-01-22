@@ -106,7 +106,7 @@ class DynamicDateField extends TkLocalizerMixin(PolymerElement) {
 						<input value="{{dateValue}}" readonly="">
 					</iron-input>
 				</vaadin-date-picker-light>
-				<iron-icon icon="icons:today" slot="suffix" on-tap="_openDatePicker"></iron-icon>
+				<iron-icon icon="icons:today" slot="suffix"></iron-icon>
 			</paper-input-container>
 		</template>
 		<template is="dom-if" if="[[!readOnly]]">
@@ -119,12 +119,12 @@ class DynamicDateField extends TkLocalizerMixin(PolymerElement) {
 						<span class="modified-after-out">[[localize('obs_val','obsolete value',language)]]<iron-icon class="modified-icon" icon="report-problem"></iron-icon></span>
 					</template>
 				</label>
-				<vaadin-date-picker-light id="date-picker" accuracy="{{accuracy}}" class="custom-theme paper-input-input" i18n="[[i18n]]" label="[[label]]" value="{{dateAsString}}" slot="input" attrforvalue="value" need-full-date="[[fullDateMode]]">
-					<iron-input>
+				<vaadin-date-picker-light id="date-picker" accuracy="{{accuracy}}" class="custom-theme paper-input-input" i18n="[[i18n]]" label="[[label]]" value="{{dateAsString}}" slot="input" attrforvalue="value" can-be-fuzzy="[[!fullDateMode]]">
+					<iron-input slot="input">
 						<input value="{{dateValue}}">
 					</iron-input>
+					<iron-icon icon="icons:today" slot="suffix" on-tap="_openDatePicker"></iron-icon>
 				</vaadin-date-picker-light>
-				<iron-icon icon="icons:today" slot="suffix" on-tap="_openDatePicker"></iron-icon>
 			</paper-input-container>
 			<dynamic-link i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" linkables="[[linkables]]" represented-object="[[key]]" api="[[api]]"></dynamic-link>
 		</template>

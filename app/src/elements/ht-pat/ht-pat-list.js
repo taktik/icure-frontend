@@ -1273,7 +1273,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                                     </iron-input>
                                     <paper-menu-button id="paper-menu-button" slot="suffix" horizontal-offset="[[listBoxOffsetWidth]]">
                                         <iron-icon icon="paper-dropdown-menu:arrow-drop-down" slot="dropdown-trigger"></iron-icon>
-                                        <paper-listbox id="dropdown-listbox" slot="dropdown-content" selected="{{selected}}" selected-item="{{selectedItem}}">
+                                        <paper-listbox id="dropdown-listbox" slot="dropNdown-content" selected="{{selected}}" selected-item="{{selectedItem}}">
                                             <paper-item id="unknown">[[localize('unknown','unknown',language)]]</paper-item>
                                             <paper-item id="male">[[localize('male','male',language)]]</paper-item>
                                             <paper-item id="female">[[localize('female','female',language)]]</paper-item>
