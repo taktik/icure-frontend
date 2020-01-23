@@ -1,5 +1,6 @@
 import './dynamic-link.js';
 import '../../styles/paper-input-style.js';
+import "@vaadin/vaadin-date-picker/vaadin-date-picker-light"
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
