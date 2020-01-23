@@ -1151,9 +1151,9 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                       }
                   });
                   const res = {
-                      monthNames: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
-                      weekdays: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
-                      weekdaysShort: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+                      monthNames: moment.months(),
+                      weekdays: moment.weekdays(),
+                      weekdaysShort: moment.weekdaysShort(),
                       firstDayOfWeek: 0,
                       week: 'Semaine',
                       calendar: 'Calendrier',
