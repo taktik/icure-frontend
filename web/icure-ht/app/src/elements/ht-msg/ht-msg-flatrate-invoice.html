@@ -4949,16 +4949,17 @@
                     .then(pendingInvoicesToResend => {
                         //get pending invoices that are not linked to messages (loop through patients !)
                         //TODO exclude invoices that are linked to messages !!!
+                        //TODO exlude invoices that have correctedInvoiceId (or correctiveInvoiceId)
                         return this._getPatientsByHcp(_.get(this.hcp, "id"))
                             .then(myPatients => {
                                 const unlinkedInvoices = [];
                                 const flatRateUtil = this.$.flatrateUtils;
                                 return Promise.all(myPatients.map(pat => flatRateUtil.getPatientInvoices(pat))).then(res => {
                                     console.log("unfiltered invoices of pat", _.flatMap(res));
-                                    const patInvoices = _.flatMap(res).filter(inv => inv.sentMediumType === "cdrom").filter(inv => inv.invoicingCodes.filter(ic => ic.pending).length > 0);
+                                    const patInvoices = _.flatMap(res).filter(inv => inv.sentMediumType === "cdrom").filter(inv => inv.invoicingCodes.filter(ic => ic.pending).length > 0 && !inv.correctedInvoiceId);
                                     console.log("invoices of pat", patInvoices);
-                                    return pendingInvoicesToResend; //.concat(patInvoices);
-                                    //return pendingInvoicesToResend.concat(patInvoices);
+                                    //return pendingInvoicesToResend;
+                                    return pendingInvoicesToResend.concat(patInvoices);
                                 });
                         });
                     }) //2 bis
@@ -5047,7 +5048,14 @@
                                 return _.trim(_.get(existingPat,"ssin","something"))!== _.trim(_.get(commonPat,"[0].ssin","else")) ?
                                     existingPat :
                                     _.merge(existingPat,{
-                                        invoiceToBeResent: _.compact(_.map(commonPat,"invoiceToBeResent")),
+                                        invoiceToBeResent:
+                                            //TODO: reset the pending state @ this point ?
+                                            _
+                                                .chain(_.compact(_.map(commonPat,"invoiceToBeResent")))
+                                                .forEach(it => _.forEach(it.invoicingCodes, ic => ic.pending = false))
+                                                .compact()
+                                                .value()
+                                            ,
                                         patientToBeResent: true,
                                         patientIsInCurrentAndPreviousExport: true
                                     })
@@ -5059,7 +5067,13 @@
                         const nonCommonPatientsToAdded = _.compact( _.map( _.map(myPatientsToResend, "id"), patId => {
                             if( resolvedPatientsToBeResent.indexOf(patId) > -1 ) { return false; } else { resolvedPatientsToBeResent.push(patId); }
                             let singlePat = _.find(myPatientsToResend, {id:patId})
-                            singlePat.invoiceToBeResent = _.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent" )
+                            singlePat.invoiceToBeResent =
+                                //TODO: reset the pending state @ this point ?
+                                _
+                                    .chain(_.compact(_.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent" )))
+                                    .forEach(it => _.forEach(it.invoicingCodes, ic => ic.pending = false))
+                                    .compact()
+                                    .value()
                             singlePat.patientToBeResent = true
                             singlePat.patientIsInCurrentAndPreviousExport = false
                             return singlePat
