@@ -1462,7 +1462,7 @@ class HtMsgDetail extends TkLocalizerMixin(PolymerElement) {
                                     <div class="fr50"><paper-input label="[[localize('fir_nam','First name',language)]]" value="{{newPat.firstName}}" id="newPat_firstName" auto-validate="" required=""></paper-input></div>
                                     <div class="clear"></div>
 
-                                    <div class="fl50"><vaadin-date-picker label="[[localize('birthDate','Date of birth',language)]]" i18n="[[i18n]]" value="{{newPat.birthDate}}" id="newPat_birthDate" need-full-date="[[fullDateMode]]" auto-validate="" required=""></vaadin-date-picker></div>
+                                    <div class="fl50"><vaadin-date-picker label="[[localize('birthDate','Date of birth',language)]]" i18n="[[i18n]]" value="{{newPat.birthDate}}" id="newPat_birthDate" can-be-fuzzy auto-validate="" required=""></vaadin-date-picker></div>
                                     <!--<div class="fr50"><ht-ssin-validator validator-name="ht-ssin-validator"></ht-ssin-validator><paper-input label="[[localize('ssinPatVerbose','National identification number',language)]]" auto-validate required validator="ht-ssin-validator" value="{{newPat.ssin}}" id="newPat_ssin"></paper-input></div>-->
                                     <div class="fr50"><paper-input label="[[localize('ssinPatVerbose','National identification number',language)]]" value="{{newPat.ssin}}" id="newPat_ssin"></paper-input></div>
                                     <div class="clear"></div>
@@ -1792,10 +1792,6 @@ class HtMsgDetail extends TkLocalizerMixin(PolymerElement) {
               type: Array,
               value: () => [],
               noReset: true
-          },
-          fullDateMode:{
-              type: Boolean,
-              value : false
           }
       };
   }

@@ -1261,7 +1261,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                                 </template>
                                 <paper-input always-float-label="" label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
                                 <paper-input always-float-label="" label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
-                                <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" need-full-date="[[fullDateMode]]">
+                                <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" can-be-fuzzy>
                                     <paper-input always-float-label="" label="[[localize('dat_of_bir','Date of birth',language)]]" value="{{dateAsString}}"></paper-input>
                                 </vaadin-date-picker-light>
                                 <paper-input always-float-label="" label="[[localize('niss','Ssin',language)]]" value="{{ssin}}" on-keyup="_searchDuplicate"></paper-input>
@@ -1819,10 +1819,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
           openAddedPatient: {
               type: Boolean,
               value: true
-          },
-          fullDateMode:{
-              type:Boolean,
-              value:false
           },
           primaryPreventionFilters:{
               type: Array,
@@ -2451,7 +2447,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
               lastName: this.lastName,
               firstName: this.firstName,
               active: true,
-              dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(_.padEnd(this.dateAsString.split("/").reverse().join(""),8,"0")) || null,
+              dateOfBirth: this.dateAsString && this.dateAsString.length && parseInt(_.padEnd(this.dateAsString.split("/").reverse().map(str => _.padStart(str,2,"0")).join(""),8,"0")) || null,
               ssin: this.ssin,
               gender: this.valueGender,
               medicalHouseContracts: [this.medicalHouseContractShadowObject]
