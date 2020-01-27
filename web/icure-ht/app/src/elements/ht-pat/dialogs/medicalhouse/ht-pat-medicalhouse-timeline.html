@@ -1034,7 +1034,7 @@
                                         [[invoice.DateEnvoi]]
                                     </div>
                                     <div class="td">
-                                        [[invoice.status]]
+                                        [[invoice.status]]([[invoice.icCount]])
                                     </div>
                                     <div class="td">
                                         [[invoice.invoiceReference]]
@@ -1728,6 +1728,10 @@
                                 const invs = invoices.filter(inv => inv.invoicingCodes.filter(ic => ic.dateCode === dateCode).length > 0);
                                 const invsClone = [];
                                 invs.forEach(inv => {
+                                    inv.invoicingCodes.forEach(ic => {
+                                        ic.status =  (ic.canceled ? "canceled " : "") + (ic.accepted ? "accepted " : "") + (ic.pending ? "pending " : "") + (ic.resent ? "resent " : "") + (ic.lost ? "lost " : "");
+                                        ic.group = ic.dateCode + "/" + ic.status;
+                                    })
                                     const invClone = _.cloneDeep(inv);
                                     //TODO: get display values
                                     //Send Date/envoi
@@ -1736,30 +1740,36 @@
                                     invClone.Insurance = insurancesData.find(ins => ins.id === inv.recipientId);
                                     invClone.InsuranceCode = invClone.Insurance.code;
                                     invClone.InsuranceName = invClone.Insurance.finalName;
-                                    //m, k, i
-                                    invClone.m = inv.invoicingCodes.find(ic => ic.code === "109616" && ic.dateCode === dateCode);
-                                    invClone.k = inv.invoicingCodes.find(ic => ic.code === "509611" && ic.dateCode === dateCode);
-                                    invClone.i = inv.invoicingCodes.find(ic => ic.code === "409614" && ic.dateCode === dateCode);
+                                    //get all invoicingcode groups : dateCode-status
+                                    const icGroups = _.uniq(invClone.invoicingCodes.filter(ic => ic.dateCode === dateCode).map(ic => ic.group));
 
-                                    invClone.mki = (invClone.m ? "M" : "N") + (invClone.k ? "K" : "N") + (invClone.i ? "I" : "N");
+                                    icGroups.forEach(icGroup => {console.log("icGroup", icGroup)
+                                        //m, k, i
+                                        const invCloneBis = _.cloneDeep(invClone);
+                                        invCloneBis.m = inv.invoicingCodes.find(ic => ic.code === "109616" && ic.group === icGroup);
+                                        invCloneBis.k = inv.invoicingCodes.find(ic => ic.code === "509611" && ic.group === icGroup);
+                                        invCloneBis.i = inv.invoicingCodes.find(ic => ic.code === "409614" && ic.group === icGroup);
+                                        invCloneBis.mki = (invCloneBis.m ? "M" : "N") + (invCloneBis.k ? "K" : "N") + (invCloneBis.i ? "I" : "N");
+                                        invCloneBis.icCount = inv.invoicingCodes.filter(ic => ic.code === "109616" && ic.dateCode === dateCode).length;
 
-                                    //tM, tK, tI
-                                    invClone.tM = invClone.m ? invClone.m.totalAmount : 0;
-                                    invClone.tK = invClone.m ? invClone.k.totalAmount : 0;
-                                    invClone.tI = invClone.m ? invClone.i.totalAmount : 0;
-                                    //Status
-                                    const icode = invClone.m ? invClone.m : invClone.k ? invClone.k : invClone.i ? invClone.i : {canceled: false, accepted: false, pending: false, resent: false, lost: false};
-                                    console.log("icode", dateCode, icode);
-                                    invClone.status = (icode.canceled ? "canceled " : "") + (icode.accepted ? "accepted " : "") + (icode.pending ? "pending " : "") + (icode.resent ? "resent " : "") + (icode.lost ? "lost " : "");
-                                    invClone.status = invClone.status === "" ? "---" : invClone.status;
-                                    //reference
-                                    //reason/error
-                                    invClone.comment = invClone.error ? invClone.error : "";
+                                        //tM, tK, tI
+                                        invCloneBis.tM = invCloneBis.m ? invCloneBis.m.totalAmount : 0;
+                                        invCloneBis.tK = invCloneBis.m ? invCloneBis.k.totalAmount : 0;
+                                        invCloneBis.tI = invCloneBis.m ? invCloneBis.i.totalAmount : 0;
+                                        //Status
+                                        const icode = invCloneBis.m ? invCloneBis.m : invCloneBis.k ? invCloneBis.k : invCloneBis.i ? invCloneBis.i : {canceled: false, accepted: false, pending: false, resent: false, lost: false, status: ""};
+                                        console.log("icode", dateCode, icode);
+                                        invCloneBis.status = icode.status;//(icode.canceled ? "canceled " : "") + (icode.accepted ? "accepted " : "") + (icode.pending ? "pending " : "") + (icode.resent ? "resent " : "") + (icode.lost ? "lost " : "");
+                                        invCloneBis.status = invCloneBis.status === "" ? "---" : invCloneBis.status;
+                                        //reference
+                                        //reason/error
+                                        invCloneBis.comment = invCloneBis.error ? invCloneBis.error : "";
 
-                                    //link with messages
-                                    invClone.messages = messages.filter(msg => msg.invoiceIds.includes(invClone.id));
-                                    invClone.DateEnvoi = invClone.messages && invClone.messages.length > 0 ? this.api.moment(parseInt(invClone.messages[0].metas.exportedDate)).format("MM/YYYY") : "--/----";
-                                    invsClone.push(invClone);
+                                        //link with messages
+                                        invCloneBis.messages = messages.filter(msg => msg.invoiceIds.includes(invCloneBis.id));
+                                        invCloneBis.DateEnvoi = invCloneBis.messages && invCloneBis.messages.length > 0 ? this.api.moment(parseInt(invCloneBis.messages[0].metas.exportedDate)).format("MM/YYYY") : "--/----";
+                                        invsClone.push(invCloneBis);
+                                    });
                                 });
                                 m.data.invoices = invsClone;
                             })
