@@ -673,6 +673,95 @@
                 })
             }
 
+            getNonInvoicedMonths(pat){
+                //const flatRateUtil = this.$.flatrateUtils;
+                let invoices = [];
+                let insurancesData = [];
+                let messages = [];
+                this.getFlatrateInvoiceMessages().then(msgs => {
+                    messages = msgs;
+                    console.log("messageCount", messages.length);
+                    console.log("messages", messages);
+                    return this.getPatientInvoices(pat)
+                }).then(invs => {
+                    invoices = invs.filter(inv => inv.sentMediumType === "cdrom");
+                    if(pat && pat.medicalHouseContracts && pat.medicalHouseContracts.length > 0) {
+                        const mhc = _.orderBy(pat.medicalHouseContracts, ['startOfContract'], ['asc'])[0];
+                        const startOfCoverage = mhc.startOfCoverage;
+                        const endOfCoverage = mhc.endOfCoverage ? mhc.endOfCoverage : parseInt(moment().startOf('month').format("YYYYMMDD"));
+                        const startMoment = this.api.moment(startOfCoverage);
+                        const curMoment = this.api.moment(endOfCoverage);
+                        const endMoment = this.api.moment(endOfCoverage);
+                        console.log('start, end', startOfCoverage, endOfCoverage);
+                        //this.set('months', []);
+                        let aMonths = [];
+                        while(startMoment <= curMoment){
+                            console.log('curMoment', curMoment.format('YYYYMMDD'));
+                            aMonths.push({date: this.api.moment(parseInt(curMoment.format('YYYYMMDD'))), data: {}});
+                            curMoment.subtract(1, 'month');
+                        }
+
+                        if (invoices) {
+                            aMonths.forEach(m => {
+                                m.medicalHouseContract = mhc;
+                                const dateCode = parseInt(m.date.format("YYYYMMDD"));
+
+                                const invs = invoices.filter(inv => inv.invoicingCodes.filter(ic => ic.dateCode === dateCode).length > 0);
+                                const invsClone = [];
+                                invs.forEach(inv => {
+                                    inv.invoicingCodes.forEach(ic => {
+                                        ic.status =  (ic.canceled ? "canceled " : "") + (ic.accepted ? "accepted " : "") + (ic.pending ? "pending " : "") + (ic.resent ? "resent " : "") + (ic.lost ? "lost " : "");
+                                        ic.group = ic.dateCode + "/" + ic.status;
+                                    })
+                                    const invClone = _.cloneDeep(inv);
+                                    //TODO: get display values
+                                    //Send Date/envoi
+                                    //inv.DateEnvoi = this.api.moment(inv.invoiceDate).format("DD/MM/YYYY");
+                                    //Mut
+
+                                    //get all invoicingcode groups : dateCode-status
+                                    const icGroups = _.uniq(invClone.invoicingCodes.filter(ic => ic.dateCode === dateCode).map(ic => ic.group));
+
+                                    icGroups.forEach(icGroup => {console.log("icGroup", icGroup)
+                                        //m, k, i
+                                        const invCloneBis = _.cloneDeep(invClone);
+                                        // invCloneBis.m = inv.invoicingCodes.find(ic => ic.code === "109616" && ic.group === icGroup);
+                                        // invCloneBis.k = inv.invoicingCodes.find(ic => ic.code === "509611" && ic.group === icGroup);
+                                        // invCloneBis.i = inv.invoicingCodes.find(ic => ic.code === "409614" && ic.group === icGroup);
+                                        // invCloneBis.mki = (invCloneBis.m ? "M" : "N") + (invCloneBis.k ? "K" : "N") + (invCloneBis.i ? "I" : "N");
+                                        // invCloneBis.icCount = inv.invoicingCodes.filter(ic => ic.code === "109616" && ic.dateCode === dateCode).length;
+                                        //
+                                        // //Status
+                                        // const icode = invCloneBis.m ? invCloneBis.m : invCloneBis.k ? invCloneBis.k : invCloneBis.i ? invCloneBis.i : {canceled: false, accepted: false, pending: false, resent: false, lost: false, status: ""};
+                                        // console.log("icode", dateCode, icode);
+                                        // invCloneBis.status = icode.status;//(icode.canceled ? "canceled " : "") + (icode.accepted ? "accepted " : "") + (icode.pending ? "pending " : "") + (icode.resent ? "resent " : "") + (icode.lost ? "lost " : "");
+                                        // invCloneBis.status = invCloneBis.status === "" ? "---" : invCloneBis.status;
+                                        // //reference
+                                        // //reason/error
+                                        // invCloneBis.comment = invCloneBis.error ? invCloneBis.error : "";
+                                        //
+                                        // //link with messages
+                                        // invCloneBis.messages = messages.filter(msg => msg.invoiceIds.includes(invCloneBis.id));
+                                        // invCloneBis.DateEnvoi = invCloneBis.messages && invCloneBis.messages.length > 0 ? this.api.moment(parseInt(invCloneBis.messages[0].metas.exportedDate)).format("MM/YYYY") : "--/----";
+                                        invsClone.push(invCloneBis);
+                                    });
+                                });
+                                m.data.invoices = invsClone;
+                            })
+                        }
+                        aMonths.forEach(m => {
+                            const dateCode = parseInt(m.date.format("YYYYMMDD"));
+                            m.dateCode = dateCode;
+                        });
+                        return aMonths.filter(m => !(m.data.invoices && m.data.invoices.length > 0));
+                        //console.log(JSON.stringify(aMonths));
+                    }
+                    else{
+                        return [];
+                    }
+                });
+            }
+
 
         }
         customElements.define(HtPatFlatRateUtils.is, HtPatFlatRateUtils);
