@@ -553,13 +553,8 @@
                 ).then(messages=>messages)
             }
 
-            createInvoice(pat, date){
-                //get tarifs
-                return this.getValorisation(date).then(valorisation => {
-                    console.log("valorisation", valorisation);
-                    return this._createMedicalHousePatientInvoice(pat, valorisation, date);
-                })
-                //create invoice
+            createInvoice(pat, date) {
+                return this.getValorisation(date).then(valorisation => this._createMedicalHousePatientInvoice(pat, valorisation, date));
             }
 
             _createMedicalHousePatientInvoice(pat, valorisation, date) {
@@ -593,32 +588,30 @@
                         logicalId: this.api.crypto().randomUuid()
                     }))
                 });
-                console.log("pat after add invoicingCodes", pat);
-                let insurance = {};
                 let insParent = {};
                 return this._getInsurancesDataByIds([pat.finalInsurability.insuranceId])
-                    .then(ins => {
-                    insurance = ins[0];
-                    return this._getInsurancesDataByIds([insurance.parent])
-                    })
-                    .then(insP => {
-                        insParent = insP[0];
-                        console.log("insurance, insParent", insurance, insParent);
-                        return this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
-                    })
-                    .then(secretForeignKeys => {
-                        return this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (1), pat.invoicingCodes)
-                    })
-                    .then(invoices => {
-                        console.log("invoices", invoices);
-                        return this.api.invoice().newInstance(this.user, pat, invoices[0])
-                    })
-                    .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
-                    .then(inv =>  this.api.register(inv,'invoice'))
-                    .then(inv => {
-                        console.log(inv);
-                        return inv;
-                    })
+                    .then(ins => this._getInsurancesDataByIds([_.get(ins,"[0].parent")]))
+                    .then(insP => { insParent = _.get(insP,"[0]"); return this.api.crypto().extractDelegationsSFKs(pat, _.get(this, "user.healthcarePartyId")); })
+                    .then(secretForeignKeys => this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (1), pat.invoicingCodes))
+                    .then(invoices => this.api.invoice().newInstance(this.user, pat, invoices[0]))
+                    .then(inv => this.api.invoice().createInvoice(inv, 'invoice:' + _.get(this, "user.healthcarePartyId") + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))
+                    .then(inv => this.api.register(inv,'invoice'))
+                    .then(inv => this.api.message().newInstance(this.user).then(newMessageInstance=>([inv,newMessageInstance])))
+                    .then(([inv,newMessageInstance]) => this.api.message().createMessage(_.merge(newMessageInstance,
+                        {
+                            transportGuid: "MH:FLATRATE:INVOICE-TO-ADD",
+                            recipientsType: "org.taktik.icure.entities.HealthcareParty",
+                            recipients: [_.get(this, "user.healthcarePartyId")],
+                            toAddresses: [_.get(this, "user.healthcarePartyId")],
+                            metas: {
+                                invoiceDate: _.get(inv,"invoiceDate"),
+                                invoiceRecipientId: _.trim(_.get(inv,"recipientId")),
+                                invoiceReference: _.trim(_.get(inv,"invoiceReference")),
+                            },
+                            subject: "MH: Flatrate invoice to add upon next run",
+                            invoiceIds: [_.get(inv,"id")]
+                        }
+                    )).then(()=>inv))
             }
 
             getChangeParentCode306(code){
