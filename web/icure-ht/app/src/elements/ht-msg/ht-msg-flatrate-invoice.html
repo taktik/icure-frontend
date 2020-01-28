@@ -3228,8 +3228,6 @@
                                         // const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
                                         const insParent = _.get(_.filter( parentInsurances, parentIns=> _.trim(_.get(parentIns, "id", "")) === _.trim(_.get(_.get(_.filter(childrenInsurancesData, i=>_.trim(_.get(i,"id",""))===_.trim(_.get(pat,"finalInsurability.insuranceId", ""))), "[0]", {}), "parent", ""))), "[0]", {})
 
-                                        console.log("pat.invoicingCodes, pat.finalInsurability",  pat.invoicingCodes, pat.finalInsurability);
-
                                         return retry.retry(() => (this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)))
                                             .then(invoices =>
                                                 !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
@@ -4729,6 +4727,7 @@
                 this.api.setPreventLogging();
                 this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_1',this.language), icon:"arrow-forward"});
                 this.reportCurrentDateString = null;
+                const flatRateUtil = this.$.flatrateUtils;
 
                 // Force refresh - could be new "valorisation" / bce / bank account / contact person / ... was just set
                 if(_.size(_.get(this.api.hcparty().cache, _.get(this.user, "healthcarePartyId", "" )))) delete this.api.hcparty().cache[_.get(this.user, "healthcarePartyId", "" )];
@@ -4955,10 +4954,13 @@
                                                 .then(correctiveInvoices => !parseInt(_.size(correctiveInvoices)) ? [] :
                                                     _.compact(
                                                         _.filter(correctiveInvoices, i => !_.trim(_.get(i, "sentDate", ""))).map(inv => {
-                                                            const invoicingCodes = _.get(inv, "invoicingCodes", [])
+
                                                             // If I try to resend a corrective invoice for current month, DROP its invoicingCodes (otherwise append code will double the charged amounts).
                                                             // If not, append codes so that both previous & current month will be charged, which is legit
                                                             inv.resentMonth = parseInt( _.get(inv, "invoiceDate", 0 ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate) ? "currentMonth" : "inThePast"
+
+                                                            // Make sure I have to take it into account (all false but the pending bool)
+                                                            const invoicingCodes = _.get(inv, "invoicingCodes", [])
                                                             return !parseInt(_.size(invoicingCodes)) ? false :
                                                                 _.every(invoicingCodes, ic => {
                                                                     return _.get(ic,"accepted",false)===false
@@ -4985,38 +4987,38 @@
                         })
 
                     }) //2
-
-
-
-                    // 20200127 - Do not do this anymore
-                    // TODO: Sam will update time line code in order not to show any "+" sign of a particular PAT & MONTH when the export of that month never ran
-                    // TODO: And I will update the lines of behind the "+" sign (of the timeline) to actually append the newly created invoice.id into the message's metas.invoiceIds
-                    //
                     .then(pendingInvoicesToResend => {
-                        //get pending invoices that are not linked to messages (loop through patients !)
-                        //TODO exclude invoices that are linked to messages !!!
-                        //TODO exlude invoices that have correctedInvoiceId (or correctiveInvoiceId)
-                        return this._getPatientsByHcp(_.get(this.hcp, "id"))
-                            .then(myPatients => {
-                                const unlinkedInvoices = [];
-                                const flatRateUtil = this.$.flatrateUtils;
-                                return Promise.all(myPatients.map(pat => flatRateUtil.getPatientInvoices(pat))).then(res => {
-                                    console.log("unfiltered invoices of pat", _.flatMap(res));
-                                    const patInvoices = _.flatMap(res).filter(inv => inv.sentMediumType === "cdrom").filter(inv => inv.invoicingCodes.filter(ic => ic.pending).length > 0 && !inv.correctedInvoiceId);
-                                    console.log("invoices of pat", patInvoices);
-                                    //return pendingInvoicesToResend;
-                                    return pendingInvoicesToResend.concat(patInvoices);
-                                });
-                            });
-                    }) //2 bis
 
+                        // Go for any invoice(s) to be added in the batch (could be manually created using PAT's timeline (timeline && pat-flatrate-utils)
+                        // For performance purposes, such invoices could be found by scanning for messages with transportGuid "MH:FLATRATE:INVOICE-TO-ADD" (current or previous month allowed, never in the future), then go for the invoiceIds
+                        return flatRateUtil.getInvoicesToAddFromTimelineByMaxExportDate(parseInt(_.get(this,"flatRateInvoicingDataObject.exportedDate")))
+                            .then(invoicesToAdd => _
+                                .chain(invoicesToAdd)
+                                .map(inv => {
 
+                                    // If I try to resend a corrective invoice for current month, DROP its invoicingCodes (otherwise append code will double the charged amounts).
+                                    // If not, append codes so that both previous & current month will be charged, which is legit
+                                    inv.resentMonth = parseInt( _.get(inv, "invoiceDate", 0 ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate) ? "currentMonth" : "inThePast"
 
+                                    // Make sure I have to take it into account (all false but the pending bool)
+                                    const invoicingCodes = _.get(inv, "invoicingCodes", [])
+                                    return !parseInt(_.size(invoicingCodes)) ? false :
+                                        _.every(invoicingCodes, ic => {
+                                            return _.get(ic,"accepted",false)===false
+                                                && _.get(ic,"archived",false)===false
+                                                && _.get(ic,"canceled",false)===false
+                                                && _.get(ic,"resent",false)===false
+                                                && _.get(ic,"lost",false)===false
+                                                && _.get(ic,"pending",false)===true
+                                        }) ? inv : false
+                                })
+                                .concat((pendingInvoicesToResend||[]))
+                                .value()
+                            )
+                    }) // 2 Bis
                     .then(pendingInvoicesToResend => { //3
-                        console.log("pendingInvoicesToResend", pendingInvoicesToResend);
                         if(!parseInt(_.size(pendingInvoicesToResend)) && !!this.flatRateInvoicingDataObject.exportAlreadyRanThisMonth) throw new Error("export-already-ran")
                         this.flatRateInvoicingDataObject.pendingInvoicesToResend = pendingInvoicesToResend
-                        //("pending invoices to resend", _.cloneDeep(pendingInvoicesToResend));
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_1_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_2',this.language), icon:"arrow-forward"});
                         return !!this.flatRateInvoicingDataObject.exportAlreadyRanThisMonth ? false : this._getPatientsByHcp(_.get(this.hcp, "id")).then(myPatients => _
@@ -5109,7 +5111,6 @@
                                         patientIsInCurrentAndPreviousExport: true
                                     })
                             })
-                            // _.remove(myPatientsToResend, i=> _.trim(_.get(i,"ssin","something")) === _.trim(_.get(commonPat,"[0].ssin","else")) )
                             _.remove(myPatientsToResend, i=> _.trim(_.get(i,"ssin","something")) === _.trim(_.get(commonPat,"[0].ssin","else")) )
                         })
 
@@ -5457,7 +5458,8 @@
                                         })
                                         .then(({createdDocument, encryptedFileContent}) => { return this.api.document().setAttachment(createdDocument.id, null, encryptedFileContent).then(x=>x).catch((e)=>{console.log("---error upload attachment slip---");console.log(createdDocument);console.log(encryptedFileContent);}) })
                                 })).then(x=>x)
-                            }).then(()=>{
+                            })
+                            .then(()=>{
                                 return this.api.invoice().getInvoices(new models.ListOfIdsDto({ ids: _.uniq( _.compact( _.map( _.get(this.flatRateInvoicingDataObject, "invoicesData", []), i => _.get(i, "invoices[0].id", false )))) }))
                                     .then(invoices => {
                                         let limit = promiseLimit(100);
@@ -5466,10 +5468,11 @@
                                                 inv.sentDate = moment().format("YYYYMMDD")
                                                 return retry.retry(() => (this.api.invoice().modifyInvoice(inv).then(inv =>this.api.register(inv,'invoice'))))
                                             })
-
                                         }))
                                     }).then(x=>x)
-                            }).then(()=>{
+                            })
+                            .then(()=>flatRateUtil.flagInvoicesToAddFromTimelineAsAdded(parseInt(_.get(this,"flatRateInvoicingDataObject.exportedDate"))))
+                            .then(()=>{
                                 this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_7_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                                 this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_5',this.language), icon:"arrow-forward"});
                                 return this._generateJ20PdfTemplateObjects().then(x=>x)
