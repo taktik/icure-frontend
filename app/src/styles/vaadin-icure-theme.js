@@ -76,19 +76,29 @@ $_documentContainer.innerHTML = `
 <dom-module id="vaadin-date-picker-overlay-style" theme-for="vaadin-date-picker vaadin-date-picker-overlay-content vaadin-date-picker-overlay vaadin-month-calendar vaadin-button">
     <template>
         <style include="shared-styles">
+            :host [part="months"] {
+                --vaadin-infinite-scroller-item-height: 240px;
+            }
+            :host [part="toolbar"] {
+                justify-content: flex-start;
+            }
+            :host [part="toolbar"] [part$="button"] {
+                margin-right: 8px;
+            }
             :host [part=cancel-button]{
-                text-transform: capitalize!important;
+                text-transform: unset!important;
                 color: var(--app-secondary-color);
                 font-size: var(--font-size-normal);
                 padding: 0 12px;
                 height: 28px;
+                display: none;
             }
 
             :host [part=today-button] {
-                text-transform: capitalize!important;
+                text-transform: unset!important;
                 border: 1px solid var(--app-secondary-color)!important;
                 color: var(--app-secondary-color);
-                font-size: var(--font-size-normal);
+                font-size: var(--font-size-small);
                 padding: 0 12px;
                 height: 28px;
             }
