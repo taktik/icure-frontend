@@ -1161,7 +1161,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                       clear: 'Effacer',
                       today: 'Aujourd\'hui',
                       thisMonth: 'mois courant',
-                      thisYear: new Date().getFullYear(),
+                      thisYear: "cette année",
                       cancel: 'Annuler',
                       formatDate: (d, acc) => {
                           const yearStr = String(d.year).replace(/\d+/, y => '0000'.substr(y.length) + y);
@@ -2687,6 +2687,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
       this.set("i18n.clear",this.localize('clear','Clear',this.language))
       this.set("i18n.today",this.localize("sel_tod",'Aujourd\'hui',this.language))
       this.set("i18n.thisMonth",this.localize("this_month","ce mois-ci",this.language))
+      this.set("i18n.thisYear",this.localize("this_year","cette année",this.language))
       this.set("i18n.cancel",this.localize("can",'Annuler',this.language))
   }
 
