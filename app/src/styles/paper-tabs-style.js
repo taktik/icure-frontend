@@ -16,6 +16,7 @@ $_documentContainer.innerHTML = `<dom-module id="paper-tabs-style">
 
             paper-tab {
                 --paper-tab-ink: var(--app-secondary-color);
+                font-size: var(--font-size-normal);
             }
 
             paper-tab.iron-selected {
@@ -25,14 +26,14 @@ $_documentContainer.innerHTML = `<dom-module id="paper-tabs-style">
             paper-tab.iron-selected iron-icon{
                 opacity: 1;
                 color: var(--app-secondary-color);
-				max-height: 20px;
-				width: 20px;
-				margin-right: 8px;
             }
 
             paper-tab iron-icon{
                 opacity: 0.5;
                 color: var(--app-text-color);
+                max-height: 20px;
+				width: 20px;
+				margin-right: 8px;
             }
         </style>
 	</template>

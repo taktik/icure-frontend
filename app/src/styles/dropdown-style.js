@@ -77,9 +77,9 @@ $_documentContainer.innerHTML = `<dom-module id="dropdown-style">
 					z-index: 2;
 				};
                 --paper-input-container-label-floating: {
-                    font-size: var(--font-size-normal);
+                    font-size: var(--font-size-large);
                     padding: 0 12px;
-                    height: 11px;
+                    height: 15px;
                     line-height: 11px;
                     box-sizing: border-box;
 					overflow: visible;

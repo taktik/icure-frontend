@@ -151,7 +151,9 @@ $_documentContainer.innerHTML = `
         <style include="shared-styles">
             :host([has-label]) [part="label"] {
                 z-index: 1;
-                padding-left: 12px;
+                padding-left: 8px;
+                padding-bottom: 4px;
+                padding-top: 2px;
                 box-sizing: border-box;
                 font-size: var(--font-size-small)!important;
             }
@@ -165,9 +167,10 @@ $_documentContainer.innerHTML = `
 
             [part="input-field"] {
                 background: var(--app-input-background-color) !important;
-                height: 22px;
+                height: 24px;
                 position: relative;
                 padding: 0;
+                border-radius: 4px 4px 0 0!important;
             }
 
             [part="input-field"]:after {
@@ -194,7 +197,7 @@ $_documentContainer.innerHTML = `
             }
 
             :host [part="value"] {
-                padding: 0 8px;              
+                padding: 0 8px 0 2px;             
                 min-height: 22px;
                 font-size: var(--font-size-normal);
             }

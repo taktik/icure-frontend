@@ -21,6 +21,7 @@ import '../../styles/dropdown-style.js';
 import '../ht-tools/ht-auto-read-eid-opening.js';
 import './dialogs/reporting/ht-pat-primary-prevention-dialog.js';
 import '../../styles/table-style';
+import '../../styles/paper-tabs-style';
 
 import moment from 'moment/src/moment'
 import _ from 'lodash/lodash'
@@ -39,7 +40,7 @@ import {TkLocalizerMixin} from "../tk-localizer";
 class HtPatList extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
-        <style include="dialog-style notification-style paper-input-style dropdown-style"></style>
+        <style include="dialog-style notification-style paper-input-style dropdown-style paper-tabs-style"></style>
         <custom-style>
             <style include="custom-style buttons-style">
                 :host {
@@ -58,19 +59,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                     cursor: pointer;
                 }
 
-                paper-input {
-                    --paper-input-container-focus-color: var(--app-primary-color);
-                    --paper-input-container-label: {
-                        color: var(--app-text-color);
-                        opacity: 1;
-                    };
-                    --paper-input-container-underline-disabled: {
-                        border-bottom: 1px solid var(--app-text-color);
-
-                    };
-                    --paper-input-container-color: var(--app-text-color);
-                }
-
                 .horizontal {
                     display: flex;
                     flex-direction: row;
@@ -78,15 +66,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                     flex-basis: 100%;
                     align-items: center;
                     width: 100%
-                }
-
-                .horizontal paper-input {
-                    @apply --padding-right-left-16
-                }
-
-                .horizontal paper-input-container {
-                    @apply --padding-right-left-16;
-                    padding: 0;
                 }
 
                 .horizontal paper-menu-button {
@@ -527,11 +506,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                     width: 50%;
                 }
 
-                paper-input {
-                    --paper-input-container-focus-color: var(--app-primary-color);
-                    font-size: var(--form-font-size);
-                }
-
                 #saveFilterDialog {
                     align-items: center;
                 }
@@ -680,51 +654,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                         padding-top: 12px;
                     }
 
-                    paper-tabs {
-                        background: var(--app-secondary-color);
-                        --paper-tabs-selection-bar-color: var(--app-text-color-disabled);
-                        --paper-tabs: {
-                            color: var(--app-text-color);
-                        };
-                    }
-
-                    paper-tab {
-                        --paper-tab-ink: var(--app-text-color);
-                    }
-
-                    paper-tab.iron-selected {
-                        font-weight: bold;
-                    }
-
-                    paper-tab.iron-selected iron-icon {
-                        opacity: 1;
-                    }
-
-                    paper-tab iron-icon {
-                        opacity: 0.5;
-                        color: var(--app-text-color);
-                    }
-
-                    .horizontal paper-input {
-                        @apply --padding-right-left-16;
-                        height: 65px;
-                    }
-
-                    .horizontal paper-input-container {
-                        @apply --padding-right-left-16;
-                        padding: 0;
-                    }
-
-                    .horizontal paper-menu-button {
-                        padding: 0;
-                    }
-
-                    .horizontal vaadin-date-picker {
-                        @apply --padding-right-left-16;
-                        padding-top: 4px;
-                        height: 48px;
-                    }
-
                     .dialog {
                         width: 80%;
                         min-height: 320px;
@@ -756,34 +685,46 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                     transform: translateX(-60%);
                 }
 
+
                 #add-patient-dialog {
-                    border-radius: 2px;
+                    height: 400px;
+                    width: 660px;
                 }
 
                 #add-patient-dialog .administrative-panel {
-                    margin-bottom: 45px;
-                    min-height: 200px;
-                }
-
-
-                #add-patient-dialog .administrative-panel paper-tabs {
-                    border-radius: 2px 2px 0 0;
+                    overflow: hidden;
                 }
 
                 #add-patient-dialog .administrative-panel iron-pages {
                     padding: 12px;
+                    overflow: auto;
+                    max-height: calc(100% - 45px - 30px);
                 }
 
-                #add-patient-dialog .administrative-panel .horizontal{
+                #add-patient-dialog .administrative-panel iron-pages page {
+                    display: flex;
+                    flex-flow: row wrap;
+                    align-items: center;
                     justify-content: space-between;
                 }
 
-                #add-patient-dialog .administrative-panel .horizontal paper-input{
+                #add-patient-dialog .administrative-panel paper-input, #add-patient-dialog .administrative-panel vaadin-combo-box, #add-patient-dialog .administrative-panel paper-checkbox {
                     flex-grow: 1;
+                    margin: 0 6px 12px;
                 }
 
-                #add-patient-dialog .administrative-panel .horizontal paper-icon-button{
+                #add-patient-dialog .administrative-panel paper-dropdown-menu {
+                    margin: 0 6px 12px;
+                }
+
+                #add-patient-dialog .administrative-panel paper-icon-button{
                     margin-top: 8px;
+                }
+
+                #add-patient-dialog .administrative-panel label{
+                    font-weight: 700; 
+                    display: block; 
+                    margin: 0 6px 12px;
                 }
 
                 .extra-info{
@@ -1239,94 +1180,47 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
 
         <paper-dialog id="add-patient-dialog" class="dialog add-pat-dialog" on-opened-changed="_addPatientDialogOpenedChanged">
             <h2 class="modal-title">[[localize('add_pat','Add a patient',language)]]</h2>
-            <div class="content administrative-panel" style="width:100%">
-                <paper-tabs selected="{{tabs}}" style="background: var(--app-secondary-color); --paper-tabs-selection-bar-color: var(--app-text-color-disabled)">
+            <div class="content administrative-panel">
+                <paper-tabs selected="{{tabs}}">
                     <paper-tab class="adm-tab">
-                        <iron-icon style="margin-right:10px" icon="icons:assignment-ind"></iron-icon>
+                        <iron-icon icon="icons:assignment-ind"></iron-icon>
                         [[localize('subscription_form_physical_person','Physical person',language)]]
                     </paper-tab>
                     <paper-tab class="adm-tab doNotDisplay" id="medicalHouseTabView">
-                        <iron-icon style="margin-right:10px" icon="vaadin:family"></iron-icon>
+                        <iron-icon icon="vaadin:family"></iron-icon>
                         [[localize('subscription_form_medical_house','Medical houses',language)]]
                     </paper-tab>
                 </paper-tabs>
-
-                <div>
-                    <iron-pages selected="[[tabs]]">
-                        <page>
-                            <div class="content-block horizontal">
-                                <template is="dom-if" if="[[onElectron]]">
-                                    <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
-                                    <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
-                                </template>
-                                <paper-input always-float-label="" label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
-                                <paper-input always-float-label="" label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
-                                <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" can-be-fuzzy>
-                                    <paper-input always-float-label="" label="[[localize('dat_of_bir','Date of birth',language)]]" value="{{dateAsString}}"></paper-input>
-                                </vaadin-date-picker-light>
-                                <paper-input always-float-label="" label="[[localize('niss','Ssin',language)]]" value="{{ssin}}" on-keyup="_searchDuplicate"></paper-input>
-                                <paper-input-container>
-                                    <label slot="label">[[localize("gender","Gender",language)]]
-                                    </label>
-                                    <iron-input slot="input" bind-value="{{valueGender}}">
-                                        <input id="inputGender" readonly="" value="{{valueGender::input}}" on-tap="_openPopupMenu">
-                                    </iron-input>
-                                    <paper-menu-button id="paper-menu-button" slot="suffix" horizontal-offset="[[listBoxOffsetWidth]]">
-                                        <iron-icon icon="paper-dropdown-menu:arrow-drop-down" slot="dropdown-trigger"></iron-icon>
-                                        <paper-listbox id="dropdown-listbox" slot="dropdown-content" selected="{{selected}}" selected-item="{{selectedItem}}">
-                                            <paper-item id="unknown">[[localize('unknown','unknown',language)]]</paper-item>
-                                            <paper-item id="male">[[localize('male','male',language)]]</paper-item>
-                                            <paper-item id="female">[[localize('female','female',language)]]</paper-item>
-                                            <paper-item id="indeterminate">[[localize('indeterminate','indeterminate',language)]]</paper-item>
-                                            <paper-item id="changed">[[localize('changed','changed',language)]]</paper-item>
-                                        </paper-listbox>
-                                    </paper-menu-button>
-                                </paper-input-container>
-                                <paper-checkbox class="doNotDisplay" checked="{{createMhContract}}" id="createMedicalHouseContractCheckBox" label="[[localize('subscription_form_medical_house','Medicalhouse flatrate subscription',language)]]" always-float-label="" style="margin-right:30px; margin-top:30px">[[localize('subscription_form_medical_house','Medicalhouse flatrate subscription',language)]]?
-                                </paper-checkbox>
-                            </div>
-                        </page>
-                        <page>
-                            <!--Medical houses-->
-                            <div class="content-block horizontal" style="margin-top:20px">
-
-                                <vaadin-combo-box id="mh-search" filtered-items="[[mhListItem]]" item-label-path="hrLabel" style="width:30%" item-value-path="id" on-filter-changed="_mhSearch" on-keydown="" label="[[localize('mh','Medical house',language)]]" value="{{medicalHouseContractShadowObject.hcpId}}">
-                                </vaadin-combo-box>
-
-                                <vaadin-date-picker-light id="startOfContract" i18n="[[i18n]]" attr-for-value="value" style="width:20%">
-                                    <paper-input always-float-label="" label="[[localize('sub_dat','Subscription date',language)]]" value="" on-value-changed="updateStartOfCoverage"></paper-input>
-                                </vaadin-date-picker-light>
-
-                                <!-- <vaadin-date-picker label="[[localize('sub_dat','Subscription date',language)]]"  i18n="[[i18n]]"
-                                                    value="" id="startOfContract" on-value-changed="updateStartOfCoverage"
-                                                    always-float-label style="width:20%"></vaadin-date-picker> -->
-                                <paper-input label="[[localize('sub_eva_mon','Subscription evaluation months',language)]]" i18n="[[i18n]]" value="0" id="evalutationMonths" on-value-changed="updateStartOfCoverage" type="number" always-float-label="" min="0" step="3" max="3" style="min-width: 20%"></paper-input>
-
-                                <vaadin-date-picker-light id="startOfCoverage" i18n="[[i18n]]" attr-for-value="value" style="width:20%">
-                                    <paper-input always-float-label="" label="[[localize('cov_sta','Coverage start',language)]]" value="" readonly=""></paper-input>
-                                </vaadin-date-picker-light>
-                                <!-- <vaadin-date-picker label="[[localize('cov_sta','Coverage start',language)]]" i18n="[[i18n]]" value=""
-                                                    id="startOfCoverage"
-                                                    always-float-label readonly style="width:20%"></vaadin-date-picker> -->
-                            </div>
-                            <div class="horizontal" style="margin-top:30px">
-                                <label style="font-weight: 700; display:inline-block; margin-right:30px;">
-                                    <iron-icon icon="icons:check" style="margin-right:10px; color:var(--app-secondary-color);"></iron-icon>
-                                    [[localize('patient_subscriptions','Patient subscriptions',language)]]:</label>
-                                <paper-checkbox checked="{{medicalHouseContractShadowObject.gp}}" id="medicalHouseContractGpCheckBox" label="[[localize('has_m','Has doctor subscription',language)]]" always-float-label="" style="margin-right:30px">[[localize('has_m','Has doctor subscription',language)]]?
-                                </paper-checkbox>
-                                <paper-checkbox checked="{{medicalHouseContractShadowObject.kine}}" id="medicalHouseContractKineCheckBox" label="[[localize('has_k','Has physiotherapist subscription',language)]]" always-float-label="" style="margin-right:30px">[[localize('has_k','Has physiotherapist subscription',language)]]?
-                                </paper-checkbox>
-                                <paper-checkbox checked="{{medicalHouseContractShadowObject.nurse}}" id="medicalHouseContractNurseCheckBox" label="[[localize('has_i','Has nurse subscription',language)]]" always-float-label="">[[localize('has_i','Has nurse subscription',language)]]?
-                                </paper-checkbox>
-                            </div>
-                        </page>
-                    </iron-pages>
-
-
-                    <div>
+                <iron-pages selected="[[tabs]]">
+                    <page>
+                        <template is="dom-if" if="[[onElectron]]">
+                            <paper-icon-button icon="vaadin:health-card" id="read-eid" class="button--icon-btn" on-tap="_readEid"></paper-icon-button>
+                            <paper-tooltip for="read-eid" position="top">[[localize('fill_with_eid','Fill with eID',language)]]</paper-tooltip>
+                        </template>
+                        
+                        <paper-input always-float-label="" label="[[localize('las_nam','Last name',language)]]" style="min-width:200px" value="{{lastName}}"></paper-input>
+                        
+                        <paper-input always-float-label="" label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
+                        
+                        <vaadin-date-picker-light id="datePickerCreation" i18n="[[i18n]]" attr-for-value="value" can-be-fuzzy>
+                            <paper-input always-float-label="" label="[[localize('dat_of_bir','Date of birth',language)]]" value="{{dateAsString}}"></paper-input>
+                        </vaadin-date-picker-light>
+                        
+                        <paper-input always-float-label="" label="[[localize('niss','Ssin',language)]]" value="{{ssin}}" on-keyup="_searchDuplicate"></paper-input>
+                        
+                        <paper-dropdown-menu label="[[localize('gender','Gender',language)]]" always-float-label>
+                            <paper-listbox id="dropdown-listbox" slot="dropdown-content" selected="{{selected}}" selected-item="{{selectedItem}}">
+                                <paper-item id="unknown">[[localize('unknown','unknown',language)]]</paper-item>
+                                <paper-item id="male">[[localize('male','male',language)]]</paper-item>
+                                <paper-item id="female">[[localize('female','female',language)]]</paper-item>
+                                <paper-item id="indeterminate">[[localize('indeterminate','indeterminate',language)]]</paper-item>
+                                <paper-item id="changed">[[localize('changed','changed',language)]]</paper-item>
+                            </paper-listbox>
+                        </paper-dropdown-menu>
+  
+                        <paper-checkbox class="doNotDisplay" checked="{{createMhContract}}" id="createMedicalHouseContractCheckBox" label="[[localize('subscription_form_medical_house','Medicalhouse flatrate subscription',language)]]" style="width:100%;">[[localize('subscription_form_medical_house','Medicalhouse flatrate subscription',language)]]?</paper-checkbox>
                         <template is="dom-if" if="[[displayResult]]">
-                            <vaadin-grid id="duplicate-list" class="material" items="[[listResultPatients]]">
+                            <vaadin-grid id="duplicate-list" class="material" items="[[listResultPatients]]" style="width: 100%;" height-by-rows>
                                 <vaadin-grid-column>
                                     <template class="header">
                                         [[localize('las_nam','Last name',language)]]
@@ -1368,9 +1262,31 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                                     </template>
                                 </vaadin-grid-column>
                             </vaadin-grid>
+
                         </template>
-                    </div>
-                </div>
+                        
+                    </page>
+                    <page>
+                        <!--Medical houses-->
+                        <vaadin-combo-box id="mh-search" filtered-items="[[mhListItem]]" item-label-path="hrLabel" style="width:100%" item-value-path="id" on-filter-changed="_mhSearch" on-keydown="" label="[[localize('mh','Medical house',language)]]" value="{{medicalHouseContractShadowObject.hcpId}}"></vaadin-combo-box>
+
+                        <vaadin-date-picker-light id="startOfContract" i18n="[[i18n]]" attr-for-value="value" style="width: 30%">
+                            <paper-input always-float-label label="[[localize('sub_dat','Subscription date',language)]]" value="" on-value-changed="updateStartOfCoverage"></paper-input>
+                        </vaadin-date-picker-light>
+
+                        <paper-input label="[[localize('sub_eva_mon','Subscription evaluation months',language)]]" i18n="[[i18n]]" value="0" id="evalutationMonths" on-value-changed="updateStartOfCoverage" type="number" always-float-label min="0" step="3" max="3" style="width: 30%"></paper-input>
+
+                        <vaadin-date-picker-light id="startOfCoverage" i18n="[[i18n]]" attr-for-value="value" style="width: 30%">
+                            <paper-input always-float-label="" label="[[localize('cov_sta','Coverage start',language)]]" value="" readonly=""></paper-input>
+                        </vaadin-date-picker-light>
+                        
+                        <label>[[localize('patient_subscriptions','Patient subscriptions',language)]]:</label>
+                        <paper-checkbox checked="{{medicalHouseContractShadowObject.gp}}" id="medicalHouseContractGpCheckBox" label="[[localize('has_m','Has doctor subscription',language)]]">[[localize('has_m','Has doctor subscription',language)]]?</paper-checkbox>
+                        <paper-checkbox checked="{{medicalHouseContractShadowObject.kine}}" id="medicalHouseContractKineCheckBox" label="[[localize('has_k','Has physiotherapist subscription',language)]]">[[localize('has_k','Has physiotherapist subscription',language)]]?</paper-checkbox>
+                        <paper-checkbox checked="{{medicalHouseContractShadowObject.nurse}}" id="medicalHouseContractNurseCheckBox" label="[[localize('has_i','Has nurse subscription',language)]]">[[localize('has_i','Has nurse subscription',language)]]?</paper-checkbox>
+                    </page>
+                </iron-pages> 
+                
             </div>
             <div class="buttons">
                 <paper-button class="button" dialog-dismiss="">[[localize('can','Cancel',language)]]</paper-button>
@@ -1378,7 +1294,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                     <paper-button class="button button--save" dialog-confirm="" autofocus="" on-tap="confirmAddAndOpenPatient" disabled="[[!canAddPat]]">[[localize('cre','Create',language)]]</paper-button>
                 </template>
                 <template is="dom-if" if="[[!openAddedPatient]]">
-                    <paper-button class="button button--save" dialog-confirm="" autofocus="" on-tap="confirmAddPatient" disabled="[[!canAddPat]]">[[localize('cre','Create',language)]]</paper-button>
+                    <paper-button class="button button--save" dialog-confirm="" autofocus="" on-tap="confirmAddPatient" disabled="[[!canAddPat]]"><iron-icon icon="social:person-add"></iron-icon>[[localize('cre','Create',language)]]</paper-button>
                 </template>
             </div>
             
