@@ -916,15 +916,42 @@
                     padding: 0;
                 }
             }
+
+            .admin-top-bar {
+                display: flex;
+                flex-flow: row nowrap;
+                justify-content: space-between;
+                align-items: stretch;
+                background: var(--app-background-color-dark);
+            }
+
+            .admin-top-bar .buttons{
+                border-left: 1px solid var(--app-background-color-darker);
+                border-bottom: 1px solid var(--app-background-color-darker);
+                display: flex;
+                flex-flow: row nowrap;
+                justify-content: space-around;
+                align-items: center;
+                width: auto;
+                padding: 0 4px;
+                position: inherit;
+                box-sizing:border-box;
+            }
+
+            .admin-top-bar .buttons paper-icon-button{
+                margin:0 8px;
+            }
+
         </style>
 
         <div id="dialog" opened="{{opened}}">
-            <h2 class="modal-title">[[localize('mh_timeline','Medical House Timeline',language)]]<ht-spinner active="[[isLoading]]"></ht-spinner></h2>
-            <paper-button on-tap="_generateTimeLine">Timeline</paper-button>
-<!--            <paper-listbox id="_invoice_listbox" focused selectable="paper-material" selected="{{selectedInvoiceIndex}}">-->
-<!--                <template is="dom-repeat" items="[[months]]">-->
-<!--                    <p>[[_dateFormat(item.date, 'YYYYMMDD')]] [[item.data.invoices.length]]</p>-->
-<!--                </template>-->
+            <div class="admin-top-bar">
+                <div class="modal-title">[[localize('mh_flatrate_history','Flatrate history',language)]]<ht-spinner active="[[isLoading]]"></ht-spinner></div>
+                <div class="buttons">
+                    <paper-icon-button class="button--icon-btn" id="refreshFRCheck" on-tap="_generateTimeLine" icon="vaadin:refresh"></paper-icon-button>
+                    <paper-tooltip for="refreshFRCheck" position="left">[[localize('refresh','Refresh',language)]]</paper-tooltip>
+                </div>
+            </div>
                 <div class="present">
                     <div class="table">
                         <div class="tr th">
@@ -997,7 +1024,7 @@
                                     [[_dateFormat(month.date, 'MM/YYYY')]]
                                 </div>
                                 <div class="td">
-
+                                    [[month.warnings.noBatchForMonth]]
                                 </div>
                                 <div class="td">
 
@@ -1041,7 +1068,7 @@
                                         [[invoice.invoiceReference]]
                                     </div>
                                     <div class="td">
-                                        [[invoice.InsuranceCode]]
+                                        [[invoice.InsuranceCode]][[invoice.warnings.mutDif]]
                                     </div>
                                     <div class="td">
                                         [[invoice.mki]]
@@ -1331,7 +1358,7 @@
                     this.months = [];
                     setTimeout(() => {
                         this._generateTimeLine();
-                    }, 1000); ;
+                    }, 1000);
                 }
             }
 
@@ -1655,14 +1682,26 @@
                             aMonths.push({date: this.api.moment(parseInt(curMoment.format('YYYYMMDD'))), data: {}});
                             curMoment.subtract(1, 'month');
                         }
+                        aMonths.forEach(m => {
+                            const dateCode = parseInt(m.date.format("YYYYMMDD"));
+                            m.dateCode = dateCode;
+                            const lins = this.patient.insurabilities && this.patient.insurabilities.length > 0 ? this.patient.insurabilities.filter(ins => ins.startDate <= dateCode && (ins.endDate >= dateCode || !ins.endDate)) : [];
+                            m.data.insurability = lins.length > 0 ? _.orderBy(lins, ['startDate'], ['desc'])[0] : {};
+                            const ins = m.data.insurability ? insurancesData.find(ins => ins.id === m.data.insurability.insuranceId) : null;
+                            m.data.insurability.InsuranceCode = ins ? ins.code : "---";
+                            m.data.insurability.InsuranceName = ins ? ins.finalName : "";
+                            m.data.insurability.ct12 = m.data.insurability.parameters ? (m.data.insurability.parameters.tc1 + "/" + m.data.insurability.parameters.tc2) : "---/---";
+                        });
 
                         if (invoices) {
+
                             aMonths.forEach(m => {
                                 m.medicalHouseContract = mhc;
                                 const dateCode = parseInt(m.date.format("YYYYMMDD"));
 
                                 const invs = invoices.filter(inv => inv.invoicingCodes.filter(ic => ic.dateCode === dateCode).length > 0);
                                 const invsClone = [];
+                                const monthInsCode = m.data.insurability ? m.data.insurability.InsuranceCode : null;
                                 invs.forEach(inv => {
                                     inv.invoicingCodes.forEach(ic => {
                                         ic.status =  (ic.canceled ? "canceled " : "") + (ic.accepted ? "accepted " : "") + (ic.pending ? "pending " : "") + (ic.resent ? "resent " : "") + (ic.lost ? "lost " : "");
@@ -1676,6 +1715,10 @@
                                     invClone.Insurance = insurancesData.find(ins => ins.id === inv.recipientId);
                                     invClone.InsuranceCode = invClone.Insurance.code;
                                     invClone.InsuranceName = invClone.Insurance.finalName;
+
+                                    invClone.warnings = {};
+                                    invClone.warnings.mutDif = !!(monthInsCode && monthInsCode !== invClone.InsuranceCode);
+
                                     //get all invoicingcode groups : dateCode-status
                                     const icGroups = _.uniq(invClone.invoicingCodes.filter(ic => ic.dateCode === dateCode).map(ic => ic.group));
 
@@ -1697,6 +1740,7 @@
                                         console.log("icode", dateCode, icode);
                                         invCloneBis.status = icode.status;//(icode.canceled ? "canceled " : "") + (icode.accepted ? "accepted " : "") + (icode.pending ? "pending " : "") + (icode.resent ? "resent " : "") + (icode.lost ? "lost " : "");
                                         invCloneBis.status = invCloneBis.status === "" ? "---" : invCloneBis.status;
+                                        invCloneBis.statusDetail = {pending: icode.pending, canceled: icode.canceled, accepted: icode.accepted, resent: icode.resent, lost: icode.lost};
                                         //reference
                                         //reason/error
                                         invCloneBis.comment = invCloneBis.error ? invCloneBis.error : "";
@@ -1713,19 +1757,15 @@
                         aMonths.forEach(m => {
                             const dateCode = parseInt(m.date.format("YYYYMMDD"));
                             m.dateCode = dateCode;
-                            const lins = this.patient.insurabilities && this.patient.insurabilities.length > 0 ? this.patient.insurabilities.filter(ins => ins.startDate <= dateCode && (ins.endDate >= dateCode || !ins.endDate)) : [];
-                            m.data.insurability = lins.length > 0 ? _.orderBy(lins, ['startDate'], ['desc'])[0] : {};
-                            const ins = m.data.insurability ? insurancesData.find(ins => ins.id === m.data.insurability.insuranceId) : null;
-                            m.data.insurability.InsuranceCode = ins ? ins.code : "---";
-                            m.data.insurability.InsuranceName = ins ? ins.finalName : "";
-                            m.data.insurability.ct12 = m.data.insurability.parameters ? (m.data.insurability.parameters.tc1 + "/" + m.data.insurability.parameters.tc2) : "---/---";
-
-                            //warnings
+                            const msgs = messages.filter(msg => parseInt(this.api.moment(parseInt(msg.metas.exportedDate)).format("YYYYMMDD")) === dateCode);
                             m.warnings = {};
-                            m.warnings.mutDif = false;
-                            m.warnings.notInvoiced = false;
-                            m.warnings.invoicePending = false;
-                            m.warnings.noInsurability = false;
+                            m.warnings.noBatchForMonth = !(msgs && msgs.length > 0);
+                            m.warnings.notInvoiced = !(m.data.invoices && m.data.invoices.length > 0);
+                            m.warnings.noInsurability = m.data.insurability.InsuranceCode === "---";
+                            //TODO:
+                            //m.warnings.mutDif = false;
+                            m.warnings.invoicePending = (m.data.invoices && m.data.invoices.filter(i => i.statusDetail.pending).length > 0);
+                            m.warnings.invoiceLost = ((m.data.invoices && m.data.invoices.filter(i => i.statusDetail.lost).length > 0)) && ! m.warnings.invoicePending;
                             m.warnings.tarifDif = false;
                             m.warnings.abonDif = false;
 
