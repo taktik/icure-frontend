@@ -3113,7 +3113,7 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
   }
 
   _downloadListingArchive(e) {
-      let messageId = _.get(_.head(_.chain(e.path).filter((i)=>{return _.get(_.get(i,"classList",[]), "value","").indexOf('downloadListingArchive')!==-1}).value()),"messageid",false);
+      let messageId = _.get(_.head(_.chain(e.path || e.composedPath()).filter((i)=>{return _.get(_.get(i,"classList",[]), "value","").indexOf('downloadListingArchive')!==-1}).value()),"messageid",false);
       this.api.document().findByMessage(this.user.healthcarePartyId, _.chain(this.archiveListingMessages).filter({id:messageId}).head().value()).then(singleMessage => {
           if(singleMessage && singleMessage[0] && singleMessage[0].id && singleMessage[0].attachmentId && singleMessage[0].secretForeignKeys) {
               this.api.document().getAttachment(singleMessage[0].id, singleMessage[0].attachmentId, singleMessage[0].secretForeignKeys).then(attachmentResponse => {
@@ -4122,8 +4122,8 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
   _toggleBatchDetails(e) {
 
       // Make sure we have a "legit" click
-      if( _.get(e, "path", false) ) {
-          var paths = _.map( e.path, (pathNode,index)=> { return { index:index, nodeName:_.get( pathNode, "nodeName", "" ), target: _.get( pathNode, "id", "" ).toLowerCase()==="messagesgrid2" } })
+      if( _.get(e, "path", false) || e.composedPath ) {
+          var paths = _.map( e.path || e.composedPath(), (pathNode,index)=> { return { index:index, nodeName:_.get( pathNode, "nodeName", "" ), target: _.get( pathNode, "id", "" ).toLowerCase()==="messagesgrid2" } })
           if( !parseInt(_.size(_.compact(_.map( paths.slice( 0, _.get( _.filter(paths,"target"), "[0].index", 0 ) ), (path, index) => { return ["vaadin-grid-cell-content", "slot", "td", "tr" ].indexOf( _.trim(path.nodeName).toLowerCase() ) > -1 } )))) ) return;
       }
 

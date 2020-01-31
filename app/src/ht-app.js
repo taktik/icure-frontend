@@ -1759,8 +1759,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       this.view = 'view404'
   }
 
+
   doRoute(e) {
-      const routeTo = _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.name",""))),"[0].dataset.name","main") + "/"
+      const routeTo = (e.target.dataset.name || _.get(_.filter(_.get(e,"path",[]), nodePath=> !!_.trim(_.get(nodePath,"dataset.name",""))),"[0].dataset.name","main")) + "/"
       this.set('routeData.page', routeTo)
       this._triggerMenu()
   }

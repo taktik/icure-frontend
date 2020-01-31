@@ -492,10 +492,9 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
 
         <div class="col-left">
 
-
-
+            <template is="dom-if" if="[[showInbox()]]">
             <!-- PERSONAL mailbox -->
-            <collapse-button id="inboxcollapse" opened="">
+            <collapse-button id="inboxcollapse" opened>
 				<paper-item id="inbox" slot="sublist-collapse-item" class="menu-trigger menu-item opened iron-selected" on-tap="_inboxTapped" elevation="">
 					<div class="one-line-menu list-title inbox-line"><div><iron-icon icon="social:person" class="force-left"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('personalInbox','Personal inbox',language)]]</span></div></div>
 					<paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
@@ -532,11 +531,11 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                     <paper-item class="one-line-menu menu-item flex-start" data-folder="dealtwith"><iron-icon icon="icons:cloud-done"></iron-icon> [[localize('documentsDealtWith','Documents dealt with',language)]]<span class="batchNumber ehb_batchNumber batchOrange forceRight">[[docCounter.archived]]</span></paper-item>
                 </paper-listbox>
             </collapse-button>            
+            </template>
 
-
-
+            <template is="dom-if" if="[[showInvoicing()]]">
             <!-- Invoicing -->
-            <collapse-button id="invoiceboxcollapse">
+            <collapse-button id="invoiceboxcollapse" opened="[[group]]">
                 <paper-item id="invoicebox" slot="sublist-collapse-item" class="menu-trigger menu-item" on-tap="_invoiceboxTapped" elevation="">
                     <div class="one-line-menu list-title"><iron-icon icon="vaadin:invoice"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('serviceFeeInvoicing','Service fee invoicing',language)]]</span> <template is="dom-if" if="[[sendNumber]]"><span class="unreadNumber">[[sendNumber]]</span></template></div>
                     <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
@@ -550,7 +549,6 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                     <paper-item class="one-line-menu menu-item" id="e_invOut" data-status="archive">[[localize('_e_inv_arc','Archived',language)]] <span class="batchNumber batchArchived">[[batchCounter.archived]]</span></paper-item>
                 </paper-listbox>
             </collapse-button>
-
 
             <!-- Flatrate invoicing as user (via parent hcp id)-->
             <template is="dom-if" if="[[!isAMedicalHouse]]">
@@ -596,8 +594,7 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                     </collapse-button>
                 </template>
             </template>
-
-
+            </template>
 
         </div>
 `;
@@ -678,6 +675,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                               },
           flatRateInvoicingSelectionIndex: {
               type: Number,
+              value: null
+          },
+          group: {
+              type: String,
               value: null
           },
           sentboxSelectionIndex: {
@@ -768,8 +769,13 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
       _.map(inputObjects, (v,k)=> this.set(k,v))
   }
 
+  showInvoicing() {
+      return !this.get('group') || this.get('group') === 'invoicing'
+  }
 
-
+  showInbox() {
+      return !this.get('group') || this.get('group') === 'inbox'
+  }
 
   _inboxTapped(e) {
       e.stopPropagation()
