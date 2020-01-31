@@ -74,6 +74,7 @@ import "@polymer/paper-input/paper-input"
 import "@polymer/paper-item/paper-item"
 import "@polymer/paper-listbox/paper-listbox"
 import "@polymer/paper-menu-button/paper-menu-button"
+import "@polymer/paper-tabs/paper-tabs"
 import "@polymer/paper-tabs/paper-tab"
 import "@polymer/paper-tooltip/paper-tooltip"
 import "@polymer/paper-fab/paper-fab"
@@ -1154,47 +1155,45 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                       monthNames: moment.months(),
                       weekdays: moment.weekdays(),
                       weekdaysShort: moment.weekdaysShort(),
-                      firstDayOfWeek: moment.localeData().firstDayOfWeek(),
+                      firstDayOfWeek: 0,
                       week: 'Semaine',
                       calendar: 'Calendrier',
-                      clear: 'Clear',
+                      clear: 'Effacer',
                       today: 'Aujourd\'hui',
-                      thisMonth: "ce mois-ci",
-                      thisYear: "cette année",
+                      thisMonth: 'mois courant',
+                      thisYear: moment().format("YYYY"),
                       cancel: 'Annuler',
-                      formatDate(d, accuracy) {
-                          const date = moment(d).format('DD/MM/YYYY')
-                          return accuracy==="year" ? date.substr(6) : accuracy==="month" ? date.substr(3) : date
+                      formatDate: (d, acc) => {
+                          const yearStr = String(d.year).replace(/\d+/, y => '0000'.substr(y.length) + y);
+                          const tab = [yearStr];
+                          acc !== 'year' && tab.unshift((d.month + 1));
+                          acc === 'day' && tab.unshift(d.day);
+                          return tab.join('/');
                       },
-                      parseDate(text) {
+                      parseDate: text => {
                           const parts = text.split('/');
-                          const today = new Date();
-                          let day, month = today.getMonth(), year = today.getFullYear(),accuracy="";
+                          let day, month, year;
 
-                          parts.reverse()
-                          if (parts.length >= 1) {
-                              year = parseInt(parts[0]);
-                              accuracy="year";
-                          }
-                          if (parts.length >= 2 && parseInt(parts[1]) > 0) {
-                              month = parseInt(parts[1]) - 1;
-                              accuracy="month";
-                          }else{
-                              month= 0;
-                          }
-                          if (parts.length >= 3 && parseInt(parts[2])>0) {
-                              day = parseInt(parts[2]);
-                              accuracy="day";
-                          }else{
-                              day = 1;
+                          if (parts.length === 3) {
+                              year = parts[2];
+                              month = parts[1];
+                              day = parts[0];
+                          } else if (parts.length === 2) {
+                              year = parts[1];
+                              month = parts[0];
+                              day = '1';
+                          } else if (parts.length === 1) {
+                              year = parts[0];
+                              day = '1';
+                              month = '1';
                           }
 
                           if (day !== undefined) {
-                              return {day, month, year, accuracy};
+                              return {day, month, year};
                           }
                       },
-                      formatTitle(monthName, fullYear) {
-                          return monthName
+                      formatTitle: (monthName, fullYear) => {
+                          return fullYear;
                       }
                   }
                   return res
@@ -2688,7 +2687,6 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
       this.set("i18n.clear",this.localize('clear','Clear',this.language))
       this.set("i18n.today",this.localize("sel_tod",'Aujourd\'hui',this.language))
       this.set("i18n.thisMonth",this.localize("this_month","ce mois-ci",this.language))
-      this.set("i18n.thisYear",this.localize("this_year","cette année",this.language))
       this.set("i18n.cancel",this.localize("can",'Annuler',this.language))
   }
 

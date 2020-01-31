@@ -140,8 +140,8 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
                     </template>
                     <div class="filters">
                         <paper-input id="filter" label="[[localize('fil','Filter',language)]]" value="{{filterValue}}" on-keydown="refresh" disabled="[[isDisabled(exportMode,needMorePatient)]]"></paper-input>
-                        <vaadin-date-picker id="startDate" value="{{startDate}}" max="[[endDate]]" label="[[localize('from2', 'Du', language)]]"></vaadin-date-picker>
-                        <vaadin-date-picker id="endDate" value="{{endDate}}" min="[[startDate]]" label="[[localize('to2', 'Au', language)]]"></vaadin-date-picker>
+                        <vaadin-date-picker id="startDate" i18n="[[i18n]]" value="{{startDate}}" max="[[endDate]]" label="[[localize('from2', 'Du', language)]]"></vaadin-date-picker>
+                        <vaadin-date-picker id="endDate" i18n="[[i18n]]" value="{{endDate}}" min="[[startDate]]" label="[[localize('to2', 'Au', language)]]"></vaadin-date-picker>
                     </div>
                     <div class="list-box">
                         <paper-listbox id="_log_listbox" focused="" selectable="paper-item" selected="{{selected}}">
@@ -320,6 +320,9 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
           searchDate:{
               type: String,
               value: ""
+          },
+          i18n: {
+              type: Object
           }
       };
   }
@@ -387,10 +390,10 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
       const old = this.searchDate || moment().format("YYYY-MM-DD")
       let prom = Promise.resolve({})
       if(this.startDate && moment(this.startDate).isBefore(moment(old,"YYYY-MM-DD"))){
-          this.set("searchDate",moment(this.startDate).format("YYYY-MM-DD"))
+          this.set("searchDate",this.startDate)
       }
-      else if(this.endDate && moment(this.endDate).isBefore(moment(old,"YYYY-MM-DD"))){
-          this.set("searchDate",moment(this.endDate).format("YYYY-MM-DD"))
+      else if(this.endDate && moment(this.endDate,"YYYY-MM-DD").isBefore(moment(old,"YYYY-MM-DD"))){
+          this.set("searchDate",this.endDate)
       }
       if(old !== this.searchDate){
           prom = this.listingAccessByUser(this.filterValue,this.searchDate).then(logs => this.format(logs))

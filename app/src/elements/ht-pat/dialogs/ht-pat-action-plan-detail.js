@@ -136,7 +136,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
         </template>
 
         
-        <vaadin-date-picker class="cs1" theme="tk-theme" id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+        <vaadin-date-picker class="cs1" theme="tk-theme" id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" can-be-fuzzy accuracy="{{accuracy}}"></vaadin-date-picker>
         <vaadin-combo-box class="cs1" filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
         <!-- <tk-combo-box class="cs1" label="Statut*" items="[[comboStatus]]" item-label-path="label" item-value-path="id" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></tk-combo-box> -->
     
@@ -165,14 +165,14 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
         </template>
         <template is="dom-if" if="[[isStatusComplete]]">
             <template is="dom-if" if="[[!vaccineOnly]]">
-                <vaadin-date-picker class="cs1" label="Prochaine échéance" value="{{nextDate}}" i18n="[[i18n]]" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+                <vaadin-date-picker class="cs1" label="Prochaine échéance" value="{{nextDate}}" i18n="[[i18n]]" can-be-fuzzy accuracy="{{accuracy}}"></vaadin-date-picker>
             </template>
             <vaadin-checkbox class="cs1" on-checked-changed="_isSurgical" checked="[[plannedAction.isSurgical]]" disabled="[[readonly]]">Chirurgical</vaadin-checkbox>
         </template>
 
         <!--
         <vaadin-form-layout>
-            <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" need-full-date="[[fullDateMode]]" accuracy="{{accuracy}}"></vaadin-date-picker>
+            <vaadin-date-picker id="date-picker" label="Date d'échéance*" value="{{plannedAction.Deadline}}" i18n="[[i18n]]" on-value-changed="_checkIsDeadline" can-be-fuzzy accuracy="{{accuracy}}"></vaadin-date-picker>
             <vaadin-combo-box filtered-items="[[comboStatus]]" item-label-path="label" item-value-path="id" on-filter-changed="" label="Statut*" value="{{plannedAction.Status}}" on-value-changed="analyzeStatus" readonly="[[readonly]]"></vaadin-combo-box>
             <vaadin-combo-box colspan="2" filtered-items="[[proceduresListItem]]" item-label-path="label.[[language]]" item-value-path="code" id="procedures-list" on-filter-changed="_proceduresFilterChanged" on-value-changed="procedureChanged" label="Procédure*" value="{{plannedAction.ProcedureId}}" readonly="[[readonly]]" disabled="[[vaccineOnly]]"></vaadin-combo-box>
             <template is="dom-if" if="[[isVaccineProcedure]]">
@@ -322,10 +322,6 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
               value : false
           },
           showLinks : {
-              type: Boolean,
-              value: false
-          },
-          fullDateMode : {
               type: Boolean,
               value: false
           },
@@ -599,7 +595,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
       const action = this.plannedAction
       const contactId = this.currentContact.id
       const responsible = action.HcpId && action.HcpId !== "" ? action.HcpId : this.user.healthcarePartyId
-      const valueDate = action.Deadline && action.Deadline !== "" ? action.Deadline.split("-").join("") : ""
+      const valueDate = action.Deadline && action.Deadline !== "" ? action.Deadline.split("-").map(str => _.padStart(str,2,"0")).join("") : ""
 
       if (!action || !contactId || !valueDate)
           return this._setError(this.localize('some_mandat_fields', 'Some fields are mandatory', this.language))
@@ -680,7 +676,7 @@ class HtPatActionPlanDetail extends TkLocalizerMixin(mixinBehaviors([IronResizab
 
       if (this._detail && "caller" in this._detail) {
           const isCompleted = this.plannedAction.Status === "completed";
-          this._detail.next = isCompleted ? this._cleanDate(this.nextDate.split("-").join("")) : null;
+          this._detail.next = isCompleted ? this._cleanDate(this.nextDate.split("-").map(str => _.padStart(str,2,"0")).join("")) : null;
           this._detail.caller.onActionChanged(this._detail);
       }
 

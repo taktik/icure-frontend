@@ -215,11 +215,11 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
 				<div class="flex nowrap">
 					<div class="grid">
 						<div class="label">[[localize('st_da','Start Date',language)]] *</div>
-						<vaadin-date-picker i18n="[[i18n]]" value="{{_openingDateAsString}}" need-full-date="[[fullDateMode]]" accuracy="{{accuracyOpening}}"></vaadin-date-picker>
+						<vaadin-date-picker i18n="[[i18n]]" value="{{_openingDateAsString}}" can-be-fuzzy accuracy="{{accuracyOpening}}"></vaadin-date-picker>
 					</div>
 					<div class="grid margin-left-right-6">
 						<div class="label">[[localize('en_da','End Date',language)]]</div>
-						<vaadin-date-picker i18n="[[i18n]]" value="{{_closingDateAsString}}" need-full-date="[[fullDateMode]]" accuracy="{{accuracyClosing}}"></vaadin-date-picker>
+						<vaadin-date-picker i18n="[[i18n]]" value="{{_closingDateAsString}}" can-be-fuzzy accuracy="{{accuracyClosing}}"></vaadin-date-picker>
 					</div>
 
 					<div class="grid margin-left-right-6">
@@ -389,10 +389,6 @@ class HealthProblemSelector extends TkLocalizerMixin(PolymerElement) {
           },
           isValid: {
               type : Boolean,
-              value : false
-          },
-          fullDateMode : {
-              type: Boolean,
               value : false
           },
           accuracyOpening:{

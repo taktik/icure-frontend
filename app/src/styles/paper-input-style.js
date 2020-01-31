@@ -2,7 +2,10 @@ const $_documentContainer = document.createElement('template');
 
 $_documentContainer.innerHTML = `<dom-module id="paper-input-style">
     <template>
-        <style is="custom-style">
+		<style is="custom-style">
+			:host {
+				--paper-font-caption_-_line-height: 16px;
+			}
             paper-input, paper-input-container {
 				--paper-input-container-focus-color: var(--app-secondary-color)!important;
 				--paper-input-container: {
@@ -24,9 +27,9 @@ $_documentContainer.innerHTML = `<dom-module id="paper-input-style">
 				};
 
                 --paper-input-container-label-floating: {
-                    font-size: var(--font-size-normal);
+                    font-size: var(--font-size-large);
                     padding: 0 12px;
-                    height: 11px;
+                    height: 15px;
                     line-height: 11px;
                     box-sizing: border-box;
 					overflow: visible;
@@ -47,6 +50,7 @@ $_documentContainer.innerHTML = `<dom-module id="paper-input-style">
 					line-height: 20px;
 				}
 			}
+
 
 			paper-input[disabled] label, paper-input-container[disabled] label {
 				font-style: italic;

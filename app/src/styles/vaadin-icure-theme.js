@@ -76,19 +76,29 @@ $_documentContainer.innerHTML = `
 <dom-module id="vaadin-date-picker-overlay-style" theme-for="vaadin-date-picker vaadin-date-picker-overlay-content vaadin-date-picker-overlay vaadin-month-calendar vaadin-button">
     <template>
         <style include="shared-styles">
+            :host [part="months"] {
+                --vaadin-infinite-scroller-item-height: 240px;
+            }
+            :host [part="toolbar"] {
+                justify-content: flex-start;
+            }
+            :host [part="toolbar"] [part$="button"] {
+                margin-right: 8px;
+            }
             :host [part=cancel-button]{
-                text-transform: capitalize!important;
+                text-transform: unset!important;
                 color: var(--app-secondary-color);
                 font-size: var(--font-size-normal);
                 padding: 0 12px;
                 height: 28px;
+                display: none;
             }
 
             :host [part=today-button] {
-                text-transform: capitalize!important;
+                text-transform: unset!important;
                 border: 1px solid var(--app-secondary-color)!important;
                 color: var(--app-secondary-color);
-                font-size: var(--font-size-normal);
+                font-size: var(--font-size-small);
                 padding: 0 12px;
                 height: 28px;
             }
@@ -141,7 +151,9 @@ $_documentContainer.innerHTML = `
         <style include="shared-styles">
             :host([has-label]) [part="label"] {
                 z-index: 1;
-                padding-left: 12px;
+                padding-left: 8px;
+                padding-bottom: 4px;
+                padding-top: 2px;
                 box-sizing: border-box;
                 font-size: var(--font-size-small)!important;
             }
@@ -155,9 +167,10 @@ $_documentContainer.innerHTML = `
 
             [part="input-field"] {
                 background: var(--app-input-background-color) !important;
-                height: 22px;
+                height: 24px;
                 position: relative;
                 padding: 0;
+                border-radius: 4px 4px 0 0!important;
             }
 
             [part="input-field"]:after {
@@ -184,7 +197,7 @@ $_documentContainer.innerHTML = `
             }
 
             :host [part="value"] {
-                padding: 0 8px;              
+                padding: 0 8px 0 2px;             
                 min-height: 22px;
                 font-size: var(--font-size-normal);
             }
