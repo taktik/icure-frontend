@@ -3633,7 +3633,8 @@
                     canceled: false,
                     pending: false,
                     resent: false,
-                    archived: false
+                    archived: false,
+                    lost: false
                 }
 
                 const actionSettings = action === "reject" ? { newStatusKey: "rejected", newInvoicingCodeStatus: "canceled" } :
@@ -4987,35 +4988,35 @@
                         })
 
                     }) //2
-                    .then(pendingInvoicesToResend => {
-
-                        // Go for any invoice(s) to be added in the batch (could be manually created using PAT's timeline (timeline && pat-flatrate-utils)
-                        // For performance purposes, such invoices could be found by scanning for messages with transportGuid "MH:FLATRATE:INVOICE-TO-ADD" (current or previous month allowed, never in the future), then go for the invoiceIds
-                        return flatRateUtil.getInvoicesToAddFromTimelineByMaxExportDate(parseInt(_.get(this,"flatRateInvoicingDataObject.exportedDate")))
-                            .then(invoicesToAdd => _
-                                .chain(invoicesToAdd)
-                                .map(inv => {
-
-                                    // If I try to resend a corrective invoice for current month, DROP its invoicingCodes (otherwise append code will double the charged amounts).
-                                    // If not, append codes so that both previous & current month will be charged, which is legit
-                                    inv.resentMonth = parseInt( _.get(inv, "invoiceDate", 0 ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate) ? "currentMonth" : "inThePast"
-
-                                    // Make sure I have to take it into account (all false but the pending bool)
-                                    const invoicingCodes = _.get(inv, "invoicingCodes", [])
-                                    return !parseInt(_.size(invoicingCodes)) ? false :
-                                        _.every(invoicingCodes, ic => {
-                                            return _.get(ic,"accepted",false)===false
-                                                && _.get(ic,"archived",false)===false
-                                                && _.get(ic,"canceled",false)===false
-                                                && _.get(ic,"resent",false)===false
-                                                && _.get(ic,"lost",false)===false
-                                                && _.get(ic,"pending",false)===true
-                                        }) ? inv : false
-                                })
-                                .concat((pendingInvoicesToResend||[]))
-                                .value()
-                            )
-                    }) // 2 Bis
+                    // .then(pendingInvoicesToResend => {
+                    //
+                    //     // Go for any invoice(s) to be added in the batch (could be manually created using PAT's timeline (timeline && pat-flatrate-utils)
+                    //     // For performance purposes, such invoices could be found by scanning for messages with transportGuid "MH:FLATRATE:INVOICE-TO-ADD" (current or previous month allowed, never in the future), then go for the invoiceIds
+                    //     return flatRateUtil.getInvoicesToAddFromTimelineByMaxExportDate(parseInt(_.get(this,"flatRateInvoicingDataObject.exportedDate")))
+                    //         .then(invoicesToAdd => _
+                    //             .chain(invoicesToAdd)
+                    //             .map(inv => {
+                    //
+                    //                 // If I try to resend a corrective invoice for current month, DROP its invoicingCodes (otherwise append code will double the charged amounts).
+                    //                 // If not, append codes so that both previous & current month will be charged, which is legit
+                    //                 inv.resentMonth = parseInt( _.get(inv, "invoiceDate", 0 ) ) === parseInt(this.flatRateInvoicingDataObject.exportedDate) ? "currentMonth" : "inThePast"
+                    //
+                    //                 // Make sure I have to take it into account (all false but the pending bool)
+                    //                 const invoicingCodes = _.get(inv, "invoicingCodes", [])
+                    //                 return !parseInt(_.size(invoicingCodes)) ? false :
+                    //                     _.every(invoicingCodes, ic => {
+                    //                         return _.get(ic,"accepted",false)===false
+                    //                             && _.get(ic,"archived",false)===false
+                    //                             && _.get(ic,"canceled",false)===false
+                    //                             && _.get(ic,"resent",false)===false
+                    //                             && _.get(ic,"lost",false)===false
+                    //                             && _.get(ic,"pending",false)===true
+                    //                     }) ? inv : false
+                    //             })
+                    //             .concat((pendingInvoicesToResend||[]))
+                    //             .value()
+                    //         )
+                    // }) // 2 Bis
                     .then(pendingInvoicesToResend => { //3
                         if(!parseInt(_.size(pendingInvoicesToResend)) && !!this.flatRateInvoicingDataObject.exportAlreadyRanThisMonth) throw new Error("export-already-ran")
                         this.flatRateInvoicingDataObject.pendingInvoicesToResend = pendingInvoicesToResend
@@ -5308,6 +5309,7 @@
                                         pending: false,
                                         resent: false,
                                         lost: false,
+                                        archived: false,
                                         dateCode: parseInt(_.get(val,"valorisationMonth",0))||null,
                                         id: this.api.crypto().randomUuid(),
                                         logicalId: this.api.crypto().randomUuid()
