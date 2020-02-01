@@ -3234,7 +3234,7 @@
                                                     .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
                                                     .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
                                             .then(newInvoice => {
-                                                //console.log("newInvoice", _.cloneDeep(newInvoice));
+
                                                 if(this.invoiceHasDoubles(newInvoice)){
                                                     //only remove the doubles
                                                     pat.invoicingCodes.forEach(pic => {
@@ -3251,6 +3251,7 @@
                                                     this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
                                                     return _.concat(pats, [pat])
                                                 }
+
                                             })
                                         }
                                     ))
@@ -3264,12 +3265,9 @@
                 let hasDouble = false;
                 inv.invoicingCodes.forEach(ic => {
                     const ics = inv.invoicingCodes.filter(icf => icf.dateCode === ic.dateCode && icf.code === ic.code);
-                    if(ics && ics.length > 1){
-                        hasDouble = true;
-                        console.log("inv hasDouble !", inv);
-                    }
+                    if(_.size(ics) > 1) hasDouble = true;
                 });
-                return false ;//hasDouble;
+                return hasDouble;
             }
 
             _generateJ20FlatFiles(){
@@ -3704,6 +3702,7 @@
                             ic.pending = false;
                             ic.resent = false;
                             ic.archived = false;
+                            ic.lost = false;
                             return ic;
                         })
                         return this.api.invoice().modifyInvoice(invoice).then(invoice => this.api.register(invoice,'invoice'))
@@ -4324,7 +4323,17 @@
                                         "deletionDate",
                                         "created",
                                         "modified",
-                                        "sentDate",
+
+                                        // 20200201 - With have an error with appendCode that picks up non-corrected (yet) invoices & lost invoices despite the invoicingCodes statuses
+                                        // When rejecting a batch / invoice
+                                        //      -> original invoice.invoicingCodes are all set to false BUT the "canceled" bool that becomes true
+                                        //      -> original invoice.correctiveInvoiceId = the duplicated invoice
+                                        //      -> original invoice gets duplicated with invoicingCodes pending = true & resent = true (all others are false)
+                                        //      -> duplicated invoices gets as correctedInvoiceId = the original invoice id
+                                        //      -> here is the problem: if duplicated invoice has no sentDate, appendCode is gonna use it upon next ran which is wrong (as it should only be picked up when corrected)
+                                        //      -> Work around = keep the original "sentDate" on duplicated invoice so that it won't be picked up and ONLY drop it by the time it's flagged as corrected.
+                                        // "sentDate",
+
                                         "printedDate",
                                         "secretForeignKeys",
                                         "cryptedForeignKeys",
@@ -4401,6 +4410,17 @@
 
                 this.api.invoice().getInvoice(invoiceId)
                     .then(invoice => {
+
+                        // 20200201 - With have an error with appendCode that picks up non-corrected (yet) invoices & lost invoices despite the invoicingCodes statuses
+                        // When rejecting a batch / invoice
+                        //      -> original invoice.invoicingCodes are all set to false BUT the "canceled" bool that becomes true
+                        //      -> original invoice.correctiveInvoiceId = the duplicated invoice
+                        //      -> original invoice gets duplicated with invoicingCodes pending = true & resent = true (all others are false)
+                        //      -> duplicated invoices gets as correctedInvoiceId = the original invoice id
+                        //      -> here is the problem: if duplicated invoice has no sentDate, appendCode is gonna use it upon next ran which is wrong (as it should only be picked up when corrected)
+                        //      -> Work around = keep the original "sentDate" on duplicated invoice so that it won't be picked up and ONLY drop it by the time it's flagged as corrected.
+                        try{ delete(invoice.sentDate); } catch(e){}
+
                         invoice.invoicingCodes.map(ic => {
                             ic.canceled = false;
                             ic.accepted = false;
@@ -4586,9 +4606,26 @@
                                     return _.compact(
                                         _.map(invoicesToBeCorrected, i =>{
                                             return (
-                                                !parseInt(_.get(i,"sentDate",0))
-                                                && _.trim(_.get(i,"error","")).toLowerCase() !== "flagged as lost"
-                                                && _.every(_.get(i,"invoicingCodes",[]), ic=>{ return _.get(ic,"pending",false)===true && _.get(ic,"resent",false)===true && _.get(ic,"lost",false)===false })
+
+                                                // 20200201 - With have an error with appendCode that picks up non-corrected (yet) invoices & lost invoices despite the invoicingCodes statuses
+                                                // When rejecting a batch / invoice
+                                                //      -> original invoice.invoicingCodes are all set to false BUT the "canceled" bool that becomes true
+                                                //      -> original invoice.correctiveInvoiceId = the duplicated invoice
+                                                //      -> original invoice gets duplicated with invoicingCodes pending = true & resent = true (all others are false)
+                                                //      -> duplicated invoices gets as correctedInvoiceId = the original invoice id
+                                                //      -> here is the problem: if duplicated invoice has no sentDate, appendCode is gonna use it upon next ran which is wrong (as it should only be picked up when corrected)
+                                                //      -> Work around = keep the original "sentDate" on duplicated invoice so that it won't be picked up and ONLY drop it by the time it's flagged as corrected.
+                                                // !parseInt(_.get(i,"sentDate",0))
+
+                                                _.trim(_.get(i,"error","")).toLowerCase() !== "flagged as lost"
+                                                && _.every(_.get(i,"invoicingCodes",[]), ic=>{
+                                                    return _.get(ic,"pending",false)===true
+                                                        && _.get(ic,"resent",false)===true
+                                                        && _.get(ic,"accepted",false)===false
+                                                        && _.get(ic,"archived",false)===false
+                                                        && _.get(ic,"canceled",false)===false
+                                                        && _.get(ic,"lost",false)===false
+                                                })
                                             ) ? i : false
                                         })
                                     )
@@ -4720,6 +4757,20 @@
 
             _join(arr){
                 return arr.join();
+            }
+
+            _patientAlreadyHasAValidInvoiceForThisMonth(pat, invoicingMonth) {
+
+                return this.api.invoice().findBy(this.user.healthcarePartyId, pat)
+                    .then(invoices => _.filter(invoices, inv => inv &&
+                        inv.sentDate &&
+                        inv.sentMediumType === "cdrom" &&
+                        _.size(_.filter(inv.invoicingCodes, ic => !ic.lost && !ic.canceled && !ic.resent)) &&
+                        _.trim(inv.invoiceDate) === invoicingMonth
+                    ))
+                    .then(invoicesForCurrentPatAndExportedMonth => !!_.size(invoicesForCurrentPatAndExportedMonth))
+                    .catch(()=>Promise.resolve(false))
+
             }
 
             _exportFlatRateInvoicing() {
@@ -5100,14 +5151,7 @@
                                 return _.trim(_.get(existingPat,"ssin","something"))!== _.trim(_.get(commonPat,"[0].ssin","else")) ?
                                     existingPat :
                                     _.merge(existingPat,{
-                                        invoiceToBeResent:
-                                        //TODO: reset the pending state @ this point ?
-                                            _
-                                                .chain(_.compact(_.map(commonPat,"invoiceToBeResent")))
-                                                .forEach(it => _.forEach(it.invoicingCodes, ic => ic.pending = false))
-                                                .compact()
-                                                .value()
-                                        ,
+                                        invoiceToBeResent: _.map(_.compact(_.map(commonPat,"invoiceToBeResent")), inv => { inv.invoicingCodes = _.map(inv.invoicingCodes, ic => {ic.pending=false; return ic;}); return inv;}),
                                         patientToBeResent: true,
                                         patientIsInCurrentAndPreviousExport: true
                                     })
@@ -5118,13 +5162,7 @@
                         const nonCommonPatientsToAdded = _.compact( _.map( _.map(myPatientsToResend, "id"), patId => {
                             if( resolvedPatientsToBeResent.indexOf(patId) > -1 ) { return false; } else { resolvedPatientsToBeResent.push(patId); }
                             let singlePat = _.find(myPatientsToResend, {id:patId})
-                            singlePat.invoiceToBeResent =
-                                //TODO: reset the pending state @ this point ?
-                                _
-                                    .chain(_.compact(_.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent" )))
-                                    .forEach(it => _.forEach(it.invoicingCodes, ic => ic.pending = false))
-                                    .compact()
-                                    .value()
+                            singlePat.invoiceToBeResent = _.map(_.compact(_.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent")), inv => { inv.invoicingCodes = _.map(inv.invoicingCodes, ic => {ic.pending=false; return ic;}); return inv;})
                             singlePat.patientToBeResent = true
                             singlePat.patientIsInCurrentAndPreviousExport = false
                             return singlePat
@@ -5243,12 +5281,13 @@
 
                     }) //8
                     .then((listsData)=>{
+
                         this.flatRateInvoicingDataObject.listsData = listsData
                         this.flatRateInvoicingDataObject.invoicesToBeModified = []
 
                         // Drop patients we couldn't find in list (no valorisation)
                         const patientsInLists = _.uniq(_.compact(_.flatMap(_.get(this, "flatRateInvoicingDataObject.listsData", {})).map(i=>i.id) ))||[]
-                        this.flatRateInvoicingDataObject.patientsData = _.compact(_.map( this.flatRateInvoicingDataObject.patientsData, i=> !!(patientsInLists.indexOf(_.trim(i.id)) > -1) ? i : false ))
+                        this.flatRateInvoicingDataObject.patientsData = _.compact(_.map( this.flatRateInvoicingDataObject.patientsData, i=> patientsInLists.indexOf(_.trim(i.id)) > -1 ? i : false ))
                         if(!parseInt(_.size(this.flatRateInvoicingDataObject.patientsData)||0)) throw new Error("no-data-to-export")
 
                         // Drop when not in use
@@ -5265,6 +5304,8 @@
 
                             const typeList = list[0]
                             const patientList = list[1]
+                            // Lists 5 & 6 = NEW patients with respectively no tryout ; tryout
+                            // List 8 = old / regular patients
                             const codesList = typeList === "list5" || typeList === "list6" ?
                                 _.concat(
                                     _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")))}), "valorisations"),
@@ -5273,6 +5314,7 @@
                                 _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")))}), "valorisations")
 
                             return patientList.map(pat => {
+
                                 const originalInvoicingCodes = codesList.filter(code =>
                                     parseFloat(code.price) && (
                                         (code.flatRateType === "physician" && pat.finalMedicalHouseContracts.gp === true ) ||
@@ -5280,44 +5322,66 @@
                                         (code.flatRateType === "physiotherapist" && pat.finalMedicalHouseContracts.kine === true)
                                     )
                                 )
+
                                 const additionalInvoicingCodes = _.flatMap(_.map(_.get(pat,"invoiceToBeResent",[]), invoiceToBeResent=>{
+
+                                    // In case we inherit of an invoice to be resent, make sure we don't invoice month to be resent twice
                                     const invoiceCodesToBeDeleted = _.get(invoiceToBeResent,"invoicingCodes",[]).filter(ic=>_.compact(_.uniq(_.map(originalInvoicingCodes,oic=>_.trim(_.get(oic,"valorisationMonth",0))))).indexOf(_.trim(_.get(ic,"dateCode",0))) > -1 )
                                     if( !!parseInt(_.size(invoiceCodesToBeDeleted)) ) {
                                         const newInvoicingCodes = _.compact(_.map(invoiceToBeResent.invoicingCodes, ic => _.compact(_.map(invoiceCodesToBeDeleted,"id")).indexOf(_.trim(_.get(ic,"id",false)))>-1 ? false : ic ))
                                         const invoiceToBeResentWithOmittedDuplicatedInvCodes = _.assign(_.cloneDeep(invoiceToBeResent), {invoicingCodes:newInvoicingCodes})
                                         this.flatRateInvoicingDataObject.invoicesToBeModified.push(invoiceToBeResentWithOmittedDuplicatedInvCodes)
                                     }
+
                                     return _.map(_.get(invoiceToBeResent,"invoicingCodes",[]).filter(ic=>_.compact(_.uniq(_.map(originalInvoicingCodes,oic=>_.trim(_.get(oic,"valorisationMonth",0))))).indexOf(_.trim(_.get(ic,"dateCode",0))) === -1 ), ic => _.merge({},{
                                         code: _.get(ic,"code",""),
                                         label: { fr: _.get(ic,"label",""), nl: _.get(ic,"label",""), en: _.get(ic,"label","") },
                                         price: _.get(ic,"totalAmount",0),
                                         valorisationMonth: _.get(ic,"dateCode",null)
                                     }))
+
                                 })||[])
-                                return _.assign(pat, {
-                                    invoicingCodes: _.compact(_.concat(additionalInvoicingCodes||[],originalInvoicingCodes)).map(val => ({
-                                        code: val.code,
-                                        tarificationId: "INAMI-RIZIV|" + val.code + "|1.0",
-                                        label: _.get(val, "label."+this.language,""),
-                                        totalAmount: Number(_.get(val,"price",0)),
-                                        reimbursement: Number(_.get(val,"price",0)),
-                                        patientIntervention: Number(0.00).toFixed(2),
-                                        doctorSupplement: Number(0.00).toFixed(2),
-                                        units: 1,
-                                        canceled: false,
-                                        accepted: false,
-                                        pending: false,
-                                        resent: false,
-                                        lost: false,
-                                        archived: false,
-                                        dateCode: parseInt(_.get(val,"valorisationMonth",0))||null,
-                                        id: this.api.crypto().randomUuid(),
-                                        logicalId: this.api.crypto().randomUuid()
+
+                                // TODO: wait for execution: prom = prom.then( .... _contact(XXX, YYY)
+                                // Todo: idead = don't invoice month again if was already invoiced (_patientAlreadyHasAValidInvoiceForThisMonth)
+
+                                // Say we generate month 01
+                                // Then we generate month 02
+                                // Then we flag one invoice of month 01 as rejected + corrected
+                                // Then we re-run month 02
+                                // Export should only hold pat X for month 01 but not for month 02
+                                return this._patientAlreadyHasAValidInvoiceForThisMonth(pat, _.trim(this.flatRateInvoicingDataObject.exportedDate))
+                                    .then(isIt => _.assign(pat, {
+                                        invoicingCodes: _.compact(_.concat(additionalInvoicingCodes||[],_.filter(originalInvoicingCodes, x => !isIt ? x : _.trim(x.valorisationMonth) !== _.trim(this.flatRateInvoicingDataObject.exportedDate)))).map(val => ({
+                                            code: val.code,
+                                            tarificationId: "INAMI-RIZIV|" + val.code + "|1.0",
+                                            label: _.get(val, "label."+this.language,""),
+                                            totalAmount: Number(_.get(val,"price",0)),
+                                            reimbursement: Number(_.get(val,"price",0)),
+                                            patientIntervention: Number(0.00).toFixed(2),
+                                            doctorSupplement: Number(0.00).toFixed(2),
+                                            units: 1,
+                                            canceled: false,
+                                            accepted: false,
+                                            pending: false,
+                                            resent: false,
+                                            lost: false,
+                                            archived: false,
+                                            dateCode: parseInt(_.get(val,"valorisationMonth",0))||null,
+                                            id: this.api.crypto().randomUuid(),
+                                            logicalId: this.api.crypto().randomUuid()
+                                        }))
                                     }))
-                                })
+
                             })
                         }))
+                            // Cool down
+                            .then(()=> this._sleep(10000))
                             .then(()=>{
+
+                                // Todo: delete this
+                                throw new Error("no-data-to-export")
+
                                 let prom = Promise.resolve([])
                                 let invoicesToBeModified = _.cloneDeep(this.flatRateInvoicingDataObject.invoicesToBeModified);
                                 return !parseInt(_.size(invoicesToBeModified||[])) ?
