@@ -2800,7 +2800,9 @@
                                         && !!_.get(i,"active", true)
                                         && !!_.trim(_.get(i,"dateOfBirth", ""))
                                         && !!_.trim(_.get(i,"ssin", ""))
-                                        && !!parseInt(_.size(_.get(i,"insurabilities", [])))
+                                        && !!_.size(_.get(i,"insurabilities", []))
+
+                                        // Make sure there is at least one valid insurance versus exported date
                                         && !!_.size(
                                             _.chain(i.insurabilities)
                                                 .filter(i=>{return(
@@ -2823,8 +2825,8 @@
                                                 )})
                                                 .value()
                                         )
-                                        && parseInt( _.size( _.get(i, "medicalHouseContracts", [] ) ) )
-                                        && !!parseInt( _.size( _.filter( _.get(i, "medicalHouseContracts", [] ), (i)=>{return !!i && _.trim(_.get(i,"hcpId", "something")) === _.trim(_.get(this,"user.healthcarePartyId","else"))}) ) )
+                                        && !!_.size(_.get(i, "medicalHouseContracts", []))
+                                        && !!_.size(_.filter(_.get(i, "medicalHouseContracts",[]), i => _.trim(_.get(i,"hcpId", "something")) === _.trim(_.get(this,"user.healthcarePartyId","else"))))
                                     )})
                                     .uniqBy( 'ssin' )
                                     .value()
@@ -2833,13 +2835,15 @@
                                         i.lastName = (_.get(i,"lastName","")).toUpperCase()
                                         i.firstName = (_.get(i,"firstName","")).toUpperCase()
                                         i.dateOfBirth = (!!_.trim(_.get(i,"dateOfBirth",""))?moment(_.trim(_.get(i,"dateOfBirth",0)), "YYYYMMDD").format('DD/MM/YYYY'):"")
+
+                                        // Eval "finalInsurability" to be the one corresponding to exported date
                                         i.finalInsurability = _.get(
                                             _.filter(
                                                 i.insurabilities,
                                                 (ins) => {
                                                     return ins &&
                                                         _.size(ins) &&
-                                                        !!_.trim(_.get( ins, "insuranceId", "" ) ) &&
+                                                        !!_.trim(_.get( ins, "insuranceId", "" )) &&
                                                         _.trim(_.get(ins, "parameters.tc1", "")).length === 3 &&
                                                         _.trim(_.get(ins, "parameters.tc2", "")).length === 3 &&
                                                         ( _.trim(_.get(ins, "parameters.tc1", "")) + _.trim(_.get(ins, "parameters.tc2", "")) !== "000000" ) &&
@@ -4846,9 +4850,9 @@
                             })
 
 
-                        // Get valorisations for last 24 months - as of export date
+                        // Get valorisations for last X months - as of export date
                         let valorisationMonths = [];
-                        for (let i = 0; i < 24; i++) {
+                        for (let i = 0; i < 240; i++) {
                             valorisationMonths.push(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(i, "month").format("YYYYMMDD")))
                         }
                         this.flatRateInvoicingDataObject.hcpValorisationsByMonth = valorisationMonths.map(valorisationMonth => {
@@ -5047,7 +5051,9 @@
                             .chain(myPatients)
                             .uniqBy('ssin')
                             .filter(pat => (
+                                // Either pat is alive
                                 !parseInt(_.get(pat, "dateOfDeath", 0)) ||
+                                // Or pat's death occured during exported month -> at which point he should still be taken into account
                                 (!!parseInt(_.get(pat, "dateOfDeath", 0)) && moment( _.get(pat, "dateOfDeath", 0), 'YYYYMMDD').startOf('month').add(1,"month").isAfter(this.reportCurrentDateMomentObject.startOf('month')))
                             ))
                             .orderBy(['lastName', 'firstName'],['asc','asc'])
@@ -5109,10 +5115,7 @@
                         let resolvedPatientsToBeResent = []
                         const commonPatientsBetweenExportsWithSameIns = _.compact(
                             _.map(myPatients, pat => {
-                                const matchingPat = _.filter(myPatientsToResend, patToResend => { return (
-                                    _.trim(_.get(patToResend,"ssin","something")) === _.trim(_.get(pat,"ssin","else")) &&
-                                    _.trim(_.get(patToResend,"finalInsurability.identificationNumber","something")) === _.trim(_.get(pat,"finalInsurability.identificationNumber","else"))
-                                )})
+                                const matchingPat = _.filter(myPatientsToResend, patToResend => _.trim(_.get(patToResend,"ssin","something")) === _.trim(_.get(pat,"ssin","else")) && _.trim(_.get(patToResend,"finalInsurability.identificationNumber","something")) === _.trim(_.get(pat,"finalInsurability.identificationNumber","else")))
                                 return _.size(matchingPat) ? matchingPat : false
                             })
                         )
@@ -5261,8 +5264,8 @@
                         if (!parseInt(_.size(this.flatRateInvoicingDataObject.patientsData) || 0)) throw new Error("no-data-to-export")
 
                         // Drop when not in use
-                        this.flatRateInvoicingDataObject.insurancesData = _.compact(_.map(this.flatRateInvoicingDataObject.insurancesData, i => !!((_.uniq(_.compact(_.map(this.flatRateInvoicingDataObject.patientsData, pat => _.get(pat, "finalInsurability.insuranceId", "")))) || []).indexOf(_.trim(i.id)) > -1) ? i : false))
-                        this.flatRateInvoicingDataObject.iosData = _.compact(_.map(this.flatRateInvoicingDataObject.iosData, i => !!((_.uniq(_.compact(_.map(this.flatRateInvoicingDataObject.insurancesData, oa => _.get(oa, "parent", ""))))).indexOf(_.trim(i.id)) > -1) ? i : false))
+                        this.flatRateInvoicingDataObject.insurancesData = _.compact(_.map(this.flatRateInvoicingDataObject.insurancesData, i => !!(_.uniq(_.compact(_.map(this.flatRateInvoicingDataObject.patientsData, pat => _.get(pat, "finalInsurability.insuranceId", "")))) || []).indexOf(_.trim(i.id)) > -1 ? i : false))
+                        this.flatRateInvoicingDataObject.iosData = _.compact(_.map(this.flatRateInvoicingDataObject.iosData, i => !!(_.uniq(_.compact(_.map(this.flatRateInvoicingDataObject.insurancesData, oa => _.get(oa, "parent", ""))))).indexOf(_.trim(i.id)) > -1 ? i : false))
 
                         this._setLoadingMessage({message: this.localize('mhListing.spinner.step_5_done', this.language),icon: "check-circle",updateLastMessage: true,done: true});
                         this._setLoadingMessage({message: this.localize('mhInvoicing.spinner.step_4', this.language),icon: "arrow-forward"});
