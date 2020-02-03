@@ -584,6 +584,7 @@
                         patientIntervention: Number(0.00).toFixed(2),
                         doctorSupplement: Number(0.00).toFixed(2),
                         units: 1,
+                        archived: false,
                         canceled: false,
                         accepted: false,
                         pending: true,
@@ -759,6 +760,20 @@
                 });
             }
 
+            _OLD_flagInvoicesToAddFromTimelineAsAdded(exportDate) {
+
+                let foundMessages = [];
+                let promMessages = Promise.resolve([]);
+                let promInvoices = Promise.resolve([]);
+
+                return this.getMessagesOfInvoicesToAddFromTimelineByMaxExportDate(exportDate)
+                    .then(x => foundMessages = x)
+                    .then(() => _.chain(foundMessages).map("invoiceIds").flatten().compact().uniq().value())
+                    .then(invoiceIds => !_.size(invoiceIds) ? null : invoiceIds.map(invoiceId => { promInvoices = promInvoices.then(promisesCarrier => !_.trim(invoiceId) ? Promise.resolve() : this.api.invoice().deleteInvoice(invoiceId).then(x => _.concat(promisesCarrier, x)).catch(()=>Promise.resolve())) }))
+                    .then(() => foundMessages.map(msg => { promMessages = promMessages.then(promisesCarrier => !_.trim(_.get(msg,"id","")) ? Promise.resolve() : this.api.message().modifyMessage(_.merge(msg, {transportGuid:"MH:FLATRATE:INVOICE-GOT-ADDED"})).then(x => _.concat(promisesCarrier, x)).catch(()=>Promise.resolve())) }))
+                    .catch(()=>Promise.resolve())
+            }
+
             getMessagesOfInvoicesToAddFromTimelineByMaxExportDate(exportDate) {
 
                 const userHcpId = _.trim(_.get(this,"user.healthcarePartyId"))
@@ -796,15 +811,18 @@
 
             flagInvoicesToAddFromTimelineAsAdded(exportDate) {
 
-                let foundMessages = [];
                 let promMessages = Promise.resolve([]);
-                let promInvoices = Promise.resolve([]);
 
+                // previous "transportGuid" = MH:FLATRATE:INVOICE-TO-ADD
                 return this.getMessagesOfInvoicesToAddFromTimelineByMaxExportDate(exportDate)
-                    .then(x => foundMessages = x)
-                    .then(() => _.chain(foundMessages).map("invoiceIds").flatten().compact().uniq().value())
-                    .then(invoiceIds => !_.size(invoiceIds) ? null : invoiceIds.map(invoiceId => { promInvoices = promInvoices.then(promisesCarrier => !_.trim(invoiceId) ? Promise.resolve() : this.api.invoice().deleteInvoice(invoiceId).then(x => _.concat(promisesCarrier, x)).catch(()=>Promise.resolve())) }))
-                    .then(() => foundMessages.map(msg => { promMessages = promMessages.then(promisesCarrier => !_.trim(_.get(msg,"id","")) ? Promise.resolve() : this.api.message().modifyMessage(_.merge(msg, {transportGuid:"MH:FLATRATE:INVOICE-GOT-ADDED"})).then(x => _.concat(promisesCarrier, x)).catch(()=>Promise.resolve())) }))
+                    .then(foundMessages => foundMessages.map(msg => {
+                        promMessages = promMessages.then(promisesCarrier => !_.trim(_.get(msg,"id","")) ?
+                            Promise.resolve() :
+                            this.api.message().modifyMessage(_.merge(msg, {transportGuid:"MH:FLATRATE:INVOICE-GOT-ADDED"}))
+                                .then(x => _.concat(promisesCarrier, x))
+                                .catch(()=>_.concat(promisesCarrier, {}))
+                        )
+                    }))
                     .catch(()=>Promise.resolve())
             }
 
