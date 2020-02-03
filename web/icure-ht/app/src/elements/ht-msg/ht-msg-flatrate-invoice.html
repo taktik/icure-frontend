@@ -2304,7 +2304,6 @@
             }
 
             _getInsuranceTitularyInfo(inputPatientsList=false) {
-                //this.api.setPreventLogging()
                 return new Promise(resolve =>{
                     const insuranceTitularyIds = _.compact(_.uniq(_.filter( (inputPatientsList?inputPatientsList:this.flatRateAllPatients), (i)=>{ return _.trim(_.get(i, "titularyId", "")) }).map(i=>i.titularyId) ));
                     return !_.size(insuranceTitularyIds) ? resolve((inputPatientsList?inputPatientsList:this.flatRateAllPatients)) : this.api.patient().getPatientsWithUser(this.user, new models.ListOfIdsDto({ ids: insuranceTitularyIds })).then(results => {
@@ -5066,81 +5065,111 @@
                             Promise.all(this.flatRateInvoicingDataObject.pendingInvoicesToResend.map(inv => this.api.crypto().extractCryptedFKs(inv, this.user.healthcarePartyId).then(ids => [inv, ids.extractedKeys[0]]).catch(e=>{console.log(e); console.log("Could not extractCryptedFKs for invoices to resend");})))
                                 .then(invAndIdsPat => this.api.patient().getPatientsWithUser(this.user,new models.ListOfIdsDto({ids: _.uniq(invAndIdsPat.map(x => x[1]))})).then(pats => invAndIdsPat.map(it => [it[0], pats.find(p => p.id === it[1])])).catch(e=>{console.log(e); console.log("Could not get getPatientsWithUser for invoices to resend");}))
                                 .then(invoicesAndPatient=>{
-                                    invoicesAndPatient = _.map(invoicesAndPatient, invAndPat => {
+                                    invoicesAndPatient = _.compact(_.map(invoicesAndPatient, invAndPat => {
                                         let tempPat = _.cloneDeep(invAndPat[1])
-                                        tempPat.patientToBeResent = true
                                         tempPat.invoiceToBeResent = _.get(_.cloneDeep(invAndPat),"[0]",{})
                                         tempPat.ssin = _.trim(_.get(tempPat,"ssin","")).replace(/[^\d]/gmi,"")
                                         tempPat.lastName = (tempPat.lastName||"").toUpperCase()
                                         tempPat.firstName = (tempPat.firstName||"").toUpperCase()
                                         tempPat.dateOfBirth = (tempPat.dateOfBirth?moment(tempPat.dateOfBirth+"", "YYYYMMDD").format('DD/MM/YYYY'):"")
-                                        tempPat.finalInsurability = _.get(
-                                            _.filter(
-                                                tempPat.insurabilities,
-                                                (ins) => {
-                                                    return ins &&
-                                                        _.size(ins) &&
-                                                        !!_.trim(_.get( ins, "insuranceId", "" )) &&
-                                                        _.trim(_.get(ins, "parameters.tc1", "")).length === 3 &&
-                                                        _.trim(_.get(ins, "parameters.tc2", "")).length === 3 &&
-                                                        ( _.trim(_.get(ins, "parameters.tc1", "")) + _.trim(_.get(ins, "parameters.tc2", "")) !== "000000" ) &&
-                                                        // !!_.trim(_.get( ins, "identificationNumber", "" ) ) &&
-                                                        (
-                                                            moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isBefore( moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD") ) ||
-                                                            moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isSame(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
-                                                            !parseInt(_.get(ins, "startDate", 0))
-                                                        ) &&
-                                                        (
-                                                            moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isAfter(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
-                                                            moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isSame(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
-                                                            !parseInt(_.get(ins, "endDate", 0))
-                                                        ) &&
-                                                        // When resending a corrective invoice, make sure we match PAT's INS to whom original invoice was sent to
-                                                        _.trim(_.get(tempPat,"invoiceToBeResent.recipientId","")) === _.trim(_.get( ins, "insuranceId", "" ))
-                                                }
-                                            ), "[0]", {}
+                                        tempPat.finalInsurability = _.find(
+                                            tempPat.insurabilities,
+                                            (ins) => {
+                                                return ins &&
+                                                    _.size(ins) &&
+                                                    !!_.trim(_.get( ins, "insuranceId", "" )) &&
+                                                    _.trim(_.get(ins, "parameters.tc1", "")).length === 3 &&
+                                                    _.trim(_.get(ins, "parameters.tc2", "")).length === 3 &&
+                                                    ( _.trim(_.get(ins, "parameters.tc1", "")) + _.trim(_.get(ins, "parameters.tc2", "")) !== "000000" ) &&
+                                                    // !!_.trim(_.get( ins, "identificationNumber", "" ) ) &&
+                                                    (
+                                                        moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isBefore( moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD") ) ||
+                                                        moment(_.get(ins, "startDate"+"", 0), 'YYYYMMDD').isSame(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
+                                                        !parseInt(_.get(ins, "startDate", 0))
+                                                    ) &&
+                                                    (
+                                                        moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isAfter(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
+                                                        moment(_.get(ins, "endDate"+"", 0), 'YYYYMMDD').isSame(moment(_.trim(_.get(tempPat,"invoiceToBeResent.invoiceDate",0)),"YYYYMMDD")) ||
+                                                        !parseInt(_.get(ins, "endDate", 0))
+                                                    )
+
+                                                    // 20200203 - Don't do that anymore, it would prevent errors from getting fixed. The correct way to reconcile an INVOICE vs. an INS is based on invoice's date and INS' date
+                                                    // When resending a corrective invoice, make sure we match PAT's INS to whom original invoice was sent to
+                                                    // _.trim(_.get(tempPat,"invoiceToBeResent.recipientId","")) === _.trim(_.get( ins, "insuranceId", "" ))
+                                            }
                                         )
                                         tempPat.insurancePersonType = !_.trim( _.get( tempPat, "finalInsurability.titularyId", "" )) ? "T" : ( moment().diff(moment(_.get(tempPat, "dateOfBirth"+"", "0")+"", "DD/MM/YYYY"), 'years') < 18 ) ? "E" : "C"
                                         tempPat.titularyId = _.trim( _.get( tempPat, "finalInsurability.titularyId", "" ))
                                         invAndPat[1] = tempPat
-                                        return invAndPat
-                                    })
+                                        // Make sure patient has a valid INS ("finalInsurability" corresponds to invoice date) for that invoice, otherwise drop (invoice can't be resent when it has nos valid insurance to related to)
+                                        return !_.size(_.get(tempPat,"finalInsurability",[])) ? false : invAndPat
+                                    }))
                                     this.flatRateInvoicingDataObject.pendingInvoicesAndPatToResend = invoicesAndPatient
                                     return { myPatients: _.compact(myPatients), myPatientsToResend: _.compact(_.map(invoicesAndPatient,x=>x[1])) }
                                 })
                     }) //4
                     .then(patsAndPatsToResend=>{
+
+                        // PATS of mine, to be invoiced this month
                         let myPatients = patsAndPatsToResend.myPatients
-                        let myPatientsToResend = _.cloneDeep(patsAndPatsToResend.myPatientsToResend)
-                        let resolvedPatientsToBeResent = []
-                        const commonPatientsBetweenExportsWithSameIns = _.compact(
-                            _.map(myPatients, pat => {
-                                const matchingPat = _.filter(myPatientsToResend, patToResend => _.trim(_.get(patToResend,"ssin","something")) === _.trim(_.get(pat,"ssin","else")) && _.trim(_.get(patToResend,"finalInsurability.identificationNumber","something")) === _.trim(_.get(pat,"finalInsurability.identificationNumber","else")))
-                                return _.size(matchingPat) ? matchingPat : false
+
+                        // PATS of previous invoices (either rejected + corrected OR from PAT's timeline)
+                        const myPatientsToResend = _.cloneDeep(patsAndPatsToResend.myPatientsToResend)
+
+                        // If same PAT of same INS -> collect all invoicing codes under 1! invoice
+                        // If same PAT with different INS -> duplicate PAT with all invoicing codes of THAT INS (and append invoicing codes when already existing)
+                        // To figure it out (in case of a resent) -> look at invoice's "invoiceDate" and reconcile vs. PAT's INS of that time (*)
+
+                        // At this stage, 1+ the same patient could be present in myPatientsToResend but they'll all have 1! "invoiceToBeResent"
+                        // At this stage and because of previous step, PAT's "finalInsurability" already matches the invoice.sendDate it should be sent to (the correct INS based on date reconciliation)
+                        _.map(myPatientsToResend, patToResend => {
+                            const patWithThatIns = _.find(myPatients, pat => { return pat &&
+                                _.trim(_.get(pat,"ssin","")) === _.trim(_.get(patToResend,"ssin","")) &&
+                                _.trim(_.get(pat,"finalInsurability.insuranceId","")) === _.trim(_.get(patToResend,"finalInsurability.insuranceId",""))
                             })
-                        )
-                        _.map(commonPatientsBetweenExportsWithSameIns, commonPat=>{
-                            myPatients = _.map(myPatients, existingPat => {
-                                return _.trim(_.get(existingPat,"ssin","something"))!== _.trim(_.get(commonPat,"[0].ssin","else")) ?
-                                    existingPat :
-                                    _.merge(existingPat,{
-                                        invoiceToBeResent: _.map(_.compact(_.map(commonPat,"invoiceToBeResent")), inv => { inv.invoicingCodes = _.map(inv.invoicingCodes, ic => {ic.pending=false; return ic;}); return inv;}),
-                                        patientToBeResent: true,
-                                        patientIsInCurrentAndPreviousExport: true
-                                    })
-                            })
-                            _.remove(myPatientsToResend, i=> _.trim(_.get(i,"ssin","something")) === _.trim(_.get(commonPat,"[0].ssin","else")) )
+                            if(_.size(patWithThatIns)) { patWithThatIns.invoiceToBeResent = _.concat((patWithThatIns.invoiceToBeResent||[]), patToResend.invoiceToBeResent) }
+                            else {patToResend.invoiceToBeResent = [patToResend.invoiceToBeResent]; myPatients.push(patToResend); }
                         })
 
-                        const nonCommonPatientsToAdded = _.compact( _.map( _.map(myPatientsToResend, "id"), patId => {
-                            if( resolvedPatientsToBeResent.indexOf(patId) > -1 ) { return false; } else { resolvedPatientsToBeResent.push(patId); }
-                            let singlePat = _.find(myPatientsToResend, {id:patId})
-                            singlePat.invoiceToBeResent = _.map(_.compact(_.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent")), inv => { inv.invoicingCodes = _.map(inv.invoicingCodes, ic => {ic.pending=false; return ic;}); return inv;})
-                            singlePat.patientToBeResent = true
-                            singlePat.patientIsInCurrentAndPreviousExport = false
-                            return singlePat
-                        }))
-                        if(!!parseInt(_.size(nonCommonPatientsToAdded))) myPatients = _.concat(myPatients,nonCommonPatientsToAdded)
+
+
+
+                        // let resolvedPatientsToBeResent = []
+                        //
+                        // const commonPatientsBetweenExportsWithSameIns = _.compact(
+                        //     _.map(myPatients, pat => {
+                        //         const matchingPat = _.filter(myPatientsToResend, patToResend => _.trim(_.get(patToResend,"ssin","something")) === _.trim(_.get(pat,"ssin","else")) && _.trim(_.get(patToResend,"finalInsurability.identificationNumber","something")) === _.trim(_.get(pat,"finalInsurability.identificationNumber","else")))
+                        //         return _.size(matchingPat) ? matchingPat : false
+                        //     })
+                        // )
+                        //
+                        // _.map(commonPatientsBetweenExportsWithSameIns, commonPat=>{
+                        //     myPatients = _.map(myPatients, existingPat => {
+                        //         return _.trim(_.get(existingPat,"ssin","something"))!== _.trim(_.get(commonPat,"[0].ssin","else")) ?
+                        //             existingPat :
+                        //             _.merge(existingPat,{
+                        //                 invoiceToBeResent: _.map(_.compact(_.map(commonPat,"invoiceToBeResent")), inv => { inv.invoicingCodes = _.map(inv.invoicingCodes, ic => {ic.pending=false; return ic;}); return inv;}),
+                        //             })
+                        //     })
+                        //     _.remove(myPatientsToResend, i=> _.trim(_.get(i,"ssin","something")) === _.trim(_.get(commonPat,"[0].ssin","else")) )
+                        // })
+                        //
+                        // const nonCommonPatientsToAdded = _.compact( _.map( _.map(myPatientsToResend, "id"), patId => {
+                        //     if( resolvedPatientsToBeResent.indexOf(patId) > -1 ) { return false; } else { resolvedPatientsToBeResent.push(patId); }
+                        //     let singlePat = _.find(myPatientsToResend, {id:patId})
+                        //     singlePat.invoiceToBeResent = _.map(_.compact(_.map(_.filter(myPatientsToResend, {id:patId}), "invoiceToBeResent")), inv => { inv.invoicingCodes = _.map(inv.invoicingCodes, ic => {ic.pending=false; return ic;}); return inv;})
+                        //     return singlePat
+                        // }))
+                        //
+                        // if(!!parseInt(_.size(nonCommonPatientsToAdded))) myPatients = _.concat(myPatients,nonCommonPatientsToAdded)
+
+
+
+
+                        // Todo: refactor this:
+                        // Either is not a resent -> can let go as below
+                        // Or it is, at which point valid MHC should be evaluated vs. ALL 1+ "invoiceToBeResent" date (discard invoiceToBeResent when non-legit)
+                        // Should we not have any "invoiceToBeResent" anymore -> either drop PAT (should it not exist in patsAndPatsToResend.myPatients) OR keep PAT when already existing in patsAndPatsToResend.myPatients
 
                         // Find valid MHContract or drop entry
                         myPatients = _.compact(
@@ -5177,6 +5206,9 @@
                             })
                         )
 
+
+
+
                         // Assign startOfCoverage if not set yet
                         _.map( myPatients, pat => {
                             pat.finalMedicalHouseContracts = parseInt(_.get(pat.finalMedicalHouseContracts, "startOfCoverage", 0)) ?
@@ -5190,7 +5222,8 @@
                         this.flatRateInvoicingDataObject.patientsData = myPatients
                         this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_3_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_3',this.language), icon:"arrow-forward"});
-                        return this._getInsuranceTitularyInfo(myPatients).then(x=>x)
+                        return this._getInsuranceTitularyInfo(myPatients)
+
                     }) //5
                     .then((myPatientsWithInsuranceTitularyInfo)=>{
                         this.flatRateInvoicingDataObject.patientsData = myPatientsWithInsuranceTitularyInfo
@@ -5277,13 +5310,13 @@
 
                             const typeList = list[0]
                             const patientList = list[1]
-                            // Lists 5 & 6 = NEW patients with respectively no tryout ; tryout
-                            // List 8 = old / regular patients
                             const codesList = typeList === "list5" || typeList === "list6" ?
+                                // Lists 5 & 6 = NEW patients with respectively no tryout ; tryout
                                 _.concat(
                                     _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")))}), "valorisations"),
                                     _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').subtract(1,"month").format("YYYYMMDD")))}), "valorisations")
                                 ) :
+                                // List 8 = old / regular patients
                                 _.get(_.find(this.flatRateInvoicingDataObject.hcpValorisationsByMonth, {month:parseInt(_.trim(moment(_.trim(this.flatRateInvoicingDataObject.exportedDate), "YYYYMMDD").startOf('month').format("YYYYMMDD")))}), "valorisations")
 
                             return patientList.map(pat => {
