@@ -2626,7 +2626,6 @@
 
             _getExportPdfHeader() {
 
-                // noinspection CssUnusedSymbol
                 return `<html>
                             <head>
                                 <style>
@@ -3213,55 +3212,53 @@
                 let prom = Promise.resolve([])
                 const allPats = _.flatMap(this.flatRateInvoicingDataObject.listsData)
                 const patsCount = _.size(allPats)
-                // TOP-418
-                // const parentInsuranceIds = allPats.reduce((acc,pat) => { const parentId = this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent; if (!acc.includes(parentId)) { acc.push(parentId) }; return acc}, [])
                 const parentInsuranceIds = _.compact(_.uniq(_.map( this.flatRateInvoicingDataObject.insurancesData, i=>_.get(i,"parent", false ))))
+                const childrenInsurancesData = _.compact(_.uniqBy(this.flatRateInvoicingDataObject.insurancesData, 'id'))
 
-                // TOP-435
-                const childrenInsurancesData = _.compact(_.uniqBy(_.map( this.flatRateInvoicingDataObject.insurancesData, i=>i), 'id'))
+                return this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : parentInsuranceIds})).then(parentInsurances => {
+                    allPats.forEach((pat,loopIndex) => {
+                        prom = prom.then(pats =>
+                            this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
+                                .then(secretForeignKeys => {
 
-                return this.api.insurance().getInsurances(new models.ListOfIdsDto({ids : parentInsuranceIds})).then(
-                    parentInsurances => {
-                        allPats.forEach((pat,loopIndex) => {
-                            prom = prom.then(pats =>
-                                this.api.crypto().extractDelegationsSFKs(pat, this.user.healthcarePartyId)
-                                    .then(secretForeignKeys => {
+                                    // TOP-435
+                                    const insParent = _.get(_.filter( parentInsurances, parentIns=> _.trim(_.get(parentIns, "id", "")) === _.trim(_.get(_.get(_.filter(childrenInsurancesData, i=>_.trim(_.get(i,"id",""))===_.trim(_.get(pat,"finalInsurability.insuranceId", ""))), "[0]", {}), "parent", ""))), "[0]", {})
 
-                                        // TOP-435
-                                        // const insParent = parentInsurances.find(i => i.id === this.flatRateInvoicingDataObject.insurancesData.find(ins => ins.id === pat.finalInsurability.insuranceId).parent)
-                                        const insParent = _.get(_.filter( parentInsurances, parentIns=> _.trim(_.get(parentIns, "id", "")) === _.trim(_.get(_.get(_.filter(childrenInsurancesData, i=>_.trim(_.get(i,"id",""))===_.trim(_.get(pat,"finalInsurability.insuranceId", ""))), "[0]", {}), "parent", ""))), "[0]", {})
+                                    return retry.retry(() => (this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", _.trim(_.get(pat,"finalInsurability.insuranceId","")), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)))
+                                        .then(invoices => !_.trim(_.get(invoices, "[0].id", "")) ?
+                                            this.api.invoice().newInstance(this.user, pat, invoices[0]).then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':')))) :
+                                            Promise.resolve(invoices[0])
+                                        )
+                                        .then(newInvoice => {
 
-                                        return retry.retry(() => (this.api.invoice().appendCodes(this.user.id, "patient", "cdrom", (pat.finalInsurability && pat.finalInsurability.insuranceId ? pat.finalInsurability.insuranceId : ''), secretForeignKeys.extractedKeys.join(","), null, (365*2), pat.invoicingCodes)))
-                                            .then(invoices =>
-                                                !_.trim(_.get(invoices, "[0].id", "")) ? this.api.invoice().newInstance(this.user, pat, invoices[0])
-                                                    .then(inv => retry.retry(() => (this.api.invoice().createInvoice(inv, 'invoice:' + this.user.healthcarePartyId + ':' + this.getChangeParentCode306(insParent && insParent.code ? insParent.code : '000') + ':'))))
-                                                    .then(inv => {/*console.log(inv);*/ return inv}) : Promise.resolve(invoices[0]))
-                                            .then(newInvoice => {
+                                            if(this.invoiceHasDoubles(newInvoice)){
 
-                                                if(this.invoiceHasDoubles(newInvoice)){
-                                                    //only remove the doubles
-                                                    pat.invoicingCodes.forEach(pic => {
-                                                      newInvoice.invoicingCodes = _.remove(newInvoice.invoicingCodes, ic => ic.dateCode === pic.dateCode && ic.code === pic.dateCode);
-                                                    });
-                                                    newInvoice.invoicingCodes = newInvoice.invoicingCodes.concat(pat.invoicingCodes);
-                                                    return this.api.invoice().modifyInvoice(newInvoice).then(inv =>this.api.register(inv,'invoice')).then(newInvoiceMod => {
+                                                // Drop duplicated codes
+                                                pat.invoicingCodes.forEach(pic => { newInvoice.invoicingCodes = _.remove(newInvoice.invoicingCodes, ic => ic.dateCode === pic.dateCode && ic.code === pic.dateCode); });
+                                                newInvoice.invoicingCodes = newInvoice.invoicingCodes.concat(pat.invoicingCodes);
+
+                                                // && Update invoice
+                                                return this.api.invoice().modifyInvoice(newInvoice).then(inv =>this.api.register(inv,'invoice'))
+                                                    .then(newInvoiceMod => {
                                                         pat.invoices = [newInvoiceMod]
                                                         this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
                                                         return _.concat(pats, [pat])
                                                     });
-                                                } else {
-                                                    pat.invoices = [newInvoice]
-                                                    this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
-                                                    return _.concat(pats, [pat])
-                                                }
 
-                                            })
-                                        }
-                                    ))
-                        })
-                        return prom
-                    }
-                )
+                                            } else {
+
+                                                pat.invoices = [newInvoice]
+                                                this._setLoadingMessage({ message:this.localize('mhInvoicing.spinner.step_4',this.language) + " " + (loopIndex+1) + "/" + patsCount, icon:"arrow-forward", updateLastMessage: true, done:false});
+                                                return _.concat(pats, [pat])
+
+                                            }
+
+                                        })
+                                })
+                        )
+                    })
+                    return prom
+                })
             }
 
             invoiceHasDoubles(inv){
@@ -4321,7 +4318,7 @@
                                         //      -> original invoice.correctiveInvoiceId = the duplicated invoice
                                         //      -> original invoice gets duplicated with invoicingCodes pending = true & resent = true (all others are false)
                                         //      -> duplicated invoices gets as correctedInvoiceId = the original invoice id
-                                        //      -> here is the problem: if duplicated invoice has no sentDate, appendCode is gonna use it upon next ran which is wrong (as it should only be picked up when corrected)
+                                        //      -> here is the problem: if duplicated invoice has no sentDate, appendCode is gonna use it upon next run which is wrong (as it should only be picked up when corrected)
                                         //      -> Work around = keep the original "sentDate" on duplicated invoice so that it won't be picked up and ONLY drop it by the time it's flagged as corrected.
                                         // "sentDate",
 
@@ -5127,8 +5124,14 @@
                                 _.trim(_.get(pat,"ssin","")) === _.trim(_.get(patToResend,"ssin","")) &&
                                 _.trim(_.get(pat,"finalInsurability.insuranceId","")) === _.trim(_.get(patToResend,"finalInsurability.insuranceId",""))
                             })
-                            if(_.size(patWithThatIns)) { patWithThatIns.invoiceToBeResent = _.concat((patWithThatIns.invoiceToBeResent||[]), patToResend.invoiceToBeResent) }
-                            else {patToResend.invoiceToBeResent = [patToResend.invoiceToBeResent]; myPatients.push(patToResend); }
+                            if(_.size(patWithThatIns)) {
+                                patWithThatIns.invoiceToBeResent = _.concat((patWithThatIns.invoiceToBeResent||[]), patToResend.invoiceToBeResent)
+                            }
+                            else {
+                                patToResend.isResent = true;
+                                patToResend.invoiceToBeResent = [patToResend.invoiceToBeResent];
+                                myPatients.push(patToResend);
+                            }
                         })
 
 
@@ -5248,6 +5251,7 @@
                                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_4_done',this.language), icon:"check-circle", updateLastMessage: true, done:true});
                                 this._setLoadingMessage({ message:this.localize('mhListing.spinner.step_5',this.language), icon:"arrow-forward"});
                                 return {
+
                                     // "Old" patients
                                     // Start of month of start cover must be BEFORE (start of export month -1 month)
                                     // Ie: start of coverage began 2+ month before exported month
@@ -5282,6 +5286,7 @@
                                             (!!_.get(pat, "finalMedicalHouseContracts.gp", false) || !!_.get(pat, "finalMedicalHouseContracts.kine", false) || !!_.get(pat, "finalMedicalHouseContracts.nurse", false))
                                         )
                                     })
+
                                 }
                             })
 
@@ -5350,8 +5355,7 @@
                                     invoicingCodes: _.compact(_.concat(
                                         additionalInvoicingCodes||[],
 
-                                        // Say we generate month 01
-                                        // Then we generate month 02
+                                        // Say we generate month 01, then we generate month 02
                                         // Then we flag invoices of month 01 as rejected + corrected
                                         // Then we re-run month 02
                                         // Export should only hold pat X for month 01 but not for month 02
