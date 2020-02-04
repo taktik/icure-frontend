@@ -1047,6 +1047,12 @@
                                     <template is="dom-if" if="[[!month.warnings.suspended]]">
                                         <div class="listIcon"></div>
                                     </template>
+                                    <template is="dom-if" if="[[month.warnings.noMhc]]">
+                                        <iron-icon icon="av:skip-previous" class="listIcon"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[!month.warnings.noMhc]]">
+                                        <div class="listIcon"></div>
+                                    </template>
                                 </div>
                                 <div class="td">
 
@@ -1074,6 +1080,9 @@
                                 </div>
                                 <div class="td span-3" style="flex-grow: 3;">
                                     [[localize(month.warnings.suspensionreason, month.warnings.suspensionreason, language)]]
+                                    <template is="dom-if" if="[[month.warnings.noMhc]]">
+                                        [[localize('end-flatrate','End of contract',language)]]
+                                    </template>
                                 </div>
                             </div>
                             <template is="dom-if" if="[[_hasInvoices(month)]]">
@@ -1164,7 +1173,6 @@
                                     </div>
                                     <div class="td">
                                         <paper-icon-button class="menu-item-icon menu-item-icon--add" icon="icons:add" on-tap="_createInvoice" data-month$="[[month]]"></paper-icon-button>
-<!--                                        <paper-button on-tap="_createInvoice" data-month$="[[month]]">ADD</paper-button>-->
                                     </div>
                                     <div class="td">
 
@@ -1192,38 +1200,6 @@
                         </template>
                     </div>
                 </div>
-
-<!--                <template is="dom-repeat" items="[[invoices]]">-->
-<!--                    <paper-material class="layout vertical invoice-item invoice&#45;&#45;big" id="[[item.id]]">-->
-<!--                        <paper-item class="invoice-text">-->
-<!--                            <div class="invoice-text-row invoice-text-date">-->
-<!--                                <label>N° [[item.invoiceReference]]</label>-->
-<!--                                <label>[[_formatInvoiceDate(item.invoiceDate)]]</label>-->
-<!--                            </div>-->
-<!--                            <div class="invoice-text-row grey">-->
-<!--                                <h4>[[getInvoiceType(item.invoiceType)]] [[getSentMediumType(item.sentMediumType)]]</h4>-->
-<!--                                <p>-->
-<!--                                    <template is="dom-repeat" items="[[item.invoicingCodes]]">-->
-<!--                                        [[item.code]],-->
-<!--                                    </template>-->
-<!--                                </p>-->
-<!--                                <div class="invoiceDateInfo">-->
-
-<!--                                    <template is="dom-if" if="[[_ifStatusDateExist(item.sentDate)]]">-->
-<!--                                        <iron-icon icon="vaadin:paperplane" class="listIcon"></iron-icon> <span>[[_formatInvoiceDate(item.sentDate)]]</span>-->
-<!--                                    </template>-->
-<!--                                </div>-->
-<!--                            </div>-->
-<!--                            <div class="invoice-text-row label-container">-->
-
-<!--                            </div>-->
-<!--                        </paper-item>-->
-<!--                    </paper-material>-->
-<!--                </template>-->
-<!--            </paper-listbox>-->
-
-
-<!--            <paper-button on-tap="_generateInvoiceTest">Generate Invoice Test</paper-button>-->
             </div>
         </div>
         <ht-pat-flatrate-utils id="flatrateUtils" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" i18n="[[i18n]]" resources="[[resources]]" no-print></ht-pat-flatrate-utils>
@@ -1717,7 +1693,8 @@
             }
 
             _showAdd(month) {
-                return !this._hasInvoices(month) && month.warnings.batchForMonth;
+                //TODO: remove ' true ;//'
+                return !this._hasInvoices(month) && true ;// month.warnings.batchForMonth;
             }
 
             _generateTimeLine(){
@@ -1742,8 +1719,8 @@
                         const startOfCoverage = mhc.startOfCoverage;
                         const endOfCoverage = mhc.endOfCoverage ? mhc.endOfCoverage : parseInt(moment().startOf('month').format("YYYYMMDD"));
                         const startMoment = this.api.moment(startOfCoverage);
-                        const curMoment = this.api.moment(endOfCoverage);
-                        const endMoment = this.api.moment(endOfCoverage);
+                        const curMoment = this.api.moment(endOfCoverage).endOf('month').add(1, 'd');
+                        const endMoment = this.api.moment(endOfCoverage).endOf('month').add(1, 'd');
                         console.log('start, end', startOfCoverage, endOfCoverage);
                         this.set('months', []);
                         let aMonths = [];
@@ -1764,7 +1741,6 @@
                         });
 
                         if (invoices) {
-
                             aMonths.forEach(m => {
                                 m.medicalHouseContract = mhc;
                                 const dateCode = parseInt(m.date.format("YYYYMMDD"));
@@ -1785,13 +1761,10 @@
                                     invClone.Insurance = insurancesData.find(ins => ins.id === inv.recipientId);
                                     invClone.InsuranceCode = invClone.Insurance.code;
                                     invClone.InsuranceName = invClone.Insurance.finalName;
-
                                     invClone.warnings = {};
                                     invClone.warnings.mutDif = !!(monthInsCode && monthInsCode !== invClone.InsuranceCode);
-
                                     //get all invoicingcode groups : dateCode-status
                                     const icGroups = _.uniq(invClone.invoicingCodes.filter(ic => ic.dateCode === dateCode).map(ic => ic.group));
-
                                     icGroups.forEach(icGroup => {console.log("icGroup", icGroup)
                                         //m, k, i
                                         const invCloneBis = _.cloneDeep(invClone);
@@ -1814,7 +1787,6 @@
                                         //reference
                                         //reason/error
                                         invCloneBis.comment = invCloneBis.error ? invCloneBis.error : "";
-
                                         //link with messages
                                         invCloneBis.messages = messages.filter(msg => msg.invoiceIds.includes(invCloneBis.id));
                                         invCloneBis.DateEnvoi = invCloneBis.messages && invCloneBis.messages.length > 0 ? this.api.moment(parseInt(invCloneBis.messages[0].metas.exportedDate)).format("MM/YYYY") : "--/----";
@@ -1832,14 +1804,10 @@
                             m.warnings.batchForMonth = (msgs && msgs.length > 0);
                             m.warnings.notInvoiced = !(m.data.invoices && m.data.invoices.length > 0);
                             m.warnings.noInsurability = m.data.insurability.InsuranceCode === "---";
-
-                            console.log("this months MHC", m.data.mhc);
-                            // startOfSuspension: 20180101
-                            // endOfSuspension: 20181231
-                            // suspensionReason: "notInsured"
-
                             m.warnings.suspended = m.data.mhc && m.data.mhc.startOfSuspension && m.data.mhc.startOfSuspension <= dateCode && (!m.data.mhc.endOfSuspension || (m.data.mhc.endOfSuspension >= dateCode));
                             m.warnings.suspensionreason = m.warnings.suspended && m.data.mhc.suspensionReason ? m.data.mhc.suspensionReason : "";
+
+                            m.warnings.noMhc =  (m.data.mhc && m.data.mhc.endOfCoverage <= dateCode) || (m.data.mhc && m.data.mhc.startOfCoverage > dateCode);
 
                             //TODO:
                             //m.warnings.mutDif = false;
@@ -1850,7 +1818,6 @@
 
                         });
                         this.set('months', aMonths);
-                        //console.log(JSON.stringify(aMonths));
                     }
                     else{
                         this.set('months', []);
