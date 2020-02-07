@@ -510,7 +510,7 @@ export class ProseEditor extends Polymer.Element {
           'Mod-Shift-k' : this.clearMarks()
         })),
         selectionTrackingPlugin,
-        paginationPlugin,
+        //paginationPlugin,
         paragraphPlugin,
         templateTrackerPlugin
       ]
