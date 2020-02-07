@@ -66,7 +66,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../dynamic-form/health-problem-selector.html">
 <link rel="import" href="dialogs/ht-pat-charts-dialog.html">
 <link rel="import" href="dialogs/ht-pat-action-plan-dialog.html">
-<link rel="import" href="dialogs/ht-pat-list-plan-dialog.html">
 <link rel="import" href="dialogs/ht-pat-prescription-dialog.html">
 <link rel="import" href="dialogs/ht-pat-preventive-acts-dialog.html">
 <link rel="import" href="../dynamic-form/dialogs/medication-selection-dialog.html">
@@ -2078,7 +2077,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                         <div class="btns">&nbsp;</div>
                                     </div>
                                     <template is="dom-repeat" items="[[_filterElements(familyrisks, cb_frhelb_sort, cb_frhelb_showInactive)]]" as="risk">
-                                        <ht-pat-he-tree-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" hcp="[[globalHcp]]" user="[[user]]" resources="[[resources]]" refresher="[[refresher]]" contacts="[[getContacts(refresher)]]" id="[[getHeId(risk)]]" he="[[risk]]" selected="[[_isItemInArray(risk,selectedHealthcareElements,selectedHealthcareElements.*)]]" on-selection-change="handleSelectionChange" on-edit-he="_editHealthElement" on-activate-he="_activate" on-archive-he="_archive" on-inactivate-he="_inactivate"></ht-pat-he-tree-detail>
+                                        <ht-pat-he-tree-detail api="[[api]]" i18n="[[i18n]]" language="[[language]]" hcp="[[globalHcp]]" user="[[user]]" resources="[[resources]]" refresher="[[refresher]]" contacts="[[getContacts(refresher)]]" id="[[getHeId(risk)]]" he="[[risk]]" family-links="[[familyLinks]]" selected="[[_isItemInArray(risk,selectedHealthcareElements,selectedHealthcareElements.*)]]" on-selection-change="handleSelectionChange" on-edit-he="_editHealthElement" on-activate-he="_activate" on-archive-he="_archive" on-inactivate-he="_inactivate"></ht-pat-he-tree-detail>
                                     </template>
                                     <!-- <template is="dom-if" if="[[familyrisks.length]]">
                                         <paper-item class="menu-item sublist-footer"><div class="one-line-menu">[[localize('add_fam_ris','Add family risk',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addHealthElement" data-label="Family risk" data-tags="CD-ITEM|familyrisk|1.0"></paper-icon-button></paper-item>
@@ -2800,10 +2799,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             </div>
         </paper-dialog>
         <ht-pat-preventive-acts-dialog id="preventiveActs" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" linkables="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" contacts="[[contacts]]" on-open-action="openActionDialog" on-create-service="_createService" on-update-service="_updateServices" services-refresher="[[servicesRefresher]]"></ht-pat-preventive-acts-dialog>
-        <ht-pat-list-plan-dialog id="listActions" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" contacts="[[contacts]]" on-open-action="openActionDialog" services-refresher="[[servicesRefresher]]"></ht-pat-list-plan-dialog>
         <ht-pat-action-plan-dialog id="planActionForm" api="[[api]]" user="[[user]]" resources="[[resources]]" language="[[language]]" i18n="[[i18n]]" linkables="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" current-contact="[[currentContact]]" on-create-service="_createService" on-update-service="_updateServices" readonly="false"></ht-pat-action-plan-dialog>
-<!--        <medication-selection-dialog id="medication-selection" api="[[api]]" i18n="[[i18n]]" language="[[language]]" medications="[[medications]]" resources="[[resources]]" selected-medication-content-with-id="{{selectedMedicationContentWithId}}" on-value-changed="_medicationValueChanged" on-display-medication-details="_displayMedicationDetails" on-new-medication="_medicationCreated"></medication-selection-dialog>-->
-<!--        <medications-selection-dialog id="medications-selection" api="[[api]]" user="[[user]]" patient="[[patient]]" i18n="[[i18n]]" language="[[language]]" medications="[[medications]]" resources="[[resources]]" selected-medication-content-with-id="{{selectedMedicationContentWithId}}" on-value-changed="_medicationValueChanged" on-display-medication-details="_displayMedicationDetails" on-new-medications="_medicationsCreated"></medications-selection-dialog>-->
         <medication-prescription-dialog
                 id="medication-prescription"
                 api="[[api]]" user="[[user]]" patient="[[patient]]"
@@ -3349,6 +3345,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         type: Array,
                         value: () => []
                     },
+                    familyLinks: {
+                        type: Array,
+                        value: () => []
+                    },
                     biometrics: {
                         type: Array,
                         value: () => [],
@@ -3483,7 +3483,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this._moreOptionsUsers = users.rows;
                     this.api.getDocumentTypes(this.resources, this.language)
                         .then(documentTypes => this.set("documentTypes", _.concat([{code: 'all', name: this.localize('all', 'All', this.language)}], documentTypes)))
-                        .then(() => this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0])
+                        .then(() => {
+                            this.shadowRoot.querySelector("#document-type").selectedItem = this.documentTypes[0]
+                            this.api.code().findCodes("be", "BE-FAMILY-LINK").then((codes) => {
+                                this.set("familyLinks", codes);
+                            })
+                        })
                 })
             }
 
@@ -3990,16 +3995,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$.planActionForm.open(svc)
             }
 
-            _cloneService(detail) {
-                const service = _.cloneDeep(detail.service);
+            _cloneService(event) {
+                const service = _.cloneDeep(event.detail.service);
                 delete service.id;
                 delete service.created;
                 delete service.modified;
-                service.valueDate = parseInt(detail.next);
+                service.valueDate = parseInt(event.detail.next);
                 let tag = service.tags.find(t => t.type == 'CD-LIFECYCLE');
                 if (tag)
                     tag.code = "pending";
-                return this.api.contact().service().newInstance(this.user, service);
+                event.detail.clone = this.api.contact().service().newInstance(this.user, service);
+                return event.detail.clone;
+            }
+
+            _updateClone(event, services) {
+                if (!event || !services) return;
+                const clone = _.get(event, "detail.clone", null);
+                if (!clone) return;
+                const service = services.find(s => s.id === clone.id);
+                if (!service) return;
+                event.detail.clone = service;
             }
 
             _hasService(object) {
@@ -4027,12 +4042,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 if (e.detail.service) {
                     services.push(this.api.contact().service().newInstance(this.user, e.detail.service));
                     if (e.detail.next)
-                        services.push(this._cloneService(e.detail));
+                        services.push(this._cloneService(e));
                 }
                 Promise.all(hes.map(he => he.id ? Promise.resolve(he) : this.contact().promoteServiceToHealthElement(he))).then(hes =>
                     //this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, this.api.contact().service().newInstance(this.user, e.detail.service), null, {}, hes.map(he => he.id), e.detail.function || undefined)
                     services.forEach(svc => this.api.contact().promoteServiceInContact(this.currentContact, this.user, allContacts, svc, null, {}, hes.map(he => he.id), e.detail.function || undefined))
-                ).then(() => this.saveContact(this.currentContact))
+                ).then(() => this._saveContactAndNotify(this.currentContact, e))
             }
 
             _updateServices(e) {
@@ -4044,7 +4059,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     // A. Insert hes
                     const contact = this.contacts.find(c => c.id === service.contactId);
                     if (e.detail.next)
-                        contact.services.push(this._cloneService(e.detail));
+                        contact.services.push(this._cloneService(e));
                     this.api.contact().promoteServiceInContact(contact, this.user, this.contacts, service, null, {}, heIds, e.detail.function || undefined)
                     // B. Remove hes
                     this.contacts.filter(c => this._hasServiceRef(c, service.id)).forEach(contact => {
@@ -4078,10 +4093,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         return this.api.contact().modifyContactWithUser(this.user, contact)
                     });
 
-                    Promise.all(promises).then(() => {
-                        console.log("contacts saved");
-                        this.saveContact(contact);
-                        this.set("refresher", this.refresher + 1);
+                    Promise.all(promises).then((contacts) => {
+                        contacts.forEach(contact => this._updateClone(e, contact.services));
+                        this._saveContactAndNotify(contact, e)
                     });
 
                     return;
@@ -4144,7 +4158,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.$.savedIndicator.classList.add("saved");
             }
 
-            saveContact(ctc, preSave, postSave, postError) {
+            saveContact(ctc, preSave, postSave, postError, event) {
                 return (preSave ? preSave() : Promise.resolve()).catch(e => console.log(e)).then(() => (ctc.rev ? this.api.contact().modifyContactWithUser(this.user, ctc) : this.api.contact().createContactWithUser(this.user, ctc))).then(c=>{
                     console.log('Registering ...',c)
                     return this.api.register(c,'contact')
@@ -4162,6 +4176,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
                     postSave && postSave(c)
 
+                    this._updateClone(event, c.services);
+                    const caller = _.get(event, "detail.caller", null)
+                    if (caller)
+                        caller.onActionChanged(event.detail);
+
                     this.set("refresher", this.refresher + 1)
 
                     return c;
@@ -4177,6 +4196,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _saveContact(event) {
                 this.saveContact(event.detail.contact, event.detail.preSave, event.detail.postSave, event.detail.postError);
+            }
+
+            _saveContactAndNotify(contact, event) {
+                this.saveContact(contact, null, null, null, event)
             }
 
             filterEvents() {
@@ -4304,16 +4327,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _getBiometrics() {
                 let biometrics = {};
-                this.contacts.forEach(contact => {
-                    contact.subContacts.forEach(subcontact => {
-                        subcontact.services.forEach(service => {
-                            this._getBiometricFromService(biometrics, service);
-                        });
-                    });
-                    contact.services.forEach(service => {
-                        this._getBiometricFromService(biometrics, service);
-                    });
-                });
+
+                const services = _.uniqBy(this.contacts.flatMap(contact => contact.services), 'id');
+                services.forEach(service => this._getBiometricFromService(biometrics, service));
+
+                // this.contacts.forEach(contact => {
+                //     contact.subContacts.forEach(subcontact => {
+                //         subcontact.services.forEach(service => {
+                //             this._getBiometricFromService(biometrics, service);
+                //         });
+                //     });
+                //     contact.services.forEach(service => {
+                //         this._getBiometricFromService(biometrics, service);
+                //     });
+                // });
 
                 const values = this._biometrics.filter(b => b.key in biometrics).flatMap(b => biometrics[b.key].map(c => { return {
                         code: c.code,
@@ -5858,9 +5885,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 const medicationArray = e.detail.medications ? e.detail.medications : [e.detail.medication];
                 Promise.all(medicationArray.map(m => {
                     if(m.options && (m.options.createMedication || !m.options.isPrescription)) {
-                        const newMedication = _.cloneDeep(m.newMedication);
+                        const newMedication = _.cloneDeep(_.omit(m.newMedication, ["id"]));
                         (this.api.contact().medicationValue(newMedication, this.language) || {endMoment: ""}).endMoment = null;
-                        ((newMedication.tags || (newMedication.tags = [])).find(tag => tag.type === "CD-ITEM") || (newMedication.tags[newMedication.tags.length] = {type: "CD-ITEM", version: "1"})).code = "medication";
+                        newMedication.tags = newMedication.tags && newMedication.tags.filter(tag => !(tag.type === "ICURE" && tag.code === "PRESC")) || [];
+                        (newMedication.tags.find(tag => tag.type === "CD-ITEM") || (newMedication.tags[newMedication.tags.length] = {type: "CD-ITEM", version: "1"})).code = "medication";
                         newMedication.label = this.localize('medication', 'medication', this.language);
                         newMedication.id = this.api.crypto().randomUuid();
                         return this.saveNewService(this.api.contact().service().newInstance(this.user, newMedication));
@@ -6303,7 +6331,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             showListPlanOfAction(e){
                 e.stopPropagation()
-                //this.$["listActions"].opened=true;
                 this.$["preventiveActs"]._openDialog();
             }
 
@@ -6405,12 +6432,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _readEid() {
-                fetch('http://127.0.0.1:16042/read')
+                fetch(`${this.api.electronHost}/read`)
                     .then((response) => {
                         return response.json()
                     })
                     .then(res => {
-                        if (res.cards[0]) {
+                        if (res && res.cards.length && res.cards[0]) {
                             this.set('cardData',res.cards[0])
                         }
                     })
@@ -7136,7 +7163,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             _getActiveMedications(){
                 const yesterday = moment().subtract(1, 'days');
                 const today = moment();
-                return this.medications.filter(s => s.tags.some(c => c.type === 'CD-ITEM' && c.code === 'medication' && !_.values(s.content).some(c => c && c.medicationValue && (c.medicationValue.endMoment && this.api.moment(c.medicationValue.endMoment).isBefore(yesterday)) || (c.medicationValue.endOfLife && this.api.moment(c.medicationValue.endOfLife).isBefore(today)))));
+                return this.medications.filter(s => s.tags.some(c => _.get(c, 'type', null) === 'CD-ITEM' && _.get(c, 'code', null) === 'medication' && !_.values(_.get(s, 'content', null)).some(c => _.get(c, 'medicationValue', null) && (_.get(c, 'medicationValue.endMoment', null) && this.api.moment(_.get(c, 'medicationValue.endMoment', null)).isBefore(yesterday)) || (_.get(c, 'medicationValue.endOfLife', null) && this.api.moment(_.get(c, 'medicationValue.endOfLife', null)).isBefore(today)))));
             }
 
         }

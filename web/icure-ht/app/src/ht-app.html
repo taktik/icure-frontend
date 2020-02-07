@@ -598,7 +598,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
         </style>
 
-        <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
+        <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" electron-host="[[electronUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
 
          <paper-item id="noehealth" class="notification-panel noehealth">[[localize('no_ehe_con','No Ehealth connection',language)]]
              <iron-icon icon="icons:warning"></iron-icon>
@@ -849,8 +849,16 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 <paper-input class="inviteHcpInput" label="[[localize('las_nam','Last name',language)]]" value="{{lastName}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('fir_nam','First name',language)]]" value="{{firstName}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('ema','Email',language)]]" value="{{email}}"></paper-input>
+                <paper-input class="inviteHcpInput" label="[[localize('phone','Phone',language)]]" value="{{phone}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('inami','NIHII',language)]]" value="{{nihii}}"></paper-input>
                 <paper-input class="inviteHcpInput" label="[[localize('ssin','SSIN',language)]]" value="{{ssin}}"></paper-input>
+                <paper-dropdown-menu label="[[localize('language','language',language)]]" selected-item="{{lang}}">
+                    <paper-listbox slot="dropdown-content" class="dropdown-content">
+                        <paper-item id="fr">[[localize('fre','French',language)]]</paper-item>
+                        <paper-item id="en">[[localize('eng','English',language)]]</paper-item>
+                        <paper-item id="nl">[[localize('dut','Deutch',language)]]</paper-item>
+                    </paper-listbox>
+                </paper-dropdown-menu>
             </div>
 
             <div class="buttons">
@@ -1218,6 +1226,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     patientOpened:{
                         type: String,
                         value : ""
+                    },
+                    phone:{
+                        type: String
+                    },
+                    lang:{
+                        type: String
                     }
                 }
             }
@@ -1268,9 +1282,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             setUrls() {
                 const params = this.route.__queryParams //_.fromPairs((this.route.path.split('?')[1] || "").split('&').map(p => p.split('=')))
-
                 this.set('icureUrl', params.icureUrl || `https://backend${window.location.href.replace(/https?:\/\/.+?(b?)\.icure\.cloud.*/,'$1')}.svc.icure.cloud/rest/v1`)
                 this.set('fhcUrl', params.fhcUrl || (window.location.href.includes('https://tzb') ? 'https://fhctz.icure.cloud' : 'https://fhcprd.icure.cloud'))
+                this.set('electronUrl', params.electronUrl || "http://localhost:16042");
+                this.set('mikronoProxy', params.mikronoProxy || 'http://localhost:16041');
 
                 this.set('defaultIcureUrl', this.icureUrl)
                 this.set('defaultFhcUrl', this.fhcUrl)
@@ -1333,7 +1348,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.set("socket",null)
                 this.api.isElectronAvailable().then(electron => {
                     if (electron) {
-                        this.set("socket",io('http://localhost:16042'))
+                        this.set("socket",io(this.api.electronHost))
 
                         this.socket.on("connect", () => {
                             console.log("connection avec le socket de electron")
@@ -1379,7 +1394,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 this.api.isElectronAvailable().then(electron => {
                     this.set("isElectron",electron)
                     if(this.isElectron){
-                        fetch('http://127.0.0.1:16042/getVersion')
+                        fetch(`${this.api.electronHost}/getVersion`)
                             .then((response) => {
                                 return response.json()
                             })
@@ -1701,7 +1716,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         this.api.isElectronAvailable().then(electron => {
                             if (electron === true) {
                                 //request electron tc.
-                                fetch('http://localhost:16042/tc', {
+                                fetch(`${this.api.electronHost}/tc`, {
                                     method: "POST",
                                     headers: {
                                         "Content-Type": "application/json; charset=utf-8"
@@ -2052,7 +2067,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     "lastName": this.lastName,
                     "firstName": this.firstName,
                     "nihii": this.nihii,
-                    "ssin": this.ssin
+                    "ssin": this.ssin,
+                    "languages":[this.lang],
+                    "addresses" : [{
+                        "addressType" : "work",
+                        "telecoms" : [{
+                            "telecomType" : "phone",
+                            "telecomNumber" : this.phone
+                        },{
+                            "telecomType" : "email",
+                            "telecomNumber" : this.email
+                        }]
+                    }]
                 }).then(hcp => {
                     this.api.user().createUser({
                         "healthcarePartyId": hcp.id,
@@ -2096,14 +2122,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 if(electron === false){
                                     window.open("https://"+mikronoUser+":"+mikronoPassword+"@"+mikronoUrl.replace("https://", "")+"/iCureShortcut.jsp?id="+this.user.id, '_blank')
                                 }else{
-                                    fetch('http://127.0.0.1:16042/mc', {
+                                    fetch(`${this.api.electronHost}/mc`, {
                                         method: "POST",
                                         headers: {"Content-Type": "application/json"},
                                         body: JSON.stringify({username:mikronoUser, password:mikronoPassword})
                                     }).then(response => response.json()).then(rep => {
                                         if(rep.ok){
                                             this.set('routeData.page', "diary")
-                                            setTimeout(() => this.shadowRoot.querySelector("#htDiary").loadMikornoIframe(), 100)
+                                            setTimeout(() => this.shadowRoot.querySelector("#htDiary").loadMikronoIframe(this.mikronoProxy), 100)
                                         }
                                     })
 
@@ -2131,14 +2157,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                                     if(electron === false){
                                                                 window.open("https://" + mikronoUser + ":" + mikronoPassword + "@" + mikronoUrl.replace("https://", "") + "/iCureShortcut.jsp?id=" + this.user.id, '_blank')
                                                     }else{
-                                                        fetch('http://127.0.0.1:16042/mc', {
+                                                        fetch(`${this.api.electronHost}/mc`, {
                                                             method: "POST",
                                                             headers: {"Content-Type": "application/json"},
                                                             body: JSON.stringify({username:mikronoUser, password:mikronoPassword})
                                                         }).then(response => response.json()).then(rep => {
                                                             if(rep.ok){
                                                                 this.set('routeData.page', "diary")
-                                                                setTimeout(() => this.shadowRoot.querySelector("#htDiary").loadMikornoIframe(), 100)
+                                                                setTimeout(() => this.shadowRoot.querySelector("#htDiary").loadMikronoIframe(this.mikronoProxy), 100)
                                                             }
                                                         })
 
