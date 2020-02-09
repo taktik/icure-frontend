@@ -582,7 +582,7 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
 
                     <div class="attachmentsContainer m-t-50">
                         <div class="modal-subtitle">[[localize('attachments','Attachments',language)]]:</div>
-                        <vaadin-upload id="vaadinUploadNewMessage" class="m-t-8" no-auto="" files="{{files}}" target\$="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileGotSuccessFullyUploaded" on-file-remove="_fileUploadRemove"></vaadin-upload>
+                        <vaadin-upload id="vaadinUploadNewMessage" class="m-t-8" no-auto="" files="{{files}}" target\$="[[api.host]]/document/{documentId}/attachment/multipart" method="PUT" form-data-name="attachment" on-upload-request="_fileRequest" on-upload-success="_fileGotSuccessFullyUploaded" on-file-remove="_fileUploadRemove"></vaadin-upload>
                     </div>
 
                 </div>
@@ -1114,7 +1114,11 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
 
   }
 
-  _closeDialogs() {
+    _fileRequest(e) {
+        e.detail.xhr.setRequestHeader('Authorization', this.api.authorizationHeader());
+    }
+
+    _closeDialogs() {
       this.set("_bodyOverlay", false);
       _.map( this.shadowRoot.querySelectorAll('.modalDialog'), i=> i && typeof i.close === "function" && i.close() )
   }

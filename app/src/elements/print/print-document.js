@@ -297,7 +297,11 @@ class PrintDocument extends TkLocalizerMixin(PolymerElement) {
           )
           .then(([document,enckeys]) => this.api.beresultimport().canHandle(_.trim(_.get(document,"id","")), (enckeys||[]).join(',')).then(canHandle => ([document,enckeys,!!canHandle])).catch(() => Promise.resolve([document,enckeys,false])))
           .then(([document,enckeys,canHandle]) => !canHandle ? Promise.resolve([document,enckeys]) : this.api.beresultimport().getInfos(_.trim(_.get(document,"id","")), true, null, (enckeys||[]).join(',')).then(docInfo=>([_.merge({},document,{docInfo:this._prettifyDocInfo(_.head(docInfo))}),enckeys])).catch(() => Promise.resolve([document,enckeys])))
-          .then(([document,enckeys]) => this.api.document().getAttachment(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), (enckeys||[]).join(',')).then(attachmentContent => _.merge({}, document, {attachment: {content:attachmentContent, downloadUrl:this.api.document().getAttachmentUrl(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), enckeys, _.get(this,"api.sessionId"))}})).catch(()=>Promise.resolve(document)))
+          .then(([document,enckeys]) => this.api.document().getAttachment(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), (enckeys||[]).join(','))
+              .then(attachmentContent =>
+                  this.api.document().getAttachmentUrl(_.trim(_.get(document,"id","")), _.trim(_.get(document,"attachmentId","")), enckeys)
+                      .then(url => ({attachmentContent, url}))
+              .then(({attachmentContent, url}) => _.merge({}, document, {attachment: {content:attachmentContent, downloadUrl:url}})).catch(()=>Promise.resolve(document)))
           .then(document => {
               const fileExtension = (_.trim(_.get(document,"name","")).split(".").pop()).toLowerCase()
               const attachmentSize = _.get((typeof _.get(document,"attachment.content","") === "string" ? this.api.crypto().utils.text2ua(_.get(document,"attachment.content","")) : _.get(document,"attachment.content","")),"byteLength",0)
@@ -749,7 +753,7 @@ class PrintDocument extends TkLocalizerMixin(PolymerElement) {
   }
 
   _getPdfFooter() {
-      
+
       return `<div class="pageFooter pt5 mt30 textaligncenter borderSolid borderW1px borderColorBlack bb0 br0 bl0">
       <b>` + this.localize("doctor", "Doctor", this.language) + `:</b> ` + _.trim(_.get(this,"_data.currentHcp.lastName")) + " " + _.trim(_.get(this,"_data.currentHcp.firstName")) + ` - <b>N° ` + this.localize("inami", "INAMI", this.language) + `:</b> `+ _.trim(_.get(this,"_data.currentHcp.nihiiHr")) +`<br />
       <b>` + this.localize("postalAddress", "Address", this.language) + `:</b> `+ _.trim(_.get(this,"_data.currentHcp.address","-")) +` -  `+ _.trim(_.get(this,"_data.currentHcp.postalCode","-")) +` `+ _.trim(_.get(this,"_data.currentHcp.city","-")) +` - <b>` + this.localize("telAbreviation", "Tel", this.language) + `:</b> `+ _.trim(_.get(this,"_data.currentHcp.phone","-")) +` - <b>` + this.localize("mobile", "Mobile", this.language) + `:</b> `+ _.trim(_.get(this,"_data.currentHcp.mobile","-")) +` - <b>E-mail:</b> `+ _.trim(_.get(this,"_data.currentHcp.email","-")) +`
@@ -758,7 +762,7 @@ class PrintDocument extends TkLocalizerMixin(PolymerElement) {
       '<'+'script'+'>'+'document.fonts.ready.then(() => { setInterval(() => {document.body.dispatchEvent(new CustomEvent("pdfDoneRenderingEvent"))}, 500); }); <'+'/script'+'>' + `
       </body>
       </html>`
-      
+
   }
 
   _getPdfHeader() {

@@ -375,6 +375,10 @@ class IccApi extends PolymerElement {
       return this.calendaritemtypeicc
   }
 
+  authorizationHeader() {
+      return this.headers.Authorization
+  }
+
   localize(e, lng) {
       if (!e) {
           return null;

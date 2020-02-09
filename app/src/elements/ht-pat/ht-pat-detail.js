@@ -2727,7 +2727,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
         <entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
         <paper-dialog id="upload-dialog">
             <h2 class="modal-title">[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
-            <vaadin-upload id="vaadin-upload" no-auto="" files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUploaded"></vaadin-upload>
+            <vaadin-upload id="vaadin-upload" no-auto="" files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart" method="PUT" form-data-name="attachment" on-upload-request="_fileRequest"  on-upload-success="_fileUploaded"></vaadin-upload>
             <div class="buttons">
                 <paper-button class="button" dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
             </div>
@@ -6482,7 +6482,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
       });
   }
 
-  _fileUploaded(e) {
+    _fileRequest(e) {
+        e.detail.xhr.setRequestHeader('Authorization', this.api.authorizationHeader());
+    }
+
+    _fileUploaded(e) {
       if (!this.currentContact) {
 					return;
       }
