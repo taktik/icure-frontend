@@ -283,7 +283,7 @@ onmessage = e => {
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
                         iccContactXApi.newInstance(user, candidates[0], {
-                            groupId: _.trim(_.get(message,"id","")),
+                            groupId: iccCryptoXApi.randomUuid(),
                             created: +new Date,
                             modified: +new Date,
                             author: _.trim(_.get(user,"id","")),
