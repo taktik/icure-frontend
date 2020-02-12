@@ -804,7 +804,24 @@
                 return (!prose || !_.get(selectedTemplate,"attachmentFileContent")) ? promResolve : promResolve
                     .then(() => this._flushProseEditorContent())
                     .then(() => this.set("_data.proseEditorSelectedTemplate",selectedTemplate))
-                    .then(() => prose && prose.setJSONContent(this.api.crypto().utils.ua2utf8(_.get(this,"_data.proseEditorSelectedTemplate.attachmentFileContent"))))
+                    .then(() => JSON.parse(this.api.crypto().utils.ua2utf8(_.get(this,"_data.proseEditorSelectedTemplate.attachmentFileContent"))))
+                    .then(jsonTemplate => { jsonTemplate.content[0].content =  _
+                            .chain(_.get(jsonTemplate,"content[0].content",{}))
+                            .map(node => node.type !== "dynamicNodes" ?
+                                node :
+                                _
+                                    .chain(_.get(this,"_data.proseEditorVariables", []))
+                                    .find({type:"forms"})
+                                    .get("subVars",[])
+                                    .find({templateGuid: _.get(node,"templateGuid")})
+                                    .get("nodes",[])
+                                    .value()
+                            )
+                            .flatten()
+                            .value();
+                        return jsonTemplate;
+                    })
+                    .then(jsonTemplate => prose && prose.setJSONContent(JSON.stringify(jsonTemplate)))
                     .then(() => this._refreshProseEditorContext())
 
             }
@@ -1651,12 +1668,6 @@
                     TKBoolean: "getBooleanValue",
                 }
 
-                // Prose editor will try to have our templates / variables to fit on one page.
-                // If not enough space is available, Prose editor will jump to the next A4 page, trying to make it fit there.
-                // Ie: if we are "too long" => infinite loop seeking for next A4 page hoping to have enough space again and again.
-                // Todo: improve Prose editor and have it to split content over several pages when required
-                const maxVaribalesPerPage = 43;
-
                 const formVariables = {
                     type:'forms',
                     additionalCssClasses:'largeDivider',
@@ -1674,6 +1685,7 @@
 
                         return {
                             name: _.get(formObject,"descr","") + (totalFormsForCurrentTemplateGuid === 1 ? "" : " (" + _.trim(parseInt(templateGuidAndIndex[1])) + "/" + totalFormsForCurrentTemplateGuid + ")" ),
+                            templateGuid: _.trim(_.get(templateGuidAndIndex,"[0]","")),
                             nodes: [
                                 {type:'paragraph', content: [
                                         {type:'text', marks: [{type: 'strong'}, {type: 'underlined'}], text: this.localize("form", "Form", this.language).toUpperCase()},
@@ -1688,7 +1700,7 @@
                                                         type:'template',
                                                         attrs: {
                                                             expr: `subContextsForms("${templateGuid}")`,
-                                                            template: {'default': _.slice(_.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
+                                                            template: {'default': _.compact(_.flattenDeep(_.map( this._getFormEditorSortedItemsBasedOnTemplate(form.dataProvider).filter(i => i.type !== 'TKAction'), k => {
 
                                                                     const isSubForm = !!_.get(k,"isSubForm", false)
                                                                     const subForms = !!isSubForm && form.dataProvider.getSubForms(_.get(k,"name"))
@@ -1701,7 +1713,12 @@
                                                                         false :
 
                                                                         // Field with no value
-                                                                        /* (!isSubForm && (!_.trim(fieldValue) || _.trim(fieldValue) === "-" || _.trim(fieldValue).toLowerCase() === "ok")) ? false : */
+                                                                        (!isSubForm && (
+                                                                            !_.trim(fieldValue) ||
+                                                                            _.trim(fieldValue) === "-" ||
+                                                                            _.trim(fieldValue).toLowerCase() === "ok" ||
+                                                                            (_.trim(_.get(k,"type")) === "TKMeasure" && !_.trim(form.dataProvider.getMeasureValue(k.name).value))
+                                                                        )) ? false :
 
                                                                         // Not sub form and has field value
                                                                         (!isSubForm) ? {type:'paragraph',content: [
@@ -1761,7 +1778,7 @@
                                                                                 })),
                                                                                 [{type:'paragraph',content: [{type:'text', text: " "}]}]
                                                                             )
-                                                                }))),0,maxVaribalesPerPage)}
+                                                                })))}
                                                         }
                                                     }]},
                                             ]},
