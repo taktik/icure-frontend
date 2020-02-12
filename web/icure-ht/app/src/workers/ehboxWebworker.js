@@ -527,9 +527,9 @@ onmessage = e => {
 
         icureApi.getVersion()
         .then(icureVersion => appVersions.backend = _.trim(icureVersion))
-        .then(() => fetch(`${this.api.electronHost}/ok`, {method:"GET"}).then(() => true).catch(() => false))
+        .then(() => fetch("http://localhost:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
         .then(isElectron => appVersions.isElectron = !!isElectron)
-        .then(() => fetch(`${this.api.electronHost}/getVersion`, {method:"GET"}).then((response) => response.json()).catch(() => false))
+        .then(() => fetch("http://localhost:16042/getVersion", {method:"GET"}).then((response) => response.json()).catch(() => false))
         .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
         .then(() => autoDeleteMessages())
         .finally(()=>{
