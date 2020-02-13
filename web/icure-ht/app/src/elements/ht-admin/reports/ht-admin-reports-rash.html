@@ -13,7 +13,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../../../bower_components/iron-flex-layout/iron-flex-layout.html">
 <link rel="import" href="../../../../bower_components/iron-iconset-svg/iron-iconset-svg.html">
 <link rel="import" href="../../../../bower_components/iron-iconset/iron-iconset.html">
-                                  ../
 <link rel="import" href="../../../../bower_components/iron-icons/iron-icons.html">
 <link rel="import" href="../../../../bower_components/iron-icons/maps-icons.html">
 <link rel="import" href="../../../../bower_components/iron-icons/social-icons.html">
@@ -208,7 +207,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             - [[localize('rash-gender-dist', 'Gender distribution', language)]]
                         </div>
                         <div class="sub-bloc-content">
-                            [[localize('rash-male', 'Male', language)]]: [[_getNumberOfPatientByGender('h', patientList)]]
+                            [[localize('rash-male', 'Male', language)]]: [[_getNumberOfPatientByGender('m', patientList)]]
                         </div>
                         <div class="sub-bloc-content">
                             [[localize('rash-female', 'Female', language)]]: [[_getNumberOfPatientByGender('f', patientList)]]
@@ -223,9 +222,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                             - [[localize('rash-gender-dist', 'Home distribution', language)]]
                         </div>
                         <template is="dom-repeat" items="[[homeDistribution]]">
-                            <div class="sub-bloc-content">
-
-                            </div>
+                            <template is="dom-if" if="[[_isMoreThanOnePercent(item.rate)]]">
+                                <div class="sub-bloc-content">
+                                    [[item.postalCode]]: [[item.rate]]%
+                                </div>
+                            </template>
                         </template>
                     </div>
 
@@ -256,6 +257,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         noReset: true
                     },
                     patientList:{
+                        type: Array,
+                        value: () => []
+                    },
+                    homeDistribution:{
                         type: Array,
                         value: () => []
                     }
@@ -294,7 +299,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _getNumberOfPatientByRangeOfAge(startAge, endAge){
-                return _.size(_.get(this, 'patientList', []).filter(p => parseInt(_.get(p, 'dateOfBirth', null) ? this.api.getCurrentAgeFromBirthDate(_.get(p, 'dateOfBirth', null),( e , s ) => this.localize(e, s, this.language)) : 220) >= startAge && parseInt(_.get(p, 'dateOfBirth', null) ? this.api.getCurrentAgeFromBirthDate(_.get(p, 'dateOfBirth', null),( e , s ) => this.localize(e, s, this.language)) : 220) <= endAge))
+                return _.size(_.get(this, 'patientList', []).filter(p => (_.get(p, 'dateOfBirth', null) ? this.api.moment(new Date()).diff(this.api.moment(_.get(p, 'dateOfBirth', null)).format('YYYY-MM-DD'), 'years', true) : 220) >= startAge && (_.get(p, 'dateOfBirth', null) ? this.api.moment(new Date()).diff(this.api.moment(_.get(p, 'dateOfBirth', null)).format('YYYY-MM-DD'), 'years', true) : 220) <= endAge))
             }
 
             _getNumberOfPatient(){
@@ -312,21 +317,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             _getHomeDistribution(){
                 let homeDistribution = []
-                const patientWithAdr = _.get(this, 'patientList', []).filter(p => _.get(p, 'addresses', []).find(adr => _.get(adr, 'addressType', null) === "home" && _.get(adr, 'postalCode', null))) || []
-                patientWithAdr.map(pwa => {
-                    const adr = _.head(_.get(pwa, 'addresses', []))
+                const patientWithAdr = _.get(this, 'patientList', []).filter(p => _.get(p, 'addresses', []).find(adr => _.get(adr, 'addressType', null) === "home" && _.trim(_.get(adr, 'postalCode', null))  && _.trim(_.get(adr, 'postalCode', null)) !== "")) || []
 
-                    _.isEmpty(homeDistribution.find(hd => _.trim(_.get(hd, 'cp', null))  === _.trim(_.get(adr, 'postalCode', '')))) ? homeDistribution.push({
-                        cp : adr.postalCode,
-                        occurence: 1
-                    }) : _.get(homeDistribution.find(hd => _.trim(_.get(hd, 'cp', null)) === _.trim(_.get(adr, 'postalCode', ''))), 'occurence', null) + 1
+                this.set("homeDistribution", _.orderBy(_.map(_.groupBy(patientWithAdr.map(pwa => _.head(_.get(pwa, 'addresses', []))), 'postalCode'), a => {
+                    return {
+                        postalCode: _.get(_.head(a), 'postalCode', null),
+                        occurence: _.size(a),
+                        rate: parseFloat(((parseInt(_.size(a)) / parseInt(_.size(_.get(this, 'patientList', [])))) * 100).toFixed(2))
+                    }
+                }), ['rate'], ['desc']))
 
-                })
-
-                console.log(homeDistribution)
+                console.log(this.homeDistribution)
             }
 
-
+            _isMoreThanOnePercent(rate){
+                return rate && rate >= 1
+            }
         }
 
         customElements.define(HtAdminReportsRash.is, HtAdminReportsRash)
