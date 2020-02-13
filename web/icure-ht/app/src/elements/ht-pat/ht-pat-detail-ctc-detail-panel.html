@@ -3862,51 +3862,45 @@
 			}
 
 			_newDateTime(newDate, oldDate) {
-				return oldDate ? parseInt(newDate.format("YYYYMMDD") + oldDate.toString().substring(8,14)) : null;
+
+				return !_.trim(oldDate) ? null : (_.trim(newDate.format("YYYYMMDD")) + _.trim(oldDate).substring(8,14) + "000000").substring(0,14)
+
 			}
 
 			_valueDate(service, date) {
+
 				const valueDate = service.valueDate.toString();
-				if (valueDate.length == 14)
-					return parseInt(date.format("YYYYMMDD") + valueDate.substring(8));
-				return parseInt(date.format("YYYYMMDD") + "000000");
+				return valueDate.length === 14 ? (_.trim(date.format("YYYYMMDD")) + valueDate.substring(8) + "000000").substring(0,14) : _.trim(date.format("YYYYMMDD")) + "000000";
 			}
 
 			_changeDate(service, date, contact) {
-				//const newDate = this._newDate(date)
-				//service.created = newDate;
-				//service.modified = newDate;
-				if (service.valueDate)
-					service.valueDate = this._valueDate(service, date);
-				if (service.openingDate)
-					service.openingDate = contact.openingDate ? contact.openingDate : this._newDateTime(date, service.openingDate);
-				if (service.closingDate)
-					service.closingDate = contact.closingDate ? contact.closingDate : this._newDateTime(date, service.closingDate);
-			}
 
-			_isVaccineOrMedication(service) {
-				return service.tags.some(t => t.type === "CD-ITEM" && (t.code === "vaccine" || t.code === "medication"));
+				if (service.valueDate) service.valueDate = this._valueDate(service, date);
+				if (service.openingDate) service.openingDate = contact.openingDate ? contact.openingDate : this._newDateTime(date, service.openingDate);
+				if (service.closingDate) service.closingDate = contact.closingDate ? contact.closingDate : this._newDateTime(date, service.closingDate);
+
 			}
 
 			_changeContactDate(date) {
+
 				const contact = this.contacts[0];
 				if (!contact) return;
-				//const newDate = this._newDate(date);
-				//contact.created = newDate;
-				//contact.modified = newDate;
-				if (contact.openingDate)
-					contact.openingDate = this._newDateTime(date, contact.openingDate);
-				if (contact.closingDate)
-					contact.closingDate = this._newDateTime(date, contact.closingDate);
-				const services = contact.services.filter(s => !this._isVaccineOrMedication(s));
-				services.forEach(s => this._changeDate(s, date, contact));
-				return this.api.contact().modifyContactWithUser(this.user, contact).then(contact => {
-					this.api.register(contact, "contact");
-				}).then(() => {
-					setTimeout(() => this.dispatchEvent(new CustomEvent("refresh-contacts", {detail:{contact: contact},bubbles: true,composed: true})), 500);
-				}).then(() => {
-					this._closeDialogs();
-				}).catch((e) => console.log("ERROR with _changeContactDate:", e)) ;
+
+				if (contact.openingDate) contact.openingDate = this._newDateTime(date, contact.openingDate);
+				if (contact.closingDate) contact.closingDate = this._newDateTime(date, contact.closingDate);
+
+				_
+					.chain(contact.services)
+					.filter(svc => !(svc.tags.some(t => t.type === "CD-ITEM" && (t.code === "vaccine" || t.code === "medication"))))
+					.map(svc => this._changeDate(svc, date, contact))
+					.value()
+
+				return this.api.contact().modifyContactWithUser(this.user, contact)
+					.then(contact =>  this.api.register(contact, "contact"))
+					.then(() =>  setTimeout(() => this.dispatchEvent(new CustomEvent("refresh-contacts", {detail:{contact: contact},bubbles: true,composed: true})), 500))
+					.then(() =>  this._closeDialogs())
+					.catch(e => console.log("ERROR with _changeContactDate:", e))
+
 			}
 
 			_maxDate() {
