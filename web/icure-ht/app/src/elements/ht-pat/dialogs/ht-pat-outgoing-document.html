@@ -699,7 +699,7 @@
                     return [subCtx]
                 })
 
-                const makeSubContextsHes = (ctx) => ((key) => _.map(_.get(ctx,"healthElements." + key), he => _.assign({}, ctx, {dataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}})))
+                const makeSubContextsHes = (ctx) => ((key) => _.compact(_.map(_.get(ctx,"healthElements." + key), he => !_.trim(_.get(he,"id")) ? null : _.assign({}, ctx, {dataProvider: {form: () => {return {template: {id: _.trim(_.get(he,"id"))},he: he}}}}))))
 
                 const ctx = {
                     formatDate: (date) => this.api.moment(date).format('DD/MM/YYYY'),
@@ -809,13 +809,23 @@
                             .chain(_.get(jsonTemplate,"content[0].content",{}))
                             .map(node => node.type !== "dynamicNodes" ?
                                 node :
-                                _
-                                    .chain(_.get(this,"_data.proseEditorVariables", []))
-                                    .find({type:"forms"})
-                                    .get("subVars",[])
-                                    .find({templateGuid: _.get(node,"templateGuid")})
-                                    .get("nodes",[])
-                                    .value()
+                                _.trim(_.get(node,"templateGuid")) ?
+                                    // Trying to render form, via its templateGuid
+                                    _
+                                        .chain(_.get(this,"_data.proseEditorVariables", []))
+                                        .find({type:"forms"})
+                                        .get("subVars",[])
+                                        .find({templateGuid: _.get(node,"templateGuid")})
+                                        .get("nodes",[])
+                                        .value() :
+                                    // Going for a specific var name
+                                    _
+                                        .chain(_.get(this,"_data.proseEditorVariables", []))
+                                        .find({type:_.get(node,"varName")})
+                                        .get("subVars",[])
+                                        .map("nodes")
+                                        .flatten()
+                                        .value()
                             )
                             .flatten()
                             .value();
@@ -1418,6 +1428,7 @@
                 const coreTemplateGuids = [
                     "new-doc",
                     "lettre-liaison",
+                    "lettre-liaison-avec-es",
                     "msoap",
                     "amu",
                     "coups-blessures",
@@ -1781,7 +1792,7 @@
                             heType === "medications" ? this.localize("med","Medication", this.language) :
                             heType === "archivedHealthElements" ? this.localize("arc","Archives", this.language) : ""
 
-                        return (!_.size(hes) /* || heType==="archivedHealthElements" */) ? null : {
+                        return (!_.size(hes) || heType==="archivedHealthElements") ? null : {
                             name: heTypeLabel,
                             sorting: heType === "activeHealthElements" ? 1 :
                                 heType === "inactiveHealthElements" ? 2 :
@@ -1791,29 +1802,35 @@
                                 heType === "allergies" ? 6 :
                                 heType === "medications" ? 7 :
                                 heType === "archivedHealthElements" ? 8 : 999,
-                            nodes: [
-                                {type:'template', attrs: {
-                                        expr:`subContextsHes("${heType}")`,
-                                        template: {'default': heType !== "medications" ?
-                                                [
-                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "}]},
-                                                    {type:'paragraph', content: _.flatten(_.compact(_.concat(
-                                                        [
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("status","Status", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " - "},
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("st_da","Start date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " - "},
-                                                            {type:'text', marks: [{type: 'strong'}], text: this.localize("en_da","End date", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}},
-                                                        ],
-                                                        ((heType !== "familyrisks" && heType !== "archivedHealthElements") ? [{type:'text', text: " "}] : [{type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("fam-ris","Family risk", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: " "}] )
-                                                    )))},
-                                                    ((heType !== "allergies" && heType !== "archivedHealthElements") ? {type:'text', text: " "} : {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}]} ),
 
-                                                ] : [
-                                                    {type:'paragraph',marks:[{type: 'underlined'}], content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: " - "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " "}]},
-                                                    {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("begin","Begin", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},{type:'text', text: " - "},{type:'text', marks: [{type: 'strong'}], text: this.localize("end","End", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},{type:'text', text: " - "} ,{type:'text', marks: [{type: 'strong'}], text: this.localize("substitution","Substitution", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},{type:'text', text: " "}]},
-                                                    {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', marks: [{type: 'strong'}], text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
-                                                ]
-                                        },
-                                    }},
+                            nodes: [
+                                {type:'paragraph',content: [{type:'text', marks: [{type: 'strong'}], text: _.trim(heTypeLabel).toUpperCase() + ": "}, {type:'text', text: " "}]},
+                                {type:'template', attrs: {
+                                    expr:`subContextsHes("${heType}")`,
+                                    template: {'default': heType !== "medications" ?
+                                            _.compact([
+                                                {type:'paragraph', content:_.flatten(_.compact(_.concat(
+                                                    (heType !== "familyrisks" ? [] : [{type:'variable', attrs:{ expr:`dataProvider.form().he.familyLinkHr`}}, {type:'text', text: ": "}]),
+                                                    [
+                                                        {type:'variable', attrs:{ expr:`dataProvider.form().he.descr`}}, {type:'text', text: " "},
+                                                        {type:'text', text: "("}, {type:'variable', attrs:{ expr:`dataProvider.form().he.heCodeHr`}}, {type:'text', text: ") - "},
+                                                        // {type:'variable', attrs:{ expr:`dataProvider.form().he.statusHr`}}, {type:'text', text: " - "},
+                                                        {type:'text', text: this.localize("from2","From", this.language) + " "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.openingDateHr`}}, {type:'text', text: " "},
+                                                        {type:'text', text: this.localize("till","to", this.language) + " "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.closingDateHr`}}
+                                                    ]
+                                                )))},
+                                                ((heType !== "allergies" && heType !== "archivedHealthElements") ? null :
+                                                    {type:'paragraph',content: [
+                                                        {type:'text', text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " - "},
+                                                        {type:'text', text: this.localize("drugs","Drug", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.cnkHr`}}
+                                                    ]}
+                                                ),
+                                            ]) : [
+                                                {type:'paragraph',content: [{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkHrLabel`}}, {type:'text', text: " (CNK: "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.cnkCode`}}, {type:'text', text: ") - "}, {type:'text', text: this.localize("from2","From", this.language) + " "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.begin`}},{type:'text', text: " "},{type:'text', text: this.localize("till","to", this.language) + " "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.end`}},{type:'text', text: " - "} ,{type:'text', text: this.localize("substitution","Substitution", this.language) + ": "},{type:'variable', attrs:{ expr:`dataProvider.form().he.medication.substitutionAllowed`}},{type:'text', text: " "}]},
+                                                {type:'paragraph',content: [{type:'text', text: this.localize("cdItemAllergy","Allergy", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.allergyHr`}}, {type:'text', text: " "}, {type:'text', text: this.localize("com","Comment", this.language) + ": "}, {type:'variable', attrs:{ expr:`dataProvider.form().he.medication.comment`}}, {type:'text', text: " "}]},
+                                            ]
+                                    },
+                                }},
                                 {type:'paragraph',content: [{type:'text', text: " "}]},
                             ]
                         }
