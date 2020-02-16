@@ -634,6 +634,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         import _ from 'lodash/lodash';
         import { parse } from '../../../../scripts/icure-reporting'
         import { filter as icrFilter } from '../../../../scripts/filters'
+        import '../../../../bower_components/js-xlsx/shim.js'
+        const XLSX = require('../../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
 
         class HtAdminReportsRash extends Polymer.TkLocalizerMixin(Polymer.Element) {
             static get is() {
@@ -781,6 +783,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         }).finally(() => {
                             this.set("isLoading", false)
                             this.set('processStep', [])
+                            this._createXlsx()
                             this.$['processDialog'].close()
                         })
                     })
@@ -886,6 +889,155 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     this.set('selectedRequestInfo', _.get(_.get(this, 'queriesResult', []).find(qr => _.get(qr, 'type', null) === _.get(e, 'target.id', null)), 'request', null))
                     this.$["requestInfoDialog"].open()
                 }
+            }
+
+
+            _createXlsx(){
+
+                let data = [
+                    [
+                        this.localize('rash-influ', 'Influenza vaccination rate (65 years and over)', this.language),
+                        this._getResult('influenza', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-dmg', 'Number of DMG (number of patients registred on 31/12)', this.language),
+                        0
+                    ],
+                    [
+                        this.localize('rash-cons-doc', 'Number of consultations / services performed by a doctor', this.language),
+                        0
+                    ],
+                    [
+                        this.localize('rash-cons-nurse', 'Number of consultations / services provided by a nurse', this.language),
+                        0
+                    ],
+                    [
+                        this.localize('rash-cons-phy', 'Number of consultations / services performed by a physiotherapist', this.language),
+                        0
+                    ],
+                    [
+                        this.localize('rash-cons-ano', 'Number of consultations / services performed by another function', this.language),
+                        0
+                    ],
+                    [
+                        this.localize('rash-non-flatrate', 'Number of active patients (if ASI fixed price)', this.language),
+                        this._getNumberOfPatientWithoutFlatrateContract(this.patientList)
+                    ],
+                    [
+                        this.localize('rash-flatrate', 'Number of active patients on the INAMI package (if ASI on the package)', this.language),
+                        this._getNumberOfPatientWithFlatrateContract(this.patientList)
+                    ],
+                    [
+                        this.localize('rash-colon', 'Colon cancer screening rate (50 to 75 years)', this.language),
+                        this._getResult('colorectalCancer', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-mammograms', 'Rate of screening mammograms (women aged 50 to 69)', this.language),
+                        this._getResult('breastCancer', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-age-distrib', 'Age distribution (age groups)', this.language)
+                    ],
+                    [
+                        "0 - 4 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('0To4', this.queriesResult)
+                    ],
+                    [
+                        "5 - 14 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('5To14', this.queriesResult)
+                    ],
+                    [
+                        "15 - 24 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('15To24', this.queriesResult)
+                    ],
+                    [
+                        "24 - 44 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('25To44', this.queriesResult)
+                    ],
+                    [
+                        "45 - 64 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('45To64', this.queriesResult)
+                    ],
+                    [
+                        "65 - 74 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('65To74', this.queriesResult)
+                    ],
+                    [
+                        "75 - 94 " + this.localize('rash-years', 'years', this.language),
+                        this._getResult('75To94', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-95-and-more', '95 years and more', this.language),
+                        this._getResult('moreThan95', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-BIM', 'BIM', this.language),
+                        this._getNumberOfBim(this.patientList)
+                    ],
+                    [
+                        this.localize('rash-amu', 'Emergency help (AMU)', this.language),
+                        0
+                    ],
+                    [
+                        this.localize('rash-male', 'Male', this.language),
+                        this._getResult('male', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-female', 'Female', this.language),
+                        this._getResult('female', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-other', 'Other', this.language),
+                        this._getResult('other', this.queriesResult)
+                    ],
+                    [
+                        this.localize('rash-home-dist', 'Home distribution', this.language)
+                    ]
+                ]
+
+                this.generateXlsFile(_.concat(data, _.compact(this.homeDistribution.map(hd => {
+                    return _.get(hd, 'occurence', null) > 1 ? [_.get(hd, 'postalCode', null), _.get(hd, 'occurence', null)] : null
+                }))), "rash_"+_.get(this.selectedYear, 'id', null)+"_"+moment().format("YYYYMMDD-HHmmss")+ ".xls", "Rash "+_.get(this.selectedYear, 'id', null), "Topaz")
+            }
+
+            generateXlsFile(data, filename, title, author){
+
+                // Create xls work book and assign properties
+                const xlsWorkBook = {SheetNames: [], Sheets: {}}
+                xlsWorkBook.Props = {Title: title, Author: author}
+
+                // Create sheet based on json data collection
+                var xlsWorkSheet = XLSX.utils.json_to_sheet(data)
+
+                // Link sheet to workbook
+                XLSX.utils.book_append_sheet(xlsWorkBook, xlsWorkSheet, title)
+
+                // Virtual data output
+                var xlsWorkBookOutput = new Buffer(XLSX.write(xlsWorkBook, {bookType: 'xls', type: 'buffer'}))
+
+                // Put output to virtual "file"
+                var fileBlob = new Blob([xlsWorkBookOutput], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+
+                // Create download link and append to page's body
+                var downloadLink = document.createElement("a")
+                document.body.appendChild(downloadLink)
+                downloadLink.style = "display: none"
+
+                // Create url
+                var urlObject = window.URL.createObjectURL(fileBlob)
+
+                // Link to url
+                downloadLink.href = urlObject
+                downloadLink.download = filename
+
+                // Trigger download and drop object
+                downloadLink.click()
+                window.URL.revokeObjectURL(urlObject)
+
+                // Free mem
+                fileBlob = false
+                xlsWorkBookOutput = false
+
             }
         }
 
