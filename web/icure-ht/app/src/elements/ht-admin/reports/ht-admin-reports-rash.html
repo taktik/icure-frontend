@@ -43,6 +43,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="../../../styles/dialog-style.html">
 <link rel="import" href="../../../styles/scrollbar-style.html">
 <link rel="import" href="../../../styles/buttons-style.html">
+<link rel="import" href="../../../styles/paper-tabs-style.html">
 
 <link rel="import" href="../../ht-spinner/ht-spinner.html">
 
@@ -51,7 +52,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
     <template>
 
-        <style include="shared-styles dialog-style buttons-style">
+        <style include="shared-styles dialog-style buttons-style paper-tabs-style">
             :host {
                 display: block;
             }
@@ -72,7 +73,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             .rashResult{
                 height: calc(100% - 120px);
-                width: auto;
+                width: 50%;
                 margin: 1%;
                 overflow: auto;
             }
@@ -150,8 +151,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             #requestInfoDialog{
-                height: 300px;
-                width: 600px;
+                height: 400px;
+                width: 700px;
             }
 
             ht-spinner {
@@ -239,6 +240,19 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
             .left{
                 text-align: left;
+            }
+
+            .containerRequestInfo{
+                padding: 0px;
+                top: 0px;
+                margin: 0px;
+                background-color: white;
+                position: relative;
+                height: 100%;
+            }
+
+            .tabIcon{
+                padding-right: 10px;
             }
 
         </style>
@@ -615,14 +629,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </paper-dialog>
 
         <paper-dialog id="requestInfoDialog">
-            <h2 class="modal-title">[[localize('rash-inf-req', 'Information about request', language)]]</h2>
-            <div class="content">
-                <div class="requestInfoDialogContent">
-                    [[selectedRequestInfo]]
-                </div>
+            <div class="containerRequestInfo">
+                <paper-tabs selected="{{tabs}}">
+                    <paper-tab id="tabInfoRequest"><iron-icon class="tabIcon" icon="vaadin:male"></iron-icon> [[localize('rash-inf-req', 'Information about request', language)]]</paper-tab>
+                    <paper-tab id="tabInfoQuery"><iron-icon class="tabIcon" icon="vaadin:code"></iron-icon>[[localize('rash-inf-quer', 'Information about query', language)]]</paper-tab>
+                </paper-tabs>
+                <iron-pages selected="[[tabs]]">
+                    <page>
+                        <div class="requestInfoDialogContent">
+                            [[selectedRequestDescriptionInfo]]
+                        </div>
+                    </page>
+                    <page>
+                        <div class="requestInfoDialogContent">
+                            [[selectedRequestInfo]]
+                        </div>
+                    </page>
+                </iron-pages>
             </div>
             <div class="buttons">
-                <paper-button on-tap="_closeRequestInfoDialog" class="button button--other"><iron-icon icon="icons:close" ></iron-icon> [[localize('clo','Close',language)]]</paper-button>
+                <paper-button on-tap="_closeRequestInfoDialog" class="button button--other"><iron-icon icon="icons:close"></iron-icon> [[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
 
@@ -691,6 +717,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     processStep:{
                         type: Array,
                         value: () => []
+                    },
+                    tabs: {
+                        type: Number,
+                        value: 0
+                    },
+                    selectedRequestDescriptionInfo:{
+                        type: String,
+                        value: null
                     }
                 }
             }
@@ -769,7 +803,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                     type: _.get(query, 'type', null),
                                     request: _.get(query, 'filter', null),
                                     result: res,
-                                    label: label,
+                                    label: _.get(query, 'label.'+this.language, null),
                                     numberOfPatient: _.size(res),
                                     rateOfPatient: parseFloat(((parseInt(_.size(res)) / parseInt(_.size(_.get(this, 'patientList', [])))) * 100).toFixed(2)),
                                     resultType: _.get(query, 'resultType', null),
@@ -783,7 +817,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         }).finally(() => {
                             this.set("isLoading", false)
                             this.set('processStep', [])
-                            this._createXlsx()
+                           // this._createXlsx()
                             this.$['processDialog'].close()
                         })
                     })
@@ -825,28 +859,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _getNumberOfPatientWithFlatrateContract(){
-                return _.size(
-                    _.get(this, 'patientList', []).filter(p =>
-                        _.size(_.get(p, 'medicalHouseContracts', [])) &&
-                        (
-                            _.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'startOfCoverage', null) ? this.api.moment(_.get(mhc, 'startOfCoverage', null)).isBefore(_.get(this.selectedYear, 'id', null)+'-12-31') : null) &&
-                            (_.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'endOfCoverage', null) ? this.api.moment(_.get(mhc, 'endOfCoverage', null)).isAfter(_.get(this.selectedYear, 'id', null)+'-01-01') : null) ||
-                            !_.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'endOfCoverage', null)))
-                        )
-                    )
+                const startOfYear = parseInt(_.get(this, 'selectedYear.id', null)+"0101")
+               return _.size(_.get(this, 'patientList', []).filter(pat => _.size(_.get(pat, "medicalHouseContracts", [])) &&
+                    _.some(_.get(pat, "medicalHouseContracts", []), mhc => mhc &&
+                        (mhc.kine || mhc.gp || mhc.nurse) &&
+                        _.trim(_.get(mhc,"startOfContract") &&
+                            _.get(mhc,"startOfContract") < (startOfYear+(1e4)) &&
+                            (!_.get(mhc,"startOfCoverage") || (_.get(mhc,"startOfCoverage") && _.get(mhc,"startOfCoverage") < (startOfYear+(1e4))) ) &&
+                            (!_.get(mhc,"endOfContract") || _.get(mhc,"endOfContract") > (startOfYear + 1130)) &&
+                            (!_.get(mhc,"endOfCoverage") || _.get(mhc,"endOfCoverage") > (startOfYear + 1130)))))
                 )
             }
 
             _getNumberOfPatientWithoutFlatrateContract(){
-                return _.size(
-                    _.get(this, 'patientList', []).filter(p =>
-                        (_.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'startOfCoverage', null) ? this.api.moment(_.get(mhc, 'startOfCoverage', null)).isBefore(_.get(this.selectedYear, 'id', null)+'-01-01') : null) && _.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'endOfCoverage', null) ? this.api.moment(_.get(mhc, 'endOfCoverage', null)).isBefore(_.get(this.selectedYear, 'id', null)+'-01-01') : null)) ||
-                        (_.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'startOfCoverage', null) ? this.api.moment(_.get(mhc, 'startOfCoverage', null)).isAfter(_.get(this.selectedYear, 'id', null)+'-12-31') : null) && _.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'endOfCoverage', null) ? this.api.moment(_.get(mhc, 'endOfCoverage', null)).isAfter(_.get(this.selectedYear, 'id', null)+'-12-31') : null)) ||
-                        _.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'endOfCoverage', null) ? this.api.moment(_.get(mhc, 'endOfCoverage', null)).isBetween(_.get(this.selectedYear, 'id', null)+'-01-01', _.get(this.selectedYear, 'id', null)+'-12-31') : null) ||
-                        !_.size(_.get(p, 'medicalHouseContracts', [])) ||
-                        (_.size(_.get(p, 'medicalHouseContracts', [])) && !_.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'startOfCoverage', null)) && !_.get(p, 'medicalHouseContracts', []).find(mhc => _.get(mhc, 'endOfCoverage', null)))
-                    )
-                )
+                return parseInt(_.size(_.get(this, 'patientList', []))) - parseInt(this._getNumberOfPatientWithFlatrateContract())
             }
 
             _getHomeDistribution(){
@@ -881,16 +907,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _closeRequestInfoDialog(){
+                this.set('selectedRequestDescriptionInfo', null)
+                this.set('selectedRequestInfo', null)
                 this.$["requestInfoDialog"].close()
             }
 
             _openRequestInfoDialog(e){
                 if(_.get(e, 'target.id', null)){
                     this.set('selectedRequestInfo', _.get(_.get(this, 'queriesResult', []).find(qr => _.get(qr, 'type', null) === _.get(e, 'target.id', null)), 'request', null))
+                    this.set('selectedRequestDescriptionInfo', _.get(_.get(this, 'queriesResult', []).find(qr => _.get(qr, 'type', null) === _.get(e, 'target.id', null)), 'label', null))
                     this.$["requestInfoDialog"].open()
                 }
             }
-
 
             _createXlsx(){
 
@@ -977,6 +1005,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                     [
                         this.localize('rash-amu', 'Emergency help (AMU)', this.language),
                         0
+                    ],
+                    [
+                        this.localize('rash-age-distrib', 'Age distribution (age groups)', this.language)
                     ],
                     [
                         this.localize('rash-male', 'Male', this.language),
