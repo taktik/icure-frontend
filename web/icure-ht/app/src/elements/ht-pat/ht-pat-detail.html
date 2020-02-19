@@ -2965,7 +2965,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         <ht-pat-care-path-detail-dialog id="htPatCarePathDetailDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" contacts="[[contacts]]" current-contact="[[currentContact]]" resources="[[resources]]" selected-care-path-info="[[selectedCarePathInfo]]" active-health-elements="[[activeHealthElements]]" on-save-care-path="_refreshFromServices" on-closing-care-path="refreshPatient"></ht-pat-care-path-detail-dialog>
         <ht-pat-care-path-list-dialog id="htPatCarePathListDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" active-health-elements="[[activeHealthElements]]" on-open-care-path-detail-dialog="_openCarePathDetail"></ht-pat-care-path-list-dialog>
         <ht-pat-member-data-detail id="htPatMemberDataDetail" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" mda-result="[[mdaResult]]" on-mda-response="_updateMdaFlags"></ht-pat-member-data-detail>
-        
+
     </template>
     <script>
         import moment from 'moment/src/moment';
@@ -7295,6 +7295,43 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                         _.get(e, 'detail.generalSituation', 0) === 0 ? this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('insuranceOk'): null :
                             this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('noInsurance') : null :
                     this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('noInsurance') : null
+
+                //set insu pat.
+                if(moment(_.get(e,"detail.mdaRequest.startDate","1900-01-01"),"YYYY-MM-DD").isSame(moment(),"month") && _.get(this,"mdaResult.formatedResponse.period",[]).length===1){
+                    const mdaInsu=_.get(this,"mdaResult.formatedResponse.period.0",{})
+                    const patInsu=_.get(this,"patient.insurabilities",[]).find(ins => !_.get(ins,"endDate",false) && _.get(ins,"startDate",false)) || {}
+
+                    if(!(_.get(mdaInsu,"careReceiver.registrationNumber",false) && _.get(mdaInsu,"cb1",false) && _.get(mdaInsu,"cb2",false) && _.get(mdaInsu,"careReceiver.mutuality.code",false))){
+                        return;
+                    }
+
+                    if(_.get(mdaInsu,"careReceiver.registrationNumber",false)!==_.get(patInsu,"identificationNumber",false) || _.get(mdaInsu,"cb1",false)!==_.get(patInsu,"parameters.tc1",false) || _.get(mdaInsu,"cb2",false)!==_.get(patInsu,"parameters.tc2",false)){
+                        (_.get(mdaInsu,"careReceiver.mutuality.code",false) ? this.api.insurance().listInsurancesByCode(_.get(mdaInsu,"careReceiver.mutuality.code",false)) : Promise.resolve({}))
+                            .then(respInsu =>{
+                                if(patInsu.startDate && this.api.moment(patInsu.startDate).isSame(moment(),"month")){
+                                    this.set("patient.insurabilities",_.get(this,"patient.insurabilities",[]).filter(ins => _.get(ins,"endDate",false)))
+                                }
+                                else{
+                                    patInsu.endDate=_.parseInt(moment().subtract(1, 'months').endOf('month').format("YYYYMMDD"))
+                                }
+                                this.push("patient.insurabilities",{
+                                    startDate: _.parseInt(moment().startOf('month').format("YYYYMMDD")),
+                                    insuranceId : _.get(respInsu,"0.id",""),
+                                    identificationNumber: _.get(mdaInsu,"careReceiver.registrationNumber",""),
+                                    parameters : {
+                                        tc1 :  _.get(mdaInsu,"cb1",""),
+                                        tc2 :  _.get(mdaInsu,"cb2",""),
+                                        preferentialstatus : (_.get(this,"mdaResult.formatedResponse.payment",[]).find(pay => Object.keys(pay).find(key => key.includes("paymentByIO"))) || {paymentByIO : (_.get(mdaInsu,"cb1",0)%2)===1}).paymentByIO
+                                    },
+                                    ambulatory : true,
+                                    dental : false
+                                })
+                                return this.api.patient().modifyPatientWithUser(this.user,this.patient)
+                            })
+                            .then(pat => this.api.register(pat,"patient"))
+                            .then(pat => this._patientSaved())
+                    }
+                }
 
             }
 
