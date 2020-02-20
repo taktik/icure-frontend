@@ -66,6 +66,7 @@ import './dialogs/therlink/ht-pat-therlink-detail.js';
 import './dialogs/consent/ht-pat-consent-detail.js';
 import './dialogs/care-path/ht-pat-care-path-detail-dialog.js';
 import './dialogs/care-path/ht-pat-care-path-list-dialog.js';
+import './dialogs/mda/ht-pat-member-data-detail.js';
 
 import '@vaadin/vaadin-split-layout/vaadin-split-layout';
 import '@polymer/paper-button/paper-button';
@@ -559,8 +560,8 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 height:24px;
             }
             /*.contact .contact-text-row:nth-child(2){
-				height:48px;
-			}*/
+\t\t\t\theight:48px;
+\t\t\t}*/
 
             .contact-text-row p {
                 width: 100%;
@@ -940,20 +941,24 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 display: block;
             }
 
-            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending, #consentStatus.pendingConsent, #sumehrStatus.sumehrChange{
+            #insuranceStatus.medicalHouse, #edmgStatus.edmgPending, #tlStatus.tlPending, #rnConsultStatus.rnConsultPending, #consentStatus.pendingConsent, #sumehrStatus.sumehrChange, #mdaStatus.medicalHouse{
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
-            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr{
+            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr, #mdaStatus.noInsurance{
                 --paper-fab-background: var(--app-status-color-nok);
             }
 
-            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr {
+            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr, #mdaStatus.insuranceOk {
                 --paper-fab-background: var(--app-status-color-ok);
             }
 
             .pendingConsent{
                 --paper-fab-background: var(--app-status-color-pending)!important;
+            }
+
+            #mdaStatus{
+                color: black;
             }
 
             #ebmPracticeNet{
@@ -1287,7 +1292,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
             #genInsDialog a {
                 text-decoration: none;
-                color:	var(--app-secondary-color);
+                color:\tvar(--app-secondary-color);
             }
 
             #therLinkDialog .content, #consentDialog .content, #genInsDialog .content {
@@ -1627,11 +1632,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             }
 
             vaadin-upload{
-				margin:16px;
-				height: 280px;
+\t\t\t\tmargin:16px;
+\t\t\t\theight: 280px;
                 overflow-y: auto;
-				background: var(--app-background-color);
-				--vaadin-upload-buttons-primary: {
+\t\t\t\tbackground: var(--app-background-color);
+\t\t\t\t--vaadin-upload-buttons-primary: {
                     height: 28px;
                 };
                 --vaadin-upload-button-add: {
@@ -1647,14 +1652,14 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                     box-sizing: border-box;
                     border-radius: 3px;
                 };
-				--vaadin-upload-file-progress: {
-					--paper-progress-active-color:var(--app-secondary-color);
-				};
-				--vaadin-upload-file-commands: {
-					color: var(--app-primary-color);
-				}
+\t\t\t\t--vaadin-upload-file-progress: {
+\t\t\t\t\t--paper-progress-active-color:var(--app-secondary-color);
+\t\t\t\t};
+\t\t\t\t--vaadin-upload-file-commands: {
+\t\t\t\t\tcolor: var(--app-primary-color);
+\t\t\t\t}
 
-			}
+\t\t\t}
 
             #pat-admin-card{
                 overflow-y: initial;
@@ -1881,41 +1886,57 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 <div class="first-panel">
                     <paper-material class="zone compact-menu">
                         <paper-listbox class="padding-0" id="adminFileMenu" selected="{{selectedAdminOrCompleteFileIndex}}" selectable="paper-item">
-                            <paper-fab id="pat-close" class="btn-pat-close" mini="" icon="close" on-tap="close"></paper-fab>
+                            <paper-fab id="pat-close" class="btn-pat-close" mini icon="close" on-tap="close"></paper-fab>
                             <paper-item id="_admin_info" class="patient-info-container" on-tap="_expandColumn">
                                 <div class="patient-picture-container"><img src\$="[[picture(patient,patient.picture)]]"></div>
                                 <div class="patient-info">
                                     <div class="patient-name">[[getGender(patient.gender)]] [[patient.firstName]] [[patient.lastName]] [[orphans]]</div>
                                     <div class="patient-birthdate">°[[_timeFormat(patient.dateOfBirth)]] °[[_ageFormat(patient.dateOfBirth)]] [[patient.profession]]</div>
                                     <div class="statusContainer">
-                                        <paper-fab id="insuranceStatus" mini="" icon="vaadin:umbrella" on-tap="_openGenInsDialog"></paper-fab>
-                                        <paper-tooltip position="top" for="insuranceStatus">[[localize('gen_ins','assurability',language)]]</paper-tooltip>
-                                        <paper-fab id="consentStatus" mini="" icon="icons:thumb-up" on-tap="_openConsentDialog"></paper-fab>
-                                        <paper-tooltip position="top" for="consentStatus">[[localize('consent','consent',language)]]</paper-tooltip>
-                                        <paper-fab id="tlStatus" mini="" icon="vaadin:specialist" on-tap="_openTherLinkDialog"></paper-fab>
-                                        <paper-tooltip position="top" for="tlStatus">[[localize('tl','therapeutic link',language)]]</paper-tooltip>
-                                        <paper-fab id="hubStatus" mini="" icon="hardware:device-hub" on-tap="_openHubDialog"></paper-fab>
-                                        <paper-tooltip position="top" for="hubStatus">Hub</paper-tooltip>
-                                        <paper-fab id="sumehrStatus" mini="" icon="editor:format-list-bulleted" on-tap="_openHubDialogDirectToUpload"></paper-fab>
-                                        <paper-tooltip position="top" for="sumehrStatus">[[sumehrStatusDesc]]</paper-tooltip>
-                                        <paper-fab id="edmgStatus" mini="" icon="vaadin:clipboard-pulse" on-tap="_openEdmgDialog"></paper-fab>
-                                        <paper-tooltip position="top" for="edmgStatus">[[localize('edmg','e-DMG',language)]]
-                                            <template is="dom-if" if="[[refPeriods.length]]">
-                                                <div class="edmg-hcps">
-                                                    <template is="dom-repeat" items="[[_myReferralPeriods(patient.patientHealthCareParties)]]">
-                                                        <p><span class="ul">[[localize('begin','Begin',language)]]: <b>[[_dateFormat(item.startDate)]]</b> - [[localize('end','End',language)]]: <b>[[_dateFormat(item.endDate)]]</b></span>
-                                                            <template is="dom-if" if="[[item.comment.length]]"><br><small>[[item.comment]]</small></template>
-                                                        </p>
-                                                    </template>
-                                                </div>
-                                            </template>
-                                        </paper-tooltip>
-                                        <paper-fab id="ebmPracticeNet" mini="" on-tap="_linkToEbPracticeNet" src="[[_ebmPicture()]]"></paper-fab>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'insurability')]]">
+                                            <paper-fab id="insuranceStatus" mini icon="vaadin:umbrella" on-tap="_openGenInsDialog"></paper-fab>
+                                            <paper-tooltip position="top" for="insuranceStatus">[[localize('gen_ins','assurability',language)]]</paper-tooltip>
+                                        </template>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'mda')]]">
+                                            <paper-fab id="mdaStatus" mini icon="vaadin:male" on-tap="_openMdaDialog"></paper-fab>
+                                            <paper-tooltip for="mdaStatus">[[localize('mda-data','Member data',language)]]</paper-tooltip>
+                                        </template>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'consent')]]">
+                                            <paper-fab id="consentStatus" mini icon="icons:thumb-up" on-tap="_openConsentDialog"></paper-fab>
+                                            <paper-tooltip position="top" for="consentStatus">[[localize('consent','consent',language)]]</paper-tooltip>
+                                        </template>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'therLink')]]">
+                                            <paper-fab id="tlStatus" mini icon="vaadin:specialist" on-tap="_openTherLinkDialog"></paper-fab>
+                                            <paper-tooltip position="top" for="tlStatus">[[localize('tl','therapeutic link',language)]]</paper-tooltip>
+                                        </template>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'hub')]]">
+                                            <paper-fab id="hubStatus" mini icon="hardware:device-hub" on-tap="_openHubDialog"></paper-fab>
+                                            <paper-tooltip position="top" for="hubStatus">Hub</paper-tooltip>
+                                            <paper-fab id="sumehrStatus" mini icon="editor:format-list-bulleted" on-tap="_openHubDialogDirectToUpload"></paper-fab>
+                                            <paper-tooltip position="top" for="sumehrStatus">[[sumehrStatusDesc]]</paper-tooltip>
+                                        </template>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'edmg')]]">
+                                            <paper-fab id="edmgStatus" mini icon="vaadin:clipboard-pulse" on-tap="_openEdmgDialog"></paper-fab>
+                                            <paper-tooltip position="top" for="edmgStatus">[[localize('edmg','e-DMG',language)]]
+                                                <template is="dom-if" if="[[refPeriods.length]]">
+                                                    <div class="edmg-hcps">
+                                                        <template is="dom-repeat" items="[[_myReferralPeriods(patient.patientHealthCareParties)]]">
+                                                            <p><span class="ul">[[localize('begin','Begin',language)]]: <b>[[_dateFormat(item.startDate)]]</b> - [[localize('end','End',language)]]: <b>[[_dateFormat(item.endDate)]]</b></span>
+                                                                <template is="dom-if" if="[[item.comment.length]]"><br/><small>[[item.comment]]</small></template>
+                                                            </p>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </paper-tooltip>
+                                        </template>                                        
+                                        <paper-fab id="ebmPracticeNet" mini on-tap="_linkToEbPracticeNet" src="[[_ebmPicture()]]"></paper-fab>
                                         <paper-tooltip position="top" for="ebmPracticeNet">[[localize('adm_ebm','ebmPracticeNet',language)]]</paper-tooltip>
-                                        <paper-fab id="cbipLink" mini="" on-tap="_linkToCBIP" src="[[_cbipPicture()]]"></paper-fab>
+                                        <paper-fab id="cbipLink" mini on-tap="_linkToCBIP" src="[[_cbipPicture()]]"></paper-fab>
                                         <paper-tooltip position="top" for="cbipLink">[[localize('cbip','CBIP',language)]]</paper-tooltip>
-                                        <paper-fab id="rnConsultStatus" mini="" on-tap="_openRnConsultDialog" src="[[_rnConsultPicture()]]"></paper-fab>
-                                        <paper-tooltip position="top" for="rnConsultStatus">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
+                                        <template is="dom-if" if="[[_isAvailableForHcp(hcpType, 'rnConsult')]]">
+                                            <paper-fab id="rnConsultStatus" mini on-tap="_openRnConsultDialog" src="[[_rnConsultPicture()]]"></paper-fab>
+                                            <paper-tooltip position="top" for="rnConsultStatus">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
+                                        </template>
                                     </div>
                                 </div>
                             </paper-item>
@@ -1934,7 +1955,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu" hover="none"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="ahelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="ahelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <!-- <template is="dom-if" if="[[!activeHealthElements.length]]">
                                         <paper-item class="menu-item  list-info"><div class="one-line-menu">[[localize('no_act_hea_ele','No active health elements',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addHealthElement"></paper-icon-button></paper-item>
                                     </template> -->
@@ -1966,7 +1987,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="ihelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="ihelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <!-- <template is="dom-if" if="[[!inactiveHealthElements.length]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_med_ant','No medical antecedent',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addInactiveHealthElement"></paper-icon-button></paper-item>
                                     </template> -->
@@ -1998,7 +2019,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="suhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="suhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <!-- <template is="dom-if" if="[[!surgicalHealthElements.length]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_sur_hea_ele','No surgical history',language)]]</div></paper-item><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addInactiveHealthElement" data-tags="CD-ITEM|surgery|1.0"></paper-icon-button></paper-item>
                                     </template> -->
@@ -2030,7 +2051,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="frhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="frhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <!-- <template is="dom-if" if="[[!familyrisks.length]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_fam_ris','No family risks',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addHealthElement" data-label="Family risk" data-tags="CD-ITEM|familyrisk|1.0"></paper-icon-button></paper-item>
                                     </template> -->
@@ -2062,7 +2083,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="rhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="rhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <!-- <template is="dom-if" if="[[!risks.length]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_ris','No risks',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addHealthElement" data-label="Risks" data-tags="CD-ITEM|risk|1.0"></paper-icon-button></paper-item>
                                     </template> -->
@@ -2094,7 +2115,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="alhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="alhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <!-- <template is="dom-if" if="[[!allergies.length]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_all','No allergies',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addHealthElement" data-label="Allergies" data-tags="CD-ITEM|allergy|1.0"></paper-icon-button></paper-item>
                                     </template> -->
@@ -2127,7 +2148,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="mhelb" class="menu-content sublist" multi="" toggle-shift="" selected-items="{{selectedMedications}}">
+                                <paper-listbox id="mhelb" class="menu-content sublist" multi toggle-shift selected-items="{{selectedMedications}}">
                                     <template is="dom-if" if="[[!_nbMedications(medications.*)]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_med','No medications',language)]]</div><paper-icon-button class="menu-item-icon" icon="icons:add" on-tap="_addMedication" data-label="Medications" data-tags="CD-ITEM|medication|1.0"></paper-icon-button></paper-item>
                                     </template>
@@ -2254,7 +2275,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" on-tap="toggleMenu"></paper-icon-button>
                                     </div>
                                 </paper-item>
-                                <paper-listbox id="arhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi="" toggle-shift="" on-selected-items-changed="selectedMainElementItemsChanged">
+                                <paper-listbox id="arhelb" class="menu-content sublist" selectable="ht-pat-he-tree-detail" multi toggle-shift on-selected-items-changed="selectedMainElementItemsChanged">
                                     <template is="dom-if" if="[[!archivedHealthElements.length]]">
                                         <paper-item class="menu-item list-info"><div class="one-line-menu">[[localize('no_arc_hea_ele','No archived health elements',language)]]</div></paper-item>
                                     </template>
@@ -2278,17 +2299,17 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 </div>
 
                 <vaadin-split-layout class="second-third-panel" on-splitter-dragend="_colSizeChanged">
-                <template is="dom-if" if="[[!isAdminSelected(selectedAdminOrCompleteFileIndex)]]" restamp="">
+                <template is="dom-if" if="[[!isAdminSelected(selectedAdminOrCompleteFileIndex)]]" restamp>
                         <div class="second-panel">
                             <div class="layout horizontal">
                                 <div class="contact-actions">
                                     <paper-icon-button id="documentsDirectory-btn" class="button--icon-btn--other" icon="icons:folder" on-tap="_openDocumentsDirectory"></paper-icon-button>
                                     <paper-tooltip position="right" for="documentsDirectory-btn">[[localize('documentsDirectory','Documents directory',language)]]</paper-tooltip>
 
-                                    <paper-icon-button id="exportContactListBtn" class="button--icon-btn--other" icon="icons:get-app" name="select-all" role="button" tabindex="0" animated="" aria-disabled="false" elevation="0" on-tap="_exportContactListAsCsv"></paper-icon-button>
+                                    <paper-icon-button id="exportContactListBtn" class="button--icon-btn--other" icon="icons:get-app" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_exportContactListAsCsv"></paper-icon-button>
                                     <paper-tooltip position="right" for="exportContactListBtn">{{localize("export","Exporter",language)}}</paper-tooltip>
 
-                                    <paper-icon-button id="displayJournal" class="button--icon-btn--other" icon="icons:chrome-reader-mode" name="select-all" role="button" tabindex="0" animated="" aria-disabled="false" elevation="0" on-tap="_journal"></paper-icon-button>
+                                    <paper-icon-button id="displayJournal" class="button--icon-btn--other" icon="icons:chrome-reader-mode" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_journal"></paper-icon-button>
                                     <paper-tooltip position="right" for="displayJournal">{{localize("tra_typ_diarynote","tra_typ_diarynote",language)}}</paper-tooltip>
                                     <paper-icon-button id="button_list_plan_of_action-eventslgt" class="button--icon-btn--other" icon="history" on-tap="showListPlanOfAction"></paper-icon-button>
                                     <paper-tooltip position="bottom" for="button_list_plan_of_action-eventslgt">[[localize('plan_of_act','Plan of action',language)]]</paper-tooltip>
@@ -2298,7 +2319,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                 <filter-panel id="contactFilterPanel" items="[[secondPanelItems]]" search-string="{{contactSearchString}}" selected-filters="{{contactFilters}}" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"></filter-panel>
                             </div>
                             <div class="contacts-container" on-scroll="openToast">
-                                <paper-listbox id="_contacts_listbox" focused="" multi="" toggle-shift="" selectable="paper-material" selected-values="{{selectedContactIds}}" attr-for-selected="id">
+                                <paper-listbox id="_contacts_listbox" focused="" multi toggle-shift selectable="paper-material" selected-values="{{selectedContactIds}}" attr-for-selected="id">
                                     <span class="contact-year" on-click="openToast">
                                         <div>[[localize('to_do','To Do',language)]]</div>
                                         <div class="planned">
@@ -2387,19 +2408,19 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                             </div>
                             <div class="toast-detector" on-mousemove="openToast"></div>
                             <paper-toast id="selectionToast" class="fit-bottom">
-                                <paper-button class="selection-toast-button" name="select-today" role="button" tabindex="0" animated="" aria-disabled="false" elevation="0" on-tap="_selectToday">
+                                <paper-button class="selection-toast-button" name="select-today" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectToday">
                                     <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-today"></iron-icon>
                                     [[localize('sel_tod','Select Today',language)]]
                                 </paper-button>
-                                <paper-button class="selection-toast-button" name="select-six-months" role="button" tabindex="0" animated="" aria-disabled="false" elevation="0" on-tap="_select6Months">
+                                <paper-button class="selection-toast-button" name="select-six-months" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_select6Months">
                                     <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-six-months"></iron-icon>
                                     [[localize('sel_last_6_month','Last 6 Months',language)]]
                                 </paper-button>
-                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated="" aria-disabled="false" elevation="0" on-tap="_selectAll">
+                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectAll">
                                     <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-all"></iron-icon>
                                     [[localize('sel_all','Select All',language)]]
                                 </paper-button>
-                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated="" aria-disabled="false" elevation="0" on-tap="_selectMoreOptions">
+                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectMoreOptions">
                                     <iron-icon class="selection-toast-icon" icon="icons:add"></iron-icon>
                                     {{localize("more","More",language)}}
                                 </paper-button>
@@ -2485,7 +2506,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             </div>
         </entity-selector>
 
-        <ht-pat-flatrate-utils id="flatrateUtils" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" no-print=""></ht-pat-flatrate-utils>
+        <ht-pat-flatrate-utils id="flatrateUtils" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" no-print></ht-pat-flatrate-utils>
 
         <paper-dialog id="genInsDialog">
             <h2 class="modal-title">[[localize('gen_ins','General insurability',language)]]</h2>
@@ -2727,7 +2748,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
         <entity-selector id="add-form-dialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" columns="[[formTemplatesSelectorColumns()]]" data-provider="[[formTemplatesSelectorDataProvider()]]" on-entity-selected="_addedFormSelected"></entity-selector>
         <paper-dialog id="upload-dialog">
             <h2 class="modal-title">[[localize('upl_fil','Upload files',language)]]<span class="extra-info">(PDF, images and videos)</span></h2>
-            <vaadin-upload id="vaadin-upload" no-auto="" files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUploaded"></vaadin-upload>
+            <vaadin-upload id="vaadin-upload" no-auto files="{{files}}" accept="video/*,image/*,application/pdf,text/xml,application/xml,text/plain" target="[[api.host]]/document/{documentId}/attachment/multipart;jsessionid=[[api.sessionId]]" method="PUT" form-data-name="attachment" on-upload-success="_fileUploaded"></vaadin-upload>
             <div class="buttons">
                 <paper-button class="button" dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
             </div>
@@ -2736,7 +2757,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
         <ht-msg-new id="new-msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" patient="[[patient]]" on-refresh-patient="refreshPatientAndServices"></ht-msg-new>
 
-        <paper-dialog id="notConnctedToeHealthBox" class="modalDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+        <paper-dialog id="notConnctedToeHealthBox" class="modalDialog" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
             <div class="content textaligncenter pt20 pb70 pl20 pr20">
                 <p class="fw700">[[localize('notConnctedToeHealthBox','You are not connected to your eHealthBox yet',language)]]</p>
@@ -2787,7 +2808,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
 
 
-        <paper-dialog id="prose-editor-dialog-linking-letter" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+        <paper-dialog id="prose-editor-dialog-linking-letter" no-cancel-on-outside-click no-cancel-on-esc-key>
             <h2 class="modal-title">[[localize('linkingLetter','Lettre de liaison',language)]]</h2>
             <prose-editor class="content" id="prose-editor-linking-letter" on-refresh-context="_refreshContextLinkingLetter"></prose-editor>
             <div class="buttons">
@@ -4734,11 +4755,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
               if (!dlg.opened) this.set('curGenInsResp', gi)
 
-              this.$["insuranceStatus"].classList.remove('medicalHouse')
-              this.$["insuranceStatus"].classList.remove('noInsurance')
-              this.$["insuranceStatus"].classList.remove('insuranceOk')
+              this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('medicalHouse')
+              this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('noInsurance')
+              this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('insuranceOk')
 
-              this.$["insuranceStatus"].classList.add(genInsOk ? medicalHouse ? 'medicalHouse' : 'insuranceOk' : 'noInsurance')
+              this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.add(genInsOk ? medicalHouse ? 'medicalHouse' : 'insuranceOk' : 'noInsurance')
               //Polymer.updateStyles(this.$.insuranceStatus)
 
               if (genInsOk) {
@@ -4838,41 +4859,168 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
           this.updateEdmgStatus()
           this._consultRnHistory(patient)
       }else{
-          this.$["insuranceStatus"].classList.remove('medicalHouse')
-          this.$["insuranceStatus"].classList.remove('noInsurance')
-          this.$["insuranceStatus"].classList.remove('insuranceOk')
-          this.$["consentStatus"].classList.remove('noConsent')
-          this.$["consentStatus"].classList.remove('consentOk')
-          this.$["consentStatus"].classList.remove('pendingConsent')
-          this.$["hubStatus"].classList.remove('noAccess')
-          this.$["hubStatus"].classList.remove('accessOk')
-          this.$["sumehrStatus"].classList.remove('noSumehr')
-          this.$["sumehrStatus"].classList.remove('sumehr')
-          this.$["sumehrStatus"].classList.remove('sumehrChange')
-          this.$["tlStatus"].classList.remove('noTl');
-          this.$["tlStatus"].classList.remove('tlOk');
-          this.$["tlStatus"].classList.remove('tlPending');
-          this.$["edmgStatus"].classList.remove('edmgPending');
-          this.$["edmgStatus"].classList.remove('edmgOk');
-          this.$["edmgStatus"].classList.remove('edmgNOk');
-          this.$['rnConsultStatus'].classList.remove('rnConsultPending');
-          this.$['rnConsultStatus'].classList.remove('rnConsultNOk')
-          this.$['rnConsultStatus'].classList.remove('rnConsultOk')
+          this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('medicalHouse')
+          this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('noInsurance')
+          this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('insuranceOk')
+          this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('noConsent')
+          this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('consentOk')
+          this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('pendingConsent')
+          this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('noAccess')
+          this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('accessOk')
+          this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('noSumehr')
+          this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehr')
+          this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehrChange')
+          this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('noTl');
+          this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('tlOk');
+          this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('tlPending');
+          this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgPending');
+          this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgOk');
+          this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgNOk');
+          this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultPending');
+          this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultNOk')
+          this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultOk')
       }
 
       this._closeRnConsultChangedNotification()
   }
 
+    _isAvailableForHcp(hcpType, wsType){
+        return !!_.get(this, "matrixByHcpType."+wsType, []).find(hcp => hcp === hcpType)
+    }
+
+    _checkEhealthServiceForPhysician(hcp){
+        this.showPatientConsentState()
+        this.showPatientTherLinkState()
+        this.checkSumehrPresentOnHub();
+        if(!this.sumehrContentOnPatientLoad){
+            this.getSumehrContent().then(res => this.set('sumehrContentOnPatientLoad', res));
+        }
+        this.getSumehrContent().then(res => this.set('sumehrContentOnPatientRefresh', res));
+        this.updateEdmgStatus()
+        this._consultRnHistory(_.get(this, 'patient', null))
+        this._consultMda()
+    }
+
+    _checkEhealthServiceForMedicalHouse(hcp){
+        let dlg = this.root.querySelector('#genInsDialog')
+        let dStart = null;
+        const date = new Date(), y = date.getFullYear(), m = date.getMonth();
+        dStart = new Date(y,m,1).getTime();
+
+        if (!dlg.opened) this.set('curGenInsResp', null)
+        console.log("getGeneralInsurabilityUsingGET on date", dStart);
+        this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(this.cleanNiss(patient.ssin), _.get(this.api, "tokenIdMH", null), _.get(this.api, 'keystoreIdMH', null), _.get(this.api, 'credentials.ehpasswordMH', null), _.get(this.api, 'nihiiMH', null), _.get(this.api, 'MHContactPersonSsin', null), _.get(this.api, 'MHContactPersonName', null), "medicalhouse", dStart, null)
+            .then(gi => {
+                const genInsOk = !gi.faultCode && gi.insurabilities && gi.insurabilities.length && gi.insurabilities[0].ct1 && gi.insurabilities[0].ct1 !== '000' && !(gi.generalSituation && gi.generalSituation.length)
+                const medicalHouse = gi.medicalHouseInfo && gi.medicalHouseInfo.medical && this.api.before(gi.medicalHouseInfo.periodStart, +new Date()) && (!gi.medicalHouseInfo.periodEnd || this.api.after(gi.medicalHouseInfo.periodEnd + 24 * 3600 * 1000, +new Date()))
+
+                if (!dlg.opened) this.set('curGenInsResp', gi)
+
+                this.shadowRoot.querySelector("#insuranceStatus") ? this.shadowRoot.querySelector("#insuranceStatus").classList.remove('medicalHouse') : null
+                this.shadowRoot.querySelector("#insuranceStatus") ? this.shadowRoot.querySelector("#insuranceStatus").classList.remove('noInsurance') : null
+                this.shadowRoot.querySelector("#insuranceStatus") ? this.shadowRoot.querySelector("#insuranceStatus").classList.remove('insuranceOk') : null
+
+                this.shadowRoot.querySelector("#insuranceStatus") ? this.shadowRoot.querySelector("#insuranceStatus").classList.add(genInsOk ? medicalHouse ? 'medicalHouse' : 'insuranceOk' : 'noInsurance') : null
+                //Polymer.updateStyles(this.$.insuranceStatus)
+
+                if (genInsOk) {
+                    //TODO: expected behaviour:
+                    //1. if same mut and CT1/2 -> do nothing
+                    //2. if different mut or CT1/2 -> close previous insurability and create new insurability
+                    const ins = gi.insurabilities[0];
+                    this.api.insurance().listInsurancesByCode(ins.mutuality).then(out => {
+                        if(out && out.length){
+                            //find all patient insurabilities where insuranceId = out[0].Id and endDate is null or > today
+                            let insuFound = false;
+                            insuFound = patient.insurabilities.filter(l => out.some(insu => l.insuranceId===insu.id) && (!l.endDate || l.endDate===""))
+                            if(insuFound && insuFound.length){
+                                insuFound.map(p => {
+                                    //1 if found: check if CT1/2 is changed
+                                    if (
+                                        (ins.ct1 && (!p.parameters || p.parameters.tc1 !== ins.ct1))
+                                        || (ins.ct2 && (!p.parameters || p.parameters.tc2 !== ins.ct2))
+                                        || ins.period.periodStart < p.startDate
+                                    ){
+                                        console.log('Insurability: CT1/2 changed or startdate changed');//1.2 if changed: close the found ins and create new with startdate today
+                                        const newP = {};
+                                        newP.identificationNumber = ins.regNrWithMut;
+                                        newP.insuranceId = out[0].id;
+                                        newP.startDate = ins.period.periodStart;//moment().format('YYYYMMDD');
+                                        newP.parameters = {
+                                            tc1: ins.ct1,
+                                            preferentialstatus: parseInt(ins.ct1) % 2 === 1 ? true : false,
+                                            tc2: ins.ct2,
+                                            paymentapproval: !!ins.paymentApproval
+                                        };
+                                        //2.1 close all other
+                                        this.patient.insurabilities.map(p => {
+                                                if (!p.endDate) p.endDate = ins.period.periodStart;//moment().format('YYYYMMDD');
+                                            }
+                                        );
+                                        //remove insurabilities with same startdate
+                                        this.patient.insurabilities = this.patient.insurabilities.filter(it => it.startDate !== ins.period.periodStart && it.startDate < ins.period.periodStart);
+                                        this.patient.insurabilities.push(newP);
+                                        if (patient === this.patient) {
+                                            this.api.queue(this.patient, 'patient').then(([pat, defer]) => {
+                                                return this.api.patient().modifyPatientWithUser(this.user, this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
+                                                    this.dispatchEvent(new CustomEvent("patient-saved", {
+                                                        bubbles: true,
+                                                        composed: true
+                                                    }));
+                                                    Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
+                                                })
+                                            })
+                                        }
+                                    }else{
+                                        //1.1 if not changed: do nothing
+                                        console.log('Insurability: Nothing changed');
+                                    }
+                                })
+                            } else {
+                                console.log('Insurability: Mutuality changed');//2 if not found: create new with startdate today
+                                const newP = {};
+                                newP.identificationNumber = ins.regNrWithMut;
+                                newP.insuranceId = out[0].id;
+                                newP.startDate = ins.period.periodStart;//moment().format('YYYYMMDD');
+                                newP.parameters = {
+                                    tc1: ins.ct1,
+                                    preferentialstatus: parseInt(ins.ct1) % 2 === 1 ? true : false,
+                                    tc2:ins.ct2,
+                                    paymentapproval: !!ins.paymentApproval};
+                                //2.1 close all other
+                                this.patient.insurabilities.map(p =>{
+                                        if(!p.endDate) p.endDate = ins.period.periodStart;//moment().format('YYYYMMDD');
+                                    }
+                                );
+                                //remove insurabilities with same startdate
+                                this.patient.insurabilities = this.patient.insurabilities.filter(it => it.startDate !== ins.period.periodStart && it.startDate < ins.period.periodStart);
+                                this.push("patient.insurabilities",newP);
+                                if (patient === this.patient) {
+                                    this.api.queue(this.patient, 'patient').then (([pat, defer])  => {
+                                        return this.api.patient().modifyPatientWithUser(this.user,this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
+                                            this.dispatchEvent(new CustomEvent("patient-saved", {bubbles: true, composed: true}))
+                                            Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
+                                        })
+                                    })
+                                }
+                            }
+
+                        }
+                    })
+                }
+            }).catch(e => {console.log("genins failed "+e.message); this.set('isLoading', false); return null})
+    }
+
   showPatientTherLinkState(){
       this._getTherLinks().then(therLinks => {
 
-          this.$['tlStatus'].classList.remove('noTl');
-          this.$['tlStatus'].classList.remove('tlOk');
-          this.$['tlStatus'].classList.remove('tlPending')
+          this.shadowRoot.querySelector('#tlStatus').classList.remove('noTl');
+          this.shadowRoot.querySelector('#tlStatus').classList.remove('tlOk');
+          this.shadowRoot.querySelector('#tlStatus').classList.remove('tlPending')
 
-          _.get(therLinks, 'nationalResp.therapeuticLinks', []).length && _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? this.$['tlStatus'].classList.add('tlOk') :
-              _.get(therLinks, 'nationalResp.therapeuticLinks', []).length || _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? (this.hubSupportsConsent ? this.$['tlStatus'].classList.add('tlPending') : this.$['tlStatus'].classList.add('tlOk')) :
-                  this.$['tlStatus'].classList.add('noTl')
+          _.get(therLinks, 'nationalResp.therapeuticLinks', []).length && _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? this.shadowRoot.querySelector('#tlStatus').classList.add('tlOk') :
+              _.get(therLinks, 'nationalResp.therapeuticLinks', []).length || _.get(therLinks, 'hubResp.therapeuticLinks', []).length ? (this.hubSupportsConsent ? this.shadowRoot.querySelector('#tlStatus').classList.add('tlPending') : this.shadowRoot.querySelector('#tlStatus').classList.add('tlOk')) :
+                  this.shadowRoot.querySelector('#tlStatus').classList.add('noTl')
 
       })
   }
@@ -4958,19 +5106,19 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   showPatientSumehrState(){
       const changed = this.compareSumehrContent(this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
       console.log('showPatientSumehrState triggered present:', this.sumehrPresentOnHub, "changed:", changed, this.sumehrContentOnPatientLoad, this.sumehrContentOnPatientRefresh);
-      this.$['sumehrStatus'].classList.remove('noSumehr');
-      this.$['sumehrStatus'].classList.remove('sumehr');
-      this.$['sumehrStatus'].classList.remove('sumehrChange');
+      this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('noSumehr');
+      this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehr');
+      this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehrChange');
       if(this.sumehrPresentOnHub) {
           if(changed){
-              this.$['sumehrStatus'].classList.add('sumehrChange')
+              this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.add('sumehrChange')
               this.set('sumehrStatusDesc', this.localize('sumehr_data_changed' , 'Patient data for sumehr changed', this.language));
           } else {
-              this.$['sumehrStatus'].classList.add('sumehr');
+              this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.add('sumehr');
               this.set('sumehrStatusDesc', this.localize('sumehr_present' , 'Sumehr present on hub', this.language));
           }
       }else{
-          this.$['sumehrStatus'].classList.add('noSumehr');
+          this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.add('noSumehr');
           this.set('sumehrStatusDesc', this.localize('sumehr_not_present' , 'Sumehr not present on hub', this.language));
       }
   }
@@ -4981,28 +5129,28 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
   showPatientConsentState(){
       this._getConsents().then(patientConsent => {
-              this.$["consentStatus"].classList.remove('noConsent');
-              this.$["consentStatus"].classList.remove('consentOk');
-              this.$["consentStatus"].classList.remove('pendingConsent');
+              this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('noConsent');
+              this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('consentOk');
+              this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('pendingConsent');
 
-              !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) && (!_.isEmpty(_.get(patientConsent, "hubResp", {}))  || !this.hubSupportsConsent) ? this.$['consentStatus'].classList.add("consentOk") :
-                  !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) || !_.isEmpty(_.get(patientConsent, "hubResp", {})) ? this.$['consentStatus'].classList.add("pendingConsent") :
-                      this.$['consentStatus'].classList.add("noConsent")
+              !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) && (!_.isEmpty(_.get(patientConsent, "hubResp", {}))  || !this.hubSupportsConsent) ? this.shadowRoot.querySelector('#consentStatus').classList.add("consentOk") :
+                  !_.isEmpty(_.get(patientConsent, "nationalResp.consent", {})) || !_.isEmpty(_.get(patientConsent, "hubResp", {})) ? this.shadowRoot.querySelector('#consentStatus').classList.add("pendingConsent") :
+                      this.shadowRoot.querySelector('#consentStatus').classList.add("noConsent")
 
           }
       )
   }
 
   showPatientHubState(){
-      this.$["hubStatus"].classList.remove('accessOk');
-      this.$["hubStatus"].classList.remove('noAccess');
+      this.$["hubStatus"] && this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('accessOk');
+      this.$["hubStatus"] && this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('noAccess');
 
       this.set("hubReady",!this.hubSupportsConsent ? true :
           !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? true : false);
 
-      !this.hubSupportsConsent ? this.$["hubStatus"].classList.add('accessOk') :
-          !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this.$["hubStatus"].classList.add('accessOk') :
-              this.$["hubStatus"].classList.add('noAccess')
+      !this.hubSupportsConsent ? this.$["hubStatus"] && this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.add('accessOk') :
+          !!_.size(_.get(this.currentTherLinks, 'hubResp.therapeuticLinks', [])) && !_.isEmpty(_.get(this.currentConsents, "hubResp", {})) ? this.$["hubStatus"] && this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.add('accessOk') :
+              this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.add('noAccess')
   }
 
   unselectAdminFile() {
@@ -6178,7 +6326,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   postitChanged(value) {
       const trimmedValue = value && value.trim()
       if(trimmedValue && trimmedValue.length) {
-          this.$["postit-notification"].classList.add('notification')
+          this.shadowRoot.querySelector('#postit-notification') && this.shadowRoot.querySelector('#postit-notification').classList.add('notification')
           setTimeout(() => {
               this.closePostit()
           }, 60000);
@@ -6193,13 +6341,13 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   }
 
   closePostit() {
-      this.$["postit-notification"].classList.remove('notification')
+      this.shadowRoot.querySelector('#postit-notification') && this.shadowRoot.querySelector('#postit-notification').classList.remove('notification')
   }
 
   flatrateMsgChanged(value){
       const trimmedValue = value && value.trim()
       if(trimmedValue && trimmedValue.length) {
-          this.$["flatrate-notification"].classList.add('notification')
+          this.shadowRoot.querySelector('#flatrate-notification') && this.shadowRoot.querySelector('#flatrate-notification').classList.add('notification')
           setTimeout(() => {
               this.closeFlatrateMsg()
           }, 60000);
@@ -6209,7 +6357,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   }
 
   closeFlatrateMsg(){
-      this.$["flatrate-notification"].classList.remove('notification')
+      this.shadowRoot.querySelector('#flatrate-notification') && this.shadowRoot.querySelector('#flatrate-notification').classList.remove('notification')
   }
 
   createEvent(codeId){
@@ -6814,19 +6962,19 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
               this.set('rnHistoryResult', resp)
               if(!_.isEmpty(resp)){
                  if(_.get(resp, 'ssin.value', null) && !_.get(resp, 'ssin.replaces', null) && _.get(resp, 'ssin.canceled', null) !== true){
-                     this.$['rnConsultStatus'].classList.add('rnConsultOk')
+                     this.shadowRoot.querySelector('#rnConsultStatus').classList.add('rnConsultOk')
                  }else if(_.get(resp, 'ssin.replaces', null)){
-                     this.$['rnConsultStatus'].classList.add('rnConsultPending')
+                     this.shadowRoot.querySelector('#rnConsultStatus').classList.add('rnConsultPending')
                      this._rnConsultChangedNotification()
                  }else if(_.get(resp, 'ssin.canceled', null)){
-                     this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                     this.shadowRoot.querySelector('#rnConsultStatus').classList.add('rnConsultNOk')
                      this._rnConsultErrorNotification()
                  }else{
-                     this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                     this.shadowRoot.querySelector('#rnConsultStatus').classList.add('rnConsultNOk')
                      this._rnConsultErrorNotification()
                  }
               }else{
-                  this.$['rnConsultStatus'].classList.add('rnConsultNOk')
+                  this.shadowRoot.querySelector('#rnConsultStatus').classList.add('rnConsultNOk')
                   this._rnConsultErrorNotification()
               }
           })
@@ -6853,36 +7001,36 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
   // }
 
   _therLinkErrorNotification(){
-      this.$["therLink-notification"].classList.add('notification')
+      this.shadowRoot.querySelector('#therLink-notification') && this.shadowRoot.querySelector('#therLink-notification').classList.add('notification')
       setTimeout(() => {
           this._closeTherLinkErrorNotification()
       }, 10000);
   }
 
   _closeTherLinkErrorNotification(){
-      this.$["therLink-notification"].classList.remove('notification')
+      this.shadowRoot.querySelector('#therLink-notification') && this.shadowRoot.querySelector('#therLink-notification').classList.remove('notification')
   }
 
   _consentErrorNotification(){
-      this.$["consent-notification"].classList.add('notification')
+      this.shadowRoot.querySelector('#consent-notification') && this.shadowRoot.querySelector('#consent-notification').classList.add('notification')
       setTimeout(() => {
           this._closeConsentErrorNotification()
       }, 10000);
   }
 
   _closeConsentErrorNotification() {
-      this.$["consent-notification"].classList.remove('notification')
+      this.shadowRoot.querySelector('#consent-notification') && this.shadowRoot.querySelector('#consent-notification').classList.remove('notification')
   }
 
   _ehealthErrorNotification(){
-      this.$["ehealth-notification"].classList.add('notification')
+      this.shadowRoot.querySelector('#ehealth-notification') && this.shadowRoot.querySelector('#ehealth-notification').classList.add('notification')
       setTimeout(() => {
           this._closeEhealthErrorNotification()
       }, 10000);
   }
 
   _closeEhealthErrorNotification(){
-      this.$["ehealth-notification"].classList.remove('notification')
+      this.shadowRoot.querySelector('#ehealth-notification') && this.shadowRoot.querySelector('#ehealth-notification').classList.remove('notification')
   }
 
   _newReport_v2(e) {
@@ -6905,31 +7053,58 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
       this._refreshFromServices();
   }
   _rnConsultErrorNotification(){
-      this.$["rnConsult-error-notification"].classList.add('notification')
+      this.shadowRoot.querySelector('#rnConsult-error-notification') && this.shadowRoot.querySelector('#rnConsult-error-notification').classList.add('notification')
       setTimeout(() => {
           this._closeRnConsultErrorNotification()
       }, 10000);
   }
 
   _rnConsultChangedNotification(){
-      this.$["rnConsult-changed-notification"].classList.add('notification')
+      this.shadowRoot.querySelector('#rnConsult-changed-notification') && this.shadowRoot.querySelector('#rnConsult-changed-notification').classList.add('notification')
       setTimeout(() => {
           this._closeRnConsultChangedNotification()
       }, 600000);
   }
 
   _closeRnConsultErrorNotification(){
-      this.$["rnConsult-error-notification"].classList.remove('notification')
+      this.shadowRoot.querySelector('#rnConsult-error-notification') && this.shadowRoot.querySelector('#rnConsult-error-notification').classList.remove('notification')
   }
 
   _closeRnConsultChangedNotification(){
-      this.$["rnConsult-changed-notification"] ? this.$["rnConsult-changed-notification"].classList.remove('notification') : null
+      this.shadowRoot.querySelector('#rnConsult-changed-notification') && this.shadowRoot.querySelector('#rnConsult-changed-notification').classList.remove('notification')
   }
 
   _showRnConsultDiff(){
       this._closeRnConsultChangedNotification()
       this.$["htPatRnConsultHistoryDialog"]._openDialog()
   }
+
+    _openMdaDialog(e){
+        e.stopPropagation()
+        if(this._checkForEhealthSession() === true){
+            this.$["htPatMemberDataDetail"].openDialog()
+        }else{
+            this._ehealthErrorNotification()
+        }
+    }
+
+    _consultMda(){
+        this.$["htPatMemberDataDetail"].openDialog({open: false})
+    }
+
+    _updateMdaFlags(e){
+        this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.remove('medicalHouse'): null
+        this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.remove('insuranceOk'): null
+        this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.remove('noInsurance'): null
+        this.set('mdaResult',  _.get(e, 'detail.mdaResult', {}))
+
+        !_.isEmpty(_.get(e, 'detail', {})) ?
+            _.get(e, 'detail.medicalHouse', 0) > 0 ? this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('medicalHouse') : null :
+                _.get(e, 'detail.generalSituation', 0) === 0 ? this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('insuranceOk'): null :
+                    this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('noInsurance') : null :
+            this.shadowRoot.querySelector("#mdaStatus") ? this.shadowRoot.querySelector("#mdaStatus").classList.add('noInsurance') : null
+
+    }
 
   _openDocumentsDirectory() {
       const documentsDirectoryComponent = this.shadowRoot.querySelector("#documentsDirectory")
@@ -6991,6 +7166,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
       const today = moment();
       return this.medications.filter(s => s.tags.some(c => _.get(c, 'type', null) === 'CD-ITEM' && _.get(c, 'code', null) === 'medication' && !_.values(_.get(s, 'content', null)).some(c => _.get(c, 'medicationValue', null) && (_.get(c, 'medicationValue.endMoment', null) && this.api.moment(_.get(c, 'medicationValue.endMoment', null)).isBefore(yesterday)) || (_.get(c, 'medicationValue.endOfLife', null) && this.api.moment(_.get(c, 'medicationValue.endOfLife', null)).isBefore(today)))));
   }
+
+    _isSpecialist(hcp){
+        return !!(_.get(hcp, 'nihii', null) && _.startsWith(_.get(hcp, 'nihii', null), "1", 0) && _.size(_.get(hcp, 'nihii', null)) === 11 && (_.get(hcp, 'nihii', null).substr(_.size(_.get(hcp, 'nihii', null)) - 3) >= 10))
+
+    }
 }
 
 customElements.define(HtPatDetail.is, HtPatDetail);
