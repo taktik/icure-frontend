@@ -1560,29 +1560,21 @@
 			// }
 
 			_decryptComments(contact) {
-				return Promise.all(contact.subContacts
-					.filter(sc => sc.status === 64)
-					.reduce((scSvcs, sc) => scSvcs.concat(sc.services), [])
+				return !contact ? Promise.resolve() : Promise.all(_.get(contact,"subContacts",[])
+					.filter(sc => _.get(sc,"status") === 64)
+					.reduce((scSvcs, sc) => scSvcs.concat(_.get(sc,"services",[])), [])
 					.map(scSvc => {
-						const service = contact.services.find(svc => svc.id === scSvc.serviceId);
+						const service = contact.services.find(svc => _.get(svc,"id") === _.get(scSvc,"serviceId"));
 						const docId = service && this._documentId(service);
-						if (!docId) Promise.resolve();
-						return this.api.document().getDocument(docId)
-								.then(doc => {
-									const ua = this.api.crypto().utils.text2ua(Base64.decode(service.comment));
-									return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, ua);
-								})
-								.then(ua => {
-									service.clearComment = this.api.crypto().utils.ua2text(ua)
-									console.log("document id:" + docId + " -> comment:" + service.clearComment);
-								})
-								.catch(error => {
-									console.log(error);
-									Promise.resolve();
-								})
+						return !docId ? Promise.resolve() : this.api.document().getDocument(docId)
+							.then(doc => {
+								const ua = this.api.crypto().utils.text2ua(Base64.decode(service.comment));
+								return this.api.encryptDecryptFileContentByUserHcpIdAndDocumentObject("decrypt", this.user, doc, ua);
+							})
+							.then(ua =>  service.clearComment = this.api.crypto().utils.ua2text(ua))
+							.catch(error => Promise.resolve())
 					}))
 			}
-
 
 			// _setComments(contact) {
 			// 	try {
@@ -1913,7 +1905,7 @@
 
 			_hasCurrentContact() {
                 //console.log("_hasCurrentContact: ", this.contacts.find(c => !c.closingDate) && true);
-				return this.contacts.find(c => !c.closingDate) && true;
+				return this.contacts.find(c => !_.get(c,"closingDate")) && true;
 			}
 
             _isCurrentContact(ctc) {
@@ -1965,9 +1957,9 @@
 
                 const seenForms = {}
                 const formGroups = this.contacts.reduce((contacts, contact) => {
-					const subContacts = contact.subContacts.map(x=>x)
+					const subContacts = _.get(contact,"subContacts",[]).map(x=>x)
 
-					const orphanedServices = contact.services.filter(s => !subContacts.some(sc => sc.services.some(lnk => (lnk.serviceId === s.id))))
+					const orphanedServices = _.get(contact,"services",[]).filter(s => !subContacts.some(sc => _.get(sc,"services",[]).some(lnk => (_.get(lnk,"serviceId") === _.get(s,"id")))))
 					if (orphanedServices.length) {
 					    subContacts.push({services:orphanedServices.map(s=>({serviceId:s.id}))})
 					}
@@ -1985,8 +1977,8 @@
                     const docIds = _.flatMap(forms, f => f.docs.map(d => d.id))
 
                     const unmappedServices = this.serviceFilters && this.serviceFilters.length ?
-                    _.sortBy(contact.services.filter(svc => !docIds.includes(svc.id) && !subContacts.some(sc => sc.formId && sc.services.some(ssc => ssc.serviceId === svc.id)) && this.filteredServiceIds.some(fsId => fsId === svc.id) ), 'created'):
-                    _.sortBy(contact.services.filter(svc => !docIds.includes(svc.id) && !subContacts.some(sc => sc.formId && sc.services.some(ssc => ssc.serviceId === svc.id)) ), 'created')
+                    _.sortBy(_.get(contact,"services",[]).filter(svc => !docIds.includes(_.get(svc,"id")) && !subContacts.some(sc => _.get(sc,"formId") && _.get(sc,"services",[]).some(ssc => _.get(ssc,"serviceId") === _.get(svc,"id"))) && this.filteredServiceIds.some(fsId => fsId === _.get(svc,"id")) ), 'created'):
+                    _.sortBy(_.get(contact,"services",[]).filter(svc => !docIds.includes(_.get(svc,"id")) && !subContacts.some(sc => _.get(sc,"formId") && _.get(sc,"services",[]).some(ssc => _.get(ssc,"serviceId") === _.get(svc,"id"))) ), 'created')
 
                     if((forms && forms.length) || (unmappedServices && unmappedServices.length)) {
                         contacts.push({
@@ -4272,8 +4264,22 @@
 			        .then(() => this.api.contact().modifyContactWithUser(this.user, ctc))
                     .then(c => this.api.register(c,'contact'))
                     .then(c => ctc.rev = c.rev)
-                    // .then(() => this._contactsChanged())
                     .then(() => setTimeout(() => this.dispatchEvent(new CustomEvent("refresh-contacts", {detail:{contact: ctc},bubbles: true,composed: true})), 500))
+
+			}
+
+			_deleteContactAndRefreshContacts(ctc) {
+
+				const targetCtcAfterDeletion = _
+					.chain(this.allContacts)
+					.filter(c => _.get(c,"id")!==_.get(ctc,"id"))
+					.orderBy(["openingDate"],["desc"])
+					.head()
+					.value()
+
+			    return Promise.resolve()
+			        .then(() => !_.trim(_.get(ctc,"id")) ? null : this.api.contact().deleteContacts(_.trim(_.get(ctc,"id"))))
+					.then(() => setTimeout(() => this.dispatchEvent(new CustomEvent("refresh-contacts", {detail:{contact: targetCtcAfterDeletion},bubbles: true,composed: true})), 500))
 
 			}
 
@@ -4386,7 +4392,7 @@
 			_linkServicesAndEs(e) {
 
 				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
-				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
+				const sourceSubContact = _.size(ctc.subContacts) === 1 ? _.head(ctc.subContacts) : _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
 				const sourceServiceIds = _.uniq(_.compact(_.map(_.get(sourceSubContact,"services",[]), x => _.get(x,"serviceId",""))))
 				const heAlreadyLinked = !!_.size(_
 					.chain(_.get(ctc,"subContacts",[]))
@@ -4473,33 +4479,24 @@
 			_deleteServiceDialog(e) {
 
 				const ctc = _.find(this.contacts, {id:_.get(e, "detail.contact.id","")})
-				const isFromServices = !!_.get(e,"detail.isServices", false)
-
-				// For dynamic doc
 				const docId = _.trim(_.get(e, "detail.document.id",""))
-				const documentSvc = _.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId))
+				const svcIds = !docId ? _.get(e,"detail.svcIds","") : _.get(_.find(ctc.services, svc => (!!_.size(_.get(svc,"content.fr",{})) && _.get(svc,"content.fr.documentId","") === docId) || (!!_.size(_.get(svc,"content.nl",{})) && _.get(svc,"content.nl.documentId","") === docId) || (!!_.size(_.get(svc,"content.en",{})) && _.get(svc,"content.en.documentId","") === docId)),"id","")
 
-				// For ht-services-list
-				const sourceSubContact = _.find(_.get(ctc,"subContacts",[]), sctc => ((_.get(sctc,"status",0) & (1 << 0)) !== 0) || ((_.get(sctc,"status",0) & (1 << 5)) !== 0)) /* Target lab results (1<<0) or protocol (1<<5) subContact */
-				const sourceServiceIds = _.uniq(_.compact(_.map(_.get(sourceSubContact,"services",[]), x => _.get(x,"serviceId",""))))
-
-				// For dialog
-				this.set("_deleteServicesData.ctc",ctc)
-				this.set("_deleteServicesData.isFromServices",isFromServices)
-				this.set("_deleteServicesData.docId",docId)
-				this.set("_deleteServicesData.documentSvc",documentSvc)
-				this.set("_deleteServicesData.sourceSubContact",sourceSubContact)
-				this.set("_deleteServicesData.sourceServiceIds",sourceServiceIds)
-
-				return this.$['deleteServiceDialog'] && this.$['deleteServiceDialog'].open();
+				return (this.set("_deleteServicesData",{ctc:ctc, docId:docId, svcIds:svcIds.split(",")})||true) && this.$['deleteServiceDialog'] && this.$['deleteServiceDialog'].open();
 
 			}
 
 			_doDeleteService() {
 
-				console.log("_doDeleteService", this._deleteServicesData)
+				const promResolve = Promise.resolve()
+				const targetCtc = _.get(this,"_deleteServicesData.ctc",{})
 
-				return this.$['deleteServiceDialog'] && this.$['deleteServiceDialog'].close();
+				return !_.size(_.get(this,"_deleteServicesData",{})) || !_.trim(_.get(targetCtc,"id")) || !_.size(this._deleteServicesData.svcIds) ? this.$['deleteServiceDialog'].close() : promResolve
+					.then(() => _.assign(targetCtc, {services: _.filter(_.get(targetCtc,"services",[]), svc => _.get(this,"_deleteServicesData.svcIds",[]).indexOf(svc.id) === -1)}))
+					.then(() => _.assign(targetCtc, {subContacts:_.map(_.get(targetCtc,"subContacts",[]), subCtc => _.assign(subCtc, {services: _.filter(_.get(subCtc,"services",[]), svc => _.get(this,"_deleteServicesData.svcIds",[]).indexOf(svc.serviceId) === -1)}) )}))
+					.then(() => _.assign(targetCtc, {subContacts:_.filter(_.get(targetCtc,"subContacts",[]), subCtc => _.size(_.get(subCtc,"services",[])) )}))
+					.then(() => !_.size(_.get(targetCtc,"services",[])) ? this._deleteContactAndRefreshContacts(targetCtc) : this._saveContactAndRefreshContacts(targetCtc))
+					.finally(() => this.$['deleteServiceDialog'].close())
 
 			}
 
