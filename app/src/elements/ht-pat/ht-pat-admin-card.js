@@ -19,6 +19,7 @@ import './ht-pat-admin-team.js';
 
 import moment from 'moment/src/moment';
 import levenshtein from 'js-levenshtein';
+import _ from 'lodash/lodash';
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
@@ -1803,7 +1804,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
 
   fillWithCard(){
       this.set('cardData', null);
-      fetch('http://127.0.0.1:16042/read')
+      fetch(`${_.get(this,"api.electronHost","http://127.0.0.1:16042")}/read`)
           .then((response) => {
               return response.json();
           })
@@ -1858,6 +1859,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
 
           this.set("patient.lastName", this.cardData.surname)
           this.set("patient.firstName", this.cardData.firstName)
+          this.set("patient.lastTimeEidRead",parseInt(moment().format('YYYYMMDD')))
           this.set("patient.placeOfBirth", this.cardData.locationOfBirth)
           this.set("patient.dateOfBirth", parseInt(this.api.moment(this.cardData.dateOfBirth * 1000).format('YYYYMMDD')))
           this.set("patient.nationality", this.cardData.nationality)

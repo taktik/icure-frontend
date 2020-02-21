@@ -1325,7 +1325,7 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
       // For organization qualities
         this.set("_recipientTypeIsOrg",_.trim(_.get(recipientType,"id","hcp")) === "org")
         if( _.trim(recipientFilter).length < 3 || !_.get(this,"api.keystoreId",false) || !_.get(this,"api.tokenId",false) || !_.get(this,"api.credentials.ehpassword",false) ) { this.set("filteredRecipientsList",[]); return; }
-        const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) 1)
+        const reqIdx = (this.recipientReqIdx = (this.recipientReqIdx || 0) + 1)
 
         setTimeout(() => {
 
@@ -2190,7 +2190,7 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
 
       }
 
-      _notAlreadyInRecipients(recipientAndEhealthBoxes, qualityObject={}) {
+      _notAlreadyInRecipients(recipientAndEhealthBoxes, qualityObject) {
 
           const cbeId = _.trim(_.get(recipientAndEhealthBoxes , "cbe", ""))
           const ehpId = _.trim(_.get(recipientAndEhealthBoxes , "ehp", ""))
