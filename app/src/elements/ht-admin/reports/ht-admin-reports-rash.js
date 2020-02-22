@@ -24,7 +24,7 @@ import { filter as icrFilter } from '../../../../scripts/filters'
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../../tk-localizer";
 
-class HtAdminReportsRash extends Polymer.TkLocalizerMixin(Polymer.Element) {
+class HtAdminReportsRash extends TkLocalizerMixin(PolymerElement){
     static get template() {
         return html`
                       <style include="shared-styles dialog-style buttons-style paper-tabs-style">
