@@ -13,7 +13,8 @@ import {mixinBehaviors} from "@polymer/polymer/lib/legacy/class";
 import {IronResizableBehavior} from "@polymer/iron-resizable-behavior";
 import {PolymerElement, html} from '@polymer/polymer';
 class HtPatPrescriptionDialog extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior], PolymerElement)) {
-    return html`
+    static get template() {
+        return html`
         <style include="dialog-style">
             .endline {
 				display: flex;
