@@ -13,8 +13,7 @@ import '../ht-pat/dialogs/medicalhouse/ht-pat-flatrate-utils.js';
 import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'
-const XLSX = require('../../../bower_components/js-xlsx/dist/xlsx.full.min.js')
-
+import XLSX from 'xlsx'
 
 import promiseLimit from 'promise-limit';
 
@@ -30,7 +29,7 @@ import "@vaadin/vaadin-grid/vaadin-grid-sorter"
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../tk-localizer";
-class HtMsgFlatrateReport extends Polymer.TkLocalizerMixin(Polymer.mixinBehaviors([Polymer.IronResizableBehavior], Polymer.Element)) {
+class HtMsgFlatrateReport extends TkLocalizerMixin(PolymerElement) {
 
   static get template() {
     return html`
