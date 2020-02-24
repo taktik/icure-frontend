@@ -14,6 +14,7 @@ import moment from 'moment/src/moment';
 import _ from 'lodash/lodash';
 import * as models from 'icc-api/dist/icc-api/model/models'
 import XLSX from 'xlsx'
+import 'xlsx/dist/shim.min'
 
 import promiseLimit from 'promise-limit';
 
