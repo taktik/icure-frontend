@@ -2849,6 +2849,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
         <ht-pat-hub-utils id="htPatHubUtils" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" on-hub-download="_hubDownload" on-close-hub-dialog="_closeOverlay"></ht-pat-hub-utils>
         <ht-pat-care-path-detail-dialog id="htPatCarePathDetailDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" contacts="[[contacts]]" current-contact="[[currentContact]]" resources="[[resources]]" selected-care-path-info="[[selectedCarePathInfo]]" active-health-elements="[[activeHealthElements]]" on-save-care-path="_refreshFromServices" on-closing-care-path="refreshPatient"></ht-pat-care-path-detail-dialog>
         <ht-pat-care-path-list-dialog id="htPatCarePathListDialog" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[patient]]" i18n="[[i18n]]" current-contact="[[currentContact]]" resources="[[resources]]" active-health-elements="[[activeHealthElements]]" on-open-care-path-detail-dialog="_openCarePathDetail"></ht-pat-care-path-list-dialog>
+        <ht-pat-member-data-detail id="htPatMemberDataDetail" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" mda-result="[[mdaResult]]" on-mda-response="_updateMdaFlags"></ht-pat-member-data-detail>
 `
     }
 
@@ -3308,8 +3309,31 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             familyLinks: {
                 type: Array,
                 value: () => []
+            },
+            mdaResult:{
+                type: Object,
+                value: {}
+            },
+            hcpType: {
+                type: String,
+                value: null
+            },
+            sumehrContentOnPatientLoad:{
+                type: Object,
+                value: () => {}
+            },
+            matrixByHcpType: {
+                type: Object,
+                value: {
+                    rnConsult: ["physician", "specialist"],
+                    edmg: ["physician"],
+                    hub: ["physician", "specialist"],
+                    therLink: ["physician", "specialist"],
+                    consent: ["physician", "specialist"],
+                    mda: ["physician", "specialist"],
+                    insurability: ["medicalHouse"]
+                }
             }
-
         }
     }
 
@@ -4876,160 +4900,42 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
         this.hubApplication = hubConfig.hubApplication
         this.set("supportBreakTheGlass", hubConfig.supportBreakTheGlass)
 
-        if (patient.ssin && (this.api.tokenId || this.api.tokenIdMH)) {
+        this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>{
+            _.get(hcp, 'type', null).toLowerCase() === "medicalhouse" ? this.set('hcpType', "medicalHouse") :
+                this._isSpecialist(hcp) ? this.set('hcpType', "specialist") :
+                    this.set('hcpType', "physician")
 
-            let dlg = this.root.querySelector('#genInsDialog')
-            let dStart = null
-            const date = new Date(), y = date.getFullYear(), m = date.getMonth()
-            dStart = new Date(y, m, 1).getTime()
+            if(_.get(this.patient, 'ssin', null) && _.get(hcp, 'nihii', null) && _.get(this.api, 'tokenId', null) && _.get(this.api, 'keystoreId', null)){
+                //Physician or specialist access
+                this._checkEhealthServiceForPhysician(hcp)
 
-            if (!dlg.opened) this.set('curGenInsResp', null)
-            //api.MHContactPersonName
-            //api.MHContactPersonSsin
-            console.log("getGeneralInsurabilityUsingGET on date", dStart)
-            this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => this.api.fhc().Geninscontroller().getGeneralInsurabilityUsingGET(
-                this.cleanNiss(patient.ssin),
-                this.api.tokenId ? this.api.tokenId : this.api.tokenIdMH, this.api.tokenId ? this.api.keystoreId : this.api.keystoreIdMH, this.api.tokenId ? this.api.credentials.ehpassword : this.api.credentials.ehpasswordMH,
-                this.api.tokenId ? hcp.nihii : this.api.nihiiMH, this.api.isMH ? this.api.MHContactPersonSsin : hcp.ssin, this.api.isMH ? this.api.MHContactPersonName : hcp.lastName + ' ' + hcp.firstName, this.api.tokenId ? "doctor" : "medicalhouse", dStart, null
-            ).then(gi => {
-                const genInsOk = !gi.faultCode && gi.insurabilities && gi.insurabilities.length && gi.insurabilities[0].ct1 && gi.insurabilities[0].ct1 !== '000' && !(gi.generalSituation && gi.generalSituation.length)
-                const medicalHouse = gi.medicalHouseInfo && gi.medicalHouseInfo.medical && this.api.before(gi.medicalHouseInfo.periodStart, +new Date()) && (!gi.medicalHouseInfo.periodEnd || this.api.after(gi.medicalHouseInfo.periodEnd + 24 * 3600 * 1000, +new Date()))
-
-                if (!dlg.opened) this.set('curGenInsResp', gi)
-
+            }else if(_.get(this.patient, 'ssin', null) && _.get(hcp, 'nihii', null) && _.get(this.api, 'tokenIdMH', null) && _.get(this.api, 'keystoreIdMH', null)){
+                //MedicalHouse access
+                this._checkEhealthServiceForMedicalHouse(hcp)
+            }else{
+                //No ehealth session or patient SSIN not present
                 this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('medicalHouse')
                 this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('noInsurance')
                 this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('insuranceOk')
-
-                this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.add(genInsOk ? medicalHouse ? 'medicalHouse' : 'insuranceOk' : 'noInsurance')
-                //Polymer.updateStyles(this.$.insuranceStatus)
-
-                if (genInsOk) {
-                    //TODO: expected behaviour:
-                    //1. if same mut and CT1/2 -> do nothing
-                    //2. if different mut or CT1/2 -> close previous insurability and create new insurability
-                    const ins = gi.insurabilities[0]
-                    this.api.insurance().listInsurancesByCode(ins.mutuality).then(out => {
-                        if (out && out.length) {
-                            //find all patient insurabilities where insuranceId = out[0].Id and endDate is null or > today
-                            let insuFound = false
-                            insuFound = patient.insurabilities.filter(l => out.some(insu => l.insuranceId === insu.id) && (!l.endDate || l.endDate === ""))
-                            if (insuFound && insuFound.length) {
-                                insuFound.map(p => {
-                                    //1 if found: check if CT1/2 is changed
-                                    if (
-                                        (ins.ct1 && (!p.parameters || p.parameters.tc1 !== ins.ct1))
-                                        || (ins.ct2 && (!p.parameters || p.parameters.tc2 !== ins.ct2))
-                                        || ins.period.periodStart < p.startDate
-                                    ) {
-                                        console.log('Insurability: CT1/2 changed or startdate changed')//1.2 if changed: close the found ins and create new with startdate today
-                                        const newP = {}
-                                        newP.identificationNumber = ins.regNrWithMut
-                                        newP.insuranceId = out[0].id
-                                        newP.startDate = ins.period.periodStart//moment().format('YYYYMMDD');
-                                        newP.parameters = {
-                                            tc1: ins.ct1,
-                                            preferentialstatus: parseInt(ins.ct1) % 2 === 1 ? true : false,
-                                            tc2: ins.ct2,
-                                            paymentapproval: !!ins.paymentApproval
-                                        }
-                                        //2.1 close all other
-                                        this.patient.insurabilities.map(p => {
-                                                if (!p.endDate) p.endDate = ins.period.periodStart//moment().format('YYYYMMDD');
-                                            }
-                                        )
-                                        //remove insurabilities with same startdate
-                                        this.patient.insurabilities = this.patient.insurabilities.filter(it => it.startDate !== ins.period.periodStart && it.startDate < ins.period.periodStart)
-                                        this.patient.insurabilities.push(newP)
-                                        if (patient === this.patient) {
-                                            this.api.queue(this.patient, 'patient').then(([pat, defer]) => {
-                                                return this.api.patient().modifyPatientWithUser(this.user, this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
-                                                    this.dispatchEvent(new CustomEvent("patient-saved", {
-                                                        bubbles: true,
-                                                        composed: true
-                                                    }))
-                                                    this.shadowRoot.querySelector('#pat-admin-card').patientChanged()
-                                                })
-                                            })
-                                        }
-                                    } else {
-                                        //1.1 if not changed: do nothing
-                                        console.log('Insurability: Nothing changed')
-                                    }
-                                })
-                            } else {
-                                console.log('Insurability: Mutuality changed')//2 if not found: create new with startdate today
-                                const newP = {}
-                                newP.identificationNumber = ins.regNrWithMut
-                                newP.insuranceId = out[0].id
-                                newP.startDate = ins.period.periodStart//moment().format('YYYYMMDD');
-                                newP.parameters = {
-                                    tc1: ins.ct1,
-                                    preferentialstatus: parseInt(ins.ct1) % 2 === 1 ? true : false,
-                                    tc2: ins.ct2,
-                                    paymentapproval: !!ins.paymentApproval
-                                }
-                                //2.1 close all other
-                                this.patient.insurabilities.map(p => {
-                                        if (!p.endDate) p.endDate = ins.period.periodStart//moment().format('YYYYMMDD');
-                                    }
-                                )
-                                //remove insurabilities with same startdate
-                                this.patient.insurabilities = this.patient.insurabilities.filter(it => it.startDate !== ins.period.periodStart && it.startDate < ins.period.periodStart)
-                                this.push("patient.insurabilities", newP)
-                                if (patient === this.patient) {
-                                    this.api.queue(this.patient, 'patient').then(([pat, defer]) => {
-                                        return this.api.patient().modifyPatientWithUser(this.user, this.patient).catch(e => defer.resolve(this.patient)).then(pt => this.api.register(pt, 'patient', defer)).then(p => {
-                                            this.dispatchEvent(new CustomEvent("patient-saved", {
-                                                bubbles: true,
-                                                composed: true
-                                            }))
-                                            this.shadowRoot.querySelector('#pat-admin-card').patientChanged()
-                                        })
-                                    })
-                                }
-                            }
-                        }
-                    })
-                }
-
-            }).catch(e => {
-                console.log("genins failed " + e.message)
-                this.set('isLoading', false)
-                return null
-            }))
-            this.selectedTherLink = null
-            this.showPatientConsentState()
-            this.showPatientTherLinkState()
-            this.checkSumehrPresentOnHub()
-            if (!this.sumehrContentOnPatientLoad) {
-                this.getSumehrContent().then(res => this.set('sumehrContentOnPatientLoad', res))
+                this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('noConsent')
+                this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('consentOk')
+                this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('pendingConsent')
+                this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('noAccess')
+                this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('accessOk')
+                this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('noSumehr')
+                this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehr')
+                this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehrChange')
+                this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('noTl')
+                this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('tlOk')
+                this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('tlPending')
+                this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgPending')
+                this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgOk')
+                this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgNOk')
+                this.shadowRoot.querySelector('#rnConsultStatus') && this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultPending')
+                this.shadowRoot.querySelector('#rnConsultStatus') && this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultNOk')
+                this.shadowRoot.querySelector('#rnConsultStatus') && this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultOk')
             }
-            this.getSumehrContent().then(res => this.set('sumehrContentOnPatientRefresh', res))
-            this.updateEdmgStatus()
-            this._consultRnHistory(patient)
-        } else {
-            this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('medicalHouse')
-            this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('noInsurance')
-            this.shadowRoot.querySelector('#insuranceStatus') && this.shadowRoot.querySelector('#insuranceStatus').classList.remove('insuranceOk')
-            this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('noConsent')
-            this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('consentOk')
-            this.shadowRoot.querySelector('#consentStatus') && this.shadowRoot.querySelector('#consentStatus').classList.remove('pendingConsent')
-            this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('noAccess')
-            this.shadowRoot.querySelector('#hubStatus') && this.shadowRoot.querySelector('#hubStatus').classList.remove('accessOk')
-            this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('noSumehr')
-            this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehr')
-            this.shadowRoot.querySelector('#sumehrStatus') && this.shadowRoot.querySelector('#sumehrStatus').classList.remove('sumehrChange')
-            this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('noTl')
-            this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('tlOk')
-            this.shadowRoot.querySelector('#tlStatus') && this.shadowRoot.querySelector('#tlStatus').classList.remove('tlPending')
-            this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgPending')
-            this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgOk')
-            this.shadowRoot.querySelector('#edmgStatus') && this.shadowRoot.querySelector('#edmgStatus').classList.remove('edmgNOk')
-            this.shadowRoot.querySelector('#rnConsultStatus') && this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultPending')
-            this.shadowRoot.querySelector('#rnConsultStatus') && this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultNOk')
-            this.shadowRoot.querySelector('#rnConsultStatus') && this.shadowRoot.querySelector('#rnConsultStatus').classList.remove('rnConsultOk')
-        }
+        })
 
         this._closeRnConsultChangedNotification()
     }
