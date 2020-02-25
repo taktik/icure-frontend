@@ -7,8 +7,6 @@ import moment from 'moment/src/moment'
 import levenshtein from 'js-levenshtein'
 import { Base64 } from 'js-base64';
 
-
-
 onmessage = e => {
     if(e.data.action === "loadEhboxMessage"){
 
@@ -54,7 +52,7 @@ onmessage = e => {
         const iccClassificationXApi = new iccXApi.IccClassificationXApi(iccHost, iccHeaders,iccCryptoXApi)
 
         const iccFormXApi		    = new iccXApi.IccFormXApi(iccHost, iccHeaders,iccCryptoXApi)
-        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
+        const iccPatientXApi        = new iccXApi.IccPatientXApi(iccHost, iccHeaders, iccCryptoXApi, iccContactXApi, iccFormXApi, iccHelementXApi, iccIccInvoiceXApi, iccDocumentXApi, iccHcpartyXApi, iccClassificationXApi)
         const iccMessageXApi        = new iccXApi.IccMessageXApi(iccHost, iccHeaders, iccCryptoXApi, iccInsuranceApi, iccEntityrefApi, iccIccInvoiceXApi, iccDocumentXApi, iccReceiptXApi, iccPatientXApi)
 
         let totalNewMessages = {
@@ -271,22 +269,21 @@ onmessage = e => {
 
                     // const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0) > 1546300800000) ? parseInt(_.get(docInfo,"demandDate",undefined)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
                     const documentToAssignDemandDate = !!((parseInt(_.get(docInfo,"demandDate",0))||0)) ? parseInt(_.get(docInfo,"demandDate",0)) : parseInt(moment( !!(parseInt(_.get(message,"publicationDateTime",0))||0) ? parseInt(_.trim(_.get(message,"publicationDateTime",0)) + _.trim(moment().format("HHmmss")))  : parseInt(moment().format("YYYYMMDDHHmmss")), "YYYYMMDDHHmmss").valueOf())
-
                     const docInfoCodeTransaction = _.find(_.get(docInfo,"codes",[]),{type:"CD-TRANSACTION"})
 
-                    if(_.size(candidates) === 1){
-                    	const log= {}
-						log.accessType= 'SYSTEM_ACCESS'
-						log.detail = "Save Assignment in Message panel"
-                    	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
-							accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
-						}).catch(e=>console.log("ERROR with createAccessLog: ", e))
-                    }
+                    // if(_.size(candidates) === 1){
+                    // 	const log= {}
+					// 	log.accessType= 'SYSTEM_ACCESS'
+					// 	log.detail = "Save Assignment in Message panel"
+                    // 	accesslogApi.newInstance(user,candidates[0],log).then(newLog =>{
+					// 		accesslogApi.createAccessLogWithUser(user,newLog).catch(e=>console.log("ERROR with createAccessLog: ", e))
+					// 	}).catch(e=>console.log("ERROR with createAccessLog: ", e))
+                    // }
 
                     return (_.size(candidates) !== 1) ?
                         {protocolId:_.trim(_.get(docInfo,"protocol","")), documentId:_.trim(_.get(document,"id",""))} :
                         iccContactXApi.newInstance(user, candidates[0], {
-                            groupId: _.trim(_.get(message,"id","")),
+                            groupId: iccCryptoXApi.randomUuid(),
                             created: +new Date,
                             modified: +new Date,
                             author: _.trim(_.get(user,"id","")),
@@ -303,6 +300,7 @@ onmessage = e => {
                             subContacts: []
                         })
                         .then(contactInstance => {
+
                             // contactInstance.services.push({
                             //     id: iccCryptoXApi.randomUuid(),
                             //     label: 'labResult',
@@ -529,9 +527,9 @@ onmessage = e => {
 
         icureApi.getVersion()
         .then(icureVersion => appVersions.backend = _.trim(icureVersion))
-        .then(() => fetch("http://127.0.0.1:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
+        .then(() => fetch("http://localhost:16042/ok", {method:"GET"}).then(() => true).catch(() => false))
         .then(isElectron => appVersions.isElectron = !!isElectron)
-        .then(() => fetch("http://127.0.0.1:16042/getVersion", {method:"GET"}).then((response) => response.json()).catch(() => false))
+        .then(() => fetch("http://localhost:16042/getVersion", {method:"GET"}).then((response) => response.json()).catch(() => false))
         .then(electronVersion => appVersions.electron = _.trim(_.get(electronVersion,"version","-")))
         .then(() => autoDeleteMessages())
         .finally(()=>{
