@@ -389,7 +389,7 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
                   this.saveTimeout = undefined;
 
                   return new Promise((resolve,reject) =>
-                      this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => reject(e)}, bubbles: true, composed: true})))//Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
+                      this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: ctc, preSave: () => this.dataProvider.computeFormulas(['OnSave']), postSave:(ctc) => resolve(ctc), postError: (e) => {this.dataProvider.saveError(e);reject(e);}}, bubbles: true, composed: true})))//Must be fired before the end of the save otherwise the element won't exist anymore and the event will not bubble up
               };
               this.saveTimeout = setTimeout(saveAction, 10000); //Make sure the save is done with the right saveAction by using a const
           })
@@ -411,7 +411,7 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
           this.saveTimeout = undefined;
           this.saveAction = undefined;
 
-					return action && action()
+          return action && action()
       }
       return null
   }
@@ -565,12 +565,12 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
               }
               return label ? self.servicesMap[label] = this.servicesInForm(form.id, label) : this.servicesInForm(form.id);
           },
-					subContactTitle: () => {
+          subContactTitle: () => {
               const scs = this.contact && this.contact.subContacts.find(sc => sc.formId === form.id)
               const contactType = scs && scs.tags && scs.tags.find(t => t.type === "BE-CONTACT-TYPE") || []
               const type = this.subcontactType && this.subcontactType.length && this.subcontactType.find(c => c.id === contactType.id)
               return type && "("+type.label[this.language]+")" || ""
-					},
+          },
           servicesInHierarchy: label => {
               return _.concat(self.services(label), _.flatMap(form.children, sf => this.getDataProvider(sf, (rootPath.length ? rootPath + '.' : '') + sf.descr + '.' + form.children.filter(sff => sff.descr === sf.descr).indexOf(sf)).servicesInHierarchy(label)));
           },
@@ -992,6 +992,9 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
                   });
 
               })).then(responses => (reqIdx<uuids[deduplicationUuid]) ? null : _.chain(responses).flatMap().uniqBy("codeId").value() )
+          },
+          saveError: (error) => {
+              this.dispatchEvent(new CustomEvent("show-error",{detail: error, bubbles: true, composed:true}))
           }
       };
       return self;

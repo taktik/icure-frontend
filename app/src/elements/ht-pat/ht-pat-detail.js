@@ -1178,6 +1178,22 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 width: 0;
                 opacity: 0;
             }
+            
+            #errorIndicator{
+                position: fixed;
+                top:50%;
+                right: 0;
+                z-index:1000;
+                color: white;
+                font-size: 13px;
+                background: var(--app-error-color);
+                height: 24px;
+                padding: 0 8px 0 12px;
+                border-radius: 3px 0 0 3px;
+                width: 0;
+                opacity: 0;
+            }
+            
             .saved{
                 animation: savedAnim 2.5s ease-in;
             }
@@ -1882,6 +1898,15 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             <paper-item id="savedIndicator">[[localize('sav','SAVED',language)]]
                 <iron-icon icon="icons:check"></iron-icon>
             </paper-item>
+            
+            <paper-item id="errorIndicator"  class="notification-container error">
+                <iron-icon class="notification-icn" icon="vaadin:exclamation"></iron-icon>
+                <div class="notification-msg">
+                    <h4>[[localize('error','ERROR',language)]]</h4>
+                    <p>[[errorIndicatorMessage]]</p>
+                </div>
+            </paper-item>
+            
             <template is="dom-if" if="[[!leftMenuOpen]]">
                 <paper-icon-button class="display-left-menu" icon="chevron-right" on-tap="_expandColumn"></paper-icon-button>
             </template>
@@ -2437,7 +2462,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                 <div class="new-ctc-btn-container"><paper-button class="add-btn" on-tap="newContact">[[localize('new_con','New Contact',language)]]</paper-button></div>
                             </template>
                         </div>
-                        <ht-pat-detail-ctc-detail-panel id="ctcDetailPanel" contacts="[[selectedContacts]]" all-contacts="[[contacts]]" health-elements="[[healthElements]]" main-health-elements="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" medications="[[medications]]" hidden-sub-contacts-id="[[hiddenSubContactsId]]" services-refresher="[[servicesRefresher]]" on-refresh-contacts="_refreshContacts" on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medications-validation="_medicationDetailValueChanged" on-medication-selection="_selectMedication" on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-open-charts-dialog="_openChartsDialog" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe" credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]" all-health-elements="[[allHealthElements]]" on-trigger-out-going-doc="_newReport_v2" on-trigger-export-sumehr="_exportSumehrDialog" on-open-care-path-list="_openCarePathList" on-send-sub-form-via-emediattest="_sendSubformViaEmediattest" on-upload-document="_hubUpload">
+                        <ht-pat-detail-ctc-detail-panel id="ctcDetailPanel" contacts="[[selectedContacts]]" all-contacts="[[contacts]]" health-elements="[[healthElements]]" main-health-elements="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" medications="[[medications]]" hidden-sub-contacts-id="[[hiddenSubContactsId]]" services-refresher="[[servicesRefresher]]" on-refresh-contacts="_refreshContacts" on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medications-validation="_medicationDetailValueChanged" on-medication-selection="_selectMedication" on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-open-charts-dialog="_openChartsDialog" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe" credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]" all-health-elements="[[allHealthElements]]" on-trigger-out-going-doc="_newReport_v2" on-trigger-export-sumehr="_exportSumehrDialog" on-open-care-path-list="_openCarePathList" on-send-sub-form-via-emediattest="_sendSubformViaEmediattest" on-upload-document="_hubUpload" on-show-error="_showError">
                         </ht-pat-detail-ctc-detail-panel>
                 </template>
                 <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]">
@@ -3333,6 +3358,10 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                     mda: ["physician", "specialist"],
                     insurability: ["medicalHouse"]
                 }
+            },
+            errorIndicatorMessage: {
+                type: String,
+                value : ""
             }
         }
     }
@@ -7361,6 +7390,12 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
     _isSpecialist(hcp) {
         return !!(_.get(hcp, 'nihii', null) && _.startsWith(_.get(hcp, 'nihii', null), "1", 0) && _.size(_.get(hcp, 'nihii', null)) === 11 && (_.get(hcp, 'nihii', null).substr(_.size(_.get(hcp, 'nihii', null)) - 3) >= 10))
 
+    }
+
+    _showError(e){
+        this.set("errorIndicatorMessage",e.detail)
+        setTimeout(() => this.$.errorIndicator.classList.remove("saved"), 2000)
+        this.$.errorIndicator.classList.add("savec")
     }
 }
 
