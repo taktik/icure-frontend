@@ -2363,7 +2363,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                                         <label class="hcp">[[hcp(contact)]]</label>
                                                     </div>
                                                     <div class="contact-text-row grey">
-                                                        <h4>[[getTypeContact(contact,refreshServicesDescription)]]</h4>
+                                                        <h4 inner-h-t-m-l="[[getTypeContact(contact,refreshServicesDescription)]]"></h4>
                                                         <template is="dom-repeat" items="[[getDocumentDetails(contact, refreshServicesDescription)]]" as="document">
                                                             <p>
                                                                 </p><div class="document">
@@ -4180,6 +4180,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             caller ? caller.onActionChanged(event.detail) : null
 
             this.set("refresher", this.refresher + 1)
+            this.set("refreshServicesDescription",this.refreshServicesDescription + 1);
 
             return c
         }).catch(e => {
@@ -6595,32 +6596,39 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     getTypeContact(ctc) {
-        const descrPattern = this.user.properties.find(p => p.type.identifier === 'org.taktik.icure.preferred.contactDescription') || "{Motifs de contact}"
+        const descrPattern = this.user.properties.find(p => p.type.identifier === 'org.taktik.icure.preferred.contactDescription') || `{BE-CONTACT-TYPE} : {TZ-FORM-TITLE} <br/> {Motifs de contact}`
         const templateKeys = descrPattern.match(/\{.+?\}/g).map(s => s.substring(1, s.length - 1))
             .reduce((acc, s) => {
                 acc[s] = true
                 return acc
             }, {})
 
-        ctc.userDescr = this.api.template(descrPattern, ctc.services.filter(s => templateKeys[s.label] && !s.endOfLife).reduce((acc, v) => {
-            acc[v.label] = !acc[v.label] ? this.shortServiceDescription(v, this.language) : acc[v.label] + "," + this.shortServiceDescription(v, this.language)
-            return acc
+        let args = {}
+
+        ctc.services.filter(s => templateKeys[s.label] && !s.endOfLife).map(svc => {
+            args[svc.label] = !args[svc.label] ? this.shortServiceDescription(svc, this.language) : args[svc.label] + "," + this.shortServiceDescription(svc, this.language)
+        }, {})
+
+        ctc.tags.filter(t => templateKeys[t.type]).map(tag => {
+            args[tag.type] = !args[tag.type] ? (tag.type === "BE-CONTACT-TYPE" ? _.get(this.contactTypeList.find(sct => sct.code === tag.code),"label."+(this.language || "fr"),"invalid contact type") : tag.code) : args[tag.type] + "," + (tag.type === "BE-CONTACT-TYPE" ?  _.get(this.contactTypeList.find(sct => sct.code === tag.code),"label."+(this.language || "fr"),"invalid contact type") : tag.code)
+        }, {})
+
+        ctc.codes.filter(c => templateKeys[c.type]).map(code => {
+            args[code.type] = !args[code.type] ? code.code : args[code.type] + "," + code.code
+        }, {})
+
+        ctc.subContacts.filter(sbctc => sbctc.tags.find(t => templateKeys[t.type])).map(sbct => sbct.tags.filter(t => templateKeys[t.type]).map(tag => {
+            args[tag.type] = !args[tag.type] ? tag.code : args[tag.type] + "," + tag.code
         }, {}))
+
+        ctc.subContacts.filter(sbctc => sbctc.codes.find(code => templateKeys[code.type])).map(sbct => sbct.codes.filter(code => templateKeys[code.type]).map(code => {
+            args[code.type] = !args[code.type] ? code.code : args[code.type] + "," + code.code
+        }, {}))
+
+        ctc.userDescr = this.api.template(descrPattern, args)
+
         if (!ctc.userDescr || ctc.userDescr.length < 3) {
             ctc.userDescr = ctc.descr
-        }
-        const contacttype = ctc.tags.find(tag => tag.type === "BE-CONTACT-TYPE")
-        if (contacttype) {
-            const code = this.contactTypeList.find(sct => sct.code === contacttype.code)
-            if (code && code.label) {
-                if (ctc.userDescr && ctc.userDescr != "") {
-                    ctc.userDescr = code.label[this.language || "fr"] + " : " + ctc.userDescr
-                } else {
-                    ctc.userDescr = code.label[this.language || "fr"]
-                }
-            } else {
-                console.log("invalid contact type", ctc, code)
-            }
         }
 
         return ctc.userDescr
