@@ -13,7 +13,10 @@ import './dynamic-medication-field.js';
 import './dynamic-subcontact-type-selector.js';
 import '../../styles/icpc-styles.js';
 import '../../styles/dialog-style.js';
+import '../../styles/shared-styles.js'
 import '../../styles/buttons-style.js';
+import '../../elements/collapse-button/collapse-button.js'
+import '../../styles/scrollbar-style.js'
 import './ckmeans-grouping.js';
 import '@vaadin/vaadin-combo-box/vaadin-combo-box';
 import {PolymerElement, html} from '@polymer/polymer';
@@ -89,6 +92,10 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                 .justified {
                     justify-content: space-between;
                 }
+                
+                #general-info{
+                    border: 1px solid var(--app-background-color-dark);
+                }
             
                 .form-title {
                     color: var(--app-text-color-light);
@@ -99,7 +106,6 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                     padding: 2px 4px 2px 12px;
                     display: flex;
                     flex-flow: row nowrap;
-                    width: calc(100% - 8px);
                     text-align: left;
                     justify-content: space-between;
                     align-items: center;
@@ -323,10 +329,6 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                 transform: scale(1.2);
             }
 
-            #general-info {
-                padding: 8px 8px 12px;
-            }
-
             .menu-button {
                 --paper-menu-button-dropdown: {
                     transform-origin: top right;
@@ -393,7 +395,7 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
             <ckmeans-grouping id="ckmeans-grouping"></ckmeans-grouping>
             <ckmeans-grouping id="ckmeans-flow-grouping" max-distance="8"></ckmeans-grouping>
             
-            <paper-card class$="{{_patCardClass(isSubForm)}}">
+            <paper-card elevation="0" class$="{{_patCardClass(isSubForm)}}">
                 <template is="dom-if" if="[[showTitle]]">
                     <div class="form-title">
                         <span>[[displayedTitle]]</span>
@@ -407,12 +409,11 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                                         <div class="sublist" multi toggle-shift>
                                             <paper-listbox>
                                                 <template is="dom-repeat" items="[[linkableHealthElements]]" as="he">
-                                                    <template is="dom-if" if="[[he.id]]">
-                                                        <paper-item id="[[he.id]]" class$="link [[_isExcluded(he)]]" on-tap="_linkForm">
+                                                     <template is="dom-if" if="[[he.id]]">
+                                                        <paper-item id="[[he.id]]" class="link" on-tap="_linkForm">
                                                             <label class$="colour-code [[he.colour]]">
                                                                 <span></span>
-                                                            </label>[[he.descr]]
-                                                        </paper-item>
+                                                            </label><span>[[he.descr]]</span></paper-item>
                                                     </template>
                                                     <template is="dom-if" if="[[!he.id]]">
                                                         <paper-item id="[[he.idService]]" class="link" on-tap="_linkForm">
