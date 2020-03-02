@@ -434,7 +434,7 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                                             <paper-button  on-tap="printSubForm" id="printSubForm"><iron-icon icon="print"></iron-icon>[[localize('print','Print',language)]]</paper-button>
                                         </template>
                                     </template>
-                                    <paper-button id="delform" class="form-title-bar-btn" on-tap="_deleteConfirmation"><iron-icon icon="icons:delete"></iron-icon><span>[[localize('del_form','Delete form',language)]]</span></paper-button>
+                                    <paper-button id="delform" on-tap="_deleteConfirmation"><iron-icon icon="icons:delete"></iron-icon><span>[[localize('del_form','Delete form',language)]]</span></paper-button>
                                 </paper-listbox>
                             </paper-menu-button>
                         </template>
