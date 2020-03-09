@@ -19,6 +19,7 @@ import {IccUserXApi} from 'icc-api/dist/icc-x-api/icc-user-x-api'
 import {IccInvoiceXApi} from 'icc-api/dist/icc-x-api/icc-invoice-x-api'
 import {IccMessageXApi} from 'icc-api/dist/icc-x-api/icc-message-x-api'
 import {IccClassificationXApi} from 'icc-api/dist/icc-x-api/icc-classification-x-api'
+import {ElectronApi} from 'electron-topaz-api/src/api/ElectronApi'
 
 import {PolymerElement, html} from '@polymer/polymer';
 class IccApi extends PolymerElement {
@@ -174,8 +175,9 @@ class IccApi extends PolymerElement {
       this.messageicc = new IccMessageXApi(this.host, this.headers120s, this.cryptoicc, this.insuranceicc, this.entityreficc, this.invoiceicc, this.documenticc, this.receipticc, this.patienticc)
       this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
       this.accesslogicc = new IccAccesslogXApi(this.host, this.headers, this.cryptoicc)
+      this.medexicc = new api.iccMedexApi(this.host, this.headers)
+      this.desktopApi = new ElectronApi(this.electronHost)
 
-            this.medexicc = new api.iccMedexApi(this.host, this.headers)
 
 
       const toObserve = [
@@ -377,6 +379,10 @@ class IccApi extends PolymerElement {
 
   medex(){
       return this.medexicc
+  }
+
+  electron(){
+      return this.desktopApi
   }
 
   calendaritemtype(){
