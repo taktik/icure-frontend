@@ -1012,16 +1012,16 @@ class HtPatDocumentsDirectoryDialog extends TkLocalizerMixin(PolymerElement) {
       return this.api.contact().findBy( _.trim(_.get(this,"user.healthcarePartyId","")), patientObject )
           .then(patientContacts => _.compact(_.flatten(_.map(patientContacts, singleContact => _.concat(
               // Target documentId in svc
-              _.map(singleContact.services, singleService => !_.trim(_.get(singleService,"content." + this.language + ".documentId")) ? false : {
+              _.map(singleContact.services, singleService => !( _.trim(_.get(this.api.contact().preferredContent(singleService, this.language),"documentId")) )? false : {
                   contact: singleContact,
                   service: singleService,
                   serviceTitle: _.trim(_.get(singleService,"content." + this.language + ".stringValue")),
                   date: parseInt(_.get(singleContact,"openingDate"))||+new Date(),
                   dateHr: this._YYYYMMDDHHmmssToDDMMYYYY(parseInt(_.get(singleContact,"openingDate",""))||+new Date()),
-                  documentId: _.trim(_.get(singleService,"content." + this.language + ".documentId")),
+                  documentId: _.trim(_.get(this.api.contact().preferredContent(singleService, this.language),"documentId")),
               }),
               // Target ehealthbox message
-              (!_.size(_.find(_.get(singleContact,"tags",[]), {type:"originalEhBoxMessageId"})) || !!_.trim(_.get(singleContact,"services[0].content." + this.language + ".documentId")) ? false : {
+              (!_.size(_.find(_.get(singleContact,"tags",[]), {type:"originalEhBoxMessageId"})) || !!_.trim(_.get(this.api.contact().preferredContent(_.get(singleContact,"services[0]",{}), this.language),"documentId")) ? false : {
                   contact: singleContact,
                   services: singleContact.services,
                   serviceTitle: _.trim(_.get(singleContact,"descr")),
@@ -1031,7 +1031,7 @@ class HtPatDocumentsDirectoryDialog extends TkLocalizerMixin(PolymerElement) {
                   isLabResultOrProtocol: true,
               }),
               // Target migrations - imported documents from epicure / medispring (docs don't exist as such, rather a services list)
-              (!_.size(_.find(_.get(singleContact,"tags",[]), {type:"CD-TRANSACTION"})) || !!_.size(_.find(_.get(singleContact,"tags",[]), {type:"originalEhBoxMessageId"})) || !!_.trim(_.get(singleContact,"services[0].content." + this.language + ".documentId")) ? false : {
+              (!_.size(_.find(_.get(singleContact,"tags",[]), {type:"CD-TRANSACTION"})) || !!_.size(_.find(_.get(singleContact,"tags",[]), {type:"originalEhBoxMessageId"})) || !!_.trim(_.get(this.api.contact().preferredContent(_.get(singleContact,"services[0]",{}), this.language),"documentId")) ? false : {
                   contact: singleContact,
                   services: singleContact.services,
                   serviceTitle: _.trim(_.get(singleContact,"descr")),
