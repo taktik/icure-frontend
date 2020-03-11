@@ -713,6 +713,12 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                   return require('./rsrc/PatientPartnershipsContainerForm.json');
               }
           },
+          conventionForm: {
+              type: Object,
+              value: function () {
+                  return require('./rsrc/PatientConventionForm.json');
+              }
+          },
           user: {
               type: Object
           },
@@ -1040,6 +1046,24 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
 
       if (this.patient) {
 
+          this.patient = _.merge(this.patient,{
+              "conventions" : _.compact(this.patient.properties.filter(p => p.type.identifier.includes("convention")).map(prop =>{
+                  const c = JSON.parse(prop.typedValue.stringValue)
+                  if(!_.get(c,"conv",false))return false;
+                  return {
+                      type : _.get(c,"convType",""),
+                      content: {
+                          fr : _.get(c,"convDes_FR",""),
+                          nl : _.get(c,"convDes_NL","")
+                      },
+                      startDate: moment(_.get(c,"convDate","")).format("YYYYMMDD"),
+                      endDate: moment(_.get(c,"convValid","")).format("YYYYMMDD"),
+                      codes: [],
+                      tags: []
+                  }
+              }))
+          })
+
           this.set('administrativePostit', this.patient.administrativeNote || "")
           this.set('medicalPostit', this.patient.note || '')
           this.listValidSsin[this.patient.id]=this.patient.ssin
@@ -1062,7 +1086,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                       })
 
                       this.set("dataProvider",this.patientDataProvider(this.patient, '', '', this.patient && this.patient.id, codes));
-                      this.set('patientMap', _.cloneDeep(this.patient));
+                      this.set('patientMap',_.cloneDeep(this.patient));
 
                       if (!this.root.activeElement || !this.$[this.root.activeElement.id]) {
                           this.$['dynamic-form-administrative'].loadDataMap();
@@ -1072,7 +1096,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                   })
               } else {
                   this.set("dataProvider",this.patientDataProvider(this.patient, '', '', this.patient && this.patient.id, codes));
-                  this.set('patientMap', _.cloneDeep(this.patient));
+                  this.set('patientMap',_.cloneDeep(this.patient))
 
                   if (!this.root.activeElement || !this.$[this.root.activeElement.id]) {
                       this.$['dynamic-form-administrative'].loadDataMap();
@@ -1306,7 +1330,9 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                                       this.partnershipsForm :
                                       key === 'medicalHouseContracts' ?
                                           this.medicalHouseContractsForm :
-                                          this.insuranceForm
+                                            key === 'conventions' ?
+                                                this.conventionForm :
+                                                    this.insuranceForm
                   };
               }))
           },
