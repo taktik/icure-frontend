@@ -1045,25 +1045,6 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
 
 
       if (this.patient) {
-
-          this.patient = _.merge(this.patient,{
-              "conventions" : _.compact(this.patient.properties.filter(p => p.type.identifier.includes("convention")).map(prop =>{
-                  const c = JSON.parse(prop.typedValue.stringValue)
-                  if(!_.get(c,"conv",false))return false;
-                  return {
-                      type : _.get(c,"convType",""),
-                      content: {
-                          fr : _.get(c,"convDes_FR",""),
-                          nl : _.get(c,"convDes_NL","")
-                      },
-                      startDate: moment(_.get(c,"convDate","")).format("YYYYMMDD"),
-                      endDate: moment(_.get(c,"convValid","")).format("YYYYMMDD"),
-                      codes: [],
-                      tags: []
-                  }
-              }))
-          })
-
           this.set('administrativePostit', this.patient.administrativeNote || "")
           this.set('medicalPostit', this.patient.note || '')
           this.listValidSsin[this.patient.id]=this.patient.ssin
@@ -1073,6 +1054,26 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
           this.initCurrentCareTeam();
 
           this.api.code().getCodes((this.patient.languages || []).map(l=>'ISO-639-1|'+l+'|1').join(',') || "ISO-639-1|en|1").then( codes => {
+              if(!Object.keys(this.patient).find(key => key.includes("conventions"))){
+                  this.set("patient",_.merge(this.patient,{
+                      "conventions" : _.compact(this.patient.properties.filter(p => p.type.identifier.includes("convention")).map(prop =>{
+                          const c = JSON.parse(prop.typedValue.stringValue)
+                          if(!_.get(c,"conv",false))return false;
+                          return {
+                              type : _.get(c,"convType",""),
+                              content: {
+                                  fr : _.get(c,"convDes_FR",""),
+                                  nl : _.get(c,"convDes_NL","")
+                              },
+                              startDate: moment(_.get(c,"convDate","")).format("YYYYMMDD"),
+                              endDate: moment(_.get(c,"convValid","")).format("YYYYMMDD"),
+                              codes: [],
+                              tags: []
+                          }
+                      }))
+                  }))
+              }
+
               if (this.patient.partnerships && this.patient.partnerships.length) {
                   ;(this.patient.partnerships.length ? this.api.patient().getPatientsWithUser(this.user,{ids:this.patient.partnerships.map(ps => ps.partnerId)}) : Promise.resolve([]))
                       .then(ppss => ppss.map(p => this.api.register(p, 'patient')))
