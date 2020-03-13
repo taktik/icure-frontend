@@ -946,11 +946,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
-            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr, #mdaStatus.noInsurance{
+            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr, #mdaStatus.noInsurance, #conventionStatus.convKo{
                 --paper-fab-background: var(--app-status-color-nok);
             }
 
-            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr, #mdaStatus.insuranceOk {
+            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr, #mdaStatus.insuranceOk, #conventionStatus.convOk {
                 --paper-fab-background: var(--app-status-color-ok);
             }
 
@@ -1944,6 +1944,9 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                             <paper-fab id="rnConsultStatus" mini on-tap="_openRnConsultDialog" src="[[_rnConsultPicture()]]"></paper-fab>
                                             <paper-tooltip position="top" for="rnConsultStatus">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
                                         </template>
+                                        
+                                        <paper-fab id="conventionStatus" mini icon="vaadin:handshake"></paper-fab>
+                                        <paper-tooltip for="conventionStatus">[[localize(conventionStatus,'statut de la convention',language)]]</paper-tooltip>
                                     </div>
                                 </div>
                             </paper-item>
@@ -3333,6 +3336,10 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                     mda: ["physician", "specialist"],
                     insurability: ["medicalHouse"]
                 }
+            },
+            conventionStatus: {
+                type: String,
+                value: "conv_status_ko"
             }
         }
     }
@@ -4403,6 +4410,36 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     patientChanged(api, user, patient) {
+
+        if(!Object.keys(this.patient).find(key => key.includes("conventions"))){
+            this.set("patient",_.merge(this.patient,{
+                "conventions" : _.compact(this.patient.properties.filter(p => p.type.identifier.includes("convention")).map(prop =>{
+                    const c = JSON.parse(prop.typedValue.stringValue)
+                    if(!_.get(c,"conv",false))return false;
+                    return {
+                        type : _.get(c,"convType",""),
+                        content: {
+                            fr : _.get(c,"convDes_FR",""),
+                            nl : _.get(c,"convDes_NL","")
+                        },
+                        startDate: moment(_.get(c,"convDate","")).format("YYYYMMDD"),
+                        endDate: moment(_.get(c,"convValid","")).format("YYYYMMDD"),
+                        codes: [],
+                        tags: []
+                    }
+                }))
+            }))
+        }
+        this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convOk') : null
+        this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convKo') : null
+        if(_.get(this,"patient.conventions",[]).length() && _.get(this,"patient.conventions",[]).find(conv => !conv.endDate)){
+            this.set("conventionStatus","conv_status_ok")
+            this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.add('convOk') : null
+        }else{
+            this.set("conventionStatus","conv_status_ko")
+            this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.add('convKo') : null
+        }
+
         this.set('curGenInsResp', null)
         this.set("SpinnerActive", true)
         this.set('healthTopics', [])
