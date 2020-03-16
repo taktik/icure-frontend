@@ -1946,7 +1946,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                         </template>
                                         
                                         <paper-fab id="conventionStatus" mini icon="vaadin:handshake"></paper-fab>
-                                        <paper-tooltip for="conventionStatus">[[localize(conventionStatus,'statut de la convention',language)]]</paper-tooltip>
+                                        <paper-tooltip position="top" for="conventionStatus">[[localize(conventionStatus,'statut de la convention',language)]]</paper-tooltip>
                                     </div>
                                 </div>
                             </paper-item>
@@ -4432,7 +4432,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
         }
         this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convOk') : null
         this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convKo') : null
-        if(_.get(this,"patient.conventions",[]).length() && _.get(this,"patient.conventions",[]).find(conv => !conv.endDate)){
+        if(_.get(this,"patient.conventions",[]).length && _.get(this,"patient.conventions",[]).find(conv => !conv.endDate)){
             this.set("conventionStatus","conv_status_ok")
             this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.add('convOk') : null
         }else{
