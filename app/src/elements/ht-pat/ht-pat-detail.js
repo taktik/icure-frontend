@@ -4411,7 +4411,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
     patientChanged(api, user, patient) {
 
-        if(!Object.keys(this.patient).find(key => key.includes("conventions"))){
+        if(this.patient && !Object.keys(this.patient).find(key => key.includes("conventions"))){
             this.set("patient",_.merge(this.patient,{
                 "conventions" : _.compact(this.patient.properties.filter(p => p.type.identifier.includes("convention")).map(prop =>{
                     const c = JSON.parse(prop.typedValue.stringValue)

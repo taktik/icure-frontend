@@ -1371,7 +1371,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                   return Promise.resolve(s ? Object.values(this.api.users).filter(u => (u.login && u.login.toLowerCase().includes(s.toLowerCase())) ||
                       (u.name && u.name.toLowerCase().includes(s.toLowerCase())) || (u.email && u.email.toLowerCase().includes(s.toLowerCase())))
                       .map(u => ({id: u.id, name: u.name || u.login || u.email})) : [])
-              } else if (data.source === "codes" && data.types.length && (id || (text && text.length > 1))) {
+              } else if (data.source === "codes" && data.types.length && (id || (text && text.length > 0))) {
                   return id ?
                       Promise.all(data.types.map(ct => this.api.code().getCodeWithParts(ct.type, id, '1')))
                           .then(x => _.compact(x)[0])
