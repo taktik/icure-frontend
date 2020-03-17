@@ -1384,10 +1384,10 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                           const words = text.toLowerCase().split(/\s+/)
                           const sorter = x => [x.name && x.name.toLowerCase().startsWith(words[0]) ? 0 : 1, x.name]
 
-                          return this.api.code().findPaginatedCodesByLabel('be', ct.type, typeLng, words[0], null, null, 200).then(results => _.sortBy(results.rows.filter(c => c.label[typeLng] && words.every(w => c.label[typeLng].toLowerCase().includes(w))).map(code => ({
+                          return this.api.code().findPaginatedCodesByLabel('be', ct.type, typeLng, words[0] || " ", null, null, 200).then(results => _.sortBy(results.rows.filter(c => c.label[typeLng] && words.every(w => c.label[typeLng].toLowerCase().includes(w))).map(code => ({
                               id: code.code, name: code.label[typeLng], stringValue: code.label[typeLng], codes: [code]
                           })), sorter))
-                      })).then(responses => _.flatMap(responses))
+                      })).then(responses => _.uniqBy(_.flatMap(responses),"id"))
               } else if (data.source === "mh") {
                   return (id||'').length >= 1 ?
                       this.api.hcparty().getHealthcareParty( id ).then(results => { return { 'id': results.id, 'name':_.upperFirst(_.lowerCase(results.name)) + ' ' +(typeof results.nihii === 'undefined' || !results.nihii ? '' : ' - ' + this.localize('nihii', 'INAMI', language) + ': ' + results.nihii) }}) :
