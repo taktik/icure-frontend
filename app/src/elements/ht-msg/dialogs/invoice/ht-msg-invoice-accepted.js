@@ -34,7 +34,7 @@ class HtMsgInvoiceAccepted extends TkLocalizerMixin(PolymerElement) {
          
         <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style">
             .panel{
-                margin: 5px;
+                margin: 0.5%;
                 height: calc(100% - 20px);
                 width: auto;
             }
@@ -256,6 +256,10 @@ class HtMsgInvoiceAccepted extends TkLocalizerMixin(PolymerElement) {
             },
             hcp: {
                 type : Object
+            },
+            listOfInvoice:{
+                type: Array,
+                value: () => []
             }
         };
     }

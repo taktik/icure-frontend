@@ -10,6 +10,7 @@ import './dialogs/invoice/ht-msg-invoice-pending';
 import './dialogs/invoice/ht-msg-invoice-rejected';
 import './dialogs/invoice/ht-msg-invoice-toBeCorrected';
 import './dialogs/invoice/ht-msg-invoice-toBeSend';
+import './dialogs/invoice/ht-msg-invoice-detail';
 
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
@@ -54,6 +55,16 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     padding: 0 20px;
                     box-sizing: border-box;
                     z-index: -1;
+                    position: relative;
+                }
+                
+                #htMsgInvoiceDetail{
+                    top: 0;
+                    display: block;
+                    position: absolute;
+                    z-index: 100;
+                    height: calc(100% - 20px);                    
+                    width: 98%;
                 }
 
             </style>
@@ -72,8 +83,16 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     list-of-invoice="[[selectedInvoicesToBeSend]]">                   
                 </ht-msg-invoice-to-be-send>
             </template>   
-            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'pending')]]">
-                <ht-msg-invoice-pending api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesProcessed]]"></ht-msg-invoice-pending>
+            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'process')]]">
+                <ht-msg-invoice-pending 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    list-of-invoice="[[messagesProcessed]]"
+                    on-open-detail-panel="_openDetailPanel"
+                ></ht-msg-invoice-pending>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'reject')]]">
                 <ht-msg-invoice-rejected api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesRejected]]"></ht-msg-invoice-rejected>
@@ -81,10 +100,22 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'accept')]]">
                 <ht-msg-invoice-accepted api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesAccepted]]"></ht-msg-invoice-accepted>
             </template>   
-            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'archived')]]">
+            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'archive')]]">
                 <ht-msg-invoice-archived api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesArchived]]"></ht-msg-invoice-archived>
-            </template>       
-        </div>       
+            </template>  
+            <template is="dom-if" if="[[isDisplayDetail]]">
+                <ht-msg-invoice-detail id="htMsgInvoiceDetail" 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    selected-invoice-for-detail="[[selectedInvoiceForDetail]]"
+                    on-close-detail-panel="_closeDetailPanel"
+                 ></ht-msg-invoice-detail>      
+            </template>
+        </div> 
+       
 `;
   }
 
@@ -311,6 +342,14 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           flagInvoiceAsLostId: {
               type: String,
               value: ""
+          },
+          selectedInvoiceForDetail:{
+              type: Object,
+              value: () => {}
+          },
+          isDisplayDetail:{
+              type: Boolean,
+              value: false
           }
       };
   }
@@ -542,7 +581,17 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
         this.dispatchEvent(new CustomEvent('initialize-batch-counter', { bubbles: true, composed: true, detail: { toBeSend: toBeSend, toBeCorrected: toBeCorrected,  processing: processedCounter, rejected: rejectedCounter, accepted: acceptedCounter, archived: archivedCounter} }));
     }
 
+    _openDetailPanel(e){
+      if(_.get(e, 'detail.selectedInv', {})){
+          this.set('selectedInvoiceForDetail', _.get(e, 'detail.selectedInv', {}))
+          this.set('isDisplayDetail', true)
+      }
+    }
 
+    _closeDetailPanel(){
+        this.set('selectedInvoiceForDetail', {})
+        this.set('isDisplayDetail', false)
+    }
 }
 
 customElements.define(htMsgInvoice.is, htMsgInvoice);

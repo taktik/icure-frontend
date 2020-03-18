@@ -158,7 +158,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'To be corrected', language)]]
+                [[localize('', 'To be send', language)]]
             </div>
             <div class="panel-search">
                 

@@ -33,7 +33,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
         return html`
      <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style">
             .panel{
-                margin: 5px;
+                margin: 0.5%;
                 height: calc(100% - 20px);
                 width: auto;
             }
@@ -154,7 +154,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'Accepted', language)]]
+                [[localize('', 'Rejected', language)]]
             </div>
             <div class="panel-search">
                 
@@ -185,7 +185,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                             <div class="td w5 center"><span class="">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
                             <div class="td w5 center"><span class="txtcolor--greenStatus">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
                             <div class="td w5 center"><span class="txtcolor--redStatus">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
-                            <div class="td w10 center"><span class="invoice-status invoice-status--redStatus"><iron-icon icon="vaadin:circle" class="statusIcon "></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
+                            <div class="td w10 center"><span class="invoice-status invoice-status--redStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--redStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
                         </div>
                     </template>
                 </div>
@@ -211,6 +211,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
             },
             hcp: {
                 type : Object
+            },
+            listOfInvoice:{
+                type: Array,
+                value: () => []
             }
         };
     }
@@ -249,6 +253,15 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
 
     _formatAmount(amount){
         return this.findAndReplace(((Number(amount).toFixed(2)).toString()),'.',',')
+    }
+
+    findAndReplace(string, target, replacement) {
+        for (let i = 0; i < string.length; i++) { string = string.replace(target, replacement); }
+        return string;
+    }
+
+    _sortInvoiceListByInvoiceRef(listOfInvoice) {
+        return _.sortBy(listOfInvoice, ['invoiceReference'], ['asc'])
     }
 
 }
