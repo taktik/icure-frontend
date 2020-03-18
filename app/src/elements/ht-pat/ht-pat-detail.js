@@ -1945,8 +1945,10 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                             <paper-tooltip position="top" for="rnConsultStatus">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
                                         </template>
                                         
-                                        <paper-fab id="conventionStatus" mini icon="vaadin:handshake"></paper-fab>
-                                        <paper-tooltip position="top" for="conventionStatus">[[localize(conventionStatus,'statut de la convention',language)]]</paper-tooltip>
+                                        <template is="dom-if" if="[[_isDisplayingConvention(patient)]]">
+                                            <paper-fab id="conventionStatus" mini icon="vaadin:handshake"></paper-fab>
+                                            <paper-tooltip position="top" for="conventionStatus">[[localize(conventionStatus,'statut de la convention',language)]]</paper-tooltip>
+                                        </template>
                                     </div>
                                 </div>
                             </paper-item>
@@ -7398,6 +7400,10 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
     _isSpecialist(hcp) {
         return !!(_.get(hcp, 'nihii', null) && _.startsWith(_.get(hcp, 'nihii', null), "1", 0) && _.size(_.get(hcp, 'nihii', null)) === 11 && (_.get(hcp, 'nihii', null).substr(_.size(_.get(hcp, 'nihii', null)) - 3) >= 10))
 
+    }
+
+    _isDisplayingConvention(){
+        return !(_.get(this,"patient.medicalHouseContracts",[]).filter(contract => !contract.endOfContract || moment().isBefore(this.api.moment(contract.endOfContract))).length)
     }
 }
 
