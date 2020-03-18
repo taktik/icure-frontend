@@ -1,11 +1,11 @@
-import '../../../dynamic-form/ckmeans-grouping.js';
-import '../../../../styles/vaadin-icure-theme.js';
-import '../../../../styles/spinner-style.js';
-import '../../../../styles/scrollbar-style';
-import '../../../../styles/shared-styles';
-import '../../../../styles/buttons-style';
-import '../../../../styles/dialog-style';
-import '../../../ht-spinner/ht-spinner.js';
+import '../../../dynamic-form/ckmeans-grouping.js'
+import '../../../../styles/vaadin-icure-theme.js'
+import '../../../../styles/spinner-style.js'
+import '../../../../styles/scrollbar-style'
+import '../../../../styles/shared-styles'
+import '../../../../styles/buttons-style'
+import '../../../../styles/dialog-style'
+import '../../../ht-spinner/ht-spinner.js'
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
 import "@polymer/iron-icon/iron-icon"
@@ -22,12 +22,13 @@ import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
 import '@vaadin/vaadin-accordion/vaadin-accordion'
 import '@vaadin/vaadin-details/vaadin-details'
 
-import moment from 'moment/src/moment';
-import _ from 'lodash/lodash';
+import moment from 'moment/src/moment'
+import _ from 'lodash/lodash'
 import * as models from 'icc-api/dist/icc-api/model/models'
 
-import {PolymerElement, html} from '@polymer/polymer';
-import {TkLocalizerMixin} from "../../../tk-localizer";
+import {PolymerElement, html} from '@polymer/polymer'
+import {TkLocalizerMixin} from "../../../tk-localizer"
+
 class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
     static get template() {
         return html`
@@ -58,6 +59,54 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 height: 40px;
                 width: auto;             
             }
+            
+            .assurability--redStatus{
+                    color: var(--app-status-color-nok);
+                    height: 8px;
+                    width: 8px;
+            }
+
+            .assurability--greenStatus{
+                    color: var(--app-status-color-ok);
+                    height: 8px;
+                    width: 8px;
+            }
+            
+            .invoice-status {
+                    border-radius: 20px;
+                    padding: 1px 12px 1px 8px;
+                    font-size: 12px;
+                    display: block;
+                    width: auto;
+                    max-width: fit-content;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
+
+                .invoice-status--orangeStatus{
+                    background: #fcdf354d;
+                }
+                
+                .statusIcon{
+                    height: 8px;
+                    width: 8px;
+                }
+                .statusIcon.invoice-status--orangeStatus {
+                    color: var(--app-status-color-pending);
+                }
+                
+                .statusIcon.invoice-status--orangeStatus,
+                .statusIcon.invoice-status--greenStatus,
+                .statusIcon.invoice-status--redStatus,
+                .statusIcon.invoice-status--purpleStatus {
+                    background: transparent !important;
+                }
+                
+                *.txtcolor--orangeStatus {
+                    color: var(--app-status-color-pending);
+                }
+            
                       
             .table{         
                 width: auto;
@@ -68,7 +117,10 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             
             .tr{
                 display: flex;
-                height: 28px;
+                height: 22px;
+                cursor: pointer;
+                border-bottom: 1px solid lightgray;   
+                padding: 4px;                
             }
             
             .td{
@@ -94,6 +146,12 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             
             .right{
                 text-align: right;
+            }
+            
+            .status{
+              display: block;
+              margin-left: auto;
+              margin-right: auto;
             }
             
         </style>
@@ -124,14 +182,27 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                         <div class="tr">
                             <div class="td w10">[[inv.insuranceCode]]</div>
                             <div class="td w10">[[inv.invoiceReference]]</div>
-                            <div class="td w20">[[inv.patientName]]</div>
+                            <div class="td w20">
+                                <template is="dom-if" if="[[!inv.insurabilityCheck]]">
+                                     <iron-icon icon="vaadin:circle" class="assurability--redStatus"></iron-icon>
+                                </template>
+                                <template is="dom-if" if="[[inv.insurabilityCheck]]">
+                                     <iron-icon icon="vaadin:circle" class="assurability--greenStatus"></iron-icon>
+                                </template>
+                                [[inv.patientName]]
+                            </div>
                             <div class="td w10">[[inv.patientSsin]]</div>
                             <div class="td w10">[[inv.invoiceDate]]</div>                         
                             <div class="td w5 right">[[inv.reimbursement]]</div>
                             <div class="td w5 right">[[inv.patientIntervention]]</div>
                             <div class="td w5 right">[[inv.doctorSupplement]]</div>
                             <div class="td w5 right">[[inv.totalAmount]]</div>
-                            <div class="td w10">[[localize('', 'To be send', language)]]</div>                    
+                            <div class="td w10 center status">
+                                <span class="invoice-status invoice-status--orangeStatus">
+                                    <iron-icon icon="vaadin:circle" class="statusIcon invoice-status--orangeStatus"></iron-icon>
+                                    [[inv.statut]]
+                                 </span>
+                            </div>                    
                         </div>
                     </template>
                 </div>
@@ -140,46 +211,49 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             
             </div>
         </div>    
-`;
+`
     }
 
     static get is() {
-        return 'ht-msg-invoice-to-be-send';
+        return 'ht-msg-invoice-to-be-send'
     }
 
     static get properties() {
         return {
             api: {
                 type: Object,
-                value: () => {}
+                value: () => {
+                }
             },
             user: {
                 type: Object,
-                value: () => {}
+                value: () => {
+                }
             },
             hcp: {
-                type : Object,
-                value: () => {}
+                type: Object,
+                value: () => {
+                }
             },
-            listOfInvoice:{
+            listOfInvoice: {
                 type: Array,
                 value: () => []
             }
-        };
+        }
     }
 
     constructor() {
-        super();
+        super()
     }
 
     static get observers() {
-        return [];
+        return []
     }
 
-    _sortInvoiceListByOa(listOfInvoice){
+    _sortInvoiceListByOa(listOfInvoice) {
         return _.sortBy(listOfInvoice, ['insuranceCode'], ['asc'])
     }
 
 }
 
-customElements.define(HtMsgInvoiceToBeSend.is, HtMsgInvoiceToBeSend);
+customElements.define(HtMsgInvoiceToBeSend.is, HtMsgInvoiceToBeSend)

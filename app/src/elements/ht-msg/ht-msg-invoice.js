@@ -64,15 +64,21 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 <ht-msg-invoice-to-be-corrected api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesToBeCorrected]]"></ht-msg-invoice-to-be-corrected>
             </template>  
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'toBeSend')]]">
-                <ht-msg-invoice-to-be-send api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[selectedInvoicesToBeSend]]"></ht-msg-invoice-to-be-send>
+                <ht-msg-invoice-to-be-send 
+                    api="[[api]]" i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    list-of-invoice="[[selectedInvoicesToBeSend]]">                   
+                </ht-msg-invoice-to-be-send>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'pending')]]">
-                <ht-msg-invoice-pending api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[]]"></ht-msg-invoice-pending>
+                <ht-msg-invoice-pending api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesProcessed]]"></ht-msg-invoice-pending>
             </template>   
-            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'rejected')]]">
+            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'reject')]]">
                 <ht-msg-invoice-rejected api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesRejected]]"></ht-msg-invoice-rejected>
             </template>   
-            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'accepted')]]">
+            <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'accept')]]">
                 <ht-msg-invoice-accepted api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesAccepted]]"></ht-msg-invoice-accepted>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'archived')]]">
@@ -97,25 +103,21 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           hcp: {
               type : Object
           },
-          invoicesStatus:{
-              type: String,
-              value: null
-          },
-          isMessagesLoaded:{
-              type: Boolean,
-              value: false,
-          },
-          _isLoadingMessages:{
-              type: Boolean,
-              value: false,
-          },
-          messagesToBeCorrected:{
+          selectedMessages: {
               type: Object,
-              value : () => ({})
+              notify: true
           },
-          selectedInvoicesToBeSend:{
-              type: Object,
-              value : () => ({})
+          activeItem: {
+              type: Object
+          },
+          messages: {
+              type: Array,
+              value: function () {
+                  return [];
+              }
+          },
+          selectList: {
+              type: Object
           },
           totalInvoicesToBeSend:{
               type: Object,
@@ -126,25 +128,189 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                   totalDoctorSupplement:       Number(0.00).toFixed(2)
               })
           },
-          allMessages:{
+          invoicesStatus: {
+              type: String,
+              observer: '_invoicesStatusChanged'
+          },
+          statusToBeSend:{
+              type: Boolean,
+              value: true
+          },
+          selectedInvoicesToBeSend:{
+              type: Object,
+              value : () => ({})
+          },
+          messagesToBeCorrected:{
+              type: Object,
+              value : () => ({})
+          },
+          selectedInvoicesByStatus:{
+              type: Object,
+              value : () => ({})
+          },
+          multiSort:{
+              type: Boolean,
+              value: true
+          },
+          activeGridItem:{
+              type: Object,
+              value: function () {
+                  return [];
+              }
+          },
+          filterValue:{
+              type: String,
+              value: ""
+          },
+          filterPath:{
+              type:String,
+              value: "invoice.patient.firstName"
+          },
+          btnSelectionPatient: {
+              type: Boolean,
+              value: false,
+              notify: true
+          },
+          showInactive: {
+              type: Boolean,
+              value: false
+          },
+          ifInvoiceSelected: {
+              type: Boolean,
+              value: true
+          },
+          level :{
+              type : Number,
+              value : 0
+          },
+          expanded : {
+              type : Boolean,
+              value : true
+          },
+          invoicesFromBatch:{
+              type: Object,
+              value: function () {
+                  return [];
+              }
+          },
+          invoicesErrorMsg: {
+              type: String,
+              value: ""
+          },
+          toBeCorrectedMessageDetail:{
+              type: Object,
+              value: function () {
+                  return [];
+              }
+          },
+          infoHelpdesk:{
+              type : Object
+          },
+          isCompleteHelpDesk:{
+              type: Boolean
+          },
+          infoHelpdeskDet:{
+              type: Object
+          },
+          mobile :{
+              type: String
+          },
+          displayedYear: {
+              type: Number,
+              value: () => Number(moment().format('YYYY'))
+          },
+          processing:{
+              type: Boolean,
+              value: false
+          },
+          archOrAcc:{
+              type: Boolean,
+              value:false
+          },
+          toBeCorr:{
+              type: Boolean,
+              value: false
+          },
+          patientFromSelectedInvoice:{
+              type: Object
+          },
+          selectedInvoiceIndex:{
+              type : Number
+          },
+          messageIdsCanBeAutoArchived:{
+              type: Array,
+              value: []
+          },
+          isMessagesLoaded:{
+              type: Boolean,
+              value: false,
+          },
+          sumReimb:{
+              type: Object,
+              value : "0.00"
+          },
+          sumPatInter:{
+              type: Object,
+              value : "0.00"
+          },
+          sumDoctorSup:{
+              type: Object,
+              value : "0.00"
+          },
+          sumTot:{
+              type: Object,
+              value: "0.00"
+          },
+          cannotSend: {
+              type: Boolean,
+              value: false
+          },
+          cannotGet: {
+              type: Boolean,
+              value: false
+          },
+          patientWithoutMutuality:{
               type: Array,
               value: () => []
           },
-          messagesRejected:{
-              type: Array,
-              value: () => []
+          checkBeforeSendEfact:{
+              type: Object,
+              value: () => ({
+                  inamiCheck : false,
+                  ssinCheck: false,
+                  bceCheck: false,
+                  ibanCheck: false,
+                  bicCheck: false,
+                  invoiceCheck100: false,
+                  invoiceCheck200: false,
+                  invoiceCheck300: false,
+                  invoiceCheck306: false,
+                  invoiceCheck400: false,
+                  invoiceCheck500: false,
+                  invoiceCheck600: false,
+                  invoiceCheck900: false
+              })
           },
-          messagesAccepted:{
-              type: Array,
-              value: () => []
+          isSendError:{
+              type: Boolean,
+              value: false
           },
-          messagesProcessed:{
-              type: Array,
-              value: () => []
+          _isLoading: {
+              type: Boolean,
+              value: false,
+              observer: '_loadingStatusChanged'
           },
-          messagesArchived:{
-              type: Array,
-              value: () => []
+          _bodyOverlay: {
+              type: Boolean,
+              value: false
+          },
+          _isLoadingSmall: {
+              type: Boolean,
+              value: false
+          },
+          flagInvoiceAsLostId: {
+              type: String,
+              value: ""
           }
       };
   }
@@ -235,7 +401,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 this.set("totalInvoicesToBeSend.totalDoctorSupplement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.doctorSupplement), 0).toFixed(2) : 0.00)
                 this.set("totalInvoicesToBeSend.totalReimbursement",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00)
                 this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
-                this._toggleDataProvider(this.selectedInvoicesToBeSend)
             }).finally(() =>{
                 this.api.setPreventLogging(false)
                 return this.fetchMessages()
@@ -376,6 +541,8 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     initializeBatchCounter(toBeSend, toBeCorrected, processedCounter, acceptedCounter, rejectedCounter, archivedCounter){
         this.dispatchEvent(new CustomEvent('initialize-batch-counter', { bubbles: true, composed: true, detail: { toBeSend: toBeSend, toBeCorrected: toBeCorrected,  processing: processedCounter, rejected: rejectedCounter, accepted: acceptedCounter, archived: archivedCounter} }));
     }
+
+
 }
 
 customElements.define(htMsgInvoice.is, htMsgInvoice);
