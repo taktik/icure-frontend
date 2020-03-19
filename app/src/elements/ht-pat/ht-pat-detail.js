@@ -4424,8 +4424,8 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                             fr : _.get(c,"convDes_FR",""),
                             nl : _.get(c,"convDes_NL","")
                         },
-                        startDate: moment(_.get(c,"convDate","")).format("YYYYMMDD"),
-                        endDate: moment(_.get(c,"convValid","")).format("YYYYMMDD"),
+                        startDate: _.get(c, "convDate", "") === "" ? null : moment(_.get(c,"convDate","")).format("YYYYMMDD"),
+                        endDate: _.get(c, "convValid", "") === "" ? null : moment(_.get(c,"convValid","")).format("YYYYMMDD"),
                         codes: [],
                         tags: []
                     }
@@ -4434,7 +4434,9 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
         }
         this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convOk') : null
         this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convKo') : null
-        if(_.get(this,"patient.conventions",[]).length && _.get(this,"patient.conventions",[]).find(conv => !conv.endDate)){
+        console.log("patient conventions", _.get(this,"patient.conventions",[]))
+        const now = moment()
+        if(_.get(this,"patient.conventions",[]).length && _.get(this,"patient.conventions",[]).find(conv => !conv.endDate || now.isBefore(conv.endDate))){
             this.set("conventionStatus","conv_status_ok")
             this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.add('convOk') : null
         }else{
