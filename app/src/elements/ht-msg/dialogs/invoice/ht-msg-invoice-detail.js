@@ -145,7 +145,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 padding: 4px;                
             }
             
-            .tr-title{
+            .c{
                 height: auto;
                 font-weight: bold;
                 vertical-align: middle;
@@ -156,7 +156,20 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
             }
             
             .td{
+                position: relative;
+                display: flex;
+                flex-flow: row nowrap;
+                align-items: center;
+                justify-content: center;
+                flex-grow: 1;
+                flex-basis: 0;
+                padding: 6px;
                 overflow: hidden;
+                min-width: 0px;
+                z-index: 2;
+                word-break: break-word;
+                white-space: nowrap;               
+                font-size: 13px;
                 text-overflow: ellipsis;
             }
             
@@ -197,7 +210,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
             </div>
             <div class="panel-content">
                 <div class="table">
-                    <div class="tr">                     
+                    <div class="tr tr-title">                     
                         <div class="td w10 center">[[localize('inv_num_fac','Invoice number',language)]]</div>
                         <div class="td w10 center">[[localize('inv_pat','Patient',language)]]</div>
                         <div class="td w20 center">[[localize('inv_niss','Niss',language)]]</div>
@@ -225,6 +238,21 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                             <div class="td w10 right">[[_formatAmount(inv.paid)]]€</div>                             
                             <div class="td w10"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon> [[inv.status]]</span></div>           
                         </div>
+                        <template is="dom-repeat" items="[[inv.invoicingCodes]]" as="invco">
+                            <div class="tr">
+                                <div class="td w10"></div>
+                                <div class="td w10"></div>
+                                <div class="td w20"></div>
+                                <div class="td w10 center">[[invco.invoicingCode]]</div>
+                                <div class="td w10">[[formatDate(invco.invoiceDate,'date')]]</div>
+                                <div class="td w5 right"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
+                                <div class="td w5 right"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
+                                <div class="td w5 right"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
+                                <div class="td w5 center">[[invco.rejectionReason]]</div>
+                                <div class="td w10 right"></div>                             
+                                <div class="td w10"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
+                            </div>
+                        </template>
                     </template>
                 </div>
             </div>

@@ -47,12 +47,12 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-search{
-                height: 40px;
+                height: 45px;
                 width: auto;
             }
             
             .panel-content{
-                height: calc(100% - 120px);
+                height: calc(100% - 125px);
                 width: auto;
             }
             
@@ -134,43 +134,65 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 font-size: var(--font-size-normal);
             }
             
+            .th{
+                height: auto!important;
+                font-weight: bold;
+                vertical-align: middle;
+            }
+            
             .tr{
                 display: flex;
                 height: 22px;
-                cursor: pointer;
                 border-bottom: 1px solid lightgray;   
                 padding: 4px;                
             }
             
             .td{
+               position: relative;
+                display: flex;
+                flex-flow: row nowrap;
+                align-items: center;
+                flex-grow: 1;
+                flex-basis: 0;
+                padding: 6px;
                 overflow: hidden;
+                min-width: 0px;
+                z-index: 2;
+                word-break: break-word;
+                white-space: nowrap;               
+                font-size: 13px;
                 text-overflow: ellipsis;
             }
-            
-            .w5{
-                width: 5%;
+
+            .fg0{
+                flex-grow: 0.2;
             }
             
-            .w10{
-                width: 10%;
+            .fg05{
+            flex-grow: 0.5;
             }
             
-            .w20{
-                width: 20%;
+            .fg1{
+                flex-grow: 1;
             }
             
-            .center{
-                text-align: center;
-            }
-            
-            .right{
-                text-align: right;
-            }
-            
+            .fg2{
+                flex-grow: 2;
+            }  
+                       
             .status{
               display: block;
               margin-left: auto;
               margin-right: auto;
+            }
+            
+            .info-icon{
+                heigth: 14px;
+                width: 14px;
+            }
+            
+            .searchField{
+                display: block;
             }
             
         </style>
@@ -180,28 +202,28 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 [[localize('', 'To be send', language)]] <span class="batchNumber batchPending">{{_forceZeroNum(listOfInvoice.length)}}</span>
             </div>
             <div class="panel-search">
-                
+                <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
             </div>
             <div class="panel-content">
                 <div class="table">
-                    <div class="tr">                     
-                        <div class="td w10 center">[[localize('inv_mut','Mutual',language)]]</div>
-                        <div class="td w10 center">[[localize('inv_num_fac','Invoice number',language)]]</div>
-                        <div class="td w20 center">[[localize('inv_pat','Patient',language)]]</div>
-                        <div class="td w10 center">[[localize('inv_niss','Inss',language)]]</div>
-                        <div class="td w10 center">[[localize('inv_date','Invoice date',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_oa','Oa',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_pat','Patient',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_supp','Extra',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_tot','Total',language)]]</div>
-                        <div class="td w10 center">[[localize('inv_stat','Status',language)]]</div>
-                        <div class="td w10 center"></div>                    
+                    <div class="tr th">                     
+                        <div class="td fg05">[[localize('inv_mut','Mutual',language)]]</div>
+                        <div class="td fg1">[[localize('inv_num_fac','Invoice number',language)]]</div>
+                        <div class="td fg2">[[localize('inv_pat','Patient',language)]]</div>
+                        <div class="td fg1">[[localize('inv_niss','Inss',language)]]</div>
+                        <div class="td fg1">[[localize('inv_date','Invoice date',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_oa','Oa',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_pat','Patient',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_supp','Extra',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_tot','Total',language)]]</div>
+                        <div class="td fg1">[[localize('inv_stat','Status',language)]]</div>
+                        <div class="td fg1"></div>                    
                     </div>
-                    <template is="dom-repeat" items="[[_sortInvoiceListByOa(listOfInvoice)]]" as="inv">
+                    <template is="dom-repeat" items="[[_sortInvoiceListByOa(filteredListOfInvoice)]]" as="inv">
                         <div class="tr">
-                            <div class="td w10">[[inv.insuranceCode]]</div>
-                            <div class="td w10">[[inv.invoiceReference]]</div>
-                            <div class="td w20">
+                            <div class="td fg05">[[inv.insuranceCode]]</div>
+                            <div class="td fg1">[[inv.invoiceReference]]</div>
+                            <div class="td fg2">
                                 <template is="dom-if" if="[[!inv.insurabilityCheck]]">
                                      <iron-icon icon="vaadin:circle" class="assurability--redStatus"></iron-icon>
                                 </template>
@@ -210,13 +232,13 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                                 </template>
                                 [[inv.patientName]]
                             </div>
-                            <div class="td w10">[[inv.patientSsin]]</div>
-                            <div class="td w10">[[formatDate(inv.invoiceDate,'date')]]</div>                         
-                            <div class="td w5 right">[[inv.reimbursement]]€</div>
-                            <div class="td w5 right">[[inv.patientIntervention]]€</div>
-                            <div class="td w5 right">[[inv.doctorSupplement]]€</div>
-                            <div class="td w5 right">[[inv.totalAmount]]€</div>
-                            <div class="td w10 center status">
+                            <div class="td fg1">[[inv.patientSsin]]</div>
+                            <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>                         
+                            <div class="td fg1">[[inv.reimbursement]]€</div>
+                            <div class="td fg1">[[inv.patientIntervention]]€</div>
+                            <div class="td fg1">[[inv.doctorSupplement]]€</div>
+                            <div class="td fg1">[[inv.totalAmount]]€</div>
+                            <div class="td fg1">
                                 <span class="invoice-status invoice-status--orangeStatus">
                                     <iron-icon icon="vaadin:circle" class="statusIcon invoice-status--orangeStatus"></iron-icon>
                                     [[inv.statut]]
@@ -257,6 +279,14 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             listOfInvoice: {
                 type: Array,
                 value: () => []
+            },
+            filteredListOfInvoice:{
+              type: Array,
+              value: () => []
+            },
+            filter:{
+                type: String,
+                value: null
             }
         }
     }
@@ -266,7 +296,11 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
     }
 
     static get observers() {
-        return []
+        return ['_initialize(api, user, listOfInvoice)', '_filterValueChanged(filter)']
+    }
+
+    _initialize(){
+        this.set('filteredListOfInvoice', _.get(this, 'listOfInvoice', []))
     }
 
     _sortInvoiceListByOa(listOfInvoice) {
@@ -298,6 +332,28 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                                                             (mm.toString() === '11') ? this.localize('Nov',this.language) :
                                                                 this.localize('Dec',this.language)
                 return `${monthStr} ${yyyy}`
+        }
+    }
+
+    _filterValueChanged(){
+        if(this.filter){
+            const keywordsString = _.trim(_.get(this,"filter","")).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")
+            const keywordsArray = _.compact(_.uniq(_.map(keywordsString.split(" "), i=>_.trim(i))))
+
+            setTimeout(() => {
+                if(parseInt(_.get(keywordsString,"length",0)) > 2) {
+                    const invoiceSearchResults =  _.chain(_.get(this, "listOfInvoice", []))
+                        .chain(_.get(this, "filter", []))
+                        .filter(i => _.size(keywordsArray) === _.size(_.compact(_.map(keywordsArray, keyword => _.trim(_.get(i, "normalizedSearchTerms", "")).indexOf(keyword) > -1))))
+                        .compact()
+                        .uniq()
+                        .orderBy(['code', 'label.' + this.language, 'id'], ['asc', 'asc', 'asc'])
+                        .value()
+                        this.set('filteredListOfInvoice', _.sortBy(invoiceSearchResults, ['insuranceCode'], ['asc']))
+                }else{
+                    this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['insuranceCode'], ['asc']))
+                }
+            }, 100)
         }
     }
 

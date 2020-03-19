@@ -461,7 +461,8 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     toBeCorrected: !!efact.invoice.invoicingCodes.find(ic => ic.resent === true),
                     error: efact.invoice.error || "",
                     insurabilityCheck: insurabilityComplete,
-                    realizedByTrainee : efact.invoice.internshipNihii && efact.invoice.internshipNihii.length ? true : false
+                    realizedByTrainee : efact.invoice.internshipNihii && efact.invoice.internshipNihii.length ? true : false,
+                    normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.get(efact, _.trim('patient.lastName'), ""), _.get(efact, _.trim('patient.firstName'), ""), _.trim(_.get(efact, 'invoice.invoiceReference', "")).toString(), _.trim(_.get(efact, 'insurance.code', "")).toString(), _.trim(_.get(efact, 'patient.ssin', "")).toString(), _.trim(_.get(efact, 'invoice.invoiceDate', '')).toString()])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                 })
             })).then(invoices => {
                 this.set("messagesToBeCorrected", invoices.filter(inv => inv.toBeCorrected === true))
@@ -549,43 +550,45 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                                 invoiceNumber:      zone300.zones && zone300.zones.find(z => z.zone === "301") ? zone300.zones.find(z => z.zone === "301").value : "",
                                                 invoiceMonth:       zone300.zones &&zone300.zones.find(z => z.zone === "300") ? zone300.zones.find(z => z.zone === "300").value : "",
                                                 invoiceDate:        zone300.zones && zone300.zones.find(z => z.zone === "302") ? zone300.zones.find(z => z.zone === "302").value : "",
-                                                invoicedAmount:     msg.metas && msg.metas.totalAmount ? Number(msg.metas.totalAmount) : "0.00",
-                                                acceptedAmount:     msg.metas && msg.metas.totalAcceptedAmount ? Number(msg.metas.totalAcceptedAmount) : "0.00",
+                                                invoicedAmount:     Number(_.get(msg, 'metas.totalAmount', '0.00')),
+                                                acceptedAmount:     Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')),
                                                 refusedAmount:      (!!(st & (1 << 17)) || !!(st & (1 << 12))) ? Number(msg.metas.totalAmount) : (msg.metas && msg.metas.totalRejectedAmount) ? Number(msg.metas.totalRejectedAmount) : "0.00",
                                                 invoiceStatus:      invoiceStatus,
                                                 rejectionReason:    rejectionReason,
-                                                paymentReference:   msg.metas && msg.metas.paymentReferenceAccount1 ? msg.metas.paymentReferenceAccount1 : "",
+                                                paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', null),
                                                 paymentDate:        "",
-                                                amountPaid:         msg.metas && msg.metas.totalAcceptedAmount ? Number(msg.metas.totalAcceptedAmount).toFixed(2) : "0.00",
+                                                amountPaid:         Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')).toFixed(2),
                                                 paymentAccount:     enr10.zones && enr10.zones.find(z => z.zone === "36") ? enr10.zones.find(z => z.zone === "36").value : "",
                                                 paid: false,
                                                 allInvoicesIsCorrected : allInvoicesIsCorrected,
                                                 sendError: false
-                                            }
+                                            },
+                                            normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.trim(zone500.zones && zone500.zones.find(z => z.zone === "501") ? (zone500.zones.find(z => z.zone === "501").value).charAt(0) + "00" : ""), _.trim(zone300.zones && zone300.zones.find(z => z.zone === "301") ? zone300.zones.find(z => z.zone === "301").value : ""), _.trim(zone300.zones &&zone300.zones.find(z => z.zone === "300") ? zone300.zones.find(z => z.zone === "300").value : ""), _.trim(zone300.zones && zone300.zones.find(z => z.zone === "302") ? zone300.zones.find(z => z.zone === "302").value : ""), _.trim(msg.metas && msg.metas.paymentReferenceAccount1 ? msg.metas.paymentReferenceAccount1 : "")])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                                         }) : {}
                                 }) : Promise.resolve({
                                     message: msg,
                                     messageInfo: {
                                         messageType:        null,
-                                        hcp:                this.hcp.firstName + " " + this.hcp.lastName,
-                                        oa:                 msg.metas && msg.metas.ioFederationCode ? msg.metas.ioFederationCode : null,
-                                        hcpReference:       msg.metas && msg.metas.errors ? msg.metas.errors : null,
-                                        invoiceNumber:      msg.externalRef || null,
-                                        invoiceMonth:       msg.metas && msg.metas.invoiceMonth && msg.metas.invoiceYear ? msg.metas.invoiceYear+''+msg.metas.invoiceMonth : null,
-                                        invoiceDate:        msg.metas && msg.metas.invoiceMonth && msg.metas.invoiceYear ? msg.metas.invoiceYear+''+msg.metas.invoiceMonth+'01' : null,
-                                        invoicedAmount:     msg.metas && msg.metas.totalAmount ? Number(msg.metas.totalAmount) : "0.00",
-                                        acceptedAmount:     msg.metas && msg.metas.totalAcceptedAmount ? Number(msg.metas.totalAcceptedAmount) : "0.00",
-                                        refusedAmount:      msg.metas && msg.metas.totalAmount ? Number(msg.metas.totalAmount) : "0.00",
+                                        hcp:                _.get(this.hcp, 'firstName', null) + " " + _.get(this.hcp, 'lastName', null),
+                                        oa:                 _.get(msg, 'metas.ioFederationCode', null),
+                                        hcpReference:       _.get(msg, 'metas.errors', null),
+                                        invoiceNumber:      _.get(msg, 'externalRef', null),
+                                        invoiceMonth:       _.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth', null),
+                                        invoiceDate:        _.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth'+'01', null),
+                                        invoicedAmount:     Number(_.get(msg, 'metas.totalAmount', '0.00')),
+                                        acceptedAmount:     Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')),
+                                        refusedAmount:      Number(_.get(msg, 'metas.totalAmount', '0.00')),
                                         invoiceStatus:      !!(msg.status & (1 << 21)) ? this.localize('inv_arch','Archived',this.language) : this.localize('inv_send_err','Send error',this.language),
-                                        rejectionReason:    msg.metas && msg.metas.errors ? msg.metas.errors : null,
-                                        paymentReference:   msg.metas && msg.metas.paymentReferenceAccount1 ? msg.metas.paymentReferenceAccount1 : "",
+                                        rejectionReason:    _.get(msg, 'metas.errors', null),
+                                        paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', null),
                                         paymentDate:        null,
-                                        amountPaid:         msg.metas && msg.metas.totalAcceptedAmount ? Number(msg.metas.totalAcceptedAmount).toFixed(2) : "0.00",
+                                        amountPaid:         Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')).toFixed(2),
                                         paymentAccount:     null,
                                         paid:               false,
                                         allInvoicesIsCorrected : false,
                                         sendError:          true
-                                    }
+                                    },
+                                    normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.trim(_.get(msg, 'metas.ioFederationCode', null)), _.trim(_.get(this.hcp, 'firstName', null)), _.trim(_.get(this.hcp, 'lastName', null)), _.trim(_.get(msg, 'externalRef', null)), _.trim(_.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth', null)), _.trim(_.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth'+'01', null)), _.trim(_.get(msg, 'metas.paymentReferenceAccount1', null))])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                                 })
                             })
 

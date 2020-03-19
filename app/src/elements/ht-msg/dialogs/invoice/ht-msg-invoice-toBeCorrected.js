@@ -75,7 +75,21 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
             }
             
             .td{
-            
+                position: relative;
+                display: flex;
+                flex-flow: row nowrap;
+                align-items: center;
+                justify-content: center;
+                flex-grow: 1;
+                flex-basis: 0;
+                padding: 6px;
+                overflow: hidden;
+                min-width: 0px;
+                z-index: 2;
+                word-break: break-word;
+                white-space: nowrap;               
+                font-size: 13px;
+                text-overflow: ellipsis;
             }
             
         </style>
