@@ -5,6 +5,7 @@ import '../../../../styles/scrollbar-style'
 import '../../../../styles/shared-styles'
 import '../../../../styles/buttons-style'
 import '../../../../styles/dialog-style'
+import '../../../../styles/invoicing-style';
 import '../../../ht-spinner/ht-spinner.js'
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
@@ -33,7 +34,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
     static get template() {
         return html`
         
-        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style">
+        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style invoicing-style">
             .panel{
                 margin: 5px;
                 height: calc(100% - 20px);
@@ -107,6 +108,24 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     color: var(--app-status-color-pending);
                 }
             
+            .batchNumber{
+                    color: var(--app-text-color-light);
+                    border-radius: 25px;
+                    min-height: 0;
+                    margin-left: 8px;
+                    font-size: .6em;
+                    display: inline-block;
+                    padding: 4px 6px;
+                    line-height: 0.8;
+                    text-align: center;
+                    height: 10px;
+                }
+                .batchPending{background-color: var(--paper-orange-400);}
+                .batchToBeCorrected{background-color: var(--paper-red-400);}
+                .batchProcessed{background-color: var(--paper-blue-400);}
+                .batchRejected{background-color: var(--paper-red-400);}
+                .batchAccepted{background-color: var(--paper-green-400);}
+                .batchArchived{background-color: var(--paper-purple-300);}
                       
             .table{         
                 width: auto;
@@ -158,7 +177,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'To be send', language)]]
+                [[localize('', 'To be send', language)]] <span class="batchNumber batchPending">{{_forceZeroNum(listOfInvoice.length)}}</span>
             </div>
             <div class="panel-search">
                 
@@ -192,11 +211,11 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                                 [[inv.patientName]]
                             </div>
                             <div class="td w10">[[inv.patientSsin]]</div>
-                            <div class="td w10">[[inv.invoiceDate]]</div>                         
-                            <div class="td w5 right">[[inv.reimbursement]]</div>
-                            <div class="td w5 right">[[inv.patientIntervention]]</div>
-                            <div class="td w5 right">[[inv.doctorSupplement]]</div>
-                            <div class="td w5 right">[[inv.totalAmount]]</div>
+                            <div class="td w10">[[formatDate(inv.invoiceDate,'date')]]</div>                         
+                            <div class="td w5 right">[[inv.reimbursement]]€</div>
+                            <div class="td w5 right">[[inv.patientIntervention]]€</div>
+                            <div class="td w5 right">[[inv.doctorSupplement]]€</div>
+                            <div class="td w5 right">[[inv.totalAmount]]€</div>
                             <div class="td w10 center status">
                                 <span class="invoice-status invoice-status--orangeStatus">
                                     <iron-icon icon="vaadin:circle" class="statusIcon invoice-status--orangeStatus"></iron-icon>
@@ -252,6 +271,34 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
 
     _sortInvoiceListByOa(listOfInvoice) {
         return _.sortBy(listOfInvoice, ['insuranceCode'], ['asc'])
+    }
+
+    _forceZeroNum(num) {
+        return (!num) ? '0' : num.toString()
+    }
+
+    formatDate(d,f) {
+        const input = d.toString() || _.trim(d)
+        const yyyy = input.slice(0,4), mm = input.slice(4,6), dd = input.slice(6,8)
+        switch(f) {
+            case 'date' :
+                return `${dd}/${mm}/${yyyy}`;
+            case 'month' :
+                const monthStr =
+                    (mm.toString() === '01') ? this.localize('Jan',this.language) :
+                        (mm.toString() === '02') ? this.localize('Feb',this.language) :
+                            (mm.toString() === '03') ? this.localize('Mar',this.language) :
+                                (mm.toString() === '04') ? this.localize('Apr',this.language) :
+                                    (mm.toString() === '05') ? this.localize('May',this.language) :
+                                        (mm.toString() === '06') ? this.localize('Jun',this.language) :
+                                            (mm.toString() === '07') ? this.localize('Jul',this.language) :
+                                                (mm.toString() === '08') ? this.localize('Aug',this.language) :
+                                                    (mm.toString() === '09') ? this.localize('Sep',this.language) :
+                                                        (mm.toString() === '10') ? this.localize('Oct',this.language) :
+                                                            (mm.toString() === '11') ? this.localize('Nov',this.language) :
+                                                                this.localize('Dec',this.language)
+                return `${monthStr} ${yyyy}`
+        }
     }
 
 }

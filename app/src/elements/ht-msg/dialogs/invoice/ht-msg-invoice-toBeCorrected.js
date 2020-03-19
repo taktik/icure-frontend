@@ -5,6 +5,7 @@ import '../../../../styles/scrollbar-style';
 import '../../../../styles/shared-styles';
 import '../../../../styles/buttons-style';
 import '../../../../styles/dialog-style';
+import '../../../../styles/invoicing-style';
 import '../../../ht-spinner/ht-spinner';
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
@@ -32,7 +33,7 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
     static get template() {
         return html`
 
-        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style">
+        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style invoicing-style">
             .panel{
                 margin: 0.5%;
                 background-color: red;
@@ -81,7 +82,7 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'To be corrected', language)]]
+                [[localize('', 'To be corrected', language)]] <span class="batchNumber batchToBeCorrected">{{_forceZeroNum(messagesToBeCorrected.length)}}</span>
             </div>
             <div class="panel-search">
                 
@@ -155,6 +156,10 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
 
     static get observers() {
         return [];
+    }
+
+    _forceZeroNum(num) {
+        return (!num) ? '0' : num.toString()
     }
 
 }

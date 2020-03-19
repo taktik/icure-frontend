@@ -5,6 +5,7 @@ import '../../../../styles/scrollbar-style';
 import '../../../../styles/shared-styles';
 import '../../../../styles/buttons-style';
 import '../../../../styles/dialog-style';
+import '../../../../styles/invoicing-style';
 import '../../../ht-spinner/ht-spinner.js';
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
@@ -32,7 +33,7 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
     static get template() {
         return html`
         
-        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style">
+        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style invoicing-style">
             .panel{
                 margin: 0.5%;
                 height: calc(100% - 20px);
@@ -130,7 +131,24 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
                     color: var(--paper-purple-300)
                 }
                
-               
+               .batchNumber{
+                    color: var(--app-text-color-light);
+                    border-radius: 25px;
+                    min-height: 0;
+                    margin-left: 8px;
+                    font-size: .6em;
+                    display: inline-block;
+                    padding: 4px 6px;
+                    line-height: 0.8;
+                    text-align: center;
+                    height: 10px;
+                }
+                .batchPending{background-color: var(--paper-orange-400);}
+                .batchToBeCorrected{background-color: var(--paper-red-400);}
+                .batchProcessed{background-color: var(--paper-blue-400);}
+                .batchRejected{background-color: var(--paper-red-400);}
+                .batchAccepted{background-color: var(--paper-green-400);}
+                .batchArchived{background-color: var(--paper-purple-300);}
                       
             .table{         
                 width: auto;
@@ -182,7 +200,7 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'Archived', language)]]
+                [[localize('', 'Archived', language)]] <span class="batchNumber batchArchived">{{_forceZeroNum(listOfInvoice.length)}}</span>
             </div>
             <div class="panel-search">
                 
@@ -207,7 +225,7 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
                         <div class="td w10">[[localize('inv_phys_ref','Physician reference',language)]]</div>        
                     </div>
                     <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(listOfInvoice)]]" as="inv">
-                        <div class="tr">
+                        <div class="tr" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
                             <div class="td w10 center">[[inv.messageInfo.hcp]]</div>
                             <div class="td w10 center">[[inv.messageInfo.oa]]</div>
                             <div class="td w20 center">[[inv.messageInfo.invoiceNumber]]</div>
@@ -341,6 +359,16 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
                                                             (status === this.localize('inv_send_err', 'Send error', this.language)) ? "invoice-status--redStatus" :
                                                                 ""
         }
+    }
+
+    _displayInfoPanel(e){
+        if(_.get(e, 'currentTarget.dataset.item', null)){
+            this.dispatchEvent(new CustomEvent('open-detail-panel', {bubbles: true, composed: true, detail: {selectedInv: JSON.parse(_.get(e, 'currentTarget.dataset.item', null))}}))
+        }
+    }
+
+    _forceZeroNum(num) {
+        return (!num) ? '0' : num.toString()
     }
 
 }

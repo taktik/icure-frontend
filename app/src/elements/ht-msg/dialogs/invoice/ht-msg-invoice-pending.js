@@ -1,6 +1,11 @@
 import '../../../dynamic-form/ckmeans-grouping.js';
 import '../../../../styles/vaadin-icure-theme.js';
 import '../../../../styles/spinner-style.js';
+import '../../../../styles/scrollbar-style';
+import '../../../../styles/shared-styles';
+import '../../../../styles/buttons-style';
+import '../../../../styles/dialog-style';
+import '../../../../styles/invoicing-style';
 import '../../../ht-spinner/ht-spinner.js';
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
@@ -28,7 +33,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
     static get template() {
         return html`
         
-        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style">
+        <style include="shared-styles spinner-style scrollbar-style buttons-style dialog-style invoicing-style">
             .panel{
                 margin: 0.5%;
                 height: calc(100% - 20px);
@@ -125,6 +130,25 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 *.txtcolor--purpleStatus {
                     color: var(--paper-purple-300)
                 }
+                
+                .batchNumber{
+                    color: var(--app-text-color-light);
+                    border-radius: 25px;
+                    min-height: 0;
+                    margin-left: 8px;
+                    font-size: .6em;
+                    display: inline-block;
+                    padding: 4px 6px;
+                    line-height: 0.8;
+                    text-align: center;
+                    height: 10px;
+                }
+                .batchPending{background-color: var(--paper-orange-400);}
+                .batchToBeCorrected{background-color: var(--paper-red-400);}
+                .batchProcessed{background-color: var(--paper-blue-400);}
+                .batchRejected{background-color: var(--paper-red-400);}
+                .batchAccepted{background-color: var(--paper-green-400);}
+                .batchArchived{background-color: var(--paper-purple-300);}
                        
             .table{         
                 width: auto;
@@ -185,7 +209,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'Process', language)]]
+                [[localize('', 'Process', language)]] <span class="batchNumber batchProcessed">{{_forceZeroNum(listOfInvoice.length)}}</span>
             </div>
             <div class="panel-search">
                 
@@ -336,6 +360,10 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
         if(_.get(e, 'currentTarget.dataset.item', null)){
             this.dispatchEvent(new CustomEvent('open-detail-panel', {bubbles: true, composed: true, detail: {selectedInv: JSON.parse(_.get(e, 'currentTarget.dataset.item', null))}}))
         }
+    }
+
+    _forceZeroNum(num) {
+        return (!num) ? '0' : num.toString()
     }
 
 }

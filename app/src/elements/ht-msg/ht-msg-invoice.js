@@ -72,7 +72,14 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
         
         <div class="invoice-panel">      
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'toBeCorrected')]]">
-                <ht-msg-invoice-to-be-corrected api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesToBeCorrected]]"></ht-msg-invoice-to-be-corrected>
+                <ht-msg-invoice-to-be-corrected 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    list-of-invoice="[[messagesToBeCorrected]]"
+                ></ht-msg-invoice-to-be-corrected>
             </template>  
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'toBeSend')]]">
                 <ht-msg-invoice-to-be-send 
@@ -95,13 +102,37 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 ></ht-msg-invoice-pending>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'reject')]]">
-                <ht-msg-invoice-rejected api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesRejected]]"></ht-msg-invoice-rejected>
+                <ht-msg-invoice-rejected 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    list-of-invoice="[[messagesRejected]]"
+                    on-open-detail-panel="_openDetailPanel"
+                 ></ht-msg-invoice-rejected>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'accept')]]">
-                <ht-msg-invoice-accepted api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesAccepted]]"></ht-msg-invoice-accepted>
+                <ht-msg-invoice-accepted 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    list-of-invoice="[[messagesAccepted]]"
+                    on-open-detail-panel="_openDetailPanel"
+                ></ht-msg-invoice-accepted>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'archive')]]">
-                <ht-msg-invoice-archived api="[[api]]" i18n="[[i18n]]" user="[[user]]" language="[[language]]" resources="[[resources]]" list-of-invoice="[[messagesArchived]]"></ht-msg-invoice-archived>
+                <ht-msg-invoice-archived 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    list-of-invoice="[[messagesArchived]]"
+                    on-open-detail-panel="_openDetailPanel"
+                ></ht-msg-invoice-archived>
             </template>  
             <template is="dom-if" if="[[isDisplayDetail]]">
                 <ht-msg-invoice-detail id="htMsgInvoiceDetail" 
