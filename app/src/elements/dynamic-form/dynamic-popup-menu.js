@@ -141,19 +141,24 @@ class DynamicPopupMenu extends TkLocalizerMixin(mixinBehaviors([IronResizableBeh
 		</style>
 
 		<template is="dom-if" if="[[readOnly]]">
-			<paper-input-container always-float-label="true">
-				<label slot="label">[[localize(label,label,language)]]
-					<template is="dom-if" if="[[wasModified]]">
-						<span class="modified-before-out">[[localize('mod','modified',language)]] [[lastModified]] <iron-icon class="modified-icon" icon="schedule"></iron-icon></span>
-					</template>
-					<template is="dom-if" if="[[isModifiedAfter]]">
-						<span class="modified-after-out">[[localize('obs_val','obsolete value',language)]]<iron-icon class="modified-icon" icon="report-problem"></iron-icon></span>
-					</template>
-				</label>
-				<iron-input slot="input" bind-value="{{traductValue}}">
-                    <input type="text" value="{{traductValue::input}}" readonly="">
-				</iron-input>
-            </paper-input-container>
+			<template is="dom-if" if="[[!dataSource]]">
+				<paper-input-container always-float-label="true">
+					<label slot="label">[[localize(label,label,language)]]
+						<template is="dom-if" if="[[wasModified]]">
+							<span class="modified-before-out">[[localize('mod','modified',language)]] [[lastModified]] <iron-icon class="modified-icon" icon="schedule"></iron-icon></span>
+						</template>
+						<template is="dom-if" if="[[isModifiedAfter]]">
+							<span class="modified-after-out">[[localize('obs_val','obsolete value',language)]]<iron-icon class="modified-icon" icon="report-problem"></iron-icon></span>
+						</template>
+					</label>
+					<iron-input slot="input" bind-value="{{traductValue}}">
+						<input readonly="" type="text" value="{{traductValue::input}}" on-tap="_openPopupMenu">
+					</iron-input>
+				</paper-input-container>
+			</template>
+			<template is="dom-if" if="[[dataSource]]">
+				<vaadin-combo-box readonly filtered-items="[[items]]" item-label-path="name" item-value-path="id" label="[[_label(label)]]" value="{{comboBoxValue}}"></vaadin-combo-box>
+			</template>
 		</template>
 		<template is="dom-if" if="[[!readOnly]]">
 			<template is="dom-if" if="[[!dataSource]]">
