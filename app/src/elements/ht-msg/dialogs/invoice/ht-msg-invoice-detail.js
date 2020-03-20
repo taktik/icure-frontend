@@ -138,15 +138,22 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 font-size: var(--font-size-normal);
             }
             
+            .table{         
+                width: auto;
+                height: 100%;
+                overflow: auto;
+                font-size: var(--font-size-normal);
+            }
+            
             .tr{
                 display: flex;
-                height: 22px;               
+                height: auto;               
                 border-bottom: 1px solid lightgray;   
                 padding: 4px;                
             }
             
-            .c{
-                height: auto;
+            .th{
+                height: auto!important;
                 font-weight: bold;
                 vertical-align: middle;
             }
@@ -159,9 +166,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 position: relative;
                 display: flex;
                 flex-flow: row nowrap;
-                align-items: center;
-                justify-content: center;
-                flex-grow: 1;
+                align-items: center;                           
                 flex-basis: 0;
                 padding: 6px;
                 overflow: hidden;
@@ -173,30 +178,43 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 text-overflow: ellipsis;
             }
             
-            .w5{
-                width: 5%;
+            .fg0{
+                flex-grow: 0.2;
             }
             
-            .w10{
-                width: 10%;
+            .fg05{
+                flex-grow: 0.5;
             }
             
-            .w20{
-                width: 20%;
+            .fg1{
+                flex-grow: 1;
             }
             
-            .center{
-                text-align: center;
+            .fg2{
+                flex-grow: 2;
             }
             
-            .right{
-                text-align: right;
-            }
-            
+            .fg3{
+                flex-grow: 3;
+            }   
+                    
             .status{
               display: block;
               margin-left: auto;
               margin-right: auto;
+            }
+            
+            .info-icon{
+                height: 14px;
+                width: 14px;
+            }
+            
+            .searchField{
+                display: block;
+            }
+            
+            .rejectionInfo{
+                white-space: normal!important;
             }
             
         </style>
@@ -206,57 +224,57 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 [[localize('inv-num-detail', 'Detail of invoice number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]
             </div>
             <div class="panel-search">
-            
+                <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
             </div>
             <div class="panel-content">
                 <div class="table">
-                    <div class="tr tr-title">                     
-                        <div class="td w10 center">[[localize('inv_num_fac','Invoice number',language)]]</div>
-                        <div class="td w10 center">[[localize('inv_pat','Patient',language)]]</div>
-                        <div class="td w20 center">[[localize('inv_niss','Niss',language)]]</div>
-                        <div class="td w10 center">[[localize('nmcl','Nmcl',language)]]</div>
-                        <div class="td w10 center">[[localize('inv_batch_month','Invoiced month',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_date_fact','Invoice date',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_invoiced','Invoiced',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_acc','Accepted',language)]]</div>
-                        <div class="td w5 center">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_rej','Rejected',language)]]</div>
-                         <div class="td w10">Motif rejet</div>  
-                          <div class="td w10">Payé</div>  
-                        <div class="td w10 center">[[localize('inv_stat','Status',language)]]</div>                                          
+                    <div class="tr th">                     
+                        <div class="td fg1">[[localize('inv_num_fac','Invoice number',language)]]</div>
+                        <div class="td fg2">[[localize('inv_pat','Patient',language)]]</div>
+                        <div class="td fg1">[[localize('inv_niss','Niss',language)]]</div>
+                        <div class="td fg1">[[localize('nmcl','Nmcl',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_month','Invoiced month',language)]]</div>
+                        <div class="td fg1">[[localize('inv_date_fact','Invoice date',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_invoiced','Invoiced',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_acc','Accepted',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_rej','Rejected',language)]]</div>
+                        <div class="td fg3">Motif rejet</div>  
+                        <div class="td fg05">Payé</div>  
+                        <div class="td fg1">[[localize('inv_stat','Status',language)]]</div>                                          
                     </div>
                     <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(invoicesFromBatch)]]" as="inv">
                         <div class="tr">
-                            <div class="td w10">[[inv.invoiceReference]]</div>
-                            <div class="td w10">[[inv.patient]]</div>
-                            <div class="td w20">[[inv.ssin]]</div>
-                            <div class="td w10 center"></div>
-                            <div class="td w10">[[formatDate(inv.invoiceDate,'date')]]</div>
-                            <div class="td w5 right"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(inv.invoicedAmount)]]€</span></div>
-                            <div class="td w5 right"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(inv.acceptedAmount)]]€</span></div>
-                            <div class="td w5 right"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(inv.refusedAmount)]]€</span></div>
-                            <div class="td w5 center">[[inv.rejectionReason]]</div>
-                            <div class="td w10 right">[[_formatAmount(inv.paid)]]€</div>                             
-                            <div class="td w10"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon> [[inv.status]]</span></div>           
+                            <div class="td fg1">[[inv.invoiceReference]]</div>
+                            <div class="td fg2">[[inv.patient]]</div>
+                            <div class="td fg1">[[inv.ssin]]</div>
+                            <div class="td fg1"></div>
+                            <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>
+                            <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(inv.invoicedAmount)]]€</span></div>
+                            <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(inv.acceptedAmount)]]€</span></div>
+                            <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(inv.refusedAmount)]]€</span></div>
+                            <div class="td fg3 rejectionInfo">[[inv.rejectionReason]]</div>
+                            <div class="td fg05">[[_formatAmount(inv.paid)]]€</div>                             
+                            <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon> [[inv.status]]</span></div>           
                         </div>
                         <template is="dom-repeat" items="[[inv.invoicingCodes]]" as="invco">
                             <div class="tr">
-                                <div class="td w10"></div>
-                                <div class="td w10"></div>
-                                <div class="td w20"></div>
-                                <div class="td w10 center">[[invco.invoicingCode]]</div>
-                                <div class="td w10">[[formatDate(invco.invoiceDate,'date')]]</div>
-                                <div class="td w5 right"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
-                                <div class="td w5 right"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
-                                <div class="td w5 right"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
-                                <div class="td w5 center">[[invco.rejectionReason]]</div>
-                                <div class="td w10 right"></div>                             
-                                <div class="td w10"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
+                                <div class="td fg1"></div>
+                                <div class="td fg2"></div>
+                                <div class="td fg1"></div>
+                                <div class="td fg1 center">[[invco.invoicingCode]]</div>
+                                <div class="td fg1">[[formatDate(invco.invoiceDate,'date')]]</div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
+                                <div class="td fg3 rejectionInfo">[[invco.rejectionReason]]</div>
+                                <div class="td fg05"></div>                             
+                                <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(invco.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(invco.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
                             </div>
                         </template>
                     </template>
                 </div>
             </div>
-            <div class="panel-button">
+            <div class="buttons">
                 <paper-button class="button button--save" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
         </div>
@@ -305,7 +323,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     static get observers() {
-        return ['_initializeDataProvider(api, user, selectedInvoiceForDetail, selectedInvoiceForDetail.*)'];
+        return ['_initializeDataProvider(api, user, selectedInvoiceForDetail, selectedInvoiceForDetail.*)', '_filterValueChanged(filter)'];
     }
 
     _initializeDataProvider(){
@@ -471,7 +489,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     formatDate(d,f) {
-        const input = d.toString() || _.trim(d)
+        const input = d && d.toString() || _.trim(d)
         const yyyy = input.slice(0,4), mm = input.slice(4,6), dd = input.slice(6,8)
         switch(f) {
             case 'date' :

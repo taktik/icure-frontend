@@ -131,6 +131,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                 font-size: var(--font-size-normal);
             }
             
+            .tr-item{
+                cursor: pointer;
+            }
+            
             .th{
                 height: auto!important;
                 font-weight: bold;
@@ -234,7 +238,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                     </template>
                 </div>
             </div>
-            <div class="panel-button">
+            <div class="buttons">
             
             </div>
         </div>   
@@ -284,7 +288,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
     }
 
     formatDate(d,f) {
-        const input = d.toString() || _.trim(d)
+        const input = d && d.toString() || _.trim(d)
         const yyyy = input.slice(0,4), mm = input.slice(4,6), dd = input.slice(6,8)
         switch(f) {
             case 'date' :

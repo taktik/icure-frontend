@@ -555,7 +555,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                                 refusedAmount:      (!!(st & (1 << 17)) || !!(st & (1 << 12))) ? Number(msg.metas.totalAmount) : (msg.metas && msg.metas.totalRejectedAmount) ? Number(msg.metas.totalRejectedAmount) : "0.00",
                                                 invoiceStatus:      invoiceStatus,
                                                 rejectionReason:    rejectionReason,
-                                                paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', null),
+                                                paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', ""),
                                                 paymentDate:        "",
                                                 amountPaid:         Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')).toFixed(2),
                                                 paymentAccount:     enr10.zones && enr10.zones.find(z => z.zone === "36") ? enr10.zones.find(z => z.zone === "36").value : "",
@@ -569,18 +569,18 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                     message: msg,
                                     messageInfo: {
                                         messageType:        null,
-                                        hcp:                _.get(this.hcp, 'firstName', null) + " " + _.get(this.hcp, 'lastName', null),
+                                        hcp:                _.get(this.hcp, 'firstName', "") + " " + _.get(this.hcp, 'lastName', ""),
                                         oa:                 _.get(msg, 'metas.ioFederationCode', null),
                                         hcpReference:       _.get(msg, 'metas.errors', null),
                                         invoiceNumber:      _.get(msg, 'externalRef', null),
-                                        invoiceMonth:       _.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth', null),
-                                        invoiceDate:        _.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth'+'01', null),
+                                        invoiceMonth:       msg.metas && msg.metas.invoiceMonth && msg.metas.invoiceYear ? msg.metas.invoiceYear+''+msg.metas.invoiceMonth : null,
+                                        invoiceDate:        msg.metas && msg.metas.invoiceMonth && msg.metas.invoiceYear ? msg.metas.invoiceYear+''+msg.metas.invoiceMonth+'01' : null,
                                         invoicedAmount:     Number(_.get(msg, 'metas.totalAmount', '0.00')),
                                         acceptedAmount:     Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')),
                                         refusedAmount:      Number(_.get(msg, 'metas.totalAmount', '0.00')),
                                         invoiceStatus:      !!(msg.status & (1 << 21)) ? this.localize('inv_arch','Archived',this.language) : this.localize('inv_send_err','Send error',this.language),
-                                        rejectionReason:    _.get(msg, 'metas.errors', null),
-                                        paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', null),
+                                        rejectionReason:    _.get(msg, 'metas.errors', ""),
+                                        paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', ""),
                                         paymentDate:        null,
                                         amountPaid:         Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')).toFixed(2),
                                         paymentAccount:     null,
@@ -588,7 +588,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                         allInvoicesIsCorrected : false,
                                         sendError:          true
                                     },
-                                    normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.trim(_.get(msg, 'metas.ioFederationCode', null)), _.trim(_.get(this.hcp, 'firstName', null)), _.trim(_.get(this.hcp, 'lastName', null)), _.trim(_.get(msg, 'externalRef', null)), _.trim(_.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth', null)), _.trim(_.get(msg, 'metas.invoiceYear', null)+''+_.get(msg, 'metas.invoiceMonth'+'01', null)), _.trim(_.get(msg, 'metas.paymentReferenceAccount1', null))])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
+                                    normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.trim(_.get(msg, 'metas.ioFederationCode', "")), _.trim(_.get(this.hcp, 'firstName', "")), _.trim(_.get(this.hcp, 'lastName', "")), _.trim(_.get(msg, 'externalRef', "")), _.trim(msg.metas && msg.metas.invoiceMonth && msg.metas.invoiceYear ? msg.metas.invoiceYear+''+msg.metas.invoiceMonth : null,), _.trim(msg.metas && msg.metas.invoiceMonth && msg.metas.invoiceYear ? msg.metas.invoiceYear+''+msg.metas.invoiceMonth+'01' : null), _.trim(_.get(msg, 'metas.paymentReferenceAccount1', ""))])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                                 })
                             })
 

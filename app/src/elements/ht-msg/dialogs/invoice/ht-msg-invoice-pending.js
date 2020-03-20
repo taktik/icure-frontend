@@ -258,7 +258,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                     </template>
                 </div>
             </div>
-            <div class="panel-button">
+            <div class="buttons">
             
             </div>
         </div>   
@@ -314,7 +314,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
     }
 
     formatDate(d,f) {
-        const input = d.toString() || _.trim(d)
+        const input = d && d.toString() || _.trim(d)
         const yyyy = input.slice(0,4), mm = input.slice(4,6), dd = input.slice(6,8)
         switch(f) {
             case 'date' :
