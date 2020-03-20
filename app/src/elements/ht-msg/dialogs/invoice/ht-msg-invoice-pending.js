@@ -56,8 +56,11 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-button{
-                height: 40px;
-                width: auto;             
+                height: 32px;
+                width: auto; 
+                padding: 4px; 
+                display: flex;
+                justify-content: flex-end!important;      
             }
                        
             .invoice-status {
@@ -138,10 +141,11 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                     margin-left: 8px;
                     font-size: .6em;
                     display: inline-block;
-                    padding: 4px 6px;
                     line-height: 0.8;
                     text-align: center;
                     height: 10px;
+                    padding: 5px;
+                    margin-top: 2px;
                 }
                 .batchPending{background-color: var(--paper-orange-400);}
                 .batchToBeCorrected{background-color: var(--paper-red-400);}
@@ -217,11 +221,24 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 display: block;
             }
             
+            .button{
+               display: inline-flex!important;
+               align-items: center!important;
+            }
+            
+            .title{
+                display:flex;
+                padding: 5px;
+            }
+            
         </style>
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'Process', language)]] <span class="batchNumber batchProcessed">{{_forceZeroNum(listOfInvoice.length)}}</span>
+                <div class="title">
+                    [[localize('inv-pending', 'Process invoice', language)]]
+                    <span class="batchNumber batchProcessed">{{_forceZeroNum(listOfInvoice.length)}}</span>
+                 </div> 
             </div>
             <div class="panel-search">
                  <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
@@ -258,8 +275,13 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                     </template>
                 </div>
             </div>
-            <div class="buttons">
-            
+            <div class="panel-button">
+                <template is="dom-if" if="[[api.tokenId]]">
+                    <paper-button on-tap="receiveInvoices" class="button button--save" disabled="[[cannotGet]]">[[localize('inv_get','Get',language)]]</paper-button>
+                </template>
+                <template is="dom-if" if="[[!api.tokenId]]">
+                    <paper-button on-tap="" class="button button--other" disabled title="Pas de connexion ehealth active">[[localize('inv_get','Get',language)]]</paper-button>
+                </template>
             </div>
         </div>   
      
@@ -292,8 +314,11 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
             filteredListOfInvoice:{
                 type: Array,
                 value: () => []
+            },
+            cannotGet: {
+                type: Boolean,
+                value: false
             }
-
         };
     }
 
@@ -307,6 +332,10 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
 
     _initialize(){
         this.set('filteredListOfInvoice', _.get(this, 'listOfInvoice', []))
+
+        const LastGet = parseInt(localStorage.getItem('lastInvoicesGet')) ? parseInt(localStorage.getItem('lastInvoicesGet')) : -1
+        const mayGet = (LastGet < Date.now() + 24*60*60000 || LastGet===-1)
+        this.set('cannotGet',!mayGet)
     }
 
     _sortInvoiceListByInvoiceRef(listOfInvoice) {
@@ -414,6 +443,120 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
             }, 100)
         }
     }
+
+    receiveInvoices() {
+        this.set('_isLoading', true );
+        this._setLoadingMessage({ message: "Réception des messages efact", icon:"arrow-forward"});
+        const LastGet = parseInt(localStorage.getItem('lastInvoicesGet')) ? parseInt(localStorage.getItem('lastInvoicesGet')) : -1
+        const mayGet = (LastGet < Date.now() + 60*60000 || LastGet===-1)
+        if (mayGet) {
+            this.set('cannotGet',true)
+            localStorage.setItem('lastInvoicesGet', Date.now())
+            this.api.fhc().Efactcontroller().loadMessagesUsingGET(this.hcp.nihii, this.language, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName).then( x => this.api.logMcn(x, this.user, this.hcp.id, "eFact", "loadMessages") ).then(response => {
+                let prom = Promise.resolve()
+                this._setLoadingMessage({ message: "Traitement des messages efacts", icon:"arrow-forward"});
+
+                response.forEach(message => {
+                    // console.log(message)
+                    prom = prom.then(messages =>
+                        new Promise((resolve) => {
+                            if (message.detail) {
+                                this.api.message().processEfactMessage(this.user, this.hcp, message, null, (iv, hcpId) =>
+                                    iv.recipientId && this.api.insurance().getInsurance(iv.recipientId)
+                                        .then(ins => this.api.insurance().getInsurance(ins.parent))
+                                        .then(ins => `invoice:${hcpId}:${ins.code || '000'}:`)
+                                    || Promise.resolve(`invoice:${hcpId}:000:`)
+                                ).then(msg => {
+                                    msg ? resolve(_.concat(messages, message)) : resolve(messages)
+                                })
+                                    .catch(e => {
+                                        console.log('Erreur lors de la reception des messages efact',e)
+                                        resolve(messages)
+                                    })
+                            } else if (message.tack) {
+                                this.api.message().processTack(this.user, this.hcp, message)
+                                    .then(rcpt => {
+                                        rcpt ? resolve(_.concat(messages, message)) : resolve(messages)
+                                    })
+                                    .catch(e => {
+                                        console.log('Erreur lors de la reception des tacks efact',e)
+                                        resolve(messages)
+                                    })
+                            }
+                        })
+                    )
+
+                })
+
+                prom = prom.then(treatedMessages => {
+                    console.log(treatedMessages)
+
+                    let sprom = Promise.resolve()
+                    _.chunk(treatedMessages, 20).forEach(chunk => {
+                        const tacks = chunk.filter(x => x && x.tack)
+                        const responses = chunk.filter(x => x && x.detail)
+
+                        sprom = sprom
+                            .then(() =>this.api.fhc().Efactcontroller().confirmAcksUsingPUT(this.hcp.nihii, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName, tacks.map(t => t.hashValue)))
+                            .then(() => this.api.fhc().Efactcontroller().confirmMessagesUsingPUT(this.hcp.nihii, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName, responses.map(t => t.hashValue)))
+
+                    })
+                    return sprom
+
+                })
+
+                return prom.then(() => {
+                    this.set('isReceiving',false)
+                    this.set("isMessagesLoaded",false)
+                    this.set('_isLoading', false);
+                    this.getMessage()
+                })
+            })
+        }
+    }
+
+    getMessage(){
+        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+    }
+
+    /*
+        _transferInvoicesForResending(){
+          if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id && this.activeGridItem.message.invoiceIds.length){
+              this.set('_isLoading', true );
+              this._setLoadingMessage({ message:this.localize('tran-inv',this.language), icon:"arrow-forward"});
+
+              let prom = Promise.resolve({})
+              this.api.setPreventLogging()
+              this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: this.activeGridItem.message.invoiceIds.map(id => id)}))
+                .then(invs => {
+                    invs.map(inv => {
+                        inv.invoicingCodes.map(ic => ic.pending = false)
+                        inv.sentDate = null
+                        prom = prom.then(invs => this.api.invoice().modifyInvoice(inv)
+                            .then(() => _.concat(invs, [inv]))
+                            .catch(e => console.log('Erreur lors du traitement de la facture', inv, e))
+                        )
+                    })
+
+                    return prom.then(() => {
+                        return this.api.message().getMessage(this.activeGridItem.message.id).then(msg => {
+                            this._setLoadingMessage({ message:this.localize('arch_mess',this.language), icon:"arrow-forward"});
+                            msg.status = (msg.status | (1 << 21))
+                            this.api.message().modifyMessage(msg)
+                                .then(msg => this.api.register(msg, 'message'))
+                                .then(msg => {
+                                    console.log(msg)
+                                    this.fetchMessageToBeSendOrToBeCorrected()
+                                    this.set('_isLoading', false );
+                                })
+                                .catch(e => console.log("Erreur lors de l'archivage du message", msg, e))
+                        })
+                    })
+                })
+                  .finally(()=>this.api.setPreventLogging(false))
+          }
+      }
+     */
 
 }
 

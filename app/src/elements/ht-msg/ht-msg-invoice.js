@@ -99,6 +99,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesProcessed]]"
                     on-open-detail-panel="_openDetailPanel"
+                    on-get-message="getMessage"
                 ></ht-msg-invoice-pending>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'reject')]]">
@@ -331,29 +332,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
               type: Boolean,
               value: false
           },
-          patientWithoutMutuality:{
-              type: Array,
-              value: () => []
-          },
-          checkBeforeSendEfact:{
-              type: Object,
-              value: () => ({
-                  inamiCheck : false,
-                  ssinCheck: false,
-                  bceCheck: false,
-                  ibanCheck: false,
-                  bicCheck: false,
-                  invoiceCheck100: false,
-                  invoiceCheck200: false,
-                  invoiceCheck300: false,
-                  invoiceCheck306: false,
-                  invoiceCheck400: false,
-                  invoiceCheck500: false,
-                  invoiceCheck600: false,
-                  invoiceCheck900: false
-              })
-          },
-          isSendError:{
+            isSendError:{
               type: Boolean,
               value: false
           },

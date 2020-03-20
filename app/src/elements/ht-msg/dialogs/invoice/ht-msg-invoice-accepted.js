@@ -146,10 +146,11 @@ class HtMsgInvoiceAccepted extends TkLocalizerMixin(PolymerElement) {
                     margin-left: 8px;
                     font-size: .6em;
                     display: inline-block;
-                    padding: 4px 6px;
                     line-height: 0.8;
                     text-align: center;
                     height: 10px;
+                    padding: 5px;
+                    margin-top: 2px;
                 }
                 .batchPending{background-color: var(--paper-orange-400);}
                 .batchToBeCorrected{background-color: var(--paper-red-400);}
@@ -231,11 +232,19 @@ class HtMsgInvoiceAccepted extends TkLocalizerMixin(PolymerElement) {
                 display: block;
             }
             
+            .title{
+                display:flex;
+                padding: 5px;
+            }
+            
         </style>
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'Accepted', language)]] <span class="batchNumber batchAccepted">{{_forceZeroNum(listOfInvoice.length)}}</span>
+                <div class="title">
+                    [[localize('inv-accepted', 'Batch accepted', language)]]
+                    <span class="batchNumber batchAccepted">{{_forceZeroNum(listOfInvoice.length)}}</span>
+                </div>  
             </div>
             <div class="panel-search">
                  <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>

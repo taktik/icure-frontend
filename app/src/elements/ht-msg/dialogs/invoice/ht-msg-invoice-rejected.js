@@ -111,11 +111,12 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                     min-height: 0;
                     margin-left: 8px;
                     font-size: .6em;
-                    display: inline-block;
-                    padding: 4px 6px;
+                    display: inline-block;                  
                     line-height: 0.8;
                     text-align: center;
                     height: 10px;
+                    padding: 5px;
+                    margin-top: 2px;
                 }
                 .batchPending{background-color: var(--paper-orange-400);}
                 .batchToBeCorrected{background-color: var(--paper-red-400);}
@@ -196,11 +197,19 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                 display: block;
             }
             
+            .title{
+                display:flex;
+                padding: 5px;
+            }
+            
         </style>
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'Rejected', language)]] <span class="batchNumber batchRejected">{{_forceZeroNum(listOfInvoice.length)}}</span>
+                <div class="title">
+                    [[localize('inv-rejected', 'Batch rejected', language)]]
+                    <span class="batchNumber batchRejected">{{_forceZeroNum(listOfInvoice.length)}}</span>
+                 </div>                 
             </div>
             <div class="panel-search">
                  <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
@@ -355,7 +364,42 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
             }, 100)
         }
     }
+/*
+    _archiveBatch(){
+        if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id){
+            const newStatus = (this.activeGridItem.message.status | (1 << 21))
+            this.set("activeGridItem.message.status", newStatus)
+            this.api.message().modifyMessage(this.activeGridItem.message)
+                .then(msg => this.api.register(msg, 'message'))
+                .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
+                .then(invoices => invoices.map(inv => {
+                    inv.invoicingCodes.map(ic => ic.archived = true)
+                    this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
+                })).finally(() => {
+                this.$["archiveDialog"].close()
+                this.fetchMessageToBeSendOrToBeCorrected()
+            })
+        }
+    }
 
+     _archiveBatchAuto(){
+      if(this.messageIdsCanBeAutoArchived && this.messageIdsCanBeAutoArchived.length > 0){
+          this.api.setPreventLogging()
+          Promise.all(this.messageIdsCanBeAutoArchived.map(id =>
+              this.api.message().getMessage(id).then(msg => {
+                  msg.status = (msg.status | (1 << 21))
+                  this.api.message().modifyMessage(msg)
+                      .then(msg => this.api.register(msg, 'message'))
+                      .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
+                      .then(invoices => invoices.map(inv => {
+                          inv.invoicingCodes.map(ic => ic.archived = true)
+                          this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
+                      }))
+              }))).then(() => this.fetchMessageToBeSendOrToBeCorrected())
+              .finally(()=>this.api.setPreventLogging(false))
+      }
+  }
+*/
 }
 
 customElements.define(HtMsgInvoiceRejected.is, HtMsgInvoiceRejected);
