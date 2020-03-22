@@ -63,7 +63,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     display: block;
                     position: absolute;
                     z-index: 100;
-                    height: calc(100% - 20px);                    
+                    height: calc(100% - 8px);                    
                     width: 98%;
                 }
 
@@ -110,7 +110,9 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesRejected]]"
+                    message-ids-can-be-auto-archived="[[messageIdsCanBeAutoArchived]]"
                     on-open-detail-panel="_openDetailPanel"
+                    on-get-message="getMessage"
                  ></ht-msg-invoice-rejected>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'accept')]]">
@@ -144,9 +146,22 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     resources="[[resources]]" 
                     selected-invoice-for-detail="[[selectedInvoiceForDetail]]"
                     on-close-detail-panel="_closeDetailPanel"
+                    on-archive-batch="_openArchiveDialog"
+                    on-transfer-invoices-for-resending="_transferInvoicesForResending"
                  ></ht-msg-invoice-detail>      
             </template>
         </div> 
+        
+         <paper-dialog id="archiveDialog">
+            <h2 class="modal-title">Archivage de l'envoi n°</h2>
+            <div class="archiveDialogContent">
+                Voulez-vous vraiment archiver votre envoi ?
+            </div>
+            <div class="buttons">
+                <paper-button class="button" dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_archiveBatch">[[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
        
 `;
   }
@@ -360,6 +375,10 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           isDisplayDetail:{
               type: Boolean,
               value: false
+          },
+          selectedBatchToBeArchived:{
+              type: Object,
+              value: () => {}
           }
       };
   }
@@ -604,6 +623,68 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     _closeDetailPanel(){
         this.set('selectedInvoiceForDetail', {})
         this.set('isDisplayDetail', false)
+    }
+
+    _openArchiveDialog(e){
+      this.set('selectedBatchToBeArchived', {})
+      this.shadowRoot.querySelector("#archiveDialog").open()
+    }
+
+    _archiveBatch(e){
+      //todo
+        if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id){
+            const newStatus = (this.activeGridItem.message.status | (1 << 21))
+            this.set("activeGridItem.message.status", newStatus)
+            this.api.message().modifyMessage(this.activeGridItem.message)
+                .then(msg => this.api.register(msg, 'message'))
+                .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
+                .then(invoices => invoices.map(inv => {
+                    inv.invoicingCodes.map(ic => ic.archived = true)
+                    this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
+                })).finally(() => {
+                this.$["archiveDialog"].close()
+                this.fetchMessageToBeSendOrToBeCorrected()
+            })
+        }
+    }
+
+    _transferInvoicesForResending(e){
+
+      //todo
+        if(_.get(e, 'detail.inv.message.id', {}) && _.size(_.get(e, 'detail.inv.message.invoiceIds', [])) > 0){
+            this.set('_isLoading', true );
+            this._setLoadingMessage({ message:this.localize('tran-inv',this.language), icon:"arrow-forward"});
+
+            let prom = Promise.resolve({})
+            this.api.setPreventLogging()
+            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: this.activeGridItem.message.invoiceIds.map(id => id)}))
+                .then(invs => {
+                    invs.map(inv => {
+                        inv.invoicingCodes.map(ic => ic.pending = false)
+                        inv.sentDate = null
+                        prom = prom.then(invs => this.api.invoice().modifyInvoice(inv)
+                            .then(() => _.concat(invs, [inv]))
+                            .catch(e => console.log('Erreur lors du traitement de la facture', inv, e))
+                        )
+                    })
+
+                    return prom.then(() => {
+                        return this.api.message().getMessage(this.activeGridItem.message.id).then(msg => {
+                            this._setLoadingMessage({ message:this.localize('arch_mess',this.language), icon:"arrow-forward"});
+                            msg.status = (msg.status | (1 << 21))
+                            this.api.message().modifyMessage(msg)
+                                .then(msg => this.api.register(msg, 'message'))
+                                .then(msg => {
+                                    console.log(msg)
+                                    this.fetchMessageToBeSendOrToBeCorrected()
+                                    this.set('_isLoading', false );
+                                })
+                                .catch(e => console.log("Erreur lors de l'archivage du message", msg, e))
+                        })
+                    })
+                })
+                .finally(()=>this.api.setPreventLogging(false))
+        }
     }
 }
 

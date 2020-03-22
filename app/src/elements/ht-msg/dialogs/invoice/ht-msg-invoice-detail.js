@@ -56,8 +56,11 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-button{
-                height: 40px;
-                width: auto;
+                height: 32px;
+                width: auto; 
+                padding: 4px; 
+                display: flex;
+                justify-content: flex-end!important; 
             }
             
             .invoice-status {
@@ -217,6 +220,11 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 white-space: normal!important;
             }
             
+            .button{
+               display: inline-flex!important;
+               align-items: center!important;
+            }
+            
         </style>
         
         <div class="panel">
@@ -274,8 +282,14 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                     </template>
                 </div>
             </div>
-            <div class="buttons">
-                <paper-button class="button button--save" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
+            <div class="panel-button">
+                <!--<template is="dom-if" if="[[!isArchived(invoicesStatus.*)]]">-->
+                   <paper-button class="button button--other" on-tap="_archiveBatch">Archiver</paper-button>
+                <!--</template>
+                <template is="dom-if" if="[[isSendError]]">-->
+                   <paper-button class="button button--other" on-tap="_transferInvoicesForResending">Transférer pour réenvoi</paper-button>
+                <!--</template>-->
+                <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
         </div>
 `;
@@ -336,6 +350,14 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     _closeDetailPanel(){
         this.set('invoicesFromBatch', [])
         this.dispatchEvent(new CustomEvent('close-detail-panel', {bubbles: true, composed: true}))
+    }
+
+    _archiveBatch(){
+        this.dispatchEvent(new CustomEvent('archive-batch', {detail: {inv: _.get(this, 'selectedInvoiceForDetail', {})}, bubbles: true, composed: true}))
+    }
+
+    _transferInvoicesForResending(){
+        this.dispatchEvent(new CustomEvent('transfer-invoices-for-resending', {detail: {inv: _.get(this, 'selectedInvoiceForDetail', {})}, bubbles: true, composed: true}))
     }
 
     _showDetail() {

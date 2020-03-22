@@ -247,10 +247,13 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                     </template>
                 </div>
             </div>
-            <div class="buttons">
-            
+            <div class="panel-button">
+                <template is="dom-if" if="[[_isBatchCanBeAutoArchived(messageIdsCanBeAutoArchived.splices)]]">
+                    <paper-button class="button button--other" on-tap="_archiveBatchAuto">[[localize('arch','Archive',language)]] [[_getNbMsgToArchive(messageIdsCanBeAutoArchived.splices)]] envoi(s)</paper-button>
+                </template>
             </div>
-        </div>   
+        </div> 
+        
 `;
     }
 
@@ -280,6 +283,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
             filteredListOfInvoice:{
                 type: Array,
                 value: () => []
+            },
+            messageIdsCanBeAutoArchived:{
+                type: Array,
+                value: []
             }
         };
     }
@@ -364,28 +371,15 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
             }, 100)
         }
     }
-/*
-    _archiveBatch(){
-        if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id){
-            const newStatus = (this.activeGridItem.message.status | (1 << 21))
-            this.set("activeGridItem.message.status", newStatus)
-            this.api.message().modifyMessage(this.activeGridItem.message)
-                .then(msg => this.api.register(msg, 'message'))
-                .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
-                .then(invoices => invoices.map(inv => {
-                    inv.invoicingCodes.map(ic => ic.archived = true)
-                    this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
-                })).finally(() => {
-                this.$["archiveDialog"].close()
-                this.fetchMessageToBeSendOrToBeCorrected()
-            })
-        }
+
+    _isBatchCanBeAutoArchived(){
+        return !!_.size(_.get(this, 'messageIdsCanBeAutoArchived', []))
     }
 
      _archiveBatchAuto(){
-      if(this.messageIdsCanBeAutoArchived && this.messageIdsCanBeAutoArchived.length > 0){
+      if(_.size(_.get(this, 'messageIdsCanBeAutoArchived', [])) > 0){
           this.api.setPreventLogging()
-          Promise.all(this.messageIdsCanBeAutoArchived.map(id =>
+          Promise.all(_.get(this, 'messageIdsCanBeAutoArchived', []).map(id =>
               this.api.message().getMessage(id).then(msg => {
                   msg.status = (msg.status | (1 << 21))
                   this.api.message().modifyMessage(msg)
@@ -395,11 +389,14 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                           inv.invoicingCodes.map(ic => ic.archived = true)
                           this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
                       }))
-              }))).then(() => this.fetchMessageToBeSendOrToBeCorrected())
+              })))
+              .then(() => {
+                  this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+              })
               .finally(()=>this.api.setPreventLogging(false))
       }
   }
-*/
+
 }
 
 customElements.define(HtMsgInvoiceRejected.is, HtMsgInvoiceRejected);

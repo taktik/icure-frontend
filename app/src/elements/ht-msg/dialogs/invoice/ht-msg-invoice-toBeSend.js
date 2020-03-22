@@ -502,7 +502,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
         this.set('checkBeforeSendEfact.invoiceCheck600',this.checkIfDoubleInvoiceNumber(_.get(this, 'listOfInvoice', []), 600, 700))
         this.set('checkBeforeSendEfact.invoiceCheck900',this.checkIfDoubleInvoiceNumber(_.get(this, 'listOfInvoice', []), 900, 1000))
 
-        if(_.size(_.get(this, 'patientWithoutMutuality', [])) || _.get(this, 'checkBeforeSendEfact.inamiCheck', null) === true || _.get(this, 'checkBeforeSendEfact.ssinCheck', null) === true ||
+        if(_.size(_.get(this, 'patientWithoutMutuality', [])) > 0 || _.get(this, 'checkBeforeSendEfact.inamiCheck', null) === true || _.get(this, 'checkBeforeSendEfact.ssinCheck', null) === true ||
             _.get(this, 'checkBeforeSendEfact.bceCheck', null) === true || _.get(this, 'checkBeforeSendEfact.ibanCheck', null) === true || _.get(this, 'checkBeforeSendEfact.bicCheck', null) === true ||
             _.get(this, 'checkBeforeSendEfact.invoiceCheck100', null) === false || _.get(this, 'checkBeforeSendEfact.invoiceCheck200', null) === false || _.get(this, 'checkBeforeSendEfact.invoiceCheck300', null) === false ||
             _.get(this, 'checkBeforeSendEfact.invoiceCheck306', null) === false || _.get(this, 'checkBeforeSendEfact.invoiceCheck400', null) === false || _.get(this, 'checkBeforeSendEfact.invoiceCheck500', null) === false ||
