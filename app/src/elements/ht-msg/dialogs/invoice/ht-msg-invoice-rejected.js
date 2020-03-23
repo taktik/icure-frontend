@@ -229,22 +229,25 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                         <div class="td fg2">Motif rejet</div>  
                         <div class="td fg0"></div>                          
                     </div>
-                    <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredListOfInvoice)]]" as="inv">
-                        <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
-                            <div class="td fg2">[[inv.messageInfo.hcp]]</div>
-                            <div class="td fg05">[[inv.messageInfo.oa]]</div>
-                            <div class="td fg1">[[inv.messageInfo.invoiceNumber]]</div>
-                            <div class="td fg1">[[formatDate(inv.messageInfo.invoiceMonth,'month')]]</div>
-                            <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
-                            <div class="td fg1"><span class="">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
-                            <div class="td fg1"><span class="txtcolor--greenStatus">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
-                            <div class="td fg1"><span class="txtcolor--redStatus">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
-                            <div class="td fg2"><span class="invoice-status invoice-status--redStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--redStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
-                            <div class="td fg0">
-                                <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
-                            </div> 
-                        </div>
-                    </template>
+                    <ht-spinner active="[[isLoading]]"></ht-spinner>
+                    <template is="dom-if" if="[[!isLoading]]">
+                        <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredListOfInvoice)]]" as="inv">
+                            <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
+                                <div class="td fg2">[[inv.messageInfo.hcp]]</div>
+                                <div class="td fg05">[[inv.messageInfo.oa]]</div>
+                                <div class="td fg1">[[inv.messageInfo.invoiceNumber]]</div>
+                                <div class="td fg1">[[formatDate(inv.messageInfo.invoiceMonth,'month')]]</div>
+                                <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
+                                <div class="td fg1"><span class="">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
+                                <div class="td fg1"><span class="txtcolor--greenStatus">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
+                                <div class="td fg1"><span class="txtcolor--redStatus">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
+                                <div class="td fg2"><span class="invoice-status invoice-status--redStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--redStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
+                                <div class="td fg0">
+                                    <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
+                                </div> 
+                            </div>
+                        </template>
+                    </template>     
                 </div>
             </div>
             <div class="panel-button">
@@ -287,6 +290,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
             messageIdsCanBeAutoArchived:{
                 type: Array,
                 value: []
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
             }
         };
     }

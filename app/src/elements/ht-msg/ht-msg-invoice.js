@@ -76,18 +76,23 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesToBeCorrected]]"
+                    is-loading="[[isLoading]]"
                 ></ht-msg-invoice-to-be-corrected>
             </template>  
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'toBeSend')]]">
                 <ht-msg-invoice-to-be-send 
                     api="[[api]]" i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
-                    list-of-invoice="[[selectedInvoicesToBeSend]]">                   
+                    list-of-invoice="[[selectedInvoicesToBeSend]]"
+                    is-loading="[[isLoading]]"
+                    >                   
                 </ht-msg-invoice-to-be-send>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'process')]]">
@@ -95,11 +100,13 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesProcessed]]"
                     on-open-detail-panel="_openDetailPanel"
-                    on-get-message="getMessage"
+                    on-get-message="fetchMessageToBeSendOrToBeCorrected"
+                    is-loading="[[isLoading]]"
                 ></ht-msg-invoice-pending>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'reject')]]">
@@ -107,12 +114,14 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesRejected]]"
                     message-ids-can-be-auto-archived="[[messageIdsCanBeAutoArchived]]"
                     on-open-detail-panel="_openDetailPanel"
-                    on-get-message="getMessage"
+                    on-get-message="fetchMessageToBeSendOrToBeCorrected"
+                    is-loading="[[isLoading]]"
                  ></ht-msg-invoice-rejected>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'accept')]]">
@@ -120,10 +129,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesAccepted]]"
                     on-open-detail-panel="_openDetailPanel"
+                    is-loading="[[isLoading]]"
                 ></ht-msg-invoice-accepted>
             </template>   
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'archive')]]">
@@ -131,10 +142,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesArchived]]"
                     on-open-detail-panel="_openDetailPanel"
+                    is-loading="[[isLoading]]"
                 ></ht-msg-invoice-archived>
             </template>  
             <template is="dom-if" if="[[isDisplayDetail]]">
@@ -142,6 +155,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
+                    hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     selected-invoice-for-detail="[[selectedInvoiceForDetail]]"
@@ -162,7 +176,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 <paper-button class="button button--save" on-tap="_archiveBatch">[[localize('confirm','Confirm',language)]]</paper-button>
             </div>
         </paper-dialog>
-       
+    
 `;
   }
 
@@ -379,6 +393,10 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           selectedBatchToBeArchived:{
               type: Object,
               value: () => {}
+          },
+          isLoading:{
+              type: Boolean,
+              value: false
           }
       };
   }
@@ -413,7 +431,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     }
 
     fetchMessageToBeSendOrToBeCorrected(){
-        this.set("_isLoadingMessages",true)
+        this.set("isLoading",true)
         let prom = Promise.resolve()
 
         this.api.setPreventLogging()
@@ -593,7 +611,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     }))).then(msgsStructs => {
                 this.set('allMessages', msgsStructs)
                 this.dispatchMessages()
-                this.set("_isLoadingMessages",false)
+                this.set("isLoading",false)
                 this.set("isMessagesLoaded",true)
             })
 
@@ -627,37 +645,39 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
 
     _openArchiveDialog(e){
       this.set('selectedBatchToBeArchived', {})
-      this.shadowRoot.querySelector("#archiveDialog").open()
+      if(_.get(e, 'detail.inv.message.id', null)){
+          this.set('selectedBatchToBeArchived', _.get(e, 'detail.inv', {}))
+          this.shadowRoot.querySelector("#archiveDialog").open()
+      }
     }
 
-    _archiveBatch(e){
-      //todo
-        if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id){
-            const newStatus = (this.activeGridItem.message.status | (1 << 21))
-            this.set("activeGridItem.message.status", newStatus)
-            this.api.message().modifyMessage(this.activeGridItem.message)
+    _archiveBatch(){
+        if(!_.isEmpty(_.get(this, 'selectedBatchToBeArchived', {}))){
+            this.set('isLoading', true)
+            const newStatus = (_.get(this, 'selectedBatchToBeArchived.message.status', null) | (1 << 21))
+            this.set('selectedBatchToBeArchived.message.status', newStatus)
+            this.api.message().modifyMessage(_.get(this, 'selectedBatchToBeArchived.message', null))
                 .then(msg => this.api.register(msg, 'message'))
                 .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
                 .then(invoices => invoices.map(inv => {
                     inv.invoicingCodes.map(ic => ic.archived = true)
                     this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
                 })).finally(() => {
-                this.$["archiveDialog"].close()
-                this.fetchMessageToBeSendOrToBeCorrected()
+                    this._closeDetailPanel()
+                    this.set('selectedBatchToBeArchived', {})
+                    this.set('isLoading', false)
+                    this.shadowRoot.querySelector("#archiveDialog").close()
+                    this.fetchMessageToBeSendOrToBeCorrected()
             })
         }
     }
 
     _transferInvoicesForResending(e){
-
-      //todo
         if(_.get(e, 'detail.inv.message.id', {}) && _.size(_.get(e, 'detail.inv.message.invoiceIds', [])) > 0){
-            this.set('_isLoading', true );
-            this._setLoadingMessage({ message:this.localize('tran-inv',this.language), icon:"arrow-forward"});
-
+            this.set('isLoading', true);
             let prom = Promise.resolve({})
             this.api.setPreventLogging()
-            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: this.activeGridItem.message.invoiceIds.map(id => id)}))
+            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(e, 'detail.inv.message.invoiceIds', []).map(id => id)}))
                 .then(invs => {
                     invs.map(inv => {
                         inv.invoicingCodes.map(ic => ic.pending = false)
@@ -669,23 +689,29 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     })
 
                     return prom.then(() => {
-                        return this.api.message().getMessage(this.activeGridItem.message.id).then(msg => {
-                            this._setLoadingMessage({ message:this.localize('arch_mess',this.language), icon:"arrow-forward"});
+                        return this.api.message().getMessage(_.get(e, 'detail.inv.message.id', {})).then(msg => {
                             msg.status = (msg.status | (1 << 21))
                             this.api.message().modifyMessage(msg)
                                 .then(msg => this.api.register(msg, 'message'))
                                 .then(msg => {
                                     console.log(msg)
+                                    this._closeDetailPanel()
                                     this.fetchMessageToBeSendOrToBeCorrected()
-                                    this.set('_isLoading', false );
+                                    this.set('isLoading', false);
                                 })
                                 .catch(e => console.log("Erreur lors de l'archivage du message", msg, e))
                         })
                     })
                 })
-                .finally(()=>this.api.setPreventLogging(false))
+                .finally(()=>{
+                    this._closeDetailPanel()
+                    this.set('isLoading', false);
+                    this.api.setPreventLogging(false)
+                })
         }
     }
+
+
 }
 
 customElements.define(htMsgInvoice.is, htMsgInvoice);

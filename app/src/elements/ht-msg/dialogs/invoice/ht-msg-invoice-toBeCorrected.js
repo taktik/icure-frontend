@@ -117,6 +117,7 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
                         <div class="td">[[localize('inv_stat','Status',language)]]</div>
                         <div class="td"></div>                    
                     </div>
+                    <ht-spinner active="[[isLoading]]"></ht-spinner>
                     <template is="dom-repeat" items="[[]]">
                         <div class="tr">
                             <div class="td">[[localize('inv_type','Type',language)]]</div>
@@ -160,6 +161,10 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
             listOfInvoice:{
                 type: Array,
                 value: () => []
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
             }
         };
     }

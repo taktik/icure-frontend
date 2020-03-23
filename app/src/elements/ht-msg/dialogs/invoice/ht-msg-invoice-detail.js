@@ -229,7 +229,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
            <div class="panel-title">
-                [[localize('inv-num-detail', 'Detail of invoice number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]
+                [[localize('inv-num-detail', 'Detail of invoice number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]              
             </div>
             <div class="panel-search">
                 <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
@@ -250,36 +250,39 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                         <div class="td fg05">Payé</div>  
                         <div class="td fg1">[[localize('inv_stat','Status',language)]]</div>                                          
                     </div>
-                    <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(invoicesFromBatch)]]" as="inv">
-                        <div class="tr">
-                            <div class="td fg1">[[inv.invoiceReference]]</div>
-                            <div class="td fg2">[[inv.patient]]</div>
-                            <div class="td fg1">[[inv.ssin]]</div>
-                            <div class="td fg1"></div>
-                            <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>
-                            <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(inv.invoicedAmount)]]€</span></div>
-                            <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(inv.acceptedAmount)]]€</span></div>
-                            <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(inv.refusedAmount)]]€</span></div>
-                            <div class="td fg3 rejectionInfo">[[inv.rejectionReason]]</div>
-                            <div class="td fg05">[[_formatAmount(inv.paid)]]€</div>                             
-                            <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon> [[inv.status]]</span></div>           
-                        </div>
-                        <template is="dom-repeat" items="[[inv.invoicingCodes]]" as="invco">
+                    <ht-spinner active="[[isLoading]]"></ht-spinner>
+                    <template is="dom-if" if="[[!isLoading]]">
+                        <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(invoicesFromBatch)]]" as="inv">
                             <div class="tr">
+                                <div class="td fg1">[[inv.invoiceReference]]</div>
+                                <div class="td fg2">[[inv.patient]]</div>
+                                <div class="td fg1">[[inv.ssin]]</div>
                                 <div class="td fg1"></div>
-                                <div class="td fg2"></div>
-                                <div class="td fg1"></div>
-                                <div class="td fg1 center">[[invco.invoicingCode]]</div>
-                                <div class="td fg1">[[formatDate(invco.invoiceDate,'date')]]</div>
-                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
-                                <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
-                                <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
-                                <div class="td fg3 rejectionInfo">[[invco.rejectionReason]]</div>
-                                <div class="td fg05"></div>                             
-                                <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(invco.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(invco.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
+                                <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(inv.invoicedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(inv.acceptedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(inv.refusedAmount)]]€</span></div>
+                                <div class="td fg3 rejectionInfo">[[inv.rejectionReason]]</div>
+                                <div class="td fg05">[[_formatAmount(inv.paid)]]€</div>                             
+                                <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(inv.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.status)]]"></iron-icon> [[inv.status]]</span></div>           
                             </div>
+                            <template is="dom-repeat" items="[[inv.invoicingCodes]]" as="invco">
+                                <div class="tr">
+                                    <div class="td fg1"></div>
+                                    <div class="td fg2"></div>
+                                    <div class="td fg1"></div>
+                                    <div class="td fg1 center">[[invco.invoicingCode]]</div>
+                                    <div class="td fg1">[[formatDate(invco.invoiceDate,'date')]]</div>
+                                    <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
+                                    <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
+                                    <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
+                                    <div class="td fg3 rejectionInfo">[[invco.rejectionReason]]</div>
+                                    <div class="td fg05"></div>                             
+                                    <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(invco.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(invco.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
+                                </div>
+                            </template>
                         </template>
-                    </template>
+                    </template>                   
                 </div>
             </div>
             <div class="panel-button">
@@ -328,6 +331,10 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
             invoicesFromBatch:{
                 type: Array,
                 value: () => []
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
             }
         };
     }
@@ -361,6 +368,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _showDetail() {
+            this.set('isLoading', true)
             this.set('isSendError', _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) ? _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) : false)
             this.set('invoicesErrorMsg', null);
 
@@ -438,6 +446,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
 
                     })
                 }).finally(()=>{
+                this.set('isLoading', false)
                 this.api.setPreventLogging(false)
             })
 

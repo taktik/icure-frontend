@@ -259,27 +259,30 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
                         <div class="td fg1">[[localize('inv_batch_paid_date','Payement date',language)]]</div>    
                          <div class="td fg0"></div>      
                     </div>
-                    <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredListOfInvoice)]]" as="inv">
-                        <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
-                            <div class="td fg2">[[inv.messageInfo.hcp]]</div>
-                            <div class="td fg05">[[inv.messageInfo.oa]]</div>
-                            <div class="td fg1">[[inv.messageInfo.invoiceNumber]]</div>
-                            <div class="td fg1">[[formatDate(inv.messageInfo.invoiceMonth,'month')]]</div>
-                            <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
-                            <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
-                            <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
-                            <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
-                            <div class="td fg1"><span class="invoice-status invoice-status--purpleStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--purpleStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>
-                            <div class="td fg2">[[inv.messageInfo.paymentReference]]</div>
-                            <div class="td fg1">[[_formatAmount(inv.messageInfo.amountPaid)]]€</div>
-                            <div class="td fg05">[[_getPaidStatus(inv.messageInfo.paid)]]</div>
-                            <div class="td fg1">[[inv.messageInfo.paymentAccount]]</div>        
-                            <div class="td fg1">[[inv.messageInfo.paymentDate]]</div>  
-                            <div class="td fg0">
-                                <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
-                            </div>                
-                        </div>
-                    </template>
+                    <ht-spinner active="[[isLoading]]"></ht-spinner>
+                    <template is="dom-if" if="[[!isLoading]]">
+                        <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredListOfInvoice)]]" as="inv">
+                            <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
+                                <div class="td fg2">[[inv.messageInfo.hcp]]</div>
+                                <div class="td fg05">[[inv.messageInfo.oa]]</div>
+                                <div class="td fg1">[[inv.messageInfo.invoiceNumber]]</div>
+                                <div class="td fg1">[[formatDate(inv.messageInfo.invoiceMonth,'month')]]</div>
+                                <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
+                                <div class="td fg1"><span class="invoice-status invoice-status--purpleStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--purpleStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>
+                                <div class="td fg2">[[inv.messageInfo.paymentReference]]</div>
+                                <div class="td fg1">[[_formatAmount(inv.messageInfo.amountPaid)]]€</div>
+                                <div class="td fg05">[[_getPaidStatus(inv.messageInfo.paid)]]</div>
+                                <div class="td fg1">[[inv.messageInfo.paymentAccount]]</div>        
+                                <div class="td fg1">[[inv.messageInfo.paymentDate]]</div>  
+                                <div class="td fg0">
+                                    <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
+                                </div>                
+                            </div>
+                        </template>
+                    </template>                   
                 </div>
             </div>
             <div class="buttons">
@@ -316,6 +319,10 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
             filteredListOfInvoice:{
                 type: Array,
                 value: () => []
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
             }
         };
     }

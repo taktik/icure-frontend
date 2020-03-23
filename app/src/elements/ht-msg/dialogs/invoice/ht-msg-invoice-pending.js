@@ -231,6 +231,11 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 padding: 5px;
             }
             
+            #processMessage{
+                height: 200px;
+                width: 400px;
+            }
+            
         </style>
         
         <div class="panel">
@@ -257,22 +262,25 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                         <div class="td fg1">[[localize('inv_stat','Status',language)]]</div>        
                         <div class="td fg0"></div>                                           
                     </div>
-                    <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredListOfInvoice)]]" as="inv">
-                        <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
-                            <div class="td fg2">[[inv.messageInfo.hcp]]</div>
-                            <div class="td fg1">[[inv.messageInfo.oa]]</div>
-                            <div class="td fg1">[[inv.messageInfo.invoiceNumber]]</div>
-                            <div class="td fg1">[[formatDate(inv.messageInfo.invoiceMonth,'month')]]</div>
-                            <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
-                            <div class="td fg1 right"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
-                            <div class="td fg1 right"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
-                            <div class="td fg1 right"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
-                            <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(inv.messageInfo.invoiceStatus)]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.messageInfo.invoiceStatus)]]"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
-                            <div class="td fg0">
-                                <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
-                            </div>   
-                        </div>
-                    </template>
+                     <ht-spinner active="[[isLoading]]"></ht-spinner>
+                     <template is="dom-if" if="[[!isLoading]]">
+                         <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredListOfInvoice)]]" as="inv">
+                            <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoPanel">
+                                <div class="td fg2">[[inv.messageInfo.hcp]]</div>
+                                <div class="td fg1">[[inv.messageInfo.oa]]</div>
+                                <div class="td fg1">[[inv.messageInfo.invoiceNumber]]</div>
+                                <div class="td fg1">[[formatDate(inv.messageInfo.invoiceMonth,'month')]]</div>
+                                <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
+                                <div class="td fg1 right"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
+                                <div class="td fg1 right"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
+                                <div class="td fg1 right"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(inv.messageInfo.invoiceStatus)]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(inv.messageInfo.invoiceStatus)]]"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
+                                <div class="td fg0">
+                                    <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
+                                </div>   
+                            </div>
+                        </template>
+                    </template>                  
                 </div>
             </div>
             <div class="panel-button">
@@ -284,6 +292,15 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 </template>
             </div>
         </div>   
+        
+        <paper-dialog id="processMessage">           
+            <div>
+                <ht-spinner active="[[isProcessing]]"></ht-spinner>
+            </div>
+            <div>
+            
+            </div>
+        </paper-dialog>
      
 `;
     }
@@ -316,6 +333,14 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 value: () => []
             },
             cannotGet: {
+                type: Boolean,
+                value: false
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
+            },
+            isProcessing:{
                 type: Boolean,
                 value: false
             }
@@ -446,7 +471,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
 
     receiveInvoices() {
         this.set('_isLoading', true );
-        this._setLoadingMessage({ message: "Réception des messages efact", icon:"arrow-forward"});
+        //this._setLoadingMessage({ message: "Réception des messages efact", icon:"arrow-forward"});
         const LastGet = parseInt(localStorage.getItem('lastInvoicesGet')) ? parseInt(localStorage.getItem('lastInvoicesGet')) : -1
         const mayGet = (LastGet < Date.now() + 60*60000 || LastGet===-1)
         if (mayGet) {
@@ -454,7 +479,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
             localStorage.setItem('lastInvoicesGet', Date.now())
             this.api.fhc().Efactcontroller().loadMessagesUsingGET(this.hcp.nihii, this.language, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName).then( x => this.api.logMcn(x, this.user, this.hcp.id, "eFact", "loadMessages") ).then(response => {
                 let prom = Promise.resolve()
-                this._setLoadingMessage({ message: "Traitement des messages efacts", icon:"arrow-forward"});
+                //this._setLoadingMessage({ message: "Traitement des messages efacts", icon:"arrow-forward"});
 
                 response.forEach(message => {
                     // console.log(message)

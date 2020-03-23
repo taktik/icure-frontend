@@ -236,33 +236,36 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                         <div class="td fg1">[[localize('inv_stat','Status',language)]]</div>
                         <div class="td fg1"></div>                    
                     </div>
-                    <template is="dom-repeat" items="[[_sortInvoiceListByOa(filteredListOfInvoice)]]" as="inv">
-                        <div class="tr">
-                            <div class="td fg05">[[inv.insuranceCode]]</div>
-                            <div class="td fg1">[[inv.invoiceReference]]</div>
-                            <div class="td fg2">
-                                <template is="dom-if" if="[[!inv.insurabilityCheck]]">
-                                     <iron-icon icon="vaadin:circle" class="assurability--redStatus"></iron-icon>
-                                </template>
-                                <template is="dom-if" if="[[inv.insurabilityCheck]]">
-                                     <iron-icon icon="vaadin:circle" class="assurability--greenStatus"></iron-icon>
-                                </template>
-                                [[inv.patientName]]
+                    <ht-spinner active="[[isLoading]]"></ht-spinner>
+                    <template is="dom-if" if="[[!isLoading]]">
+                        <template is="dom-repeat" items="[[_sortInvoiceListByOa(filteredListOfInvoice)]]" as="inv">
+                            <div class="tr">
+                                <div class="td fg05">[[inv.insuranceCode]]</div>
+                                <div class="td fg1">[[inv.invoiceReference]]</div>
+                                <div class="td fg2">
+                                    <template is="dom-if" if="[[!inv.insurabilityCheck]]">
+                                         <iron-icon icon="vaadin:circle" class="assurability--redStatus"></iron-icon>
+                                    </template>
+                                    <template is="dom-if" if="[[inv.insurabilityCheck]]">
+                                         <iron-icon icon="vaadin:circle" class="assurability--greenStatus"></iron-icon>
+                                    </template>
+                                    [[inv.patientName]]
+                                </div>
+                                <div class="td fg1">[[inv.patientSsin]]</div>
+                                <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>                         
+                                <div class="td fg1">[[inv.reimbursement]]€</div>
+                                <div class="td fg1">[[inv.patientIntervention]]€</div>
+                                <div class="td fg1">[[inv.doctorSupplement]]€</div>
+                                <div class="td fg1">[[inv.totalAmount]]€</div>
+                                <div class="td fg1">
+                                    <span class="invoice-status invoice-status--orangeStatus">
+                                        <iron-icon icon="vaadin:circle" class="statusIcon invoice-status--orangeStatus"></iron-icon>
+                                        [[inv.statut]]
+                                     </span>
+                                </div>                    
                             </div>
-                            <div class="td fg1">[[inv.patientSsin]]</div>
-                            <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>                         
-                            <div class="td fg1">[[inv.reimbursement]]€</div>
-                            <div class="td fg1">[[inv.patientIntervention]]€</div>
-                            <div class="td fg1">[[inv.doctorSupplement]]€</div>
-                            <div class="td fg1">[[inv.totalAmount]]€</div>
-                            <div class="td fg1">
-                                <span class="invoice-status invoice-status--orangeStatus">
-                                    <iron-icon icon="vaadin:circle" class="statusIcon invoice-status--orangeStatus"></iron-icon>
-                                    [[inv.statut]]
-                                 </span>
-                            </div>                    
-                        </div>
-                    </template>
+                        </template>
+                    </template>                  
                 </div>
             </div>
             <div class="panel-button">
@@ -408,6 +411,10 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             patientWithoutMutuality:{
                 type: Array,
                 value: () => []
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
             }
         }
     }
