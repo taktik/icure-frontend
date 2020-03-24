@@ -338,6 +338,7 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                                  user="[[user]]"
                                  select-list="[[selectList]]"
                                  invoices-status="[[invoicesStatus]]"
+                                 route-data="[[routeData]]"
                                  on-selection-messages-change="handleMessageChange"
                                  on-initialize-batch-counter="callInitializeBatchCounter"></ht-msg-invoice>
             </template>
@@ -493,6 +494,10 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
             patientList: {
                 type: Array,
                 value: []
+            },
+            routeData:{
+                type: Object,
+                value: () => {}
             }
         }
     }
@@ -544,7 +549,7 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
         if (selectedItem === 'e_invOut') {
             this.set('invoicesLayout', true)
             this.set('invoicesStatus', selectedStatus)
-            setTimeout(() =>{ this.shadowRoot.querySelector("#msg-invoice").reset(); this.shadowRoot.querySelector("#msg-invoice").getMessage(); },0)
+            setTimeout(() =>{this.shadowRoot.querySelector("#msg-invoice").getMessage(); },0)
         } else if (selectedItem === 'e_flatrateinvOut') {
             this.set('flatrateinvoicesLayout', true)
             this.set('flatrateMenuSection', selectedStatus)

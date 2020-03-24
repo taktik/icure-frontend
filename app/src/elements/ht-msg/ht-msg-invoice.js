@@ -10,7 +10,8 @@ import './dialogs/invoice/ht-msg-invoice-pending';
 import './dialogs/invoice/ht-msg-invoice-rejected';
 import './dialogs/invoice/ht-msg-invoice-toBeCorrected';
 import './dialogs/invoice/ht-msg-invoice-toBeSend';
-import './dialogs/invoice/ht-msg-invoice-detail';
+import './dialogs/invoice/ht-msg-invoice-batch-detail';
+import './dialogs/invoice/ht-msg-invoice-invoice-detail';
 
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
@@ -58,7 +59,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     position: relative;
                 }
                 
-                #htMsgInvoiceDetail{
+                #htMsgInvoiceBatchDetail{
                     top: 0;
                     display: block;
                     position: absolute;
@@ -151,7 +152,21 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 ></ht-msg-invoice-archived>
             </template>  
             <template is="dom-if" if="[[isDisplayDetail]]">
-                <ht-msg-invoice-detail id="htMsgInvoiceDetail" 
+                <ht-msg-invoice-batch-detail id="htMsgInvoiceBatchDetail" 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
+                    user="[[user]]" 
+                    hcp="[[hcp]]"
+                    language="[[language]]" 
+                    resources="[[resources]]" 
+                    selected-invoice-for-detail="[[selectedBatchForDetail]]"
+                    on-close-detail-panel="_closeDetailPanel"
+                    on-archive-batch="_openArchiveDialog"
+                    on-transfer-invoices-for-resending="_transferInvoicesForResending"
+                 ></ht-msg-invoice-batch-detail>      
+            </template>
+            <template is="dom-if" if="[[isDisplayInvoiceDetail]]">
+                <ht-msg-invoice-invoice-detail id="htMsgInvoiceInvoiceDetail" 
                     api="[[api]]" 
                     i18n="[[i18n]]" 
                     user="[[user]]" 
@@ -159,10 +174,9 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     selected-invoice-for-detail="[[selectedInvoiceForDetail]]"
-                    on-close-detail-panel="_closeDetailPanel"
-                    on-archive-batch="_openArchiveDialog"
-                    on-transfer-invoices-for-resending="_transferInvoicesForResending"
-                 ></ht-msg-invoice-detail>      
+                    on-close-detail-panel="_closeInvoiceDetailPanel"
+                    open-invoice-detail-panel="[[_openInvoiceDetailPanel]]"
+                 ></ht-msg-invoice-invoice-detail>      
             </template>
         </div> 
         
@@ -222,7 +236,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           },
           invoicesStatus: {
               type: String,
-              observer: '_invoicesStatusChanged'
+              value: null
           },
           statusToBeSend:{
               type: Boolean,
@@ -382,6 +396,10 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
               type: String,
               value: ""
           },
+          selectedBatchForDetail:{
+              type: Object,
+              value: () => {}
+          },
           selectedInvoiceForDetail:{
               type: Object,
               value: () => {}
@@ -390,6 +408,10 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
               type: Boolean,
               value: false
           },
+          isDisplayInvoiceDetail:{
+            type: Boolean,
+            value: false
+          },
           selectedBatchToBeArchived:{
               type: Object,
               value: () => {}
@@ -397,6 +419,14 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           isLoading:{
               type: Boolean,
               value: false
+          },
+          allMessages:{
+              type: Array,
+              value: () => []
+          },
+          routeData:{
+              type: Object,
+              value: () => {}
           }
       };
   }
@@ -406,14 +436,14 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
   }
 
   static get observers() {
-      return ['_getDataProvider(api, user)'];
+      return ['_getDataProvider(api, user, routeData)', '_invoicesStatusChanged(invoicesStatus)'];
   }
 
    _getDataProvider(){
        this.api.hcparty().getHealthcareParty(_.get(this.user, 'healthcarePartyId', null))
            .then(hcp => this.set('hcp', hcp))
            .finally(() => {
-
+               this.set("isMessagesLoaded",false)
            })
    }
 
@@ -424,10 +454,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     getMessage(){
         if(!_.get(this, 'isMessagesLoaded', false))
             this.fetchMessageToBeSendOrToBeCorrected()
-    }
-
-    reset(){
-        this.set("isMessagesLoaded",false)
     }
 
     fetchMessageToBeSendOrToBeCorrected(){
@@ -608,12 +634,13 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                 })
                             })
 
-                    }))).then(msgsStructs => {
-                this.set('allMessages', msgsStructs)
-                this.dispatchMessages()
-                this.set("isLoading",false)
-                this.set("isMessagesLoaded",true)
-            })
+                    })))
+                .then(msgsStructs => {
+                    this.set("isMessagesLoaded",true)
+                    this.set('allMessages', msgsStructs)
+                    this.dispatchMessages()
+                    this.set("isLoading",false)
+                })
 
         })
     }
@@ -633,14 +660,27 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
 
     _openDetailPanel(e){
       if(_.get(e, 'detail.selectedInv', {})){
-          this.set('selectedInvoiceForDetail', _.get(e, 'detail.selectedInv', {}))
+          this.set('selectedBatchForDetail', _.get(e, 'detail.selectedInv', {}))
           this.set('isDisplayDetail', true)
       }
     }
 
     _closeDetailPanel(){
-        this.set('selectedInvoiceForDetail', {})
+        this.set('selectedBatchForDetail', {})
         this.set('isDisplayDetail', false)
+    }
+
+    _openInvoiceDetailPanel(e){
+      //Todo
+        if(_.get(e, 'detail.selectedInv', {})){
+            this.set('selectedInvoiceForDetail', _.get(e, 'detail.selectedInv', {}))
+            this.set('isDisplayInvoiceDetail', true)
+        }
+    }
+
+    _closeInvoiceDetailPanel(){
+        this.set('selectedInvoiceForDetail', {})
+        this.set('isDisplayInvoiceDetail', false)
     }
 
     _openArchiveDialog(e){
@@ -709,6 +749,10 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     this.api.setPreventLogging(false)
                 })
         }
+    }
+
+    _invoicesStatusChanged(){
+        this._closeDetailPanel()
     }
 
 

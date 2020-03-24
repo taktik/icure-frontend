@@ -28,7 +28,7 @@ import * as models from 'icc-api/dist/icc-api/model/models'
 
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "../../../tk-localizer";
-class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
+class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
     static get template() {
         return html`
 
@@ -229,7 +229,7 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
            <div class="panel-title">
-                [[localize('inv-num-detail', 'Detail of invoice number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]              
+                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]              
             </div>
             <div class="panel-search">
                 <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
@@ -286,12 +286,12 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 </div>
             </div>
             <div class="panel-button">
-                <!--<template is="dom-if" if="[[!isArchived(invoicesStatus.*)]]">-->
+                <template is="dom-if" if="[[batchCanBeArchived]]">
                    <paper-button class="button button--other" on-tap="_archiveBatch">Archiver</paper-button>
-                <!--</template>
-                <template is="dom-if" if="[[isSendError]]">-->
+                </template>
+                <template is="dom-if" if="[[batchCanBeResent]]">
                    <paper-button class="button button--other" on-tap="_transferInvoicesForResending">Transférer pour réenvoi</paper-button>
-                <!--</template>-->
+                </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
         </div>
@@ -335,6 +335,14 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
             isLoading:{
                 type: Boolean,
                 value: false
+            },
+            batchCanBeArchived:{
+                type: Boolean,
+                value: false
+            },
+            batchCanBeResent:{
+                type: Boolean,
+                value: false
             }
         };
     }
@@ -356,6 +364,8 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
 
     _closeDetailPanel(){
         this.set('invoicesFromBatch', [])
+        this.set('batchCanBeArchived', false)
+        this.set('batchCanBeResent', false)
         this.dispatchEvent(new CustomEvent('close-detail-panel', {bubbles: true, composed: true}))
     }
 
@@ -368,8 +378,9 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _showDetail() {
+            this.set('batchCanBeArchived', false)
+            this.set('batchCanBeResent', false)
             this.set('isLoading', true)
-            this.set('isSendError', _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) ? _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) : false)
             this.set('invoicesErrorMsg', null);
 
             this.api.setPreventLogging()
@@ -446,8 +457,10 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
 
                     })
                 }).finally(()=>{
-                this.set('isLoading', false)
-                this.api.setPreventLogging(false)
+                    this._batchCanBeArchived()
+                    this.set('batchCanBeResent', _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) ? _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) : false)
+                    this.set('isLoading', false)
+                    this.api.setPreventLogging(false)
             })
 
     }
@@ -940,6 +953,24 @@ class HtMsgInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
         return erreur;
     }
 
+    _getBatchStatus(batchStatus){
+           return  !!(batchStatus & (1 << 21)) ? "archived" :
+                   !!(batchStatus & (1 << 17)) ? "error" :
+                   !!(batchStatus & (1 << 16)) ? "partially accepted" :
+                   !!(batchStatus & (1 << 15)) ? "fully accepted" :
+                   !!(batchStatus & (1 << 12)) ? "rejected":
+                   !!(batchStatus & (1 << 11)) ? "treated":
+                   !!(batchStatus & (1 << 10)) ? "acceptedForTreatment":
+                   !!(batchStatus & (1 << 9))  ? "successfullyTransmittedToOA":
+                   !!(batchStatus & (1 << 8))  ? "pending":
+                   !!(batchStatus & (1 << 7))  ? "pending": ""
+    }
+
+    _batchCanBeArchived(){
+        const res = this._getBatchStatus(_.get(this, 'selectedInvoiceForDetail.message.status', null)) !== "archived"
+        this.set('batchCanBeArchived', res)
+    }
+
 }
 
-customElements.define(HtMsgInvoiceDetail.is, HtMsgInvoiceDetail);
+customElements.define(HtMsgInvoiceBatchDetail.is, HtMsgInvoiceBatchDetail);

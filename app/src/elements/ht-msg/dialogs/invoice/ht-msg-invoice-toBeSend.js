@@ -239,7 +239,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                     <template is="dom-if" if="[[!isLoading]]">
                         <template is="dom-repeat" items="[[_sortInvoiceListByOa(filteredListOfInvoice)]]" as="inv">
-                            <div class="tr">
+                            <div class="tr" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoInvoicePanel">
                                 <div class="td fg05">[[inv.insuranceCode]]</div>
                                 <div class="td fg1">[[inv.invoiceReference]]</div>
                                 <div class="td fg2">
@@ -549,6 +549,12 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
 
     getMessage(){
         this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+    }
+
+    _displayInfoInvoicePanel(e){
+        if(_.get(e, 'currentTarget.dataset.item', null)){
+            this.dispatchEvent(new CustomEvent('open-invoice-detail-panel', {bubbles: true, composed: true, detail: {selectedInv: JSON.parse(_.get(e, 'currentTarget.dataset.item', null))}}))
+        }
     }
 
 }
