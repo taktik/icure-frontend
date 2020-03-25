@@ -299,7 +299,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     static get is() {
-        return 'ht-msg-invoice-detail';
+        return 'ht-msg-invoice-batch-detail';
     }
 
     static get properties() {

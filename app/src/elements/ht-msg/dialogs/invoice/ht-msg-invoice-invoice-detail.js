@@ -6,6 +6,7 @@ import '../../../../styles/shared-styles';
 import '../../../../styles/buttons-style';
 import '../../../../styles/dialog-style';
 import '../../../ht-spinner/ht-spinner';
+import '../../../ht-pat/dialogs/ht-pat-invoicing-dialog';
 
 //TODO import "@polymer/iron-collapse-button/iron-collapse-button"
 import "@polymer/iron-icon/iron-icon"
@@ -225,55 +226,90 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                align-items: center!important;
             }
             
+            .modalDialog{
+                height: 350px;
+                width: 600px;
+             }
+
+             .modalDialogContent{
+                height: 250px;
+                width: auto;
+                margin: 10px;
+             }
+            
         </style>
         
         <div class="panel">
            <div class="panel-title">
-                [[localize('inv-num-detail', 'Detail of invoice number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]              
+                [[localize('inv-num-inv-detail', 'Detail of invoice number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]              
             </div>
             <div class="panel-search">
                 <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
             </div>
             <div class="panel-content">
                 <div class="table">
-                    <div class="tr th">                     
-                        <div class="td fg1">[[localize('inv_num_fac','Invoice number',language)]]</div>
+                    <div class="tr th">                                             
                         <div class="td fg2">[[localize('inv_pat','Patient',language)]]</div>
                         <div class="td fg1">[[localize('inv_niss','Niss',language)]]</div>
                         <div class="td fg1">[[localize('nmcl','Nmcl',language)]]</div>
-                        <div class="td fg1">[[localize('inv_batch_month','Invoiced month',language)]]</div>
                         <div class="td fg1">[[localize('inv_date_fact','Invoice date',language)]]</div>
-                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_invoiced','Invoiced',language)]]</div>
-                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_acc','Accepted',language)]]</div>
-                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_rej','Rejected',language)]]</div>
-                        <div class="td fg3">Motif rejet</div>  
-                        <div class="td fg05">Payé</div>  
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_oa','Oa',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_pat','Patient',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_supp','Extra',language)]]</div>
+                        <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_tot','Total',language)]]</div>
+                        <div class="td fg3">Motif rejet</div>                        
                         <div class="td fg1">[[localize('inv_stat','Status',language)]]</div>                                          
                     </div>
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                     <template is="dom-if" if="[[!isLoading]]">
-                        <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(invoicesFromBatch)]]" as="inv">                       
-                             <div class="tr">
-                                 <div class="td fg1"></div>
-                                 <div class="td fg2"></div>
-                                 <div class="td fg1"></div>
-                                 <div class="td fg1 center">[[invco.invoicingCode]]</div>
-                                 <div class="td fg1">[[formatDate(invco.invoiceDate,'date')]]</div>
-                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
-                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
-                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
-                                 <div class="td fg3 rejectionInfo">[[invco.rejectionReason]]</div>
-                                 <div class="td fg05"></div>                             
-                                 <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(invco.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(invco.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
+                        <template is="dom-repeat" items="[[_getInvoicingCodes(selectedInvoiceForDetail)]]" as="invco">                       
+                             <div class="tr">                                 
+                                 <div class="td fg2">[[selectedInvoiceForDetail.patientName]]</div>
+                                 <div class="td fg1">[[selectedInvoiceForDetail.patientSsin]]</div>
+                                 <div class="td fg1 center">[[invco.code]]</div>
+                                 <div class="td fg1">[[formatDate(selectedInvoiceForDetail.invoiceDate,'date')]]</div>
+                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.reimbursement)]]€</span></div>
+                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.patientIntervention)]]€</span></div>
+                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.doctorSupplement)]]€</span></div>
+                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.totalAmount)]]€</span></div>
+                                 <div class="td fg3 rejectionInfo">[[invco.error]]</div>                            
+                                 <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(selectedInvoiceForDetail.statut))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(selectedInvoiceForDetail.statut)]]"></iron-icon>[[selectedInvoiceForDetail.statut]]</span></div>                                      
                              </div>   
                         </template>
                     </template>                   
                 </div>
             </div>
-            <div class="panel-button">              
+            <div class="panel-button">
+                <template is="dom-if" if="[[isRejected]]">
+                    <paper-button class="button button--other" on-tap="_flagInvoiceAsLostConfirmationDialog" data-invoice-id\$="[[selectedInvoiceForDetail.invoice.id]]">
+                         <iron-icon icon="error" data-invoice-id\$="[[selectedInvoiceForDetail.invoice.id]]"></iron-icon> 
+                         &nbsp; [[localize('invoiceIsUnrecoverable',"Unrecoverable invoice",language)]]
+                     </paper-button>  
+                </template>              
+                <template is="dom-if" if="[[!isRejected]]">
+                    <paper-button class="button button--other" on-tap="" >Annuler la facture</paper-button> 
+                </template>
+                <template is="dom-if" if="[[isRejected]]">
+                    <paper-button class="button button--save" on-tap="_openInvoicingDialog" >Corriger</paper-button>
+                </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
         </div>
+        
+        <ht-pat-invoicing-dialog id="invoicingForm" api="[[api]]" user="[[user]]" language="[[language]]" patient="[[selectedInvoiceForDetail.patient]]" i18n="[[i18n]]" resources="[[resources]]"></ht-pat-invoicing-dialog>
+        
+        <paper-dialog class="modalDialog" id="flagInvoiceAsLostConfirmationDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('areYouSureFlagInvoiceAsLost','Are you sure you wish to flag invoice as permanently lost?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold">[[localize('unrecoverableAction','This action is unrecoverable',language)]].</p>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeDialogs">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_flagInvoiceAsLost"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+
 `;
     }
 
@@ -298,7 +334,16 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
             selectedInvoiceForDetail:{
                 type: Object,
                 value : () => {}
+            },
+            isLoading:{
+                type: Boolean,
+                value: false
+            },
+            isRejected:{
+                type: Boolean,
+                value: false
             }
+
         };
     }
 
@@ -307,11 +352,109 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     static get observers() {
-        return [];
+        return ['_initializeDataProvider(api, user, selectedInvoiceForDetail, selectedInvoiceForDetail.*)'];
     }
 
     _initializeDataProvider(){
+        this.set('isRejected', false)
+        this.set('isRejected', _.get(this, 'selectedInvoiceForDetail.statut', null) !== "A envoyer")
+        //console.log(this.selectedInvoiceForDetail)
+    }
 
+    _closeDetailPanel(){
+        this.set('isRejected', false)
+        this.set('selectedInvoiceForDetail', {})
+        this.dispatchEvent(new CustomEvent('close-invoice-detail-panel', {bubbles: true, composed: true}))
+    }
+
+    _getInvoiceReference(){
+        return _.get(this.selectedInvoiceForDetail, 'invoiceReference', null)
+    }
+
+    _getInvoicingCodes(){
+        return _.get(this.selectedInvoiceForDetail, 'invoice.invoicingCodes', [])
+    }
+
+    _formatAmount(amount){
+        return this.findAndReplace(((Number(amount).toFixed(2)).toString()),'.',',')
+    }
+
+    findAndReplace(string, target, replacement) {
+        for (let i = 0; i < string.length; i++) { string = string.replace(target, replacement); }
+        return string;
+    }
+
+    _getIconStatusClass(status) {
+        console.log("geticonstatus",status)
+        return (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "invoice-status--blueStatus" :
+            (status === this.localize('inv_to_be_send','To be send',this.language)) ? (!this.statusToBeSend)  ? "invoice-status--blueStatus" : "invoice-status--orangeStatus" :
+                (status === this.localize('inv_to_be_corrected','To be corrected',this.language))  ? "invoice-status--redStatus" :
+                    (status === this.localize('inv_par_acc','Partially accepted',this.language)) ? "invoice-status--orangeStatus" :
+                        (status === this.localize('inv_full_acc','Fully accepted',this.language)) ? "invoice-status--greenStatus" :
+                            (status === this.localize('inv_tre','Treated',this.language)) ? "invoice-status--greenStatus" :
+                                (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "invoice-status--blueStatus" :
+                                    (status === this.localize('inv_pen','Pending',this.language)) ? (!this.statusToBeSend) ? "invoice-status--blueStatus" : "" :
+                                        (status === this.localize('inv_err','Error',this.language)) ? "invoice-status--redStatus" :
+                                            (status === this.localize('inv_arch','Archived',this.language)) ? "invoice-status--purpleStatus" :
+                                                (status === this.localize('nmcl-rejected','Rejected',this.language)) ? "invoice-status--redStatus" :
+                                                    (status === this.localize('nmcl-accepted','Accepted',this.language)) ? "invoice-status--greenStatus" :
+                                                        (status === this.localize('inv_send_err', 'Send error', this.language)) ? "invoice-status--redStatus" :
+                                                            ""
+    }
+    _getTxtStatusColor(status,amount) {
+        console.log("gettxtstatus",status,amount)
+        if (amount > 0) {
+            return (status === this.localize('inv_par_acc','Partially accepted',this.language)) ? "txtcolor--orangeStatus" :
+                (status === this.localize('inv_full_acc','Fully accepted',this.language)) ? "txtcolor--greenStatus" :
+                    (status === this.localize('inv_to_be_corrected','To be corrected',this.language))  ? "txtcolor-status--redStatus" :
+                        (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "txtcolor--blueStatus" :
+                            (status === this.localize('inv_pen','Pending',this.language)) ? "txtcolor--blueStatus" :
+                                (status === this.localize('inv_tre','Treated',this.language)) ? "txtcolor--greenStatus" :
+                                    (status === this.localize('inv_err','Error',this.language)) ? "txtcolor--redStatus" :
+                                        (status === this.localize('inv_arch','Archived',this.language)) ? "txtcolor--purpleStatus" :
+                                            (status === this.localize('nmcl-rejected','Rejected',this.language)) ? "txtcolor--redStatus" :
+                                                (status === this.localize('nmcl-accepted','Accepted',this.language)) ? "txtcolor--greenStatus" :
+                                                    (status === 'force-red') ? "txtcolor--redStatus" :
+                                                        (status === 'force-green') ? "txtcolor--greenStatus" :
+                                                            (status === this.localize('inv_send_err', 'Send error', this.language)) ? "invoice-status--redStatus" :
+                                                                ""
+        }
+    }
+
+    formatDate(d,f) {
+        const input = d && d.toString() || _.trim(d)
+        const yyyy = input.slice(0,4), mm = input.slice(4,6), dd = input.slice(6,8)
+        switch(f) {
+            case 'date' :
+                return `${dd}/${mm}/${yyyy}`;
+            case 'month' :
+                const monthStr =
+                    (mm.toString() === '01') ? this.localize('Jan',this.language) :
+                        (mm.toString() === '02') ? this.localize('Feb',this.language) :
+                            (mm.toString() === '03') ? this.localize('Mar',this.language) :
+                                (mm.toString() === '04') ? this.localize('Apr',this.language) :
+                                    (mm.toString() === '05') ? this.localize('May',this.language) :
+                                        (mm.toString() === '06') ? this.localize('Jun',this.language) :
+                                            (mm.toString() === '07') ? this.localize('Jul',this.language) :
+                                                (mm.toString() === '08') ? this.localize('Aug',this.language) :
+                                                    (mm.toString() === '09') ? this.localize('Sep',this.language) :
+                                                        (mm.toString() === '10') ? this.localize('Oct',this.language) :
+                                                            (mm.toString() === '11') ? this.localize('Nov',this.language) :
+                                                                this.localize('Dec',this.language)
+                return `${monthStr} ${yyyy}`
+        }
+    }
+
+    _openInvoicingDialog(){
+        if(_.get(this, 'selectedInvoiceForDetail.invoice.id', null)){
+            this.shadowRoot.querySelector("#invoicingForm").open({invoicingCodeId: _.get(this, 'selectedInvoiceForDetail.invoice.id', null)})
+        }
+    }
+
+    _flagInvoiceAsLostConfirmationDialog() {
+        this.flagInvoiceAsLostId = _.get(this, 'selectedInvoiceForDetail.invoice.id', null)
+        this.set("_bodyOverlay", true);
+        this.shadowRoot.querySelector("#flagInvoiceAsLostConfirmationDialog").open()
     }
 
 

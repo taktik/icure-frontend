@@ -67,6 +67,15 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     height: calc(100% - 8px);                    
                     width: 98%;
                 }
+                
+                #htMsgInvoiceInvoiceDetail{
+                    top: 0;
+                    display: block;
+                    position: absolute;
+                    z-index: 100;
+                    height: calc(100% - 8px);                    
+                    width: 98%;
+                }
 
             </style>
         </custom-style>
@@ -82,17 +91,20 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesToBeCorrected]]"
                     is-loading="[[isLoading]]"
+                    on-open-invoice-detail-panel="_openInvoiceDetailPanel"
                 ></ht-msg-invoice-to-be-corrected>
             </template>  
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'toBeSend')]]">
                 <ht-msg-invoice-to-be-send 
-                    api="[[api]]" i18n="[[i18n]]" 
+                    api="[[api]]" 
+                    i18n="[[i18n]]" 
                     user="[[user]]" 
                     hcp="[[hcp]]"
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[selectedInvoicesToBeSend]]"
                     is-loading="[[isLoading]]"
+                    on-open-invoice-detail-panel="_openInvoiceDetailPanel"
                     >                   
                 </ht-msg-invoice-to-be-send>
             </template>   
@@ -174,8 +186,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     selected-invoice-for-detail="[[selectedInvoiceForDetail]]"
-                    on-close-detail-panel="_closeInvoiceDetailPanel"
-                    open-invoice-detail-panel="[[_openInvoiceDetailPanel]]"
+                    on-close-invoice-detail-panel="_closeInvoiceDetailPanel"                   
                  ></ht-msg-invoice-invoice-detail>      
             </template>
         </div> 
@@ -671,7 +682,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     }
 
     _openInvoiceDetailPanel(e){
-      //Todo
         if(_.get(e, 'detail.selectedInv', {})){
             this.set('selectedInvoiceForDetail', _.get(e, 'detail.selectedInv', {}))
             this.set('isDisplayInvoiceDetail', true)

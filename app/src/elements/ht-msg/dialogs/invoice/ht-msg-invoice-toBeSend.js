@@ -209,6 +209,10 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 padding: 5px;
             }
             
+             .tr-item{
+                cursor: pointer;
+            }
+            
         </style>
         
         <div class="panel">
@@ -239,7 +243,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                     <template is="dom-if" if="[[!isLoading]]">
                         <template is="dom-repeat" items="[[_sortInvoiceListByOa(filteredListOfInvoice)]]" as="inv">
-                            <div class="tr" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoInvoicePanel">
+                            <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoInvoicePanel">
                                 <div class="td fg05">[[inv.insuranceCode]]</div>
                                 <div class="td fg1">[[inv.invoiceReference]]</div>
                                 <div class="td fg2">
