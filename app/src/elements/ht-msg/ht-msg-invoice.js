@@ -76,7 +76,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     height: calc(100% - 8px);                    
                     width: 98%;
                 }
-
             </style>
         </custom-style>
         
@@ -175,6 +174,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     on-close-detail-panel="_closeDetailPanel"
                     on-archive-batch="_openArchiveDialog"
                     on-transfer-invoices-for-resending="_transferInvoicesForResending"
+                    on-get-message="fetchMessageToBeSendOrToBeCorrected"
                  ></ht-msg-invoice-batch-detail>      
             </template>
             <template is="dom-if" if="[[isDisplayInvoiceDetail]]">
@@ -186,22 +186,11 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     selected-invoice-for-detail="[[selectedInvoiceForDetail]]"
-                    on-close-invoice-detail-panel="_closeInvoiceDetailPanel"                   
+                    on-close-invoice-detail-panel="_closeInvoiceDetailPanel"     
+                    on-get-message="fetchMessageToBeSendOrToBeCorrected"
                  ></ht-msg-invoice-invoice-detail>      
             </template>
         </div> 
-        
-         <paper-dialog id="archiveDialog">
-            <h2 class="modal-title">Archivage de l'envoi n°</h2>
-            <div class="archiveDialogContent">
-                Voulez-vous vraiment archiver votre envoi ?
-            </div>
-            <div class="buttons">
-                <paper-button class="button" dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
-                <paper-button class="button button--save" on-tap="_archiveBatch">[[localize('confirm','Confirm',language)]]</paper-button>
-            </div>
-        </paper-dialog>
-    
 `;
   }
 
@@ -691,74 +680,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     _closeInvoiceDetailPanel(){
         this.set('selectedInvoiceForDetail', {})
         this.set('isDisplayInvoiceDetail', false)
-    }
-
-    _openArchiveDialog(e){
-      this.set('selectedBatchToBeArchived', {})
-      if(_.get(e, 'detail.inv.message.id', null)){
-          this.set('selectedBatchToBeArchived', _.get(e, 'detail.inv', {}))
-          this.shadowRoot.querySelector("#archiveDialog").open()
-      }
-    }
-
-    _archiveBatch(){
-        if(!_.isEmpty(_.get(this, 'selectedBatchToBeArchived', {}))){
-            this.set('isLoading', true)
-            const newStatus = (_.get(this, 'selectedBatchToBeArchived.message.status', null) | (1 << 21))
-            this.set('selectedBatchToBeArchived.message.status', newStatus)
-            this.api.message().modifyMessage(_.get(this, 'selectedBatchToBeArchived.message', null))
-                .then(msg => this.api.register(msg, 'message'))
-                .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
-                .then(invoices => invoices.map(inv => {
-                    inv.invoicingCodes.map(ic => ic.archived = true)
-                    this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
-                })).finally(() => {
-                    this._closeDetailPanel()
-                    this.set('selectedBatchToBeArchived', {})
-                    this.set('isLoading', false)
-                    this.shadowRoot.querySelector("#archiveDialog").close()
-                    this.fetchMessageToBeSendOrToBeCorrected()
-            })
-        }
-    }
-
-    _transferInvoicesForResending(e){
-        if(_.get(e, 'detail.inv.message.id', {}) && _.size(_.get(e, 'detail.inv.message.invoiceIds', [])) > 0){
-            this.set('isLoading', true);
-            let prom = Promise.resolve({})
-            this.api.setPreventLogging()
-            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(e, 'detail.inv.message.invoiceIds', []).map(id => id)}))
-                .then(invs => {
-                    invs.map(inv => {
-                        inv.invoicingCodes.map(ic => ic.pending = false)
-                        inv.sentDate = null
-                        prom = prom.then(invs => this.api.invoice().modifyInvoice(inv)
-                            .then(() => _.concat(invs, [inv]))
-                            .catch(e => console.log('Erreur lors du traitement de la facture', inv, e))
-                        )
-                    })
-
-                    return prom.then(() => {
-                        return this.api.message().getMessage(_.get(e, 'detail.inv.message.id', {})).then(msg => {
-                            msg.status = (msg.status | (1 << 21))
-                            this.api.message().modifyMessage(msg)
-                                .then(msg => this.api.register(msg, 'message'))
-                                .then(msg => {
-                                    console.log(msg)
-                                    this._closeDetailPanel()
-                                    this.fetchMessageToBeSendOrToBeCorrected()
-                                    this.set('isLoading', false);
-                                })
-                                .catch(e => console.log("Erreur lors de l'archivage du message", msg, e))
-                        })
-                    })
-                })
-                .finally(()=>{
-                    this._closeDetailPanel()
-                    this.set('isLoading', false);
-                    this.api.setPreventLogging(false)
-                })
-        }
     }
 
     _invoicesStatusChanged(){

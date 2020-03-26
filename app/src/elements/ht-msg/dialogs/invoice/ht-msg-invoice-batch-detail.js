@@ -225,6 +225,20 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                align-items: center!important;
             }
             
+            .modalDialog{
+                height: 350px;
+                width: 600px;
+             }
+
+             .modalDialogContent{
+                  height: calc(100% - 113px);
+                  width: auto;
+                  margin: 0;
+                  background-color: white;
+                  position: relative;
+                  padding: 10px;
+             }
+            
         </style>
         
         <div class="panel">
@@ -287,14 +301,38 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             </div>
             <div class="panel-button">
                 <template is="dom-if" if="[[batchCanBeArchived]]">
-                   <paper-button class="button button--other" on-tap="_archiveBatch">Archiver</paper-button>
+                   <paper-button class="button button--other" on-tap="_openArchiveDialog">[[localize('btn-arch', 'Archive', language)]]</paper-button>
                 </template>
                 <template is="dom-if" if="[[batchCanBeResent]]">
-                   <paper-button class="button button--other" on-tap="_transferInvoicesForResending">Transférer pour réenvoi</paper-button>
+                   <paper-button class="button button--other" on-tap="_openResendDialog">[[localize('btn-trans-for-res', 'Transfer for resending', language)]]</paper-button>
                 </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
         </div>
+        
+        <paper-dialog class="modalDialog" id="archiveBatchDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('confirm-arch-batch','Are you sure you wish to archive this batch?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold"></p>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeArchiveDialog">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_archiveBatch"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+        
+        <paper-dialog class="modalDialog" id="resendingBatchDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('confirm-resend-batch','Are you sure you wish to resend this batch ?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold"></p>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeResendDialog">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_transferInvoicesForResending"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
 `;
     }
 
@@ -366,15 +404,11 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         this.set('invoicesFromBatch', [])
         this.set('batchCanBeArchived', false)
         this.set('batchCanBeResent', false)
+        this.set('isSendError', false)
+        this.set('isLoading', false)
+        this.set('invoicesErrorMsg', null)
+
         this.dispatchEvent(new CustomEvent('close-detail-panel', {bubbles: true, composed: true}))
-    }
-
-    _archiveBatch(){
-        this.dispatchEvent(new CustomEvent('archive-batch', {detail: {inv: _.get(this, 'selectedInvoiceForDetail', {})}, bubbles: true, composed: true}))
-    }
-
-    _transferInvoicesForResending(){
-        this.dispatchEvent(new CustomEvent('transfer-invoices-for-resending', {detail: {inv: _.get(this, 'selectedInvoiceForDetail', {})}, bubbles: true, composed: true}))
     }
 
     _showDetail() {
@@ -969,6 +1003,88 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
     _batchCanBeArchived(){
         const res = this._getBatchStatus(_.get(this, 'selectedInvoiceForDetail.message.status', null)) !== "archived"
         this.set('batchCanBeArchived', res)
+    }
+
+    _getMessage(){
+        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+    }
+
+    _openArchiveDialog(){
+        if(_.get(this, 'selectedInvoiceForDetail.message.id', null)){
+            this.shadowRoot.querySelector("#archiveBatchDialog").open()
+        }
+    }
+
+    _archiveBatch(){
+        if(_.get(this, 'selectedInvoiceForDetail.message.id', null)){
+            this.set('isLoading', true)
+            const newStatus = (_.get(this, 'selectedInvoiceForDetail.message.status', null) | (1 << 21))
+            this.set('selectedInvoiceForDetail.message.status', newStatus)
+            this.api.message().modifyMessage(_.get(this, 'selectedInvoiceForDetail.message', null))
+                .then(msg => this.api.register(msg, 'message'))
+                .then(msg => this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: msg.invoiceIds.map(i => i)})))
+                .then(invoices => invoices.map(inv => {
+                    inv.invoicingCodes.map(ic => ic.archived = true)
+                    this.api.invoice().modifyInvoice(inv).then(inv => this.api.register(inv,'invoice'))
+                }))
+                .finally(() => {
+                    this._closeArchiveDialog()
+                    this._closeDetailPanel()
+                    this._getMessage()
+            })
+        }
+    }
+
+    _closeArchiveDialog(){
+        this.shadowRoot.querySelector("#archiveBatchDialog").close()
+    }
+
+    _openResendDialog(){
+        if(_.get(this, 'selectedInvoiceForDetail.message.id', null)){
+            this.shadowRoot.querySelector("#resendingBatchDialog").open()
+        }
+    }
+
+    _transferInvoicesForResending(e){
+        if(_.get(e, 'selectedInvoiceForDetail.message.id', {}) && _.size(_.get(e, 'selectedInvoiceForDetail.message.invoiceIds', [])) > 0){
+            this.set('isLoading', true);
+            let prom = Promise.resolve({})
+            this.api.setPreventLogging()
+            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(e, 'selectedInvoiceForDetail.message.invoiceIds', []).map(id => id)}))
+                .then(invs => {
+                    invs.map(inv => {
+                        inv.invoicingCodes.map(ic => ic.pending = false)
+                        inv.sentDate = null
+                        prom = prom.then(invs => this.api.invoice().modifyInvoice(inv)
+                            .then(() => _.concat(invs, [inv]))
+                            .catch(e => console.log('Erreur lors du traitement de la facture', inv, e))
+                        )
+                    })
+
+                    return prom.then(() => {
+                        return this.api.message().getMessage(_.get(e, 'selectedInvoiceForDetail.message.id', {})).then(msg => {
+                            msg.status = (msg.status | (1 << 21))
+                            this.api.message().modifyMessage(msg)
+                                .then(msg => this.api.register(msg, 'message'))
+                                .then(msg => {
+                                    console.log(msg)
+                                    this._closeResendDialog()
+                                    this._closeDetailPanel()
+                                    this._getMessage()
+                                })
+                                .catch(e => console.log("Erreur lors de l'archivage du message", msg, e))
+                        })
+                    })
+                })
+                .finally(()=>{
+                    this._closeResendDialog()
+                    this._closeDetailPanel()
+                })
+        }
+    }
+
+    _closeResendDialog(){
+        this.shadowRoot.querySelector("#resendingBatchDialog").close()
     }
 
 }

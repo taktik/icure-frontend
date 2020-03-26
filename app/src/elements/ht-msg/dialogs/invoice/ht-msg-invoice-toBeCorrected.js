@@ -221,8 +221,8 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
             <div class="panel-title">
-                [[localize('', 'To be corrected', language)]] 
-                <span class="batchNumber batchToBeCorrected">{{_forceZeroNum(messagesToBeCorrected.length)}}</span>
+                [[localize('inv-to-be-corrected', 'To be corrected', language)]] 
+                <span class="batchNumber batchToBeCorrected">{{_forceZeroNum(listOfInvoice.length)}}</span>
             </div>
             <div class="panel-search">
                 <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>

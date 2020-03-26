@@ -232,9 +232,12 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
              }
 
              .modalDialogContent{
-                height: 250px;
-                width: auto;
-                margin: 10px;
+                  height: calc(100% - 113px);
+                  width: auto;
+                  margin: 0;
+                  background-color: white;
+                  position: relative;
+                  padding: 10px;
              }
             
         </style>
@@ -287,10 +290,10 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                      </paper-button>  
                 </template>              
                 <template is="dom-if" if="[[!isRejected]]">
-                    <paper-button class="button button--other" on-tap="" >Annuler la facture</paper-button> 
+                    <paper-button class="button button--other" on-tap="_openCancelConfirmationDialog" >[[localize('btn-can-inv', 'Cancel invoice', language)]]</paper-button> 
                 </template>
                 <template is="dom-if" if="[[isRejected]]">
-                    <paper-button class="button button--save" on-tap="_openInvoicingDialog" >Corriger</paper-button>
+                    <paper-button class="button button--save" on-tap="_openInvoicingDialog" >[[localize('btn-correct', 'Correct', language)]]</paper-button>
                 </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
@@ -305,8 +308,20 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 <p class="textAlignCenter m-t-50 bold">[[localize('unrecoverableAction','This action is unrecoverable',language)]].</p>
             </div>
             <div class="buttons">
-                <paper-button class="button" on-tap="_closeDialogs">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button" on-tap="_closeLostDialog">[[localize('can','Cancel',language)]]</paper-button>
                 <paper-button class="button button--save" on-tap="_flagInvoiceAsLost"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+        
+        <paper-dialog class="modalDialog" id="cancelInvoiceDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('confirm-cancel','Are you sure you wish to cancel this invoice?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold"></p>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeCancelDialog">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_cancelInvoice"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
             </div>
         </paper-dialog>
 
@@ -343,7 +358,6 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 type: Boolean,
                 value: false
             }
-
         };
     }
 
@@ -366,6 +380,7 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
 
     _closeDetailPanel(){
         this.set('isRejected', false)
+        this.set('isLoading', false)
         this.set('selectedInvoiceForDetail', {})
         this.dispatchEvent(new CustomEvent('close-invoice-detail-panel', {bubbles: true, composed: true}))
     }
@@ -455,12 +470,63 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _flagInvoiceAsLostConfirmationDialog() {
-        this.flagInvoiceAsLostId = _.get(this, 'selectedInvoiceForDetail.invoice.id', null)
-        this.set("_bodyOverlay", true);
         this.shadowRoot.querySelector("#flagInvoiceAsLostConfirmationDialog").open()
     }
 
+    _flagInvoiceAsLost() {
+        if(_.get(this, 'selectedInvoiceForDetail.invoiceId', null)){
+            this.api.invoice().getInvoice(_.get(this, 'selectedInvoiceForDetail.invoiceId', null))
+                .then(invoice => {
+                    invoice.invoicingCodes.map(ic => {
+                        ic.canceled = true;
+                        ic.lost = true;
+                        ic.accepted = false;
+                        ic.pending = false;
+                        ic.resent = false;
+                        ic.archived = false;
+                        return ic;
+                    })
+                    invoice.error = "Flagged as lost"
+                    return Promise.resolve(invoice)
+                })
+                .then(inv => this.api.invoice().modifyInvoice(inv))
+                .then(inv => this.api.register(inv, 'invoice'))
+                .finally(() => {
+                    this.set('flagInvoiceAsLostId', null)
+                    this._closeDetailPanel()
+                    this._closeLostDialog()
+                    this._getMessage()
+                })
+        }
+    }
 
+    _closeLostDialog(){
+        this.shadowRoot.querySelector("#flagInvoiceAsLostConfirmationDialog").close()
+    }
+
+    _getMessage(){
+        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+    }
+
+    _openCancelConfirmationDialog(){
+        this.shadowRoot.querySelector("#cancelInvoiceDialog").open()
+    }
+
+    _closeCancelDialog(){
+        this.shadowRoot.querySelector("#cancelInvoiceDialog").close()
+    }
+
+    _cancelInvoice(){
+        if(_.get(this, 'selectedInvoiceForDetail.invoiceId', null)){
+            this.api.invoice().getInvoice(_.get(this, 'selectedInvoiceForDetail.invoiceId', null))
+                .then(inv => this.api.invoice().modifyInvoice( _.omit(inv, ['printedDate'])))
+                .then(inv => this.api.register(inv, 'invoice'))
+                .finally(() => {
+                    this._getMessage()
+                    this._closeDetailPanel()
+                })
+        }
+    }
 }
 
 customElements.define(HtMsgInvoiceInvoiceDetail.is, HtMsgInvoiceInvoiceDetail);
