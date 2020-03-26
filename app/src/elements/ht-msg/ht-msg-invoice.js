@@ -358,6 +358,11 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
         return selectedStatus === status
     }
 
+    _closeAllPanel(){
+        this.shadowRoot.querySelector('#htMsgInvoiceInvoiceDetail')._closeDetailPanel()
+        this.shadowRoot.querySelector('#htMsgInvoiceBatchDetail')._closeDetailPanel()
+    }
+
     getMessage(){
         if(!_.get(this, 'isMessagesLoaded', false))
             this.fetchMessageToBeSendOrToBeCorrected()
