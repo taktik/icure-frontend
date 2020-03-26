@@ -719,6 +719,18 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                   return require('./rsrc/PatientConventionForm.json');
               }
           },
+          workForm: {
+              type: Object,
+              value: function () {
+                  return require('./rsrc/PatientWorkInfosForm.json');
+              }
+          },
+          schoolForm: {
+              type: Object,
+              value: function () {
+                  return require('./rsrc/PatientSchoolInfosForm.json');
+              }
+          },
           user: {
               type: Object
           },
@@ -1252,7 +1264,22 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
           let resolvedRoot = root();
 
           if (resolvedRoot && !_.isEqual( _.get(resolvedRoot, key) , value)) {
+              if(key.includes("code")){
+                  const withoutCode= key.split(".").filter(part => !part.includes("code")).join(".")
+                  if(!_.get(this,"patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode,false)){
+                      this.set("patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode,{})
+                  }
+                  if(!_.get(this,"patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode+".type",false)){
+                      this.set("patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode+".type",withoutCode.includes("socialStatus") ? "BE-SOCIAL-STATUS" : withoutCode.includes("mainSourceOfIncome") ? "BE-PRIMARY-INCOME-SOURCE" :"CD-FED-COUNTRY")
+                  }
+                  this.set("patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode+".version","1")
+
+                  this.set("patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode+".id",_.get(this,"patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode+".type","")+"|"+value+"|"+_.get(this,"patient."+(rootPath.length ? (rootPath+".") : "")+withoutCode+".version","1"))
+              }
+
               this.set("patient."+(rootPath.length ? (rootPath+".") : "")+key,value)
+
+
 
               if(key.includes("ssin") && (!value || this.api.patient().isValidSsin(value))){
                   if(value && this.$["noSave"].classList.contains("notification")){
@@ -1325,7 +1352,7 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                       template:
                           key === 'telecoms' ?
                               this.telecomForm :
-                              (key === 'addresses' || key === 'partnerInfo.addresses') ?
+                              (key === 'addresses' || key === 'partnerInfo.addresses' || key === 'employer.addresse') ?
                                   this.addressForm :
                                   key === 'partnerships' ?
                                       this.partnershipsForm :
@@ -1333,7 +1360,11 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
                                           this.medicalHouseContractsForm :
                                             key === 'conventions' ?
                                                 this.conventionForm :
-                                                    this.insuranceForm
+                                                key === 'schoolingInfos' ?
+                                                    this.schoolForm :
+                                                        key === 'employementInfos' ?
+                                                            this.workForm :
+                                                                this.insuranceForm
                   };
               }))
           },
@@ -1346,6 +1377,9 @@ class HtPatAdminCard extends TkLocalizerMixin(PolymerElement) {
           },
           addSubForm: (key, guid) => {
               this.flushSave(); //Important
+
+              if(key.includes("employer.addresse") && _.get(root(),'employer.addresse',[]).length)return;
+
               if(key.includes("partnerInfo.addresses") && (!root().partnerInfo || (!root().partnerInfo.lastName && !root().partnerInfo.name)))return;
               (_.get(root(), key) || _.get(_.set(root(), key, []), key)).push(key==='partnerships'?{partnerId: this.api.crypto().randomUuid(), partnerInfo:{}, type:""}:{});
 
