@@ -1006,7 +1006,14 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
           const newFormTemplateIds = forms.map(f => f.formTemplateId).filter(id => id && !templates[id]);
           return Promise.all([
               Promise.all(newFormTemplateIds.map(id => this.api.form().getFormTemplate(id))),
-              Promise.all(forms.map(f => this.api.form().getChildren(f.id, this.user.healthcarePartyId)))
+              Promise.all(
+                  forms.map(f => {
+                      return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                          const hcpid = hcp.parentId ? hcp.parentId : hcp.id;
+                          return this.api.form().getChildren(f.id, hcpid)
+                      })
+                  })
+              )
           ]).then(res => {
               const [fts, children] = res
               fts.forEach(ft => {
