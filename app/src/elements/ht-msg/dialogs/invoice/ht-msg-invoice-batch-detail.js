@@ -243,7 +243,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
            <div class="panel-title">
-                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]              
+                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]] [[invoicesErrorMsg]]          
             </div>
             <div class="panel-search">
                 <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
@@ -441,7 +441,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                         invoiceDate: _.get(code, 'dateCode', null),
                         invoicedAmount: Number(_.get(code, 'reimbursement', null)),
                         acceptedAmount:  (!!(_.get(this.selectedInvoiceForDetail, 'message.status', null) & (1 << 17)) || !!(_.get(this.selectedInvoiceForDetail, 'message.status', null) & (1 << 12))) ? 0.00 : ((_.get(code, 'paid', 0) >= 0) ? _.get(code, 'paid', 0) : 0.00),
-                        refusedAmount:  (!!(_.get(this.selectedInvoiceForDetail, 'message.status', null) & (1 << 17)) || !!(_.get(this.selectedInvoiceForDetail, 'message.status', null) & (1 << 12))) ? Number(_.get(code, 'reimbursement', 0)) : (_.get(code, 'paid', 0) >= 0) ? (Number(code.reimbursement) - Number(code.paid)) : 0.00,
+                        refusedAmount:  (!!(_.get(this.selectedInvoiceForDetail, 'message.status', null) & (1 << 17)) || !!(_.get(this.selectedInvoiceForDetail, 'message.status', null) & (1 << 12))) ? Number(_.get(code, 'reimbursement', 0)) : (_.get(code, 'paid', 0) >= 0) ? (Number(_.get(code, 'reimbursement', 0)) - Number(_.get(code, 'paid', 0))) : 0.00,
                         rejectionReason: _.get(code, 'error', null),
                         paid: false,
                         accepted: _.get(code, 'accepted', null),

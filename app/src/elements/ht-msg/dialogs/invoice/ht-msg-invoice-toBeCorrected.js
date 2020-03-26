@@ -317,6 +317,10 @@ class HtMsgInvoiceToBeCorrected extends TkLocalizerMixin(PolymerElement) {
         return ['_initialize(api, user, listOfInvoice)','_filterValueChanged(filter)'];
     }
 
+    ready() {
+        super.ready();
+    }
+
     _forceZeroNum(num) {
         return (!num) ? '0' : num.toString()
     }

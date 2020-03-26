@@ -172,8 +172,12 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 flex-grow: 0.2;
             }
             
+            .fg02{
+                flex-grow: 0.2;
+            }
+            
             .fg05{
-            flex-grow: 0.5;
+                flex-grow: 0.5;
             }
             
             .fg1{
@@ -191,7 +195,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             }
             
             .info-icon{
-                heigth: 14px;
+                height: 14px;
                 width: 14px;
             }
             
@@ -227,7 +231,8 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             </div>
             <div class="panel-content">
                 <div class="table">
-                    <div class="tr th">                     
+                    <div class="tr th">
+                        <div class="td fg02"></div>                     
                         <div class="td fg05">[[localize('inv_mut','Mutual',language)]]</div>
                         <div class="td fg1">[[localize('inv_num_fac','Invoice number',language)]]</div>
                         <div class="td fg2">[[localize('inv_pat','Patient',language)]]</div>
@@ -244,6 +249,11 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     <template is="dom-if" if="[[!isLoading]]">
                         <template is="dom-repeat" items="[[_sortInvoiceListByOa(filteredListOfInvoice)]]" as="inv">
                             <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoInvoicePanel">
+                                <div class="td fg02">
+                                    <template is="dom-if" if="[[inv.realizedByTrainee]]">
+                                        <iron-icon icon="vaadin:academy-cap" class="info-icon"></iron-icon>
+                                    </template>
+                                </div>
                                 <div class="td fg05">[[inv.insuranceCode]]</div>
                                 <div class="td fg1">[[inv.invoiceReference]]</div>
                                 <div class="td fg2">
@@ -525,6 +535,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
     }
 
     sendInvoices(){
+        //todo
         const LastSend = parseInt(localStorage.getItem('lastInvoicesSent')) ? parseInt(localStorage.getItem('lastInvoicesSent')) : -1
         const maySend = (LastSend < Date.now() + 24*60*60000 || LastSend===-1)
         if (maySend) {

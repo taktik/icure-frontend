@@ -365,6 +365,10 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
         super();
     }
 
+    ready() {
+        super.ready();
+    }
+
     static get observers() {
         return ['_selectedInvoiceForDetailChanged(selectedInvoiceForDetail.statut, selectedInvoiceForDetail.*)'];
     }

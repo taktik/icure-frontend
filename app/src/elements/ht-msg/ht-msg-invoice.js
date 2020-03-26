@@ -268,58 +268,11 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
               type: String,
               value: ""
           },
-          filterPath:{
-              type:String,
-              value: "invoice.patient.firstName"
-          },
-          btnSelectionPatient: {
-              type: Boolean,
-              value: false,
-              notify: true
-          },
-          showInactive: {
-              type: Boolean,
-              value: false
-          },
-          ifInvoiceSelected: {
-              type: Boolean,
-              value: true
-          },
-          level :{
-              type : Number,
-              value : 0
-          },
-          expanded : {
-              type : Boolean,
-              value : true
-          },
           invoicesFromBatch:{
               type: Object,
               value: function () {
                   return [];
               }
-          },
-          invoicesErrorMsg: {
-              type: String,
-              value: ""
-          },
-          toBeCorrectedMessageDetail:{
-              type: Object,
-              value: function () {
-                  return [];
-              }
-          },
-          infoHelpdesk:{
-              type : Object
-          },
-          isCompleteHelpDesk:{
-              type: Boolean
-          },
-          infoHelpdeskDet:{
-              type: Object
-          },
-          mobile :{
-              type: String
           },
           displayedYear: {
               type: Number,
@@ -329,19 +282,9 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
               type: Boolean,
               value: false
           },
-          archOrAcc:{
-              type: Boolean,
-              value:false
-          },
           toBeCorr:{
               type: Boolean,
               value: false
-          },
-          patientFromSelectedInvoice:{
-              type: Object
-          },
-          selectedInvoiceIndex:{
-              type : Number
           },
           messageIdsCanBeAutoArchived:{
               type: Array,
@@ -350,47 +293,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           isMessagesLoaded:{
               type: Boolean,
               value: false,
-          },
-          sumReimb:{
-              type: Object,
-              value : "0.00"
-          },
-          sumPatInter:{
-              type: Object,
-              value : "0.00"
-          },
-          sumDoctorSup:{
-              type: Object,
-              value : "0.00"
-          },
-          sumTot:{
-              type: Object,
-              value: "0.00"
-          },
-          cannotSend: {
-              type: Boolean,
-              value: false
-          },
-          cannotGet: {
-              type: Boolean,
-              value: false
-          },
-            isSendError:{
-              type: Boolean,
-              value: false
-          },
-          _isLoading: {
-              type: Boolean,
-              value: false,
-              observer: '_loadingStatusChanged'
-          },
-          _bodyOverlay: {
-              type: Boolean,
-              value: false
-          },
-          _isLoadingSmall: {
-              type: Boolean,
-              value: false
           },
           flagInvoiceAsLostId: {
               type: String,
@@ -426,6 +328,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           },
           routeData:{
               type: Object,
+
               value: () => {}
           }
       };
@@ -437,6 +340,10 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
 
   static get observers() {
       return ['_getDataProvider(api, user, routeData)', '_invoicesStatusChanged(invoicesStatus)'];
+  }
+
+  ready() {
+    super.ready();
   }
 
    _getDataProvider(){

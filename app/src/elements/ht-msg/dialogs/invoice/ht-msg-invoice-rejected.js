@@ -306,6 +306,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
         return ['_initialize(api, user, listOfInvoice)', '_filterValueChanged(filter)'];
     }
 
+    ready() {
+        super.ready();
+    }
+
     _initialize(){
         this.set('filteredListOfInvoice', _.get(this, 'listOfInvoice', []))
     }
