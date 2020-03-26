@@ -352,13 +352,16 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     static get observers() {
-        return ['_initializeDataProvider(api, user, selectedInvoiceForDetail, selectedInvoiceForDetail.*)'];
+        return ['_selectedInvoiceForDetailChanged(selectedInvoiceForDetail.statut, selectedInvoiceForDetail.*)'];
     }
 
-    _initializeDataProvider(){
+    _selectedInvoiceForDetailChanged(){
         this.set('isRejected', false)
-        this.set('isRejected', _.get(this, 'selectedInvoiceForDetail.statut', null) !== "A envoyer")
-        //console.log(this.selectedInvoiceForDetail)
+        if(_.get(this, 'selectedInvoiceForDetail.statut', null)){
+            this.set('isRejected',_.get(this, 'selectedInvoiceForDetail.statut', null) !== "A envoyer")
+            console.log(this.isRejected)
+        }
+
     }
 
     _closeDetailPanel(){
@@ -385,7 +388,7 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _getIconStatusClass(status) {
-        console.log("geticonstatus",status)
+        //console.log("geticonstatus",status)
         return (status === this.localize('inv_acc_tre','Accepted for treatment',this.language)) ? "invoice-status--blueStatus" :
             (status === this.localize('inv_to_be_send','To be send',this.language)) ? (!this.statusToBeSend)  ? "invoice-status--blueStatus" : "invoice-status--orangeStatus" :
                 (status === this.localize('inv_to_be_corrected','To be corrected',this.language))  ? "invoice-status--redStatus" :
@@ -402,7 +405,7 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                                                             ""
     }
     _getTxtStatusColor(status,amount) {
-        console.log("gettxtstatus",status,amount)
+        //console.log("gettxtstatus",status,amount)
         if (amount > 0) {
             return (status === this.localize('inv_par_acc','Partially accepted',this.language)) ? "txtcolor--orangeStatus" :
                 (status === this.localize('inv_full_acc','Fully accepted',this.language)) ? "txtcolor--greenStatus" :
