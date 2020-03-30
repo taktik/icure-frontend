@@ -946,11 +946,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 --paper-fab-background: var(--app-status-color-pending);
             }
 
-            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr, #mdaStatus.noInsurance{
+            #insuranceStatus.noInsurance, #hubStatus.noAccess, #tlStatus.noTl, #consentStatus.noConsent, #edmgStatus.edmgNOk, #rnConsultStatus.rnConsultNOk, #sumehrStatus.noSumehr, #mdaStatus.noInsurance, #conventionStatus.convKo{
                 --paper-fab-background: var(--app-status-color-nok);
             }
 
-            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr, #mdaStatus.insuranceOk {
+            #insuranceStatus.insuranceOk, #hubStatus.accessOk, #tlStatus.tlOk, #consentStatus.consentOk, #edmgStatus.edmgOk, #rnConsultStatus.rnConsultOk, #sumehrStatus.sumehr, #mdaStatus.insuranceOk, #conventionStatus.convOk {
                 --paper-fab-background: var(--app-status-color-ok);
             }
 
@@ -1969,6 +1969,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                             <paper-fab id="rnConsultStatus" mini on-tap="_openRnConsultDialog" src="[[_rnConsultPicture()]]"></paper-fab>
                                             <paper-tooltip position="top" for="rnConsultStatus">[[localize('rn-consult','Rn consult',language)]]</paper-tooltip>
                                         </template>
+                                        
+                                        <template is="dom-if" if="[[_isDisplayingConvention(patient)]]">
+                                            <paper-fab id="conventionStatus" mini icon="vaadin:handshake"></paper-fab>
+                                            <paper-tooltip position="top" for="conventionStatus">[[localize(conventionStatus,'statut de la convention',language)]]</paper-tooltip>
+                                        </template>
                                     </div>
                                 </div>
                             </paper-item>
@@ -2388,7 +2393,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                                                         <label class="hcp">[[hcp(contact)]]</label>
                                                     </div>
                                                     <div class="contact-text-row grey">
-                                                        <h4>[[getTypeContact(contact,refreshServicesDescription)]]</h4>
+                                                        <h4 inner-h-t-m-l="[[getTypeContact(contact,refreshServicesDescription)]]"></h4>
                                                         <template is="dom-repeat" items="[[getDocumentDetails(contact, refreshServicesDescription)]]" as="document">
                                                             <p>
                                                                 </p><div class="document">
@@ -3362,6 +3367,10 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             errorIndicatorMessage: {
                 type: String,
                 value : ""
+            },
+            conventionStatus: {
+                type: String,
+                value: "conv_status_ko"
             }
         }
     }
@@ -4209,6 +4218,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             caller ? caller.onActionChanged(event.detail) : null
 
             this.set("refresher", this.refresher + 1)
+            this.set("refreshServicesDescription",this.refreshServicesDescription + 1);
 
             return c
         }).catch(e => {
@@ -4432,6 +4442,38 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     patientChanged(api, user, patient) {
+
+        if(this.patient && !Object.keys(this.patient).find(key => key.includes("conventions"))){
+            this.set("patient",_.merge(this.patient,{
+                "conventions" : _.compact(this.patient.properties.filter(p => p.type.identifier.includes("convention")).map(prop =>{
+                    const c = JSON.parse(prop.typedValue.stringValue)
+                    if(!_.get(c,"conv",false))return false;
+                    return {
+                        type : _.get(c,"convType",""),
+                        content: {
+                            fr : _.get(c,"convDes_FR",""),
+                            nl : _.get(c,"convDes_NL","")
+                        },
+                        startDate: _.get(c, "convDate", "") === "" ? null : moment(_.get(c,"convDate","")).format("YYYYMMDD"),
+                        endDate: _.get(c, "convValid", "") === "" ? null : moment(_.get(c,"convValid","")).format("YYYYMMDD"),
+                        codes: [],
+                        tags: []
+                    }
+                }))
+            }))
+        }
+        this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convOk') : null
+        this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.remove('convKo') : null
+        console.log("patient conventions", _.get(this,"patient.conventions",[]))
+        const now = moment()
+        if(_.get(this,"patient.conventions",[]).length && _.get(this,"patient.conventions",[]).find(conv => !conv.endDate || now.isBefore(conv.endDate))){
+            this.set("conventionStatus","conv_status_ok")
+            this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.add('convOk') : null
+        }else{
+            this.set("conventionStatus","conv_status_ko")
+            this.shadowRoot.querySelector("#conventionStatus") ? this.shadowRoot.querySelector("#conventionStatus").classList.add('convKo') : null
+        }
+
         this.set('curGenInsResp', null)
         this.set("SpinnerActive", true)
         this.set('healthTopics', [])
@@ -6624,32 +6666,39 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     getTypeContact(ctc) {
-        const descrPattern = this.user.properties.find(p => p.type.identifier === 'org.taktik.icure.preferred.contactDescription') || "{Motifs de contact}"
+        const descrPattern = this.user.properties.find(p => p.type.identifier === 'org.taktik.icure.preferred.contactDescription') || `{BE-CONTACT-TYPE} : {TZ-FORM-TITLE} <br/> {Motifs de contact}`
         const templateKeys = descrPattern.match(/\{.+?\}/g).map(s => s.substring(1, s.length - 1))
             .reduce((acc, s) => {
                 acc[s] = true
                 return acc
             }, {})
 
-        ctc.userDescr = this.api.template(descrPattern, ctc.services.filter(s => templateKeys[s.label] && !s.endOfLife).reduce((acc, v) => {
-            acc[v.label] = !acc[v.label] ? this.shortServiceDescription(v, this.language) : acc[v.label] + "," + this.shortServiceDescription(v, this.language)
-            return acc
+        let args = {}
+
+        ctc.services.filter(s => templateKeys[s.label] && !s.endOfLife).map(svc => {
+            args[svc.label] = !args[svc.label] ? this.shortServiceDescription(svc, this.language) : args[svc.label] + "," + this.shortServiceDescription(svc, this.language)
+        }, {})
+
+        ctc.tags.filter(t => templateKeys[t.type]).map(tag => {
+            args[tag.type] = !args[tag.type] ? (tag.type === "BE-CONTACT-TYPE" ? _.get(this.contactTypeList.find(sct => sct.code === tag.code),"label."+(this.language || "fr"),"invalid contact type") : tag.code) : args[tag.type] + "," + (tag.type === "BE-CONTACT-TYPE" ?  _.get(this.contactTypeList.find(sct => sct.code === tag.code),"label."+(this.language || "fr"),"invalid contact type") : tag.code)
+        }, {})
+
+        ctc.codes.filter(c => templateKeys[c.type]).map(code => {
+            args[code.type] = !args[code.type] ? code.code : args[code.type] + "," + code.code
+        }, {})
+
+        ctc.subContacts.filter(sbctc => sbctc.tags.find(t => templateKeys[t.type])).map(sbct => sbct.tags.filter(t => templateKeys[t.type]).map(tag => {
+            args[tag.type] = !args[tag.type] ? tag.code : args[tag.type] + "," + tag.code
         }, {}))
+
+        ctc.subContacts.filter(sbctc => sbctc.codes.find(code => templateKeys[code.type])).map(sbct => sbct.codes.filter(code => templateKeys[code.type]).map(code => {
+            args[code.type] = !args[code.type] ? code.code : args[code.type] + "," + code.code
+        }, {}))
+
+        ctc.userDescr = this.api.template(descrPattern, args)
+
         if (!ctc.userDescr || ctc.userDescr.length < 3) {
             ctc.userDescr = ctc.descr
-        }
-        const contacttype = ctc.tags.find(tag => tag.type === "BE-CONTACT-TYPE")
-        if (contacttype) {
-            const code = this.contactTypeList.find(sct => sct.code === contacttype.code)
-            if (code && code.label) {
-                if (ctc.userDescr && ctc.userDescr != "") {
-                    ctc.userDescr = code.label[this.language || "fr"] + " : " + ctc.userDescr
-                } else {
-                    ctc.userDescr = code.label[this.language || "fr"]
-                }
-            } else {
-                console.log("invalid contact type", ctc, code)
-            }
         }
 
         return ctc.userDescr
@@ -7392,10 +7441,14 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
     }
 
-    _showError(e){
-        this.set("errorIndicatorMessage",e.detail)
+    _showError(e) {
+        this.set("errorIndicatorMessage", e.detail)
         setTimeout(() => this.$.errorIndicator.classList.remove("saved"), 2000)
         this.$.errorIndicator.classList.add("savec")
+    }
+    
+    _isDisplayingConvention(){
+        return !(_.get(this,"patient.medicalHouseContracts",[]).filter(contract => !contract.endOfContract || moment().isBefore(this.api.moment(contract.endOfContract))).length)
     }
 }
 

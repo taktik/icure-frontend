@@ -1009,7 +1009,14 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
           const newFormTemplateIds = forms.map(f => f.formTemplateId).filter(id => id && !templates[id]);
           return Promise.all([
               Promise.all(newFormTemplateIds.map(id => this.api.form().getFormTemplate(id))),
-              Promise.all(forms.map(f => this.api.form().getChildren(f.id, this.user.healthcarePartyId)))
+              Promise.all(
+                  forms.map(f => {
+                      return this.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp => {
+                          const hcpid = hcp.parentId ? hcp.parentId : hcp.id;
+                          return this.api.form().getChildren(f.id, hcpid)
+                      })
+                  })
+              )
           ]).then(res => {
               const [fts, children] = res
               fts.forEach(ft => {
@@ -1023,7 +1030,15 @@ class DynamicallyLoadedForm extends TkLocalizerMixin(PolymerElement) {
               return children.length ? loadForms(templates, _.flatten(children), root) : root;
           });
       }.bind(this);
-      this.api.form().getForm(formId).then(f => loadForms(this.api.cachedTemplates || (this.api.cachedTemplate = {}), [f], f)).then(form => this.set('form', form));
+      this.api.form().getForm(formId).then(f => loadForms(this.api.cachedTemplates || (this.api.cachedTemplate = {}), [f], f)).then(form => {
+          const sub = this.contact.subContacts.find(sctc => sctc.formId===form.id && !sctc.tags.find(tag =>tag.type==="TZ-FORM-TITLE"))
+          if(sub){
+              sub.tags.push({type:"TZ-FORM-TITLE",version:"1",code:form.descr})
+              this.dispatchEvent(new CustomEvent('must-save-contact', {detail: {contact: this.contact, preSave: null, postSave:(ctc) => console.log("added title"), postError: (e) => console.log(e)}, bubbles: true, composed: true}))
+          }
+          return this.set('form', form)
+      });
+
   }
 
   deleteForm() {
