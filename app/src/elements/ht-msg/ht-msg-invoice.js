@@ -359,8 +359,8 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
     }
 
     _closeAllPanel(){
-        this.shadowRoot.querySelector('#htMsgInvoiceInvoiceDetail')._closeDetailPanel()
-        this.shadowRoot.querySelector('#htMsgInvoiceBatchDetail')._closeDetailPanel()
+        this.shadowRoot.querySelector('#htMsgInvoiceInvoiceDetail') ? this.shadowRoot.querySelector('#htMsgInvoiceInvoiceDetail')._closeDetailPanel() : null
+        this.shadowRoot.querySelector('#htMsgInvoiceBatchDetail') ? this.shadowRoot.querySelector('#htMsgInvoiceBatchDetail')._closeDetailPanel(): null
     }
 
     getMessage(){

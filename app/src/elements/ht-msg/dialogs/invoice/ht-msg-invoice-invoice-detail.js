@@ -283,16 +283,16 @@ class HtMsgInvoiceInvoiceDetail extends TkLocalizerMixin(PolymerElement) {
                 </div>
             </div>
             <div class="panel-button">
-                <template is="dom-if" if="[[isRejected]]">
+                <template is="dom-if" if="[[isRejected]]" restamp="true">
                     <paper-button class="button button--other" on-tap="_flagInvoiceAsLostConfirmationDialog" data-invoice-id\$="[[selectedInvoiceForDetail.invoice.id]]">
                          <iron-icon icon="error" data-invoice-id\$="[[selectedInvoiceForDetail.invoice.id]]"></iron-icon> 
                          &nbsp; [[localize('invoiceIsUnrecoverable',"Unrecoverable invoice",language)]]
                      </paper-button>  
                 </template>              
-                <template is="dom-if" if="[[!isRejected]]">
+                <template is="dom-if" if="[[!isRejected]]" restamp="true">
                     <paper-button class="button button--other" on-tap="_openCancelConfirmationDialog" >[[localize('btn-can-inv', 'Cancel invoice', language)]]</paper-button> 
                 </template>
-                <template is="dom-if" if="[[isRejected]]">
+                <template is="dom-if" if="[[isRejected]]" restamp="true">
                     <paper-button class="button button--save" on-tap="_openInvoicingDialog" >[[localize('btn-correct', 'Correct', language)]]</paper-button>
                 </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              

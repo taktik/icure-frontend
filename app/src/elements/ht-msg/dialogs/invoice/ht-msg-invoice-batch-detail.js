@@ -301,10 +301,10 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             </div>
             <div class="panel-button">
                 <template is="dom-if" if="[[batchCanBeArchived]]">
-                   <paper-button class="button button--other" on-tap="_openArchiveDialog">[[localize('btn-arch', 'Archive', language)]]</paper-button>
+                   <paper-button class="button button--other" on-tap="_openArchiveDialog" restamp="true">[[localize('btn-arch', 'Archive', language)]]</paper-button>
                 </template>
                 <template is="dom-if" if="[[batchCanBeResent]]">
-                   <paper-button class="button button--other" on-tap="_openResendDialog">[[localize('btn-trans-for-res', 'Transfer for resending', language)]]</paper-button>
+                   <paper-button class="button button--other" on-tap="_openResendDialog" restamp="true">[[localize('btn-trans-for-res', 'Transfer for resending', language)]]</paper-button>
                 </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
