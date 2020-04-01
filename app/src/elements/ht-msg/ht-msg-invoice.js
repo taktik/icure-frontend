@@ -512,7 +512,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                                 paymentReference:   _.get(msg, 'metas.paymentReferenceAccount1', ""),
                                                 paymentDate:        "",
                                                 amountPaid:         Number(_.get(msg, 'metas.totalAcceptedAmount', '0.00')).toFixed(2),
-                                                paymentAccount:     _.get(msg, 'metas.paymentReferenceAccount1', ""),
+                                                paymentAccount:     enr10.zones && enr10.zones.find(z => z.zone === "36") ? enr10.zones.find(z => z.zone === "36").value : "",
                                                 paid: false,
                                                 allInvoicesIsCorrected : allInvoicesIsCorrected,
                                                 sendError: false

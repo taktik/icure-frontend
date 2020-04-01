@@ -166,9 +166,9 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                 padding: 2px;
             }
         
-        .bb{
-            border-bottom: 1px solid lightgray;
-        }
+            .bb{
+                border-bottom: 1px solid lightgray;
+            }
         
             .th{
                 height: auto!important;
@@ -261,6 +261,29 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             .error-line{
                 padding: 2px;
                 width: auto;
+                margin-left: 5px;
+                color: var(--app-status-color-nok);
+            }
+            
+            .tr-info{
+                display: flex;
+                height: auto;              
+            }
+            
+            .td-info{
+                 position: relative;
+                 display: flex;
+                 flex-flow: row nowrap;
+                 align-items: center;
+                 flex-basis: 0;
+                 padding-left: 6px;
+                 overflow: hidden;
+                 min-width: 0px;
+                 z-index: 2;
+                 word-break: break-word;
+                 white-space: nowrap;
+                 font-size: 13px;
+                 text-overflow: ellipsis;
             }
             
         </style>
@@ -271,26 +294,23 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             </div>
             <div class="panel-detail">
                 <div class="table">
-                    <div class="tr">
-                        <div class="td fg2"><span class="bold">[[localize('inv_prest','Physician',language)]]:</span> [[selectedInvoiceForDetail.messageInfo.hcp]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_oa','Oa',language)]]:</span> [[selectedInvoiceForDetail.messageInfo.oa]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_batch_month','Billed month',language)]]:</span> [[formatDate(selectedInvoiceForDetail.messageInfo.invoiceMonth,'month')]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_date_fact','Invoice date',language)]]:</span> [[formatDate(selectedInvoiceForDetail.messageInfo.invoiceDate,'date')]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_invoiced','Invoiced',language)]]:</span> [[_formatAmount(selectedInvoiceForDetail.messageInfo.invoicedAmount)]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_acc','Accepted',language)]]:</span> [[_formatAmount(selectedInvoiceForDetail.messageInfo.acceptedAmount)]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_rej','Rejected',language)]]:</span> [[_getRefusedAmount(selectedInvoiceForDetail.messageInfo.invoicedAmount, selectedInvoiceForDetail.messageInfo.acceptedAmount)]]</div>
+                    <div class="tr-info">
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_prest','Physician',language)]]:</span>&nbsp; [[selectedInvoiceForDetail.messageInfo.hcp]]</div>                        
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_invoiced','Invoiced',language)]]:</span>&nbsp; [[_formatAmount(selectedInvoiceForDetail.messageInfo.invoicedAmount)]]€</div>
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_batch_bank_account','Bank account',language)]]:</span>&nbsp; [[selectedInvoiceForDetail.messageInfo.paymentAccount]]</div>   
                     </div>
-                    <div class="tr">
-                        <div class="td fg2"><span class="bold">[[localize('inv-ref-pai','Paiement reference',language)]]:</span> [[selectedInvoiceForDetail.messageInfo.paymentReference]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_batch_amount_paid','Paid',language)]]:</span> [[_formatAmount(selectedInvoiceForDetail.messageInfo.amountPaid)]]</div>
-                        <div class="td fg1"><span class="bold">[[localize('inv_batch_bank_account','Bank account',language)]]:</span> [[selectedInvoiceForDetail.messageInfo.paymentAccount]]</div>
-                        <div class="td fg1"></div>
-                        <div class="td fg1"></div>
-                        <div class="td fg1"></div>
-                        <div class="td fg1"></div>
+                    <div class="tr-info">
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_batch_month','Billed month',language)]]:</span>&nbsp; [[formatDate(selectedInvoiceForDetail.messageInfo.invoiceMonth,'month')]]</div>
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_acc','Accepted',language)]]:</span>&nbsp; <span class="txtcolor--greenStatus">[[_formatAmount(selectedInvoiceForDetail.messageInfo.acceptedAmount)]]€</span></div>
+                        <div class="td-info fg1"><span class="bold">[[localize('inv-ref-pai','Paiement reference',language)]]:</span>&nbsp; [[selectedInvoiceForDetail.messageInfo.paymentReference]]</div>
                     </div>
-                </div>
-            </div>
+                    <div class="tr-info">
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_date_fact','Invoice date',language)]]:</span>&nbsp; [[formatDate(selectedInvoiceForDetail.messageInfo.invoiceDate,'date')]]</div>
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_batch_amount','Amount',language)]] [[localize('inv_batch_amount_rej','Rejected',language)]]:</span>&nbsp; <span class="txtcolor--redStatus">[[_getRefusedAmount(selectedInvoiceForDetail.messageInfo.invoicedAmount, selectedInvoiceForDetail.messageInfo.acceptedAmount)]]€</span></div>
+                        <div class="td-info fg1"><span class="bold">[[localize('inv_batch_amount_paid','Paid',language)]]:</span>&nbsp; [[_formatAmount(selectedInvoiceForDetail.messageInfo.amountPaid)]]€</div>
+                    </div>
+                </div>            
+            </div>         
             <div class="panel-error">
                 <template is="dom-repeat" items="[[invoicesErrorMsg]]" as="err">
                     <div class="error-line">
@@ -325,6 +345,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                                 <div class="td fg2">[[inv.patient]]</div>
                                 <div class="td fg1">[[inv.ssin]]</div>
                                 <div class="td fg1"></div>
+                                <div class="td fg1">[[formatDate(inv.invoiceMonth,'month')]]</div>
                                 <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>
                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(inv.invoicedAmount)]]€</span></div>
                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(inv.acceptedAmount)]]€</span></div>
@@ -339,6 +360,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                                     <div class="td fg2"></div>
                                     <div class="td fg1"></div>
                                     <div class="td fg1 center">[[invco.invoicingCode]]</div>
+                                    <div class="td fg1"></div>
                                     <div class="td fg1">[[formatDate(invco.invoiceDate,'date')]]</div>
                                     <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(invco.invoicedAmount)]]€</span></div>
                                     <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(invco.acceptedAmount)]]€</span></div>
