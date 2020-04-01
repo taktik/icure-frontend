@@ -922,7 +922,7 @@
                                     <div class="td" style="flex-grow: 4;"></div>
                                 </div>
                                 <template is="dom-repeat" items="[[medicationsWithPosology.meds]]" as="m">
-                                <div class="tr">
+                                <div class="tr" data-ctc-id$="[[m.medication.contactId]]" data-svc-id$="[[m.medication.id]]">
                                     <div class="td reimbursed">
                                         <template is="dom-if" if="[[_isChronic(m.medication)]]">
                                             <iron-icon id="chronical" icon="vaadin:alarm" style="height: 16px; width: 16px;"></iron-icon>
@@ -1120,6 +1120,8 @@
         </paper-dialog>
     </template>
     <script>
+
+        const md5 = require('md5')
 
         import _ from 'lodash/lodash'
         import moment from 'moment/src/moment'
@@ -1404,8 +1406,7 @@
             }
 
             _isEqual(a,b) {
-                console.log(a+' ?= '+b)
-                return (a === b)
+                return a === b
             }
 
             _endAfterCurrent(endDate){
@@ -1683,22 +1684,64 @@
                 //     };
                 // }).filter(zipped => zipped.meds.length))
 
-                this.set("presentList", _.zipWith(medTab, prescTab,(med,presc) =>{
+                const presentList = _.zipWith(medTab, prescTab,(med,presc) => {
                     return {
                         "letter" : _.get(med, 'letter', null),
-                        "meds" : _.uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', []))).filter(med => {
-
-                            const medMedication = _.get(med,"medication",{})
-                            const medicationBegin = parseInt(_.trim(_.get(this.api.contact().medicationValue(medMedication), "beginMoment",0)).substr(0,8)) || parseInt(_.trim(_.get(medMedication,"openingDate",0)).substr(0,8)) || 0
-                            const medicationEnd = parseInt(_.trim(_.get(this.api.contact().medicationValue(medMedication), "endMoment",0)).substr(0,8)) || parseInt(_.trim(_.get(medMedication,"closingDate",0)).substr(0,8)) || 0
-
-                            return (!medicationEnd || (filterEndDate && filterEndDate >= medicationEnd ) || (!filterEndDate && tomorrow <= medicationEnd )) &&
-                                (!medicationBegin || (filterStartDate && filterStartDate <= medicationBegin ) || (!filterStartDate && yesterday >= medicationBegin ))
-
-                        })
-                        .filter(med => _.size(this.filterPresentValue) < 3 ? true : _.trim(this._serviceDescription(_.get(med,"medication",{}))).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").includes(_.trim(this.filterPresentValue).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")))
+                        "meds" : _
+                            .uniq(_.concat(_.get(med, 'meds', []), _.get(presc, 'meds', [])))
+                            .filter(med => {
+                                const medMedication = _.get(med,"medication",{})
+                                const medicationBegin = parseInt(_.trim(_.get(this.api.contact().medicationValue(medMedication), "beginMoment",0)).substr(0,8)) || parseInt(_.trim(_.get(medMedication,"openingDate",0)).substr(0,8)) || 0
+                                const medicationEnd = parseInt(_.trim(_.get(this.api.contact().medicationValue(medMedication), "endMoment",0)).substr(0,8)) || parseInt(_.trim(_.get(medMedication,"closingDate",0)).substr(0,8)) || 0
+                                return (!medicationEnd || (filterEndDate && filterEndDate >= medicationEnd ) || (!filterEndDate && tomorrow <= medicationEnd )) &&
+                                    (!medicationBegin || (filterStartDate && filterStartDate <= medicationBegin ) || (!filterStartDate && yesterday <= medicationBegin ))
+                            })
+                            .filter(med => _.size(this.filterPresentValue) < 3 ? true : _.trim(this._serviceDescription(_.get(med,"medication",{}))).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "").includes(_.trim(this.filterPresentValue).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")))
                     }
-                }).filter(zipped => zipped.meds.length))
+                })
+                .filter(it => _.size(_.get(it,"meds")))
+
+                // Target similar ones, don't show same line twice
+                const svcIdsToDrop = _
+                    .chain(presentList)
+                    .map(it => _.map(_.get(it,"meds"), med => _.get(med,"medication")))
+                    .map(medications => _
+                        .chain(medications)
+                        .map(it => {
+                            const medicationValue = this.api.contact().medicationValue(it)
+                            return {
+                                svcId: _.get(it,"id"),
+                                isChronical: !!_.size(_.find(it.tags, {type:"CD-ITEM", code:"medication"})),
+                                valueDate: _.get(it,"valueDate"),
+                                code: _.get(_.find(_.get(it,"codes"), {type:"CD-DRUG-CNK"}), "code"),
+                                regimen: _.get(medicationValue,"regimen"),
+                                beginMoment: _.get(medicationValue,"beginMoment")
+                            }
+                        })
+                        .map(it => _.merge(it,{md5:md5(JSON.stringify(_.omit(it, ["svcId", "isChronical"])))})) // Target similar ones, don't show same line twice
+                        .value()
+                    )
+                    .map(medsByCategory => {
+
+                        const allMd5s = _.compact(_.uniq(_.map(medsByCategory, "md5")))
+
+                        return _
+                            .chain(allMd5s)
+                            .map(md5 => {
+                                const similarMedsBasedOnMd5 = _.filter(medsByCategory, {md5:md5})
+                                return _.size(similarMedsBasedOnMd5)<2 ? null : _.get(_.find(similarMedsBasedOnMd5, it => !_.get(it,"isChronical",false)), "svcId")
+                            })
+                            .compact()
+                            .uniq()
+                            .value()
+
+                    })
+                    .flatten()
+                    .compact()
+                    .uniq()
+                    .value()
+
+                this.set("presentList", _.map(presentList, medicationsByGroup => _.assign(medicationsByGroup, {meds:_.filter(medicationsByGroup.meds, it => svcIdsToDrop.indexOf(it.medication.id) === -1)})))
 
             }
 
