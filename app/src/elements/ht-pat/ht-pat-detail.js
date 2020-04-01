@@ -1915,7 +1915,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             </template>
             <paper-tooltip for="pat-close" position="right">[[localize('back_to_pat_list','Back to patients list',language)]]</paper-tooltip>
             <vaadin-split-layout on-splitter-dragend="_colSizeChanged">
-                <div class="first-panel">
+                <div class="first-panel" style="width: 20%;">
                     <paper-material class="zone compact-menu">
                         <paper-listbox class="padding-0" id="adminFileMenu" selected="{{selectedAdminOrCompleteFileIndex}}" selectable="paper-item">
                             <paper-fab id="pat-close" class="btn-pat-close" mini icon="close" on-tap="close"></paper-fab>
@@ -2335,146 +2335,149 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                     </paper-material>
                 </div>
 
-                <vaadin-split-layout class="second-third-panel" on-splitter-dragend="_colSizeChanged">
-                <template is="dom-if" if="[[!isAdminSelected(selectedAdminOrCompleteFileIndex)]]" restamp>
-                        <div class="second-panel">
-                            <div class="layout horizontal">
-                                <div class="contact-actions">
-                                    <paper-icon-button id="documentsDirectory-btn" class="button--icon-btn--other" icon="icons:folder" on-tap="_openDocumentsDirectory"></paper-icon-button>
-                                    <paper-tooltip position="right" for="documentsDirectory-btn">[[localize('documentsDirectory','Documents directory',language)]]</paper-tooltip>
+                <div class="second-third-panel" style="width: 80%;">
+                    <vaadin-split-layout  on-splitter-dragend="_colSizeChanged">
+                        <template is="dom-if" if="[[!isAdminSelected(selectedAdminOrCompleteFileIndex)]]" restamp>
+                            <div class="second-panel">
+                                <div class="layout horizontal">
+                                    <div class="contact-actions">
+                                        <paper-icon-button id="documentsDirectory-btn" class="button--icon-btn--other" icon="icons:folder" on-tap="_openDocumentsDirectory"></paper-icon-button>
+                                        <paper-tooltip position="right" for="documentsDirectory-btn">[[localize('documentsDirectory','Documents directory',language)]]</paper-tooltip>
 
-                                    <paper-icon-button id="exportContactListBtn" class="button--icon-btn--other" icon="icons:get-app" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_exportContactListAsCsv"></paper-icon-button>
-                                    <paper-tooltip position="right" for="exportContactListBtn">{{localize("export","Exporter",language)}}</paper-tooltip>
+                                        <paper-icon-button id="exportContactListBtn" class="button--icon-btn--other" icon="icons:get-app" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_exportContactListAsCsv"></paper-icon-button>
+                                        <paper-tooltip position="right" for="exportContactListBtn">{{localize("export","Exporter",language)}}</paper-tooltip>
 
-                                    <paper-icon-button id="displayJournal" class="button--icon-btn--other" icon="icons:chrome-reader-mode" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_journal"></paper-icon-button>
-                                    <paper-tooltip position="right" for="displayJournal">{{localize("tra_typ_diarynote","tra_typ_diarynote",language)}}</paper-tooltip>
-                                    <paper-icon-button id="button_list_plan_of_action-eventslgt" class="button--icon-btn--other" icon="history" on-tap="showListPlanOfAction"></paper-icon-button>
-                                    <paper-tooltip position="bottom" for="button_list_plan_of_action-eventslgt">[[localize('plan_of_act','Plan of action',language)]]</paper-tooltip>
-                                    <paper-icon-button id="button_list_vaccine_history" class="button--icon-btn--other" icon="icure-svg-icons:syringe" on-tap="_showVaccineDialog"></paper-icon-button>
-                                    <paper-tooltip position="bottom" for="button_list_vaccine_history">[[localize('vacc','Vaccination',language)]]</paper-tooltip>
+                                        <paper-icon-button id="displayJournal" class="button--icon-btn--other" icon="icons:chrome-reader-mode" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_journal"></paper-icon-button>
+                                        <paper-tooltip position="right" for="displayJournal">{{localize("tra_typ_diarynote","tra_typ_diarynote",language)}}</paper-tooltip>
+                                        <paper-icon-button id="button_list_plan_of_action-eventslgt" class="button--icon-btn--other" icon="history" on-tap="showListPlanOfAction"></paper-icon-button>
+                                        <paper-tooltip position="bottom" for="button_list_plan_of_action-eventslgt">[[localize('plan_of_act','Plan of action',language)]]</paper-tooltip>
+                                        <paper-icon-button id="button_list_vaccine_history" class="button--icon-btn--other" icon="icure-svg-icons:syringe" on-tap="_showVaccineDialog"></paper-icon-button>
+                                        <paper-tooltip position="bottom" for="button_list_vaccine_history">[[localize('vacc','Vaccination',language)]]</paper-tooltip>
+                                    </div>
+                                    <filter-panel id="contactFilterPanel" items="[[secondPanelItems]]" search-string="{{contactSearchString}}" selected-filters="{{contactFilters}}" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"></filter-panel>
                                 </div>
-                                <filter-panel id="contactFilterPanel" items="[[secondPanelItems]]" search-string="{{contactSearchString}}" selected-filters="{{contactFilters}}" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]"></filter-panel>
-                            </div>
-                            <div class="contacts-container" on-scroll="openToast">
-                                <paper-listbox id="_contacts_listbox" focused="" multi toggle-shift selectable="paper-material" selected-values="{{selectedContactIds}}" attr-for-selected="id">
-                                    <span class="contact-year" on-click="openToast">
-                                        <div>[[localize('to_do','To Do',language)]]</div>
-                                        <div class="planned">
-
-                                        </div>
-                                    </span>
-                                    <template is="dom-if" if="[[events.length]]">
-                                        <paper-listbox id="_events_listbox" class="todo-list">
-                                            <template is="dom-repeat" items="[[events]]" as="e" id="eventsList">
-                                                <paper-item id="_svc_[[e.id]]" class\$="todo-item [[_lateEventCssClass(e)]]">
-                                                    <h4><label class="todo-due-date">[[_dateFormat(e.valueDate)]]</label>[[shortServiceDescription(e)]]</h4>
-                                                    <div class="todo-actions">
-                                                        <paper-icon-button id="event-btn-edit_[[e.id]]" class="action-edit-btn" icon="create" on-tap="_toggleActionButton"></paper-icon-button>
-                                                        <paper-tooltip position="left" for="event-btn-edit_[[e.id]]">[[localize('edi','Edit',language)]]</paper-tooltip>
-                                                        <paper-icon-button id="event-btn-close_[[e.id]]" class="action-edit-btn hideable" icon="done" on-tap="completeEvent"></paper-icon-button>
-                                                        <paper-tooltip position="left" for="event-btn-close_[[e.id]]">[[localize('arc','Archive',language)]]</paper-tooltip>
-                                                        <paper-icon-button id="event-btn-done_[[e.id]]" class="action-edit-btn hideable" icon="clear" on-tap="clearEvent"></paper-icon-button>
-                                                        <paper-tooltip position="left" for="event-btn-done_[[e.id]]">[[localize('mark_as_aborted','Marquer comme abandonnée',language)]]</paper-tooltip>
-                                                    </div>
-                                                </paper-item>
-                                            </template>
-                                        </paper-listbox>
-                                    </template>
-                                    <template is="dom-repeat" items="[[contactYears]]" as="contactYear">
-
+                                <div class="contacts-container" on-scroll="openToast">
+                                    <paper-listbox id="_contacts_listbox" focused="" multi toggle-shift selectable="paper-material" selected-values="{{selectedContactIds}}" attr-for-selected="id">
                                         <span class="contact-year" on-click="openToast">
-                                            [[contactYear.year]]
-                                        </span>
-                                        <template is="dom-repeat" id="contactsList" items="[[contactYear.contacts]]" as="contact" filter="[[contactFilter(selectedHealthcareElements, selectedHealthcareElements.*, timeSpanStart, timeSpanEnd, contactSearchString, contactFilters, contactFilters.*, currentContact,contactStatutChecked.*, contactStatusFilter, sortDirection, sortCriterion, documentType)]]" sort="compareContacts">
-                                            <paper-material id="ctc_[[contact.id]]" elevation="0" class\$="layout vertical contact [[_isLatestYearContact(contactYear, contactYears)]] [[_contactClasses(contact, contact.closingDate, contact.author, contact.responsible)]]" on-click="openToast">
-                                                <paper-item class="contact-text">
-                                                    <div class="contact-text-row contact-text-date">
-                                                        <label>[[_timeFormat(contact.openingDate, refreshServicesDescription)]] ([[_shortId(contact.id)]])</label>
-                                                        <label class="hcp">[[hcp(contact)]]</label>
-                                                    </div>
-                                                    <div class="contact-text-row grey">
-                                                        <h4 inner-h-t-m-l="[[getTypeContact(contact,refreshServicesDescription)]]"></h4>
-                                                        <template is="dom-repeat" items="[[getDocumentDetails(contact, refreshServicesDescription)]]" as="document">
-                                                            <p>
-                                                                </p><div class="document">
-                                                                <div class="document-title">
-                                                                    <template is="dom-if" if="[[document.type]]">
-                                                                        <b>[[document.type]]</b>:
-                                                                    </template>
-                                                                    [[document.name]]
-                                                                </div>
-                                                                    <template is="dom-if" if="[[document.created]]">
-                                                                        <div class="document-data">[[localize('doc_date','Document date',language)]] : [[document.created]]</div>
-                                                                    </template>
-                                                                </div>
-                                                            <p></p>
-                                                        </template>
-                                                        <template is="dom-repeat" items="[[highlightedServiceLabels(user)]]" as="label">
-                                                            <p>
-                                                                <template is="dom-repeat" items="[[serviceDescriptions(contact,label)]]" as="svcDesc">
-                                                                    <template is="dom-if" if="[[!index]]">[[label]]:</template>
-                                                                    <template is="dom-if" if="[[index]]"> ,</template>
-                                                                    [[svcDesc]]
-                                                                </template>
-                                                            </p>
-                                                        </template>
-                                                        <template is="dom-repeat" items="[[contact.services]]" as="svc">
-                                                            <template is="dom-if" if="[[_isFreeConsultation(svc)]]">
-                                                                <div class="document-data">Consultation: [[_getFreeConsultationDescr(svc)]]</div><br>
-                                                            </template>
-                                                        </template>
-                                                    </div>
-                                                    <div class="contact-text-row label-container">
-                                                        <template is="dom-repeat" items="[[contact.healthElements]]" as="he" id="contactsHes">
-                                                            <label id="label_[[contact.id]]_[[getHeId(he)]]" class\$="colour-code [[he.colour]] [[_isExcluded(he)]]"><span></span>[[he.descr]]</label>
-                                                            <paper-tooltip for="label_[[contact.id]]_[[getHeId(he)]]">[[he.descr]]</paper-tooltip>
-                                                        </template>
-                                                    </div>
-                                                </paper-item>
-                                                <template is="dom-if" if="[[!contact.closingDate]]">
-                                                    <paper-icon-button id="close-[[contact.id]]" class="menu-item-icon contact-icon close-ctc" icon="icons:lock-open" alt="[[localize('fin_ctc','Finalize contact',language)]]" on-tap="closeContact"></paper-icon-button>
-                                                    <paper-tooltip for="close-[[contact.id]]">[[localize('fin_ctc','Finalize contact',language)]]</paper-tooltip>
-                                                </template>
-                                                <template is="dom-if" if="[[contact.closingDate]]">
-                                                    <iron-icon class="menu-item-icon contact-icon" icon="icons:lock" alt="[[localize('fin_ctc','Finalize contact',language)]]"></iron-icon>
-                                                </template>
-                                            </paper-material>
-                                        </template>
-                                    </template>
-                                </paper-listbox>
-                            </div>
-                            <div class="toast-detector" on-mousemove="openToast"></div>
-                            <paper-toast id="selectionToast" class="fit-bottom">
-                                <paper-button class="selection-toast-button" name="select-today" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectToday">
-                                    <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-today"></iron-icon>
-                                    [[localize('sel_tod','Select Today',language)]]
-                                </paper-button>
-                                <paper-button class="selection-toast-button" name="select-six-months" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_select6Months">
-                                    <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-six-months"></iron-icon>
-                                    [[localize('sel_last_6_month','Last 6 Months',language)]]
-                                </paper-button>
-                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectAll">
-                                    <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-all"></iron-icon>
-                                    [[localize('sel_all','Select All',language)]]
-                                </paper-button>
-                                <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectMoreOptions">
-                                    <iron-icon class="selection-toast-icon" icon="icons:add"></iron-icon>
-                                    {{localize("more","More",language)}}
-                                </paper-button>
+                                            <div>[[localize('to_do','To Do',language)]]</div>
+                                            <div class="planned">
 
-                            </paper-toast>
-                            <template is="dom-if" if="[[!currentContact]]">
-                                <div class="new-ctc-btn-container"><paper-button class="add-btn" on-tap="newContact">[[localize('new_con','New Contact',language)]]</paper-button></div>
+                                            </div>
+                                        </span>
+                                        <template is="dom-if" if="[[events.length]]">
+                                            <paper-listbox id="_events_listbox" class="todo-list">
+                                                <template is="dom-repeat" items="[[events]]" as="e" id="eventsList">
+                                                    <paper-item id="_svc_[[e.id]]" class\$="todo-item [[_lateEventCssClass(e)]]">
+                                                        <h4><label class="todo-due-date">[[_dateFormat(e.valueDate)]]</label>[[shortServiceDescription(e)]]</h4>
+                                                        <div class="todo-actions">
+                                                            <paper-icon-button id="event-btn-edit_[[e.id]]" class="action-edit-btn" icon="create" on-tap="_toggleActionButton"></paper-icon-button>
+                                                            <paper-tooltip position="left" for="event-btn-edit_[[e.id]]">[[localize('edi','Edit',language)]]</paper-tooltip>
+                                                            <paper-icon-button id="event-btn-close_[[e.id]]" class="action-edit-btn hideable" icon="done" on-tap="completeEvent"></paper-icon-button>
+                                                            <paper-tooltip position="left" for="event-btn-close_[[e.id]]">[[localize('arc','Archive',language)]]</paper-tooltip>
+                                                            <paper-icon-button id="event-btn-done_[[e.id]]" class="action-edit-btn hideable" icon="clear" on-tap="clearEvent"></paper-icon-button>
+                                                            <paper-tooltip position="left" for="event-btn-done_[[e.id]]">[[localize('mark_as_aborted','Marquer comme abandonnée',language)]]</paper-tooltip>
+                                                        </div>
+                                                    </paper-item>
+                                                </template>
+                                            </paper-listbox>
+                                        </template>
+                                        <template is="dom-repeat" items="[[contactYears]]" as="contactYear">
+
+                                            <span class="contact-year" on-click="openToast">
+                                                [[contactYear.year]]
+                                            </span>
+                                            <template is="dom-repeat" id="contactsList" items="[[contactYear.contacts]]" as="contact" filter="[[contactFilter(selectedHealthcareElements, selectedHealthcareElements.*, timeSpanStart, timeSpanEnd, contactSearchString, contactFilters, contactFilters.*, currentContact,contactStatutChecked.*, contactStatusFilter, sortDirection, sortCriterion, documentType)]]" sort="compareContacts">
+                                                <paper-material id="ctc_[[contact.id]]" elevation="0" class\$="layout vertical contact [[_isLatestYearContact(contactYear, contactYears)]] [[_contactClasses(contact, contact.closingDate, contact.author, contact.responsible)]]" on-click="openToast">
+                                                    <paper-item class="contact-text">
+                                                        <div class="contact-text-row contact-text-date">
+                                                            <label>[[_timeFormat(contact.openingDate, refreshServicesDescription)]] ([[_shortId(contact.id)]])</label>
+                                                            <label class="hcp">[[hcp(contact)]]</label>
+                                                        </div>
+                                                        <div class="contact-text-row grey">
+                                                            <h4 inner-h-t-m-l="[[getTypeContact(contact,refreshServicesDescription)]]"></h4>
+                                                            <template is="dom-repeat" items="[[getDocumentDetails(contact, refreshServicesDescription)]]" as="document">
+                                                                <p>
+                                                                    </p><div class="document">
+                                                                    <div class="document-title">
+                                                                        <template is="dom-if" if="[[document.type]]">
+                                                                            <b>[[document.type]]</b>:
+                                                                        </template>
+                                                                        [[document.name]]
+                                                                    </div>
+                                                                        <template is="dom-if" if="[[document.created]]">
+                                                                            <div class="document-data">[[localize('doc_date','Document date',language)]] : [[document.created]]</div>
+                                                                        </template>
+                                                                    </div>
+                                                                <p></p>
+                                                            </template>
+                                                            <template is="dom-repeat" items="[[highlightedServiceLabels(user)]]" as="label">
+                                                                <p>
+                                                                    <template is="dom-repeat" items="[[serviceDescriptions(contact,label)]]" as="svcDesc">
+                                                                        <template is="dom-if" if="[[!index]]">[[label]]:</template>
+                                                                        <template is="dom-if" if="[[index]]"> ,</template>
+                                                                        [[svcDesc]]
+                                                                    </template>
+                                                                </p>
+                                                            </template>
+                                                            <template is="dom-repeat" items="[[contact.services]]" as="svc">
+                                                                <template is="dom-if" if="[[_isFreeConsultation(svc)]]">
+                                                                    <div class="document-data">Consultation: [[_getFreeConsultationDescr(svc)]]</div><br>
+                                                                </template>
+                                                            </template>
+                                                        </div>
+                                                        <div class="contact-text-row label-container">
+                                                            <template is="dom-repeat" items="[[contact.healthElements]]" as="he" id="contactsHes">
+                                                                <label id="label_[[contact.id]]_[[getHeId(he)]]" class\$="colour-code [[he.colour]] [[_isExcluded(he)]]"><span></span>[[he.descr]]</label>
+                                                                <paper-tooltip for="label_[[contact.id]]_[[getHeId(he)]]">[[he.descr]]</paper-tooltip>
+                                                            </template>
+                                                        </div>
+                                                    </paper-item>
+                                                    <template is="dom-if" if="[[!contact.closingDate]]">
+                                                        <paper-icon-button id="close-[[contact.id]]" class="menu-item-icon contact-icon close-ctc" icon="icons:lock-open" alt="[[localize('fin_ctc','Finalize contact',language)]]" on-tap="closeContact"></paper-icon-button>
+                                                        <paper-tooltip for="close-[[contact.id]]">[[localize('fin_ctc','Finalize contact',language)]]</paper-tooltip>
+                                                    </template>
+                                                    <template is="dom-if" if="[[contact.closingDate]]">
+                                                        <iron-icon class="menu-item-icon contact-icon" icon="icons:lock" alt="[[localize('fin_ctc','Finalize contact',language)]]"></iron-icon>
+                                                    </template>
+                                                </paper-material>
+                                            </template>
+                                        </template>
+                                    </paper-listbox>
+                                </div>
+                                <div class="toast-detector" on-mousemove="openToast"></div>
+                                <paper-toast id="selectionToast" class="fit-bottom">
+                                    <paper-button class="selection-toast-button" name="select-today" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectToday">
+                                        <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-today"></iron-icon>
+                                        [[localize('sel_tod','Select Today',language)]]
+                                    </paper-button>
+                                    <paper-button class="selection-toast-button" name="select-six-months" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_select6Months">
+                                        <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-six-months"></iron-icon>
+                                        [[localize('sel_last_6_month','Last 6 Months',language)]]
+                                    </paper-button>
+                                    <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectAll">
+                                        <iron-icon class="selection-toast-icon" icon="icure-svg-icons:select-all"></iron-icon>
+                                        [[localize('sel_all','Select All',language)]]
+                                    </paper-button>
+                                    <paper-button class="selection-toast-button" name="select-all" role="button" tabindex="0" animated aria-disabled="false" elevation="0" on-tap="_selectMoreOptions">
+                                        <iron-icon class="selection-toast-icon" icon="icons:add"></iron-icon>
+                                        {{localize("more","More",language)}}
+                                    </paper-button>
+
+                                </paper-toast>
+                                <template is="dom-if" if="[[!currentContact]]">
+                                    <div class="new-ctc-btn-container"><paper-button class="add-btn" on-tap="newContact">[[localize('new_con','New Contact',language)]]</paper-button></div>
+                                </template>
+                            </div>
+                            <ht-pat-detail-ctc-detail-panel id="ctcDetailPanel" contacts="[[selectedContacts]]" all-contacts="[[contacts]]" health-elements="[[healthElements]]" main-health-elements="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" medications="[[medications]]" hidden-sub-contacts-id="[[hiddenSubContactsId]]" services-refresher="[[servicesRefresher]]" on-refresh-contacts="_refreshContacts" on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medications-validation="_medicationDetailValueChanged" on-medication-selection="_selectMedication" on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-open-charts-dialog="_openChartsDialog" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe" credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]" all-health-elements="[[allHealthElements]]" on-trigger-out-going-doc="_newReport_v2" on-trigger-export-sumehr="_exportSumehrDialog" on-open-care-path-list="_openCarePathList" on-send-sub-form-via-emediattest="_sendSubformViaEmediattest" on-upload-document="_hubUpload" on-show-error="_showError">
+                            </ht-pat-detail-ctc-detail-panel>
                             </template>
-                        </div>
-                        <ht-pat-detail-ctc-detail-panel id="ctcDetailPanel" contacts="[[selectedContacts]]" all-contacts="[[contacts]]" health-elements="[[healthElements]]" main-health-elements="[[_concat(activeHealthElements, allergies, risks, inactiveHealthElements, familyrisks)]]" api="[[api]]" i18n="[[i18n]]" user="[[user]]" patient="[[patient]]" language="[[language]]" resources="[[resources]]" current-contact="[[currentContact]]" medications="[[medications]]" hidden-sub-contacts-id="[[hiddenSubContactsId]]" services-refresher="[[servicesRefresher]]" on-refresh-contacts="_refreshContacts" on-select-current-contact="_selectCurrentContact" on-plan-action="_planAction" on-close-contact="_closeContact" on-change="formsChanged" on-must-save-contact="_saveContact" on-medications-selection="_selectMultiMedication" on-medications-validation="_medicationDetailValueChanged" on-medication-selection="_selectMedication" on-medication-detail="_medicationDetail" on-medications-detail="_medicationsDetail" contact-type-list="[[contactTypeList]]" on-contact-saved="contactChanged" on-open-charts-dialog="_openChartsDialog" on-add-other="addOther" on-add-document="_openUploadDialog" on-prescribe="_prescribe" credentials="[[credentials]]" on-write-linking-letter="writeLinkingLetter" on-reset-patient="_resetPatient" linking-letter-dialog="[[linkingLetterDialog]]" on-forward-document="_forwardDocument" on-print-document="_printDocument" global-hcp="[[globalHcp]]" all-health-elements="[[allHealthElements]]" on-trigger-out-going-doc="_newReport_v2" on-trigger-export-sumehr="_exportSumehrDialog" on-open-care-path-list="_openCarePathList" on-send-sub-form-via-emediattest="_sendSubformViaEmediattest" on-upload-document="_hubUpload" on-show-error="_showError">
-                        </ht-pat-detail-ctc-detail-panel>
-                </template>
-                <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]">
-                    <ht-pat-admin-card id="pat-admin-card" api="[[api]]" user="[[user]]" patient="{{patient}}" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" tab-index="[[adminTabIndex]]" carddata="[[cardData]]" on-card-changed="_cardChanged" on-patient-saved="_patientSaved" on-fusion-dialog-called="fusionDialogCalled" active-health-elements="[[activeHealthElements]]" inactive-health-elements="[[inactiveHealthElements]]"></ht-pat-admin-card>
-                </template>
-            </vaadin-split-layout>
-        </vaadin-split-layout></div>
+                            <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]">
+                                <ht-pat-admin-card id="pat-admin-card" api="[[api]]" user="[[user]]" patient="{{patient}}" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" tab-index="[[adminTabIndex]]" carddata="[[cardData]]" on-card-changed="_cardChanged" on-patient-saved="_patientSaved" on-fusion-dialog-called="fusionDialogCalled" active-health-elements="[[activeHealthElements]]" inactive-health-elements="[[inactiveHealthElements]]"></ht-pat-admin-card>
+                            </template>
+                        </vaadin-split-layout>
+                    </div>
+                </vaadin-split-layout>
+            </div>
         </div>
 
         <health-problem-selector id="add-healthelement-dialog" api="[[api]]" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" data-provider="[[_healthElementsSelectorDataProvider()]]" on-entity-selected="_addedHealthElementSelected" entity-type="[[localize('hp','Health Problem',language)]]" entity="{{heEntity}}" ok-label="[[localize('cre','Create',language)]]">
