@@ -240,7 +240,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                                 <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
                                 <div class="td fg1"><span class="">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
                                 <div class="td fg1"><span class="txtcolor--greenStatus">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
-                                <div class="td fg1"><span class="txtcolor--redStatus">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
+                                <div class="td fg1"><span class="txtcolor--redStatus">[[_getRefusedAmount(inv.messageInfo.invoicedAmount, inv.messageInfo.acceptedAmount)]]€</span></div>
                                 <div class="td fg2"><span class="invoice-status invoice-status--redStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--redStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>                             
                                 <div class="td fg0">
                                     <iron-icon icon="vaadin:info-circle" class="info-icon"></iron-icon>
@@ -407,6 +407,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
               .finally(()=>this.api.setPreventLogging(false))
       }
   }
+
+    _getRefusedAmount(totalAmount, acceptedAmount){
+        return this.findAndReplace(((Number(Number(totalAmount) - Number(acceptedAmount)).toFixed(2)).toString()),'.',',')
+    }
 
 }
 

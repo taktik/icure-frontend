@@ -50,8 +50,13 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                 width: auto;
             }
             
+            .panel-detail{
+                height: 40px;
+                width: auto;
+            }
+            
             .panel-content{
-                height: calc(100% - 120px);
+                height: calc(100% - 160px);
                 width: auto;
             }
             
@@ -243,10 +248,13 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
            <div class="panel-title">
-                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]] [[invoicesErrorMsg]]          
+                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]          
             </div>
             <div class="panel-search">
                 <dynamic-text-field label="[[localize('filter','Filter',language)]]" class="ml1 searchField" value="{{filter}}"></dynamic-text-field>
+            </div>
+            <div class="panel-detail">
+                
             </div>
             <div class="panel-content">
                 <div class="table">

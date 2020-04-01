@@ -270,7 +270,7 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
                                 <div class="td fg1">[[formatDate(inv.messageInfo.invoiceDate,'date')]]</div>
                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.invoicedAmount)]]€</span></div>
                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.acceptedAmount)]]€</span></div>
-                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_formatAmount(inv.messageInfo.refusedAmount)]]€</span></div>
+                                <div class="td fg1"><span class\$="[[_getTxtStatusColor(_getIconStatusClass(inv.messageInfo.invoiceStatus),inv.messageInfo.refusedAmount)]]">[[_getRefusedAmount(inv.messageInfo.invoicedAmount, inv.messageInfo.acceptedAmount)]]€</span></div>
                                 <div class="td fg1"><span class="invoice-status invoice-status--purpleStatus"><iron-icon icon="vaadin:circle" class="statusIcon invoice-status--purpleStatus"></iron-icon> [[inv.messageInfo.invoiceStatus]]</span></div>
                                 <div class="td fg2">[[inv.messageInfo.paymentReference]]</div>
                                 <div class="td fg1">[[_formatAmount(inv.messageInfo.amountPaid)]]€</div>
@@ -451,6 +451,10 @@ class HtMsgInvoiceArchived extends TkLocalizerMixin(PolymerElement) {
                 }
             }, 100)
         }
+    }
+
+    _getRefusedAmount(totalAmount, acceptedAmount){
+        return this.findAndReplace(((Number(Number(totalAmount) - Number(acceptedAmount)).toFixed(2)).toString()),'.',',')
     }
 
 }

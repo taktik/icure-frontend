@@ -548,6 +548,10 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
         this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
     }
 
+    _getRefusedAmount(totalAmount, acceptedAmount){
+        return this.findAndReplace(((Number(Number(totalAmount) - Number(acceptedAmount)).toFixed(2)).toString()),'.',',')
+    }
+
     /*
         _transferInvoicesForResending(){
           if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id && this.activeGridItem.message.invoiceIds.length){
