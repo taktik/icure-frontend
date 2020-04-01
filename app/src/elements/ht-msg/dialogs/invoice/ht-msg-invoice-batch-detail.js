@@ -162,14 +162,14 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             
             .tr{
                 display: flex;
-                height: auto;               
-                padding: 2px;                
+                height: auto;
+                padding: 2px;
             }
-            
-            .bb{
-                border-bottom: 1px solid lightgray;   
-            }
-            
+        
+        .bb{
+            border-bottom: 1px solid lightgray;
+        }
+        
             .th{
                 height: auto!important;
                 font-weight: bold;
