@@ -342,6 +342,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     <template is="dom-if" if="[[!api.tokenId]]" restamp="true">                   
                         <paper-button on-tap="" class="button button--other" disabled title="Pas de connexion ehealth active">[[localize('inv_send','Send',language)]]</paper-button>
                     </template>
+                    <paper-button class="button button--other" on-tap="getMessage">[[localize('refresh','Refresh',language)]]</paper-button>
                 </template>
             </div>
         </div>  
