@@ -2113,10 +2113,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
   }
 
   _readEid() {
-      fetch(`${_.get(this,"api.electronHost","http://127.0.0.1:16042")}/read`)
-          .then((response) => {
-              return response.json()
-          })
+      this.api.electron().read()
           .then(res => {
               if (res.cards[0]) {
                   this.set('firstName', res.cards[0].firstName)
