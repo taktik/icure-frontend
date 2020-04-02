@@ -95,6 +95,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             .statusIcon{
                 height: 8px;
                 width: 8px;
+                background: transparent !important
             }
             .statusIcon.invoice-status--orangeStatus {
                 color: var(--app-status-color-pending);
@@ -338,7 +339,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     <template is="dom-if" if="[[api.tokenId]]">                    
                         <paper-button on-tap="_checkBeforeSend" class="button button--save" disabled="[[cannotSend]]">[[localize('inv_send','Send',language)]]</paper-button>
                     </template>
-                    <template is="dom-if" if="[[!api.tokenId]]">                   
+                    <template is="dom-if" if="[[!api.tokenId]]" restamp="true">                   
                         <paper-button on-tap="" class="button button--other" disabled title="Pas de connexion ehealth active">[[localize('inv_send','Send',language)]]</paper-button>
                     </template>
                 </template>
@@ -575,6 +576,8 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['insuranceCode'], ['asc']))
                 }
             }, 100)
+        }else{
+            this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['insuranceCode'], ['asc']))
         }
     }
 
