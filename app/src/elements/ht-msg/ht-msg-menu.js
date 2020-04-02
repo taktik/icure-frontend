@@ -136,11 +136,11 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
 
             collapse-button .menu-item.iron-selected,
             collapse-button paper-item.iron-selected{
-\t\t\t\t@apply --padding-menu-item;
-\t\t\t\tcolor:var(--app-text-color-light);
-\t\t\t\tbackground:var(--app-primary-color);
-\t\t\t\t@apply --text-shadow;
-\t\t\t}
+            @apply --padding-menu-item;
+            color:var(--app-text-color-light);
+            background:var(--app-primary-color);
+            @apply --text-shadow;
+}
 
             collapse-button paper-item.iron-selected{
                 background: var(--app-background-color-dark);
@@ -161,13 +161,13 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                 background: var(--app-primary-color);
             }
 
-\t\t\tcollapse-button paper-item iron-icon, paper-item iron-icon{
-\t\t\t\theight: 20px;
-\t\t\t\twidth: 20px;
-\t\t\t\tpadding:4px;
-\t\t\t\tcolor: var(--app-text-color);
-\t\t\t\topacity: .5;
-\t\t\t}
+            collapse-button paper-item iron-icon, paper-item iron-icon{
+                height: 20px;
+                width: 20px;
+                padding:4px;
+                color: var(--app-text-color);
+                opacity: .5;
+            }
 
             collapse-button paper-icon-button{
                 min-width: 40px;
@@ -195,23 +195,23 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                 height:48px;
             }
 
-\t\t\t.menu-item{
-\t\t\t\t@apply --padding-menu-item;
-\t\t\t\theight:48px;
-\t\t\t\t@apply --paper-font-button;
-\t\t\t\ttext-transform: inherit;
-\t\t\t\tjustify-content: space-between;
-\t\t\t\tcursor: pointer;
-\t\t\t\t@apply --transition;
-\t\t\t}
+            .menu-item{
+            @apply --padding-menu-item;
+            height:48px;
+            @apply --paper-font-button;
+            text-transform: inherit;
+            justify-content: space-between;
+            cursor: pointer;
+            @apply --transition;
+            }
 
-\t\t\t.sublist .menu-item {
-\t\t\t\tfont-size: 13px;
-\t\t\t\tmin-height:32px;
-\t\t\t\theight:32px;
-\t\t\t\tpadding-left: 8px;
-\t\t\t}
-\t\t\t.sublist .menu-item.flex-start {
+            .sublist .menu-item {
+            font-size: 13px;
+            min-height:32px;
+            height:32px;
+            padding-left: 8px;
+            }
+            .sublist .menu-item.flex-start {
                 justify-content: flex-start;
             }
 
@@ -425,18 +425,18 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                 max-width: 100%;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-\t\t\t\toverflow: hidden;
-\t\t\t\talign-items: center;
-\t\t\t\tdisplay: flex;
-\t\t\t\tflex-flow: row nowrap;
-\t\t\t\tjustify-content: flex-start;
-\t\t\t}
+            overflow: hidden;
+            align-items: center;
+            display: flex;
+            flex-flow: row nowrap;
+            justify-content: flex-start;
+            }
 
-\t\t\t.one-line-menu.list-title > div {
-\t\t\t\tmax-width: 100%;
-\t\t\t\toverflow: hidden;
-\t\t\t\ttext-overflow: ellipsis;
-\t\t\t}
+            .one-line-menu.list-title > div {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            }
 
             #inbox {
                 flex-direction: row;
