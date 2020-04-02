@@ -51,7 +51,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-detail{
-                height: 80px;
+                height: 60px;
                 width: auto;
                 font-size: var(--font-size-normal);
             }
@@ -63,7 +63,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-content{
-                height: calc(100% - 200px);
+                height: calc(100% - 180px);
                 width: auto;
             }
             
@@ -290,7 +290,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         
         <div class="panel">
            <div class="panel-title">
-                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]]          
+                [[localize('inv-num-detail', 'Detail of batch number', language)]] [[_getInvoiceReference(selectedInvoiceForDetail)]] [[localize('inv-oa-title', 'for oa', language)]] [[selectedInvoiceForDetail.messageInfo.oa]]         
             </div>
             <div class="panel-detail">
                 <div class="table">

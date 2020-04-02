@@ -218,6 +218,57 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 cursor: pointer;
             }
             
+            .modalDialog{
+                height: 350px;
+                width: 600px;
+            }
+
+             .modalDialogContent{
+                  height: calc(100% - 69px);
+                  width: auto;
+                  margin: 0;
+                  background-color: white;
+                  position: relative;
+                  padding: 10px;
+             }
+             
+             #warningBeforeSend{
+                    height: 500px;
+                    width: 800px;
+             }
+
+             .unsentInvoice{
+                 height: 250px;
+                 width: auto;
+             }
+
+             previousCheck{
+                 height: 100px;
+                 width: auto;
+             }
+
+             .errorBeforeSendInvoice{
+                 color: var(--app-status-color-nok);
+                 font-weight: bold;
+             }
+
+             #patientsWithoutAssurabilityGrid{
+                 max-height: 200px;
+                 overflow: auto;
+             }
+             
+             .sendingSpinner{
+                height: 100px!important;
+                width: 100px!important;
+                margin: auto;
+             }
+             
+             .prossessList{
+                height: calc(100% - 100px);
+                width: auto;
+                padding: 4px;
+             }
+            
         </style>
         
         <div class="panel">
@@ -283,11 +334,13 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 </div>
             </div>
             <div class="panel-button">
-                <template is="dom-if" if="[[api.tokenId]]">                    
-                    <paper-button on-tap="_checkBeforeSend" class="button button--save" disabled="[[cannotSend]]">[[localize('inv_send','Send',language)]]</paper-button>
-                </template>
-                <template is="dom-if" if="[[!api.tokenId]]">                   
-                    <paper-button on-tap="" class="button button--other" disabled title="Pas de connexion ehealth active">[[localize('inv_send','Send',language)]]</paper-button>
+                <template is="dom-if" if="[[!isLoading]]" restamp="true">
+                    <template is="dom-if" if="[[api.tokenId]]">                    
+                        <paper-button on-tap="_checkBeforeSend" class="button button--save" disabled="[[cannotSend]]">[[localize('inv_send','Send',language)]]</paper-button>
+                    </template>
+                    <template is="dom-if" if="[[!api.tokenId]]">                   
+                        <paper-button on-tap="" class="button button--other" disabled title="Pas de connexion ehealth active">[[localize('inv_send','Send',language)]]</paper-button>
+                    </template>
                 </template>
             </div>
         </div>  
@@ -364,6 +417,20 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                 </template>
             </div>
         </paper-dialog>  
+        
+         <paper-dialog class="modalDialog" id="sendingDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('inv-trt-in-prog','treatment in progress',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <div class="sendingSpinner">
+                    <ht-spinner active="[[isSending]]"></ht-spinner>
+                </div>
+                <div class="prossessList">
+                   <template is="dom-repeat" items="[[progressItem]]" as="pi">
+                      <div>[[pi]]</div>
+                   </template>
+                </div>     
+            </div>        
+        </paper-dialog>
 `
     }
 
@@ -429,6 +496,14 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             isLoading:{
                 type: Boolean,
                 value: false
+            },
+            isSending:{
+                type: Boolean,
+                value: false
+            },
+            progressItem:{
+                type: Array,
+                value: () => []
             }
         }
     }
@@ -505,13 +580,12 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
 
     _checkBeforeSend(){
 
-        this.set('checkBeforeSendEfact.inamiCheck', !!_.get(this.hcp, 'nihii', null))
-        this.set('checkBeforeSendEfact.ssinCheck', !!_.get(this.hcp, 'ssin', null))
-        this.set('checkBeforeSendEfact.bceCheck', !!_.get(this.hcp, 'cbe', null))
+        this.set('checkBeforeSendEfact.inamiCheck', !_.get(this.hcp, 'nihii', null))
+        this.set('checkBeforeSendEfact.ssinCheck', !_.get(this.hcp, 'ssin', null))
+        this.set('checkBeforeSendEfact.bceCheck', !_.get(this.hcp, 'cbe', null))
 
-        this.set('checkBeforeSendEfact.ibanCheck', !!_.get(this.hcp, 'bankAccount', null) || !!_.get(this.hcp, 'financialInstitutionInformation[0].bankAccount', null))
-        this.set('checkBeforeSendEfact.bicCheck', !!_.get(this.hcp, 'bic', null) || !!_.get(this.hcp, 'financialInstitutionInformation[0].bic', null))
-
+        this.set('checkBeforeSendEfact.ibanCheck', !((this.hcp && this.hcp.bankAccount && this.hcp.nihii.bankAccount) || (this.hcp && this.hcp.financialInstitutionInformation && this.hcp.financialInstitutionInformation[0] && this.hcp.financialInstitutionInformation[0].bankAccount)))
+        this.set('checkBeforeSendEfact.bicCheck', !((this.hcp && this.hcp.bic && this.hcp.bic.length) || (this.hcp && this.hcp.financialInstitutionInformation && this.hcp.financialInstitutionInformation[0] && this.hcp.financialInstitutionInformation[0].bic)))
         this.set('patientWithoutMutuality', _.get(this, 'listOfInvoice', []).filter(inv => inv.insurabilityCheck === false) || [])
 
         this.set('checkBeforeSendEfact.invoiceCheck100',this.checkIfDoubleInvoiceNumber(_.get(this, 'listOfInvoice', []), 100, 200))
@@ -534,13 +608,26 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
         }
     }
 
+    checkIfDoubleInvoiceNumber(invoices, startOfRange, endOfRange){
+        if(startOfRange === 300 && endOfRange === 400){
+            return _.uniq(_.sortBy(invoices.filter(i => i.insuranceCode >= startOfRange && i.insuranceCode < endOfRange && i.insuranceCode !== "306").map( i => parseInt(i.invoiceReference)))).length === _.sortBy(invoices.filter(i => i.insuranceCode >= startOfRange && i.insuranceCode < endOfRange && i.insuranceCode !== "306").map( i => parseInt(i.invoiceReference))).length
+        }else{
+            return _.uniq(_.sortBy(invoices.filter(i => i.insuranceCode >= startOfRange && i.insuranceCode < endOfRange).map( i => parseInt(i.invoiceReference)))).length === _.sortBy(invoices.filter(i => i.insuranceCode >= startOfRange && i.insuranceCode < endOfRange).map( i => parseInt(i.invoiceReference))).length
+        }
+    }
+
     sendInvoices(){
         //todo
+        this.set('progressItem', [])
+
         const LastSend = parseInt(localStorage.getItem('lastInvoicesSent')) ? parseInt(localStorage.getItem('lastInvoicesSent')) : -1
         const maySend = (LastSend < Date.now() + 24*60*60000 || LastSend===-1)
         if (maySend) {
             this.set('cannotSend',true)
             localStorage.setItem('lastInvoicesSent', Date.now())
+            this.shadowRoot.querySelector('#sendingDialog').open()
+            this.set('isSending', true)
+            this.push('progressItem', this.localize('inv-step-1', 'inv-step-1', this.language))
 
             let prom = Promise.resolve()
             _.chain(_.head(_.chunk(this.listOfInvoice.filter(inv => inv.insurabilityCheck === true), 500)))
@@ -550,16 +637,18 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     prom = prom.then(() => this.api.message().sendBatch(this.user, this.hcp, invoices.map(iv=>({invoiceDto:iv.invoice, patientDto:iv.patient})), this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.api.fhc().Efactcontroller(),
                         undefined,
                         (fed, hcpId) => Promise.resolve(`efact:${hcpId}:${fed.code === "306" ? "300" : fed.code}:`))
-                    ).then(message => this.api.register(message,'message'))
+                    ).then(message => {
+                        this.push('progressItem', this.localize('inv-step-2', 'inv-step-2', this.language)+' '+_.get(fed, 'code', ""))
+                        this.api.register(message,'message')
+                    })
                 })
 
             return prom.then(() => {
                 this.set('isSending',false)
-                this.set("isMessagesLoaded",false)
+                this.shadowRoot.querySelector('#sendingDialog').close()
                 this.getMessage()
             })
         }
-
     }
 
     getMessage(){

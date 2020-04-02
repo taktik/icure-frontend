@@ -236,6 +236,20 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 width: 400px;
             }
             
+            .modalDialog{
+                height: 350px;
+                width: 600px;
+            }
+
+            .modalDialogContent{
+                 height: calc(100% - 69px);
+                 width: auto;
+                 margin: 0;
+                 background-color: white;
+                 position: relative;
+                 padding: 10px;
+            }
+            
         </style>
         
         <div class="panel">
@@ -293,13 +307,18 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
             </div>
         </div>   
         
-        <paper-dialog id="processMessage">           
-            <div>
-                <ht-spinner active="[[isProcessing]]"></ht-spinner>
-            </div>
-            <div>
-            
-            </div>
+         <paper-dialog class="modalDialog" id="receivingDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('inv-trt-in-prog','treatment in progress',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <div class="sendingSpinner">
+                    <ht-spinner active="[[isProcessing]]"></ht-spinner>
+                </div>
+                <div class="prossessList">
+                   <template is="dom-repeat" items="[[progressItem]]" as="pi">
+                      <div>[[pi]]</div>
+                   </template>
+                </div>     
+            </div>        
         </paper-dialog>
      
 `;
@@ -343,6 +362,10 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
             isProcessing:{
                 type: Boolean,
                 value: false
+            },
+            progressItem:{
+                type: Array,
+                value: () => []
             }
         };
     }
@@ -474,17 +497,18 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
     }
 
     receiveInvoices() {
-        this.set('_isLoading', true );
-        //this._setLoadingMessage({ message: "Réception des messages efact", icon:"arrow-forward"});
+
         const LastGet = parseInt(localStorage.getItem('lastInvoicesGet')) ? parseInt(localStorage.getItem('lastInvoicesGet')) : -1
         const mayGet = (LastGet < Date.now() + 60*60000 || LastGet===-1)
         if (mayGet) {
+            this.shadowRoot.querySelector('#receivingDialog').open()
+            this.set('isProcessing', true)
+            this.push('progressItem', this.localize('inv-get-step-1', 'inv-get-step-1', this.language))
             this.set('cannotGet',true)
             localStorage.setItem('lastInvoicesGet', Date.now())
             this.api.fhc().Efactcontroller().loadMessagesUsingGET(this.hcp.nihii, this.language, this.api.keystoreId, this.api.tokenId, this.api.credentials.ehpassword, this.hcp.ssin, this.hcp.firstName, this.hcp.lastName).then( x => this.api.logMcn(x, this.user, this.hcp.id, "eFact", "loadMessages") ).then(response => {
                 let prom = Promise.resolve()
-                //this._setLoadingMessage({ message: "Traitement des messages efacts", icon:"arrow-forward"});
-
+                this.push('progressItem', this.localize('inv-get-step-2', 'inv-get-step-2', this.language))
                 response.forEach(message => {
                     // console.log(message)
                     prom = prom.then(messages =>
@@ -519,6 +543,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
 
                 prom = prom.then(treatedMessages => {
                     console.log(treatedMessages)
+                    this.push('progressItem', this.localize('inv-get-step-3', 'inv-get-step-3', this.language))
 
                     let sprom = Promise.resolve()
                     _.chunk(treatedMessages, 20).forEach(chunk => {
@@ -535,9 +560,10 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                 })
 
                 return prom.then(() => {
+                    this.shadowRoot.querySelector('#receivingDialog').close()
+                    this.set('isProcessing', false)
                     this.set('isReceiving',false)
                     this.set("isMessagesLoaded",false)
-                    this.set('_isLoading', false);
                     this.getMessage()
                 })
             })
@@ -551,45 +577,6 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
     _getRefusedAmount(totalAmount, acceptedAmount){
         return this.findAndReplace(((Number(Number(totalAmount) - Number(acceptedAmount)).toFixed(2)).toString()),'.',',')
     }
-
-    /*
-        _transferInvoicesForResending(){
-          if(this.activeGridItem && this.activeGridItem.message && this.activeGridItem.message.id && this.activeGridItem.message.invoiceIds.length){
-              this.set('_isLoading', true );
-              this._setLoadingMessage({ message:this.localize('tran-inv',this.language), icon:"arrow-forward"});
-
-              let prom = Promise.resolve({})
-              this.api.setPreventLogging()
-              this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: this.activeGridItem.message.invoiceIds.map(id => id)}))
-                .then(invs => {
-                    invs.map(inv => {
-                        inv.invoicingCodes.map(ic => ic.pending = false)
-                        inv.sentDate = null
-                        prom = prom.then(invs => this.api.invoice().modifyInvoice(inv)
-                            .then(() => _.concat(invs, [inv]))
-                            .catch(e => console.log('Erreur lors du traitement de la facture', inv, e))
-                        )
-                    })
-
-                    return prom.then(() => {
-                        return this.api.message().getMessage(this.activeGridItem.message.id).then(msg => {
-                            this._setLoadingMessage({ message:this.localize('arch_mess',this.language), icon:"arrow-forward"});
-                            msg.status = (msg.status | (1 << 21))
-                            this.api.message().modifyMessage(msg)
-                                .then(msg => this.api.register(msg, 'message'))
-                                .then(msg => {
-                                    console.log(msg)
-                                    this.fetchMessageToBeSendOrToBeCorrected()
-                                    this.set('_isLoading', false );
-                                })
-                                .catch(e => console.log("Erreur lors de l'archivage du message", msg, e))
-                        })
-                    })
-                })
-                  .finally(()=>this.api.setPreventLogging(false))
-          }
-      }
-     */
 
 }
 
