@@ -136,11 +136,11 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
 
             collapse-button .menu-item.iron-selected,
             collapse-button paper-item.iron-selected{
-				@apply --padding-menu-item;
-				color:var(--app-text-color-light);
-				background:var(--app-primary-color);
-				@apply --text-shadow;
-			}
+            @apply --padding-menu-item;
+            color:var(--app-text-color-light);
+            background:var(--app-primary-color);
+            @apply --text-shadow;
+}
 
             collapse-button paper-item.iron-selected{
                 background: var(--app-background-color-dark);
@@ -161,13 +161,13 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                 background: var(--app-primary-color);
             }
 
-			collapse-button paper-item iron-icon, paper-item iron-icon{
-				height: 20px;
-				width: 20px;
-				padding:4px;
-				color: var(--app-text-color);
-				opacity: .5;
-			}
+            collapse-button paper-item iron-icon, paper-item iron-icon{
+                height: 20px;
+                width: 20px;
+                padding:4px;
+                color: var(--app-text-color);
+                opacity: .5;
+            }
 
             collapse-button paper-icon-button{
                 min-width: 40px;
@@ -195,23 +195,23 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                 height:48px;
             }
 
-			.menu-item{
-				@apply --padding-menu-item;
-				height:48px;
-				@apply --paper-font-button;
-				text-transform: inherit;
-				justify-content: space-between;
-				cursor: pointer;
-				@apply --transition;
-			}
+            .menu-item{
+            @apply --padding-menu-item;
+            height:48px;
+            @apply --paper-font-button;
+            text-transform: inherit;
+            justify-content: space-between;
+            cursor: pointer;
+            @apply --transition;
+            }
 
-			.sublist .menu-item {
-				font-size: 13px;
-				min-height:32px;
-				height:32px;
-				padding-left: 8px;
-			}
-			.sublist .menu-item.flex-start {
+            .sublist .menu-item {
+            font-size: 13px;
+            min-height:32px;
+            height:32px;
+            padding-left: 8px;
+            }
+            .sublist .menu-item.flex-start {
                 justify-content: flex-start;
             }
 
@@ -425,18 +425,18 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                 max-width: 100%;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-				overflow: hidden;
-				align-items: center;
-				display: flex;
-				flex-flow: row nowrap;
-				justify-content: flex-start;
-			}
+            overflow: hidden;
+            align-items: center;
+            display: flex;
+            flex-flow: row nowrap;
+            justify-content: flex-start;
+            }
 
-			.one-line-menu.list-title > div {
-				max-width: 100%;
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
+            .one-line-menu.list-title > div {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            }
 
             #inbox {
                 flex-direction: row;
@@ -490,16 +490,18 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
 
         </style>
 
+        
+        
         <div class="col-left">
 
             <template is="dom-if" if="[[showInbox()]]">
             <!-- PERSONAL mailbox -->
             <collapse-button id="inboxcollapse" opened>
-				<paper-item id="inbox" slot="sublist-collapse-item" class="menu-trigger menu-item opened iron-selected" on-tap="_inboxTapped" elevation="">
-					<div class="one-line-menu list-title inbox-line"><div><iron-icon icon="social:person" class="force-left"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('personalInbox','Personal inbox',language)]]</span></div></div>
-					<paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
-				</paper-item>
-				<paper-listbox id="inboxlist" class="menu-content sublist" selected="{{inboxSelectionIndex}}" selected-item="{{inboxSelectionItem}}" selectable="paper-item">
+                <paper-item id="inbox" slot="sublist-collapse-item" class="menu-trigger menu-item opened iron-selected" on-tap="_inboxTapped" elevation="">
+                    <div class="one-line-menu list-title inbox-line"><div><iron-icon icon="social:person" class="force-left"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('personalInbox','Personal inbox',language)]]</span></div></div>
+                    <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
+                </paper-item>
+                <paper-listbox id="inboxlist" class="menu-content sublist" selected="{{inboxSelectionIndex}}" selected-item="{{inboxSelectionItem}}" selectable="paper-item">
                     <paper-item class="one-line-menu menu-item flex-start" data-folder="inbox"><iron-icon icon="icons:home"></iron-icon> [[localize('inb','Inbox',language)]] <span class="batchNumber ehb_batchNumber batchGreen forceRight">[[personalEHealthBoxTotalsByFolder.inbox]]</span></paper-item>
                     <paper-item class="one-line-menu menu-item flex-start" data-folder="sent"><iron-icon icon="icons:send"></iron-icon> [[localize('sen_mes','Sent messages',language)]] <span class="batchNumber ehb_batchNumber batchBlue forceRight">[[personalEHealthBoxTotalsByFolder.sent]]</span></paper-item>
                     <paper-item class="one-line-menu menu-item flex-start" data-folder="hidden"><iron-icon icon="icons:visibility-off"></iron-icon> [[localize('hidden_msgs','Hidden messages',language)]] <span class="batchNumber ehb_batchNumber batchOrange forceRight">[[personalEHealthBoxTotalsByFolder.hidden]]</span></paper-item>
@@ -522,11 +524,11 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
 
             <!-- Documents -->
             <collapse-button id="documentboxcollapse">
-				<paper-item id="documentBox" slot="sublist-collapse-item" class="menu-trigger menu-item" on-tap="_documentBoxTapped" elevation="">
-					<div class="one-line-menu list-title inbox-line"><div><iron-icon icon="editor:insert-drive-file" class="force-left"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('documents','Documents',language)]]</span></div></div>
-					<paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
-				</paper-item>
-				<paper-listbox id="documentboxlist" class="menu-content sublist" selected="{{documentBoxSelectionIndex}}" selected-item="{{documentBoxSelectionItem}}" selectable="paper-item">
+                <paper-item id="documentBox" slot="sublist-collapse-item" class="menu-trigger menu-item" on-tap="_documentBoxTapped" elevation="">
+                    <div class="one-line-menu list-title inbox-line"><div><iron-icon icon="editor:insert-drive-file" class="force-left"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('documents','Documents',language)]]</span></div></div>
+                    <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
+                </paper-item>
+                <paper-listbox id="documentboxlist" class="menu-content sublist" selected="{{documentBoxSelectionIndex}}" selected-item="{{documentBoxSelectionItem}}" selectable="paper-item">
                     <paper-item class="one-line-menu menu-item flex-start" data-folder="todealwith"><iron-icon icon="icons:cloud-download"></iron-icon> [[localize('documentsToDealWith','Documents to deal with',language)]]<span class="batchNumber ehb_batchNumber batchOrange forceRight">[[docCounter.toDealWith]]</span></paper-item>
                     <paper-item class="one-line-menu menu-item flex-start" data-folder="dealtwith"><iron-icon icon="icons:cloud-done"></iron-icon> [[localize('documentsDealtWith','Documents dealt with',language)]]<span class="batchNumber ehb_batchNumber batchOrange forceRight">[[docCounter.archived]]</span></paper-item>
                 </paper-listbox>
@@ -540,7 +542,7 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                     <div class="one-line-menu list-title"><iron-icon icon="vaadin:invoice"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('serviceFeeInvoicing','Service fee invoicing',language)]]</span> <template is="dom-if" if="[[sendNumber]]"><span class="unreadNumber">[[sendNumber]]</span></template></div>
                     <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
                 </paper-item>
-                <paper-listbox id="invoiceboxlist" class="menu-content sublist" selected="{{invoiceSelectionIndex}}" selected-item="{{invoiceSelectionItem}}" selectable="paper-item">
+                <paper-listbox id="invoiceboxlist" class="menu-content sublist"  selected="{{invoiceSelectionIndex}}" selected-item="{{invoiceSelectionItem}}" selectable="paper-item">
                     <paper-item class="one-line-menu menu-item" id="e_invOut" data-status="toBeCorrected">[[localize('_e_inv_toBeCorrected','To be corrected',language)]] <span class="batchNumber batchToBeCorrected">[[batchCounter.toBeCorrected]]</span></paper-item>
                     <paper-item class="one-line-menu menu-item" id="e_invOut" data-status="toBeSend">[[localize('_e_inv_toBeSend','To be send',language)]] <span class="batchNumber batchToBeSend">[[batchCounter.toBeSend]]</span></paper-item>
                     <paper-item class="one-line-menu menu-item" id="e_invOut" data-status="process">[[localize('_e_inv_pro','Processing',language)]] <span class="batchNumber batchProcessed">[[batchCounter.processing]]</span></paper-item>
@@ -559,13 +561,15 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                                 <div class="one-line-menu list-title"><iron-icon icon="accessibility"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('flatrateInvoicing','Facturation au forfait',language)]]</span></div>
                                 <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
                             </paper-item>
-                            <paper-listbox id="flatRateInvoicingListingBoxList" class="menu-content sublist" selected="{{flatRateInvoicingSelectionIndex}}" selected-item="{{flatRateInvoicingSelectionItem}}" selectable="paper-item">
+                            <paper-listbox id="flatRateInvoicingListingBoxList" class="menu-content sublist"  selected="{{flatRateInvoicingSelectionIndex}}" selected-item="{{flatRateInvoicingSelectionItem}}" selectable="paper-item">
                                 <paper-item class="one-line-menu menu-item" id="e_flatraterptOut" data-status="rpt"><div class="one-line-menu list-title"><iron-icon icon="assignment-late"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('_e_flatrateinv_report','Report',language)]]</span></div></paper-item>
                             </paper-listbox>
                         </collapse-button>
                     </template>
                 </template>
             </template>
+
+
 
             <!-- Flatrate invoicing -->
             <template is="dom-if" if="[[isAMedicalHouse]]">
@@ -575,12 +579,12 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                     <div class="one-line-menu list-title"><iron-icon icon="accessibility"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('flatrateInvoicing','Facturation au forfait',language)]]</span></div>
                     <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
                 </paper-item>
-                    <paper-listbox id="flatRateInvoicingListingBoxList" class="menu-content sublist" selected="{{flatRateInvoicingSelectionIndex}}" selected-item="{{flatRateInvoicingSelectionItem}}" selectable="paper-item">
+                    <paper-listbox id="flatRateInvoicingListingBoxList" class="menu-content sublist"  selected="{{flatRateInvoicingSelectionIndex}}" selected-item="{{flatRateInvoicingSelectionItem}}" selectable="paper-item">
                     <paper-item class="one-line-menu menu-item" id="e_flatraterptOut" data-status="rpt"><div class="one-line-menu list-title"><iron-icon icon="assignment-late"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('_e_flatrateinv_report','Report',language)]]</span></div></paper-item>
                     <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j3"><div class="one-line-menu list-title"><iron-icon icon="view-headline"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('_e_flatrateinv_listing','Export listing',language)]]</span></div></paper-item>
                     <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="archivej3"><div class="one-line-menu list-title"><iron-icon icon="markunread-mailbox"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('_e_flatrateinv_archives_listing','Archives listing',language)]]</span></div></paper-item>
 
-                    <hr class="menuHr">
+                    <hr class="menuHr"/>
                     <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_toBeCorrected"><div class="one-line-menu list-title"><iron-icon icon="error"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_toBeCorrected','To be corrected',language)]]</span></div> <span class="batchNumber j20_batchNumber batchToBeCorrected">[[j20_batchCounter.error]]</span></paper-item>
                     <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_toBeSend"><div class="one-line-menu list-title"><iron-icon icon="send"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_toBeSend','To be send',language)]]</span></div> <!--<span class="batchNumber j20_batchNumber batchToBeSend">[[j20_batchCounter.xxx]]</span>--><span class="batchNumber j20_batchNumber batchToBeSend">+</span></paper-item>
                     <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_process"><div class="one-line-menu list-title"><iron-icon icon="cached"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_process','Processing',language)]]</span></div> <span class="batchNumber j20_batchNumber batchProcessed">[[j20_batchCounter.pending]]</span></paper-item>
@@ -594,6 +598,34 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
                     </collapse-button>
                 </template>
             </template>
+
+
+
+            <!-- Electronic flatrate invoicing -->
+            <template is="dom-if" if="[[isAMedicalHouse]]">
+                <template is="dom-if" if="[[medicalHouseBillingTypeIsFlatRate]]">
+                    <collapse-button id="flatRateInvoicingListingBoxCollapse">
+                        <paper-item id="flatRateInvoicingListingBox" slot="sublist-collapse-item" class="menu-trigger menu-item" on-tap="_flatRateInvoivingBoxTapped" elevation="">
+                            <div class="one-line-menu list-title"><iron-icon icon="accessibility"></iron-icon><span class="force-left force-ellipsis box-txt">[[localize('electronicFlatrateInvoicing','Facturation électronique du forfait',language)]]</span></div>
+                            <paper-icon-button class="menu-item-icon" icon="hardware:keyboard-arrow-down" hover="none" on-tap="toggleMenu"></paper-icon-button>
+                        </paper-item>
+                        <paper-listbox id="flatRateInvoicingListingBoxList" class="menu-content sublist"  selected="{{flatRateInvoicingSelectionIndex}}" selected-item="{{flatRateInvoicingSelectionItem}}" selectable="paper-item">
+                            <paper-item class="one-line-menu menu-item" id="e_memberData" data-status="mbd"><div class="one-line-menu list-title"><iron-icon icon="assignment-late"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('_e_memberData','Member data',language)]]</span></div></paper-item>
+
+                            <hr class="menuHr"/>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_toBeCorrected"><div class="one-line-menu list-title"><iron-icon icon="error"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_toBeCorrected','To be corrected',language)]]</span></div> <span class="batchNumber j20_batchNumber batchToBeCorrected">[[j20_batchCounter.error]]</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_toBeSend"><div class="one-line-menu list-title"><iron-icon icon="send"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_toBeSend','To be send',language)]]</span></div> <!--<span class="batchNumber j20_batchNumber batchToBeSend">[[j20_batchCounter.xxx]]</span>--><span class="batchNumber j20_batchNumber batchToBeSend">+</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_process"><div class="one-line-menu list-title"><iron-icon icon="cached"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_process','Processing',language)]]</span></div> <span class="batchNumber j20_batchNumber batchProcessed">[[j20_batchCounter.pending]]</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_reject"><div class="one-line-menu list-title"><iron-icon icon="cancel"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_reject','Rejected',language)]]</span></div> <span class="batchNumber j20_batchNumber batchRejected">[[j20_batchCounter.rejected]]</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_partiallyAccepted"><div class="one-line-menu list-title"><iron-icon icon="settings-backup-restore"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_partiallyAccepted','Partially accepted batches',language)]]</span></div> <span class="batchNumber j20_batchNumber batchToBeSend">[[j20_batchCounter.partiallyAccepted]]</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_accept"><div class="one-line-menu list-title"><iron-icon icon="check-circle"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_accept','Accepted',language)]]</span></div> <span class="batchNumber j20_batchNumber batchAccepted">[[j20_batchCounter.fullyAccepted]]</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_archive"><div class="one-line-menu list-title"><iron-icon icon="markunread-mailbox"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_archive','Archived',language)]]</span></div> <span class="batchNumber j20_batchNumber batchArchived">[[j20_batchCounter.archived]]</span></paper-item>
+                            <paper-item class="one-line-menu menu-item" id="e_flatrateinvOut" data-status="j20_reset"><div class="one-line-menu list-title"><iron-icon icon="error"></iron-icon> <span class="force-left force-ellipsis box-txt">[[localize('j20_reset','Reset',language)]]</span></div> <span class="batchNumber j20_batchNumber batchRed">[[j20_batchCounter.reset]]</span></paper-item>
+
+                        </paper-listbox>
+                    </collapse-button>
+                </template>
+            </template>
             </template>
 
         </div>
@@ -604,170 +636,170 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
       return 'ht-msg-menu';
   }
 
-  static get properties() {
-      return {
-          api: {
-              type: Object,
-              noReset: true
-          },
-          user: {
-              type: Object,
-              noReset: true
-          },
-          selectedContactItems: {
-              type: Array,
-              value: () => []
-          },
-          i18n: {
-              type: Object,
-              noReset: true
-          },
-          docCounter: {
-              type: Object,
-              value: () => ({
-                  toDealWith: 0,
-                  archived: 0
-              })
-          },
-          batchCounter: {
-              type: Object,
-              value: () => ({
-                  toBeSend: 0,
-                  toBeCorrected: 0,
-                  processing: 0,
-                  rejected: 0,
-                  accepted: 0,
-                  archived: 0
-              })
-          },
-          j20_batchCounter: {
-              type: Object,
-              value: () => ({
-                  archived: 0,
-                  error: 0,
-                  partiallyAccepted: 0,
-                  fullyAccepted: 0,
-                  rejected: 0,
-                  treated: 0,
-                  acceptedForTreatment: 0,
-                  successfullySentToOA: 0,
-                  pending: 0,
-                  reset: 0
-              })
-          },
-          personalEHealthBoxTotalsByFolder: {
-              type: Object,
-              value: () => ({
-                  inbox: 0,
-                  sent: 0,
-                  deleted: 0,
-                  hidden: 0,
-                  assigned: 0
-              })
-          },
-          inboxSelectionIndex: {
-              type: Number,
-              value: null
-          },
-          documentBoxSelectionIndex: {
-                                  type: Number,
-                                  value: null
-                              },
-          flatRateInvoicingSelectionIndex: {
-              type: Number,
-              value: null
-          },
+    static get properties() {
+        return {
+            api: {
+                type: Object,
+                noReset: true
+            },
+            user: {
+                type: Object,
+                noReset: true
+            },
+            selectedContactItems: {
+                type: Array,
+                value: () => []
+            },
+            i18n: {
+                type: Object,
+                noReset: true
+            },
+            docCounter: {
+                type: Object,
+                value: () => ({
+                    toDealWith: 0,
+                    archived: 0
+                })
+            },
+            batchCounter: {
+                type: Object,
+                value: () => ({
+                    toBeSend: 0,
+                    toBeCorrected: 0,
+                    processing: 0,
+                    rejected: 0,
+                    accepted: 0,
+                    archived: 0
+                })
+            },
+            j20_batchCounter: {
+                type: Object,
+                value: () => ({
+                    archived: 0,
+                    error: 0,
+                    partiallyAccepted: 0,
+                    fullyAccepted: 0,
+                    rejected: 0,
+                    treated: 0,
+                    acceptedForTreatment: 0,
+                    successfullySentToOA: 0,
+                    pending: 0,
+                    reset: 0
+                })
+            },
+            personalEHealthBoxTotalsByFolder: {
+                type: Object,
+                value: () => ({
+                    inbox: 0,
+                    sent: 0,
+                    deleted: 0,
+                    hidden: 0,
+                    assigned: 0
+                })
+            },
+            inboxSelectionIndex: {
+                type: Number,
+                value: null
+            },
+            documentBoxSelectionIndex: {
+                type: Number,
+                value: null
+            },
+            flatRateInvoicingSelectionIndex: {
+                type: Number,
+                value: null
+            },
           group: {
               type: String,
               value: null
           },
-          sentboxSelectionIndex: {
-              type: Number,
-              value: null
-          },
-          ehealthSession: {
-              type: Boolean,
-              value: false
-          },
-          currentHcp: {
-              type: Object,
-              value: {}
-          },
-          parentHcp: {
-              type: Object,
-              value: {}
-          },
-          isAMedicalHouse: {
-              type: Boolean,
-              value: false
-          },
-          isParentAMedicalHouse: {
-              type: Boolean,
-              value: false
-          },
-          medicalHouseBillingTypeIsFlatRate: {
-              type: Boolean,
-              value: false
-          }
-      };
-  }
+            sentboxSelectionIndex: {
+                type: Number,
+                value: null
+            },
+            ehealthSession: {
+                type: Boolean,
+                value: false
+            },
+            currentHcp: {
+                type: Object,
+                value: {}
+            },
+            parentHcp: {
+                type: Object,
+                value: {}
+            },
+            isAMedicalHouse: {
+                type: Boolean,
+                value: false
+            },
+            isParentAMedicalHouse: {
+                type: Boolean,
+                value: false
+            },
+            medicalHouseBillingTypeIsFlatRate: {
+                type: Boolean,
+                value: false
+            }
+        };
+    }
 
-  static get observers() {
-      return [
-          '_isConnectedToEhbox(api.tokenId)',
-          '_inboxSelectionIndexChanged(inboxSelectionIndex)',
-          '_documentBoxSelectionIndexChanged(documentBoxSelectionIndex)',
-          '_invoiceSelectionIndexChanged(invoiceSelectionIndex)',
-          '_flatRateInvoicingSelectionIndexChanged(flatRateInvoicingSelectionIndex)'
-      ];
-  }
+    static get observers() {
+        return [
+            '_isConnectedToEhbox(api.tokenId)',
+            '_inboxSelectionIndexChanged(inboxSelectionIndex)',
+            '_documentBoxSelectionIndexChanged(documentBoxSelectionIndex)',
+            '_invoiceSelectionIndexChanged(invoiceSelectionIndex)',
+            '_flatRateInvoicingSelectionIndexChanged(flatRateInvoicingSelectionIndex)'
+        ];
+    }
 
-  constructor() {
-      super();
-  }
+    constructor() {
+        super();
+    }
 
-  ready() {
-      super.ready();
-  }
+    ready() {
+        super.ready();
+    }
 
-  _isConnectedToEhbox() {
-      this.set("ehealthSession", !!_.get(this,"api.tokenId"))
-  }
+    _isConnectedToEhbox() {
+        this.set("ehealthSession", !!this.api.tokenId)
+    }
 
-  toggleMenu(e) {
-      e.stopPropagation();
-      e.preventDefault();
-      styx.parent(e.target, el => el.tagName.toLowerCase() === 'collapse-button').toggle();
-      styx.parent(e.target, el => el.tagName.toLowerCase() === 'paper-item').classList.toggle('opened');
-  }
+    toggleMenu(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        styx.parent(e.target, el => el.tagName.toLowerCase() === 'collapse-button').toggle();
+        styx.parent(e.target, el => el.tagName.toLowerCase() === 'paper-item').classList.toggle('opened');
+    }
 
-  initializeDocCounter(e){
-      if (e.detail.folder == "todealwith")
-          this.set("docCounter.toDealWith", e.detail.count);
-      else
-          this.set("docCounter.archived", e.detail.count);
-  }
+    initializeDocCounter(e){
+        if (e.detail.folder == "todealwith")
+            this.set("docCounter.toDealWith", e.detail.count);
+        else
+            this.set("docCounter.archived", e.detail.count);
+    }
 
-  initializeBatchCounter(e){
-      this.set("batchCounter.toBeSend", e.detail.toBeSend)
-      this.set("batchCounter.toBeCorrected", e.detail.toBeCorrected)
-      this.set("batchCounter.processing", e.detail.processing)
-      this.set("batchCounter.rejected", e.detail.rejected)
-      this.set("batchCounter.accepted", e.detail.accepted)
-      this.set("batchCounter.archived", e.detail.archived)
-  }
+    initializeBatchCounter(e){
+        this.set("batchCounter.toBeSend", e.detail.toBeSend)
+        this.set("batchCounter.toBeCorrected", e.detail.toBeCorrected)
+        this.set("batchCounter.processing", e.detail.processing)
+        this.set("batchCounter.rejected", e.detail.rejected)
+        this.set("batchCounter.accepted", e.detail.accepted)
+        this.set("batchCounter.archived", e.detail.archived)
+    }
 
-  initializeBatchCounterJ20(e){
-      if(_.size(e.detail)) _.map(e.detail, (batchCount,batchKey) => this.set("j20_batchCounter." + batchKey , parseInt(batchCount)))
-  }
+    initializeBatchCounterJ20(e){
+        if(_.size(e.detail)) _.map(e.detail, (batchCount,batchKey) => this.set("j20_batchCounter." + batchKey , parseInt(batchCount)))
+    }
 
-  updatePersonalInboxMenuFoldersTotals(e){
-      if(_.size(e.detail)) _.map(e.detail, (totalMessages,folderName) => this.set("personalEHealthBoxTotalsByFolder." + folderName , parseInt(totalMessages)))
-  }
+    updatePersonalInboxMenuFoldersTotals(e){
+        if(_.size(e.detail)) _.map(e.detail, (totalMessages,folderName) => this.set("personalEHealthBoxTotalsByFolder." + folderName , parseInt(totalMessages)))
+    }
 
-  assignResolvedObjects(inputObjects) {
-      _.map(inputObjects, (v,k)=> this.set(k,v))
-  }
+    assignResolvedObjects(inputObjects) {
+        _.map(inputObjects, (v,k)=> this.set(k,v))
+    }
 
   showInvoicing() {
       return !this.get('group') || this.get('group') === 'invoicing'
@@ -777,129 +809,129 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
       return !this.get('group') || this.get('group') === 'inbox'
   }
 
-  _inboxTapped(e) {
-      e.stopPropagation()
-      e.preventDefault()
-      this.dispatchEvent(new CustomEvent('selection-change', {detail: {selection: {item: 'personalInbox', folder: 'inbox'}}}));
-      this.set('inboxSelectionIndex', null)
-      this.set('documentBoxSelectionIndex', null)
-      this.set('invoiceSelectionIndex', null)
-      this.set('flatRateInvoicingSelectionIndex', null)
-      this.$.inbox.classList.add('iron-selected')
-      this.$.documentBox.classList.remove('iron-selected')
-      this.$.invoicebox.classList.remove('iron-selected')
-      this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-  }
+    _inboxTapped(e) {
+        e.stopPropagation()
+        e.preventDefault()
+        this.dispatchEvent(new CustomEvent('selection-change', {detail: {selection: {item: 'personalInbox', folder: 'inbox'}}}));
+        this.set('inboxSelectionIndex', null)
+        this.set('documentBoxSelectionIndex', null)
+        this.set('invoiceSelectionIndex', null)
+        this.set('flatRateInvoicingSelectionIndex', null)
+        this.$.inbox.classList.add('iron-selected')
+        this.$.documentBox.classList.remove('iron-selected')
+        this.$.invoicebox.classList.remove('iron-selected')
+        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+    }
 
-  _inboxSelectionIndexChanged() {
-      if (this.inboxSelectionIndex !== null && this.inboxSelectionIndex !== undefined) {
-          this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: "personalInbox", folder: _.trim(_.get(this,"inboxSelectionItem.dataset.folder","inbox")) } } }));
-          this.set('invoiceSelectionIndex', null)
-          this.set('documentBoxSelectionIndex', null)
-          this.set('flatRateInvoicingSelectionIndex', null)
-          this.$.inbox.classList.remove('iron-selected')
-          this.$.documentBox.classList.remove('iron-selected')
-          this.$.invoicebox.classList.remove('iron-selected')
-          this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-      }
-  }
+    _inboxSelectionIndexChanged() {
+        if (this.inboxSelectionIndex !== null && this.inboxSelectionIndex !== undefined) {
+            this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: "personalInbox", folder: _.trim(_.get(this,"inboxSelectionItem.dataset.folder","inbox")) } } }));
+            this.set('invoiceSelectionIndex', null)
+            this.set('documentBoxSelectionIndex', null)
+            this.set('flatRateInvoicingSelectionIndex', null)
+            this.$.inbox.classList.remove('iron-selected')
+            this.$.documentBox.classList.remove('iron-selected')
+            this.$.invoicebox.classList.remove('iron-selected')
+            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        }
+    }
 
-  _documentBoxTapped(e) {
-      e.stopPropagation()
-      e.preventDefault()
-      this.dispatchEvent(new CustomEvent('selection-change', {detail: {selection: {item: 'documentBox', folder: 'todealwith'}}}));
-      this.set('inboxSelectionIndex', null)
-      this.set('documentBoxSelectionIndex', null)
-      this.set('invoiceSelectionIndex', null)
-      this.set('flatRateInvoicingSelectionIndex', null)
-      this.$.inbox.classList.remove('iron-selected')
-      this.$.documentBox.classList.add('iron-selected')
-      this.$.invoicebox.classList.remove('iron-selected')
-      this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-  }
+    _documentBoxTapped(e) {
+        e.stopPropagation()
+        e.preventDefault()
+        this.dispatchEvent(new CustomEvent('selection-change', {detail: {selection: {item: 'documentBox', folder: 'todealwith'}}}));
+        this.set('inboxSelectionIndex', null)
+        this.set('documentBoxSelectionIndex', null)
+        this.set('invoiceSelectionIndex', null)
+        this.set('flatRateInvoicingSelectionIndex', null)
+        this.$.inbox.classList.remove('iron-selected')
+        this.$.documentBox.classList.add('iron-selected')
+        this.$.invoicebox.classList.remove('iron-selected')
+        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+    }
 
-  _documentBoxSelectionIndexChanged() {
-      if (this.documentBoxSelectionIndex !== null && this.documentBoxSelectionIndex !== undefined) {
-          this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: "documentBox", folder: _.trim(_.get(this,"documentBoxSelectionItem.dataset.folder","todealwith")) } } }));
-          this.set('inboxSelectionIndex', null)
-          this.set('invoiceSelectionIndex', null)
-          this.set('flatRateInvoicingSelectionIndex', null)
-          this.$.inbox.classList.remove('iron-selected')
-          this.$.documentBox.classList.remove('iron-selected')
-          this.$.invoicebox.classList.remove('iron-selected')
-          this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-      }
-  }
+    _documentBoxSelectionIndexChanged() {
+        if (this.documentBoxSelectionIndex !== null && this.documentBoxSelectionIndex !== undefined) {
+            this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: "documentBox", folder: _.trim(_.get(this,"documentBoxSelectionItem.dataset.folder","todealwith")) } } }));
+            this.set('inboxSelectionIndex', null)
+            this.set('invoiceSelectionIndex', null)
+            this.set('flatRateInvoicingSelectionIndex', null)
+            this.$.inbox.classList.remove('iron-selected')
+            this.$.documentBox.classList.remove('iron-selected')
+            this.$.invoicebox.classList.remove('iron-selected')
+            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        }
+    }
 
-  _invoiceboxTapped(e){
-      e.stopPropagation()
-      e.preventDefault()
-      this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_invOut', status: 'toBeSend'} } }));
-      this.set('inboxSelectionIndex', null)
-      this.set('documentBoxSelectionIndex', null)
-      this.set('invoiceSelectionIndex', null)
-      this.set('flatRateInvoicingSelectionIndex', null)
-      this.$.inbox.classList.remove('iron-selected')
-      this.$.documentBox.classList.remove('iron-selected')
-      this.$.invoicebox.classList.add('iron-selected')
-      this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-  }
+    _invoiceboxTapped(e){
+        e.stopPropagation()
+        e.preventDefault()
+        this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_invOut', status: 'toBeSend'} } }));
+        this.set('inboxSelectionIndex', null)
+        this.set('documentBoxSelectionIndex', null)
+        this.set('invoiceSelectionIndex', null)
+        this.set('flatRateInvoicingSelectionIndex', null)
+        this.$.inbox.classList.remove('iron-selected')
+        this.$.documentBox.classList.remove('iron-selected')
+        this.$.invoicebox.classList.add('iron-selected')
+        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+    }
 
-  _invoiceSelectionIndexChanged() {
-      if (this.invoiceSelectionIndex !== null && this.invoiceSelectionIndex !== undefined) {
-          this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: this.invoiceSelectionItem.id, status: this.invoiceSelectionItem.dataset.status } } }));
-          this.set('inboxSelectionIndex', null)
-          this.set('documentBoxSelectionIndex', null)
-          this.set('flatRateInvoicingSelectionIndex', null)
-          this.$.inbox.classList.remove('iron-selected')
-          this.$.documentBox.classList.remove('iron-selected')
-          this.$.invoicebox.classList.remove('iron-selected')
-          this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-      }
-  }
+    _invoiceSelectionIndexChanged() {
+        if (this.invoiceSelectionIndex !== null && this.invoiceSelectionIndex !== undefined) {
+            this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: this.invoiceSelectionItem.id, status: this.invoiceSelectionItem.dataset.status } } }));
+            this.set('inboxSelectionIndex', null)
+            this.set('documentBoxSelectionIndex', null)
+            this.set('flatRateInvoicingSelectionIndex', null)
+            this.$.inbox.classList.remove('iron-selected')
+            this.$.documentBox.classList.remove('iron-selected')
+            this.$.invoicebox.classList.remove('iron-selected')
+            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        }
+    }
 
-  _flatRateInvoivingBox2Tapped(e){
-      e.stopPropagation()
-      e.preventDefault()
-      console.log('_flatRateInvoivingBox2Tapped')
-      this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_flatraterptOut', status: 'rpt'} } }));
-      this.set('inboxSelectionIndex', null)
-      this.set('documentBoxSelectionIndex', null)
-      this.set('invoiceSelectionIndex', null)
-      this.set('flatRateInvoicingSelectionIndex', null)
-      this.$.inbox.classList.remove('iron-selected')
-      this.$.documentBox.classList.remove('iron-selected')
-      this.$.invoicebox.classList.remove('iron-selected')
-      this.$.flatRateInvoicingListingBox2 && this.$.flatRateInvoicingListingBox2.classList.add('iron-selected')
-  }
+    _flatRateInvoivingBox2Tapped(e){
+        e.stopPropagation()
+        e.preventDefault()
+        console.log('_flatRateInvoivingBox2Tapped')
+        this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_flatraterptOut', status: 'rpt'} } }));
+        this.set('inboxSelectionIndex', null)
+        this.set('documentBoxSelectionIndex', null)
+        this.set('invoiceSelectionIndex', null)
+        this.set('flatRateInvoicingSelectionIndex', null)
+        this.$.inbox.classList.remove('iron-selected')
+        this.$.documentBox.classList.remove('iron-selected')
+        this.$.invoicebox.classList.remove('iron-selected')
+        this.$.flatRateInvoicingListingBox2 && this.$.flatRateInvoicingListingBox2.classList.add('iron-selected')
+    }
 
-  _flatRateInvoivingBoxTapped(e){
-      e.stopPropagation()
-      e.preventDefault()
-      console.log('_flatRateInvoivingBoxTapped')
-      this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_flatrateinvOut', status: 'j3'} } }));
-      this.set('inboxSelectionIndex', null)
-      this.set('documentBoxSelectionIndex', null)
-      this.set('invoiceSelectionIndex', null)
-      this.set('flatRateInvoicingSelectionIndex', null)
-      this.$.inbox.classList.remove('iron-selected')
-      this.$.documentBox.classList.remove('iron-selected')
-      this.$.invoicebox.classList.remove('iron-selected')
-      this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.add('iron-selected')
-  }
+    _flatRateInvoivingBoxTapped(e){
+        e.stopPropagation()
+        e.preventDefault()
+        console.log('_flatRateInvoivingBoxTapped')
+        this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_flatrateinvOut', status: 'j3'} } }));
+        this.set('inboxSelectionIndex', null)
+        this.set('documentBoxSelectionIndex', null)
+        this.set('invoiceSelectionIndex', null)
+        this.set('flatRateInvoicingSelectionIndex', null)
+        this.$.inbox.classList.remove('iron-selected')
+        this.$.documentBox.classList.remove('iron-selected')
+        this.$.invoicebox.classList.remove('iron-selected')
+        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.add('iron-selected')
+    }
 
-  _flatRateInvoicingSelectionIndexChanged() {
-      if (this.flatRateInvoicingSelectionIndex !== null && this.flatRateInvoicingSelectionIndex !== undefined) {
-          this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: this.flatRateInvoicingSelectionItem.id, status: this.flatRateInvoicingSelectionItem.dataset.status } } }));
-          this.set('inboxSelectionIndex', null)
-          this.set('documentBoxSelectionIndex', null)
-          this.set('invoiceSelectionIndex', null)
-          this.$.inbox.classList.remove('iron-selected')
-          this.$.documentBox.classList.remove('iron-selected')
-          this.$.invoicebox.classList.remove('iron-selected')
-          this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
-      }
-  }
+    _flatRateInvoicingSelectionIndexChanged() {
+        if (this.flatRateInvoicingSelectionIndex !== null && this.flatRateInvoicingSelectionIndex !== undefined) {
+            this.dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: this.flatRateInvoicingSelectionItem.id, status: this.flatRateInvoicingSelectionItem.dataset.status } } }));
+            this.set('inboxSelectionIndex', null)
+            this.set('documentBoxSelectionIndex', null)
+            this.set('invoiceSelectionIndex', null)
+            this.$.inbox.classList.remove('iron-selected')
+            this.$.documentBox.classList.remove('iron-selected')
+            this.$.invoicebox.classList.remove('iron-selected')
+            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        }
+    }
 }
 
 customElements.define(HtMsgMenu.is, HtMsgMenu);

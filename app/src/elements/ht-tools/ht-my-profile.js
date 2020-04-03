@@ -429,7 +429,21 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
                 }
             }
 
-		</style>
+            .loginError{
+                font-size: 10px;
+                color: var(--app-status-color-nok);
+                float: right;
+                margin-top: -34px;
+                margin-right: 10px;
+            }
+
+            .emailError{
+                font-size: 10px;
+                color: var(--app-status-color-nok);
+                margin-top: 27px;
+            }
+
+</style>
 
 		<paper-dialog id="dialog" class="myProfileDialog" opened="{{opened}}">
             <div class="administrative-panel">
@@ -457,7 +471,10 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
                             <vaadin-form-layout>
                                 <div class="col-lg-6 tile">
                                     <h2><iron-icon icon="communication:vpn-key"></iron-icon> [[localize('login_opt','Login option',language)]]</h2>
-                                    <paper-input label="Login*" value="{{user.login}}" readonly=""></paper-input>
+                                    <paper-input label="Login*" value="{{user.login}}"></paper-input>
+                                    <template is="dom-if" if="[[!loginVerification]]">
+                                         <div class="loginError">[[localize('invalid-login', 'Login not valid, you must use an email', language)]]</div>
+                                     </template>
                                     <div class="line">
                                         <paper-input label="[[localize('password','Password',language)]]" value="{{userPassword}}" type="password"></paper-input>
                                         <paper-input label="Confirmation" value="{{userConfirmation}}" type="password" disabled="[[!userPassword.length]]"></paper-input>
@@ -526,8 +543,7 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
 
                                         <vaadin-combo-box id="supervisor-search" filtered-items="[[supervisorListItem]]" item-label-path="hrLabel" item-value-path="id" on-filter-changed="_superVisorSearch" on-keydown="isEnterPressed" label="[[localize('supervisor','Votre médecin référent (uniquement si vous êtes stagiaire)',language)]]" value="{{supervisorId}}">
                                         </vaadin-combo-box>
-                                    </template>
-
+                                    </template>                                    
                                 </div>
 
                                 <div class="col-lg-6 tile">
@@ -592,6 +608,9 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
                                     <div class="line">
                                         <paper-input label="[[localize('phone','Phone',language)]] *" value="{{adr.phoneNumber}}"></paper-input>
                                         <paper-input label="[[localize('email','Email',language)]] *" value="{{adr.proMail}}"></paper-input>
+                                        <template is="dom-if" if="[[!emailProVerification]]">
+                                            <div class="emailError">[[localize('invalid-email', 'Email not valid', language)]]</div>
+                                        </template>
                                     </div>
                                 </div>
                                 <template is="dom-if" if="[[!_isMedicalHouse(hcp.type)]]">
@@ -734,7 +753,12 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
                 <template is="dom-if" if="[[_isEdmgRegitrationAvailable(allEDmgregistered, tabs)]]">
                    <paper-button on-tap="_registerToEDMG" class="button button--other">[[localize('reg_dmg','Register to eDmg',language)]]</paper-button>
                 </template>
-				<paper-button class="button button--save" autofocus="" on-tap="confirm">[[localize('save','Save',language)]]</paper-button>
+				<template is="dom-if" if="[[_canSaveInfo(emailProVerification, loginVerification)]]">
+                     <paper-button class="button button--save" autofocus on-tap="confirm">[[localize('save','Save',language)]]</paper-button>
+                 </template>
+                 <template is="dom-if" if="[[!_canSaveInfo(emailProVerification, loginVerification)]]">
+                     <paper-button class="button button--save" disabled>[[localize('save','Save',language)]]</paper-button>
+                 </template>
 			</div>
 		</paper-dialog>
 `;
@@ -925,12 +949,20 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
               type:String,
               value:'',
               observer : 'setHcp'
+          },
+          loginVerification:{
+              type: Boolean,
+              value: false
+          },
+          emailProVerification:{
+              type: Boolean,
+              value: false
           }
       };
   }
 
   static get observers() {
-      return ['apiReady(api,user,opened)', '_userChanged(user)', '_autoMailChanged(receiveMailAuto)', '_selectedPrinterChanged(selectedPrinter.*)'];
+      return ['apiReady(api,user,opened)', '_userChanged(user)', '_autoMailChanged(receiveMailAuto)', '_selectedPrinterChanged(selectedPrinter.*)', '_isValidLogin(user, user.login)', '_isValidEmailPro(adr, adr.proMail)', '_canSaveInfo(emailProVerification, loginVerification)'];
   }
 
   ready() {
@@ -1278,12 +1310,12 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
           //     .finally(() => this.$.dialog.close())
           if(!_.isEmpty(this.adr))this.addressProChanged();
           Promise.all([this.api.user().modifyUser(this.user), this.api.hcparty().modifyHealthcareParty(this.hcp)])
-          .then(([user,hcp]) => {
-              this.api.register(hcp,'hcp');
-              this.dispatchEvent(new CustomEvent('user-saved', {detail: user, bubbles: true, composed: true}))
-              this.$.dialog.close()
-          })
-          .catch(err => console.error(err))
+              .then(([user,hcp]) => {
+                  this.api.register(hcp,'hcp');
+                  this.dispatchEvent(new CustomEvent('user-saved', {detail: user, bubbles: true, composed: true}))
+                  this.$.dialog.close()
+              })
+              .catch(err => console.error(err))
 
       }
   }
@@ -1516,6 +1548,17 @@ class HtExportKey extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
 
   _isEdmgRegitrationAvailable(){
      return !_.get(this, 'allEDmgregistered', null) && _.get(this, "tabs", 0) === 3
+  }
+
+  _isValidLogin(){
+      setTimeout(() => this.api._isValidMail(_.get(this.user, 'login', null)) ? this.set('loginVerification', true) : this.set('loginVerification', false), 1000)
+
+  }
+  _isValidEmailPro(){
+      setTimeout(() => this.api._isValidMail(_.get(this.adr, 'proMail', null)) ? this.set('emailProVerification', true) : this.set('emailProVerification', false), 1000)
+  }
+  _canSaveInfo(){
+      return _.get(this, 'emailProVerification', false) && _.get(this, 'loginVerification', false)
   }
 }
 
