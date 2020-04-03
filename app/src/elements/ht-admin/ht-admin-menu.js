@@ -333,6 +333,10 @@ class HtAdminMenu extends TkLocalizerMixin(PolymerElement) {
                         <paper-item class="one-line-menu menu-item flex-start" id="account" data-submenu="printersInformationSubMenu">
                             <iron-icon class="sub-menu-icon" icon="icons:print"></iron-icon> [[localize('acc_print_info','Printers',language)]]
                         </paper-item>
+                        
+                        <paper-item class="one-line-menu menu-item flex-start" id="account" data-submenu="configurationElectronSubMenu">
+                            <iron-icon class="sub-menu-icon" icon="vaadin:cog"></iron-icon> [[localize('my-electron','my electron',language)]]
+                        </paper-item>
                     </template>
 
 
@@ -368,6 +372,11 @@ class HtAdminMenu extends TkLocalizerMixin(PolymerElement) {
                     <paper-item class="one-line-menu menu-item flex-start" id="reports" data-submenu="ageStructure">
                         <iron-icon class="sub-menu-icon" icon="icons:timeline"></iron-icon> [[localize('age_structure','Age structure',language)]]
                     </paper-item>
+
+                    <paper-item class="one-line-menu menu-item flex-start" id="reports" data-submenu="rashReport">
+                        <iron-icon class="sub-menu-icon" icon="icons:timeline"></iron-icon> [[localize('rash','RASH',language)]]
+                    </paper-item>
+
                 </paper-listbox>
             </collapse-button>
 

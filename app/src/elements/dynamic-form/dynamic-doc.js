@@ -103,13 +103,12 @@ class DynamicDoc extends TkLocalizerMixin(PolymerElement) {
                 display:flex;
                 justify-content: center;
                 align-items: center;
-                max-height:400px;
                 overflow: hidden;
             }
 
             .img-container img{
-                max-height:400px;
                 align-self: center;
+                width: inherit;
             }
 
             .txt-container {
@@ -1338,7 +1337,8 @@ class DynamicDoc extends TkLocalizerMixin(PolymerElement) {
       }
       this.set('isLoading',true)
 
-      const contact = _.find(this.contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(svc,"content."+ this.language +".documentId")) === _.trim(_.get(this,"documentId",""))));
+      const contac1 = _.find(this.contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(svc,"content."+ this.language +".documentId")) === _.trim(_.get(this,"documentId",""))));
+      const contact = _.find(this.contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(this.api.contact().preferredContent(svc, this.language), "documentId")) === _.trim(_.get(this,"documentId",""))));
       this.set("contact", contact);
       this.set("contactId", _.trim(_.get(this.contact,"id","")));
 
@@ -1654,7 +1654,7 @@ class DynamicDoc extends TkLocalizerMixin(PolymerElement) {
   }
 
   _contactId(contacts) {
-      const targetContact = _.find(contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(svc,"content."+ this.language +".documentId")) === _.trim(_.get(this,"document.id",""))))
+      const targetContact = _.find(contacts, ctc => _.some(_.get(ctc,"services",[]), svc => _.trim(_.get(this.api.contact().preferredContent(svc, this.language), "documentId")) === _.trim(_.get(this,"document.id",""))))
       return _.trim(_.get(targetContact,"id",""))
   }
 
