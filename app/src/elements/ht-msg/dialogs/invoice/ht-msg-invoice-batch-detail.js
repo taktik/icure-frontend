@@ -1173,7 +1173,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _getStatusOfInvoiceCode(codeStatus, invCode){
-        return invCode !== "En cours" ? codeStatus : invCode
+        return invCode !== "En cours" && invCode !== "En cours de traitement" ? codeStatus : invCode
     }
 
     _filterValueChanged(){
