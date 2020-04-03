@@ -743,7 +743,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
 
         </style>
 
-        <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" electron-host="[[electronUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
+        <icc-api id="api" host="[[icureUrl]]" fhc-host="[[fhcUrl]]" headers="[[headers]]" credentials="[[credentials]]"></icc-api>
 
         <paper-item id="noehealth" class="notification-panel noehealth">[[localize('no_ehe_con','No Ehealth connection ',language)]]
             <iron-icon icon="icons:warning"></iron-icon>
@@ -1397,10 +1397,6 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
               type : Boolean,
               value : false
           },
-          electronUrl: {
-              type: String,
-              value: "http://127.0.0.1:16042"
-          },
           mikronoProxy: {
               type: String
           },
@@ -1462,7 +1458,6 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
       const params = this.route.__queryParams //_.fromPairs((this.route.path.split('?')[1] || "").split('&').map(p => p.split('=')))
       this.set('icureUrl', params.icureUrl || `https://backendb.svc.icure.cloud/rest/v1`)//`https://backend${window.location.href.replace(/https?:\/\/.+?(b?)\.icure\.cloud.*/,'$1')}.svc.icure.cloud/rest/v1`)
       this.set('fhcUrl', params.fhcUrl || (window.location.href.includes('https://tzb') ? 'https://fhctz.icure.cloud' : 'https://fhctz.icure.cloud'))
-      this.set('electronUrl', params.electronUrl || 'http://127.0.0.1:16042');
       this.set('mikronoProxy', params.mikronoProxy || 'http://127.0.0.1:16041');
 
       this.set('defaultIcureUrl', this.icureUrl)
@@ -1524,7 +1519,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
       this.api.electron().checkAvailable().then(electron => {
           this.set("isElectron",electron)
           if (electron) {
-             this.set("socket",io(this._getDefaultElectronUrl()))
+             this.set("socket",io(this.host || "http://127.0.0.1:16042"))
 
               this.socket.on("connect", () => {
                   console.log("connection avec le socket de electron")
@@ -2682,10 +2677,6 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
   _isPatientView(){
       return this.route.path.includes("/pat")
   }
-
-    _getDefaultElectronUrl() {
-        return _.trim(_.get(this,"electronUrl")) ? _.trim(_.get(this,"electronUrl")) : "http://127.0.0.1:16042"
-    }
 }
 
 customElements.define(HtAppTz.is, HtAppTz)

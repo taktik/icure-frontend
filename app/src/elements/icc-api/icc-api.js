@@ -108,10 +108,6 @@ class IccApi extends PolymerElement {
           tmpLogging:{
               type:Boolean,
               value:false
-          },
-          electronHost: {
-              type: String,
-              value: "http://127.0.0.1:16042"
           }
       }
   }
@@ -176,7 +172,7 @@ class IccApi extends PolymerElement {
       this.bekmehricc = new IccBekmehrXApi(this.host, this.headers, this.contacticc, this.helementicc)
       this.accesslogicc = new IccAccesslogXApi(this.host, this.headers, this.cryptoicc)
       this.medexicc = new api.iccMedexApi(this.host, this.headers)
-      this.desktopApi = new ElectronApi(this.electronHost)
+      this.desktopApi = new ElectronApi(this.host || "http://127.0.0.1:16042")
 
 
 
