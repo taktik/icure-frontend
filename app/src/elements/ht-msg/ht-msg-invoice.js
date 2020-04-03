@@ -91,6 +91,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     list-of-invoice="[[messagesToBeCorrected]]"
                     is-loading="[[isLoading]]"
                     on-open-invoice-detail-panel="_openInvoiceDetailPanel"
+                    on-get-message="fetchMessageToBeSendOrToBeCorrected"
                 ></ht-msg-invoice-to-be-corrected>
             </template>  
             <template is="dom-if" if="[[_displayInvoicePanel(invoicesStatus, 'toBeSend')]]">
@@ -104,6 +105,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     list-of-invoice="[[selectedInvoicesToBeSend]]"
                     is-loading="[[isLoading]]"
                     on-open-invoice-detail-panel="_openInvoiceDetailPanel"
+                    on-get-message="fetchMessageToBeSendOrToBeCorrected"
                     >                   
                 </ht-msg-invoice-to-be-send>
             </template>   
