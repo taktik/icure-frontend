@@ -3251,18 +3251,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
       // Must click on a row
       if (e.path[0].nodeName === 'TABLE') return
       console.log(e.target.dataset.item)
-      fetch(`${_.get(this,"api.electronHost","http://127.0.0.1:16042")}/getPatient`, {
-          method: "POST",
-          headers: {
-              "Content-Type": "application/json; charset=utf-8"
-          },
-          body: JSON.stringify({
-              "patientId": e.target.dataset.item
-          })
-      })
-          .then((response) => {
-             return response.json()
-          })
+      this.api.electron().getPatient(e.target.dataset.item)
           .then(response => {if(response.code!==0){
               this.dispatchEvent(new CustomEvent("error-electron", {detail: {message : this.localize("pat-already-open","patient déjà ouvert",this.language)}, bubbles:true, composed:true }))
           }})

@@ -697,16 +697,7 @@ class IccApi extends PolymerElement {
           const optionsString = _.toPairs(options).map(([k, v]) => `${k}=${v}`).join('&')
           if(!optionsString.length) option.type="doc-big-format"
 
-          return (!electron || !type ? Promise.resolve(electron) : fetch(`${_.get(this,"electronHost","http://127.0.0.1:16042")}/getPrinterSetting`, {
-              method: "POST",
-              headers: {
-                  "Content-Type": "application/json; charset=utf-8"
-              },
-              body: JSON.stringify({
-                  userId: user.id
-              })
-          }))
-              .then(response => response && response.status===200 ? response.json() : Promise.resolve({}))
+          return (!electron || !type ? Promise.resolve(electron) : this.api.electron().getPrinterSetting(user.id)
               .then( data => {
                   const printersPrefs = electron && data && data.ok ? JSON.parse(data.data) : JSON.parse(localStorage.getItem('selectedPrinter') || '{}')
                   const stickersPrefs = electron && data && data.ok ? _.find(printersPrefs, pref => pref.type === "sticker-mut") || {} : _.get(printersPrefs,"stickers")
@@ -721,27 +712,26 @@ class IccApi extends PolymerElement {
 
                   return (printerName ? Promise.resolve(printerName) : this.printers().then(printers => printers.find(p => p.isDefault)).then(p => p && p.name))
                       .then(printerName =>
-                          fetch(`${electron && type && printerName ? _.get(this,"electronHost","http://127.0.0.1:16042") + '/print/' + encodeURIComponent(printerName) : 'https://report.icure.cloud/pdf'}${optionsString && optionsString.length ? `?${optionsString}` : ''}`, {
+                          (electron && type && printerName ? this.api.electron().print(html,encodeURIComponent(printerName)) : fetch(`${'https://report.icure.cloud/pdf'}${optionsString && optionsString.length ? `?${optionsString}` : ''}`, {
                               method: "POST",
                               mode: "cors", // no-cors, cors, *same-origin
                               credentials: "same-origin", // include, same-origin, *omit
                               headers: {"Content-Type": "text/html; charset=utf-8"},
                               redirect: "follow",
                               body: html,
-                          }).then(response => response.arrayBuffer()).then(data => ({
+                          })).then(response => response.arrayBuffer()).then(data => ({
                               pdf: data,
                               printed: electron && type && printerName
                           }))
                       )
-              })
+              }))
 
       })
   }
 
   printers() {
       return this.isElectronAvailable().then(electron =>
-          electron && fetch(`${_.get(this,"electronHost","http://127.0.0.1:16042")}/printers`, { method: "GET" })
-              .then(response => response.json()) || []
+          electron && this.api.electron().printers() || []
       )
   }
 
@@ -954,9 +944,7 @@ class IccApi extends PolymerElement {
   }
 
   isElectronAvailable() {
-      return fetch('http://127.0.0.1:16042/ok', {
-          method: "GET"
-      })
+      return this.api.electron().ok()
           .then(() => true)
           .catch(() => false)
   }
