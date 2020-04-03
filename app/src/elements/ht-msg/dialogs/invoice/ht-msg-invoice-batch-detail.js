@@ -1126,12 +1126,12 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         }
     }
 
-    _transferInvoicesForResending(e){
-        if(_.get(e, 'selectedInvoiceForDetail.message.id', {}) && _.size(_.get(e, 'selectedInvoiceForDetail.message.invoiceIds', [])) > 0){
+    _transferInvoicesForResending(){
+        if(_.get(this, 'selectedInvoiceForDetail.message.id', {}) && _.size(_.get(this, 'selectedInvoiceForDetail.message.invoiceIds', [])) > 0){
             this.set('isLoading', true);
             let prom = Promise.resolve({})
             this.api.setPreventLogging()
-            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(e, 'selectedInvoiceForDetail.message.invoiceIds', []).map(id => id)}))
+            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(this, 'selectedInvoiceForDetail.message.invoiceIds', []).map(id => id)}))
                 .then(invs => {
                     invs.map(inv => {
                         inv.invoicingCodes.map(ic => ic.pending = false)
@@ -1143,7 +1143,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                     })
 
                     return prom.then(() => {
-                        return this.api.message().getMessage(_.get(e, 'selectedInvoiceForDetail.message.id', {})).then(msg => {
+                        return this.api.message().getMessage(_.get(this, 'selectedInvoiceForDetail.message.id', {})).then(msg => {
                             msg.status = (msg.status | (1 << 21))
                             this.api.message().modifyMessage(msg)
                                 .then(msg => this.api.register(msg, 'message'))
