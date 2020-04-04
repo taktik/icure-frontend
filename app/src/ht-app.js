@@ -1880,7 +1880,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   _getToken() {
       if (this.staticToken) {
           this.set('api.tokenId', this.staticToken)
-          return promise.resolve(this.staticToken)
+          return Promise.resolve(this.staticToken)
       }
       return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
       {
