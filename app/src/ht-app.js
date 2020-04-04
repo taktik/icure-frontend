@@ -1752,7 +1752,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           console.log("page is -> " + page)
           const msgGroup = this.route.__queryParams.msgGroup
           const hideHeader = this.route.__queryParams.hideHeader
-          const staticToken = this.route.__queryParams.staticToken
+          const staticEhToken = this.route.__queryParams.staticEhToken
+          const staticEhKeystore = this.route.__queryParams.staticEhKeystore
           if (!this.icureUrl) { this.setUrls() }
           if (msgGroup && msgGroup.length) {
               this.set('msgGroup', msgGroup)
@@ -1761,8 +1762,11 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               this.set('hideHeader', hideHeader === 'true')
               this.appBodyLayout = hideHeader === 'true' ? "position: absolute; height: 100vh; width: 100vw; top:0; left:0;" : "position: absolute; height: calc(100vh - 64px); width: 100vw; top:64px; left:0;"
           }
-          if (staticToken) {
-              this.set('staticToken', staticToken)
+          if (staticEhToken) {
+              this.set('staticEhToken', staticEhToken)
+          }
+          if (staticEhKeystore) {
+              this.set('staticEhKeystore', staticEhKeystore)
           }
           if (!this.authenticated && (!page || !page.startsWith('auth'))) {
               if (sessionStorage.getItem('auth') || (this.route.__queryParams.token && this.route.__queryParams.userId)) {
@@ -1878,14 +1882,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   }
 
   _getToken() {
-      if (this.staticToken) {
-          this.set('api.tokenId', this.staticToken)
-          return Promise.resolve(this.staticToken)
-      }
       return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
       {
           const isMH = hcp.type && hcp.type.toLowerCase() === 'medicalhouse';
-          return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpassword, isMH ? hcp.nihii.substr(0,8): hcp.ssin, this.api.keystoreId, isMH).then(res => {
+          return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpassword, isMH ? hcp.nihii.substr(0,8): hcp.ssin, this.api.keystoreId, isMH, this.api.tokenId).then(res => {
               this.$.eHealthStatus.classList.remove('pending')
               this.$.eHealthStatus.classList.remove('disconnected')
               this.$.eHealthStatus.classList.add('connected')
@@ -2117,7 +2117,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   }
 
   uploadKeystoreAndCheckToken() {
-      if (this.staticToken) {
+      if (this.staticEhToken && this.staticEhKeystore) {
+          this.set('api.keystoreId', this.staticEhKeystore)
+          this.set('api.tokenId', this.staticEhToken)
           return this._getToken()
       }
       if (this.credentials.ehpassword) {
