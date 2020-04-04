@@ -269,7 +269,7 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
                 max-width: -webkit-fill-available!important;
                 width: 83vw !important;
                 max-height: initial !important;
-                height: calc(100vh - 28px);
+                height: calc(100% - 28px);
             }
 
             .spinner {
@@ -332,10 +332,10 @@ class HtMsgNew extends TkLocalizerMixin(PolymerElement) {
 
             @media screen and (max-width: 1030px) {
                 #new-msg {
-                    top: 64px !important;
+                     !important;
                     left: 0 !important;
                     width: 100vw !important;
-                    height: calc(100vh - 64px - 20px) !important;
+                    height: calc(100% - 20px) !important;
                 }
             }
 

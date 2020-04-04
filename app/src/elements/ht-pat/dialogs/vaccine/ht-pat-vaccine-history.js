@@ -104,10 +104,10 @@ class HtPatVaccineHistory extends TkLocalizerMixin(PolymerElement) {
                     min-width: 0!important;
                     max-height: none !important;
                     max-width: none !important;
-                    height: calc(100vh - 84px)!important;
+                    height: calc(100% - 84px)!important;
                     width: 100%;
                     margin: 0;
-                    top: 64px!important;
+                    !important;
                     left: 0 !important;
                     transform: none!important;
                 }

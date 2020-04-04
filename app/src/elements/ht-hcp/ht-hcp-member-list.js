@@ -61,9 +61,8 @@ class HtHcpMemberList extends TkLocalizerMixin(PolymerElement) {
 
             .container {
                 width: 80%;
-                height: calc(100vh - 84px);
-                position: fixed;
-                top: 64px;
+                height: calc(100% - 84px);
+                position: absolute;
                 left: 20%;
                 bottom: 0;
                 right: 0;

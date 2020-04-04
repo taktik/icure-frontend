@@ -43,14 +43,13 @@ class HtPatInvoicingDialog extends TkLocalizerMixin(mixinBehaviors([IronResizabl
             }
 
             #invoiceDialog {
-                height: calc(100vh - 40px);
+                height: calc(100% - 40px);
                 width: calc(100% - 40px);
                 z-index: 1100;
                 display: grid;
                 grid-template-columns: 20% 80%;
                 grid-template-rows: 100%;
                 position: fixed;
-                top: 64px;
                 left: 0;
                 bottom: 0;
                 right: 0;
@@ -1015,7 +1014,7 @@ class HtPatInvoicingDialog extends TkLocalizerMixin(mixinBehaviors([IronResizabl
                 paper-dialog#invoiceDialog {
                     max-width: none !important;
                     max-height: none !important;
-                    height: calc(100vh - 84px);
+                    height: calc(100% - 84px);
                     width: 100%;
                     margin: 0;
                 }

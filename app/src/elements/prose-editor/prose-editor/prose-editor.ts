@@ -296,7 +296,7 @@ export class ProseEditor extends PolymerElement {
                     overflow: auto;
                     position: relative;
                     background: var(--app-background-color);
-                    min-height:calc(100vh - 400px);
+                    min-height:calc(100% - 400px);
                 }
 
                 .status-bar {

@@ -220,9 +220,8 @@ class MedicationsSelectionDialog extends TkLocalizerMixin(PolymerElement) {
                 #checkintol {
                     position: fixed;
                     max-width: none !important;
-                    top: 64px;
                     left: 0;
-                    height: calc(100vh - 84px) !important;
+                    height: calc(100% - 84px) !important;
                     width: 100vw !important;
                     margin: 0;
                     transform: none;
@@ -248,7 +247,7 @@ class MedicationsSelectionDialog extends TkLocalizerMixin(PolymerElement) {
                     width: 100vw;
                     box-sizing: border-box;
                     overflow-y: auto;
-                    /*height: calc(100vh - 164px);*/
+                    /*height: calc(100% - 164px);*/
                     justify-content: flex-start;
                 }
                 .left-pane, .right-pane {

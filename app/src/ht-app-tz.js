@@ -92,7 +92,7 @@ import "@vaadin/vaadin-combo-box/vaadin-combo-box"
 import "@vaadin/vaadin-tabs/vaadin-tabs"
 import "@vaadin/vaadin-upload/vaadin-upload"
 import "@vaadin/vaadin-text-field/vaadin-text-field"
-import "@vaadin/vaadin-grid/vaadin-grid/"
+import "@vaadin/vaadin-grid/vaadin-grid"
 import "@vaadin/vaadin-grid/vaadin-grid-column"
 import "@vaadin/vaadin-grid/vaadin-grid-sorter"
 import "@vaadin/vaadin-grid/vaadin-grid-column-group"
@@ -104,7 +104,7 @@ import "@vaadin/vaadin-grid/vaadin-grid-tree-toggle"
 import moment from 'moment/src/moment'
 import Worker from 'worker-loader!./workers/ehboxWebworker.js'
 const runtime = require('offline-plugin/runtime');
-
+import _ from 'lodash/lodash';
 import io from 'socket.io-client';
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "./elements/tk-localizer";
@@ -139,7 +139,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
             }
 
             :host iron-pages {
-                height: calc(100% - 64px);
+                height: calc(100%);
             }
 
             :host app-header-layout {
@@ -226,7 +226,6 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
 
             .mobile-menu {
                 position: fixed;
-                top: 64px;
                 left: 0;
                 bottom: 0;
                 background: var(--app-light-color);
@@ -237,7 +236,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                 visibility: hidden;
                 @apply --shadow-elevation-6dp;
                 padding: 0 1em;
-                height: calc(100vh - 84px); /* 84px = app-header height and log */
+                height: calc(100% - 84px); /* 84px = app-header height and log */
                 overflow-y: auto;
             }
 
@@ -269,10 +268,9 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
 
             .mobile-menu-overlay {
                 position: absolute;
-                top: 64px;
                 left: 0;
                 width: 100vw;
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 display: none;
                 background: var(--app-text-color-disabled);
             }
@@ -2721,6 +2719,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
       this.set("i18n.clear",this.localize('clear','Clear',this.language))
       this.set("i18n.today",this.localize("sel_tod",'Aujourd\'hui',this.language))
       this.set("i18n.thisMonth",this.localize("this_month","ce mois-ci",this.language))
+      this.set("i18n.thisYear",this.localize("this_year","cette année",this.language))
       this.set("i18n.cancel",this.localize("can",'Annuler',this.language))
   }
 

@@ -106,12 +106,11 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
             .container {
                 width: 100%;
-                height: calc(100vh - 64px - 20px);
+                height: calc(100% - 20px);
                 /* display:grid;
                 grid-template-columns: 20% 20% 60%;
                 grid-template-rows: 100%; */
-                position: fixed;
-                top: 64px;
+                position: absolute;
                 left: 0;
                 bottom: 0;
                 right: 0;
@@ -163,7 +162,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             .first-panel{
                 display: flex;
                 flex-direction: column;
-                height:calc(100vh - 64px - 20px); /* 64px = app-header */
+                height:calc(100% - 20px); /* 64px = app-header */
                 background: var(--app-background-color-dark);
                 top:64px;
                 left:0;
@@ -462,7 +461,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
 
             /* SECOND PANEL  */
             .second-panel{
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 background: var(--app-background-color);
                 top:64px;
                 left:20%;
@@ -871,9 +870,8 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             /* END SECOND PANEL */
 
             .second-third-panel{
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 background: var(--app-background-color);
-                top: 64px;
                 left: 20%;
                 margin: 0;
                 min-width: 280px;
@@ -885,7 +883,7 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
             }
 
             ht-pat-detail-ctc-detail-panel {
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 overflow: hidden;
             }
 
@@ -990,7 +988,6 @@ class HtPatDetail extends TkLocalizerMixin(PolymerElement) {
                 display:none;
                 position: fixed;
                 height: 100%;
-                top: 64px;
                 width: 24px;
                 left: 0;
                 padding: 0;

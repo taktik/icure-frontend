@@ -22,7 +22,7 @@ class HtMsg extends PolymerElement {
             }
 
             #iframe {
-                height: calc(100vh - 68px);
+                height: calc(100% - 68px);
                 width: 100vw;
                 box-sizing: border-box;
                 overflow-x: auto;

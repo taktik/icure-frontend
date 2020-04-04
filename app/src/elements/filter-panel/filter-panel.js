@@ -9,7 +9,7 @@ class FilterPanel extends TkLocalizerMixin(mixinBehaviors([IronResizableBehavior
     return html`
         <style include="buttons-style paper-input-style">
             paper-card {
-                width: calc(100% - 64px);
+                width: calc(100%);
                 margin: 0 32px 32px;
 
             }

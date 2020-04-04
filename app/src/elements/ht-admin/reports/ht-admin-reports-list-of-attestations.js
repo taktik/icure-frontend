@@ -31,7 +31,7 @@ class HtAdminReportsListOfAttestations extends TkLocalizerMixin(PolymerElement) 
             }
 
             .list-of-attestations{
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 width: 100%;
                 padding: 0 20px 24px 20px;
                 box-sizing: border-box;
@@ -126,7 +126,7 @@ class HtAdminReportsListOfAttestations extends TkLocalizerMixin(PolymerElement) 
             .spinnerbox {
                 position: absolute;
                 width: 100%;
-                height: calc(100vh - 86px);
+                height: calc(100% - 86px);
                 display: flex;
                 justify-content: space-around;
             }

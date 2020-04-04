@@ -74,6 +74,7 @@ import "@polymer/paper-input/paper-input"
 import "@polymer/paper-item/paper-item"
 import "@polymer/paper-listbox/paper-listbox"
 import "@polymer/paper-menu-button/paper-menu-button"
+import "@polymer/paper-tabs/paper-tabs"
 import "@polymer/paper-tabs/paper-tab"
 import "@polymer/paper-tooltip/paper-tooltip"
 import "@polymer/paper-fab/paper-fab"
@@ -137,7 +138,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
             }
 
             :host iron-pages {
-                height: calc(100% - 64px);
+                height: calc(100%);
             }
 
             :host app-header-layout {
@@ -223,7 +224,6 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
             .mobile-menu {
                 position: fixed;
-                top: 64px;
                 left: 0;
                 bottom: 0;
                 background: var(--app-light-color);
@@ -234,7 +234,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                 visibility: hidden;
                 @apply --shadow-elevation-6dp;
                 padding: 0 1em;
-                height: calc(100vh - 84px); /* 84px = app-header height and log */
+                height: calc(100% - 84px); /* 84px = app-header height and log */
                 overflow-y: auto;
             }
 
@@ -266,10 +266,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
             .mobile-menu-overlay {
                 position: absolute;
-                top: 64px;
                 left: 0;
                 width: 100vw;
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 display: none;
                 background: var(--app-text-color-disabled);
             }
@@ -714,8 +713,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
          <ht-access-log id="ht-access-log" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" api="[[api]]" user="[[user]]"></ht-access-log>
          <ht-my-profile id="ht-my-profile" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" api="[[api]]" user="[[user]]" on-user-saved="_userSaved"></ht-my-profile>
 
-        <ht-update-dialog id="htUpdateDialog" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" api="[[api]]" user="[[user]]"></ht-update-dialog>
-
+        
         <template is="dom-if" if="[[updateMessage]]">
             <paper-card id="update-notification">
                     <span>[[updateMessage]]</span>
@@ -747,8 +745,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
          <app-drawer-layout fullbleed="">
              <!-- Main content -->
             <app-header-layout fullbleed="">
-                <app-header slot="header" fixed="" condenses="" effects="waterfall">
-                    <app-toolbar id="mainToolbar" class="" sticky="">
+                <template is="dom-if" if="[[!hideHeader]]">
+                    <app-header slot="header" fixed="" condenses="" effects="waterfall">
+                        <app-toolbar id="mainToolbar" class="" sticky="">
                         <!-- Mobile Menu -->
                         <paper-icon-button class="mobile-menu-btn" icon="menu" on-tap="_triggerMenu"></paper-icon-button>
                         <div class="mobile-menu-container">
@@ -757,7 +756,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                                 <paper-button data-name="main" name="main" on-tap="doRoute"><iron-icon data-name="main" class="iron-icon" icon="home"></iron-icon>[[localize('sum','Summary',language)]]</paper-button>
                                 <paper-button data-name="pat" name="pat" on-tap="doRoute"><iron-icon data-name="pat" icon="vaadin:user-heart"></iron-icon>[[localize('pat','Patients',language)]]</paper-button>
                                 <paper-button data-name="hcp" name="hcp" on-tap="doRoute"><iron-icon data-name="hcp" icon="vaadin:hospital"></iron-icon>[[localize('hc_par','HC parties',language)]]</paper-button>
-                                <paper-button data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" icon="communication:email"></iron-icon>[[localize('msg','Message',language)]]</paper-button>
+                                <paper-button data-name="msg" name="msg" on-tap="doRoute"><iron-icon data-name="msg" icon="vaadin:envelope"></iron-icon>[[localize('msg','Message',language)]]</paper-button>
                                 <paper-button data-name="diary" name="diary" on-tap="checkAndLoadMikrono"><iron-icon data-name="diary" icon="date-range"></iron-icon>[[localize('diary','Diary',language)]]</paper-button>
                                 <paper-button data-name="admin" name="admin" on-tap="doRoute"><iron-icon data-name="admin" icon="vaadin:cog-o"></iron-icon>[[localize('admin')]]</paper-button>
                             </paper-listbox>
@@ -875,19 +874,20 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                         </div>
 
                     </app-toolbar>
-
-                </app-header>
+                    </app-header>
+                </template>
+                <div style="[[appBodyLayout]]">
                 <iron-pages selected="[[view]]" attr-for-selected="name" fallback-selection="view404" role="main">
-                    <ht-main id="htmain" name="main" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" route="{{subroute}}" socket="[[socket]]">
-                        <splash-screen></splash-screen>
+                    <ht-main id="htmain" name="main" api="[[api]]" user="[[user]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" route="{{subroute}}" socket="[[socket]]" on-force-reload-patient="forceReloadPatient" on-error-electron="setElectronErrorMessage">
+                        <splash-screen-tz></splash-screen-tz>
                     </ht-main>
-                    <ht-pat name="pat" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}" credentials="[[credentials]]" socket="[[socket]]" on-user-saved="_userSaved" on-idle="resetTimer">
-                        <splash-screen></splash-screen>
+                    <ht-pat id="ht-pat" name="pat" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}" credentials="[[credentials]]" socket="[[socket]]" on-user-saved="_userSaved" on-idle="resetTimer" on-patient-changed="_patientChanged" on-force-reload-patient="forceReloadPatient" on-error-electron="setElectronErrorMessage">
+                        <splash-screen-tz></splash-screen-tz>
                     </ht-pat>
                     <ht-hcp name="hcp" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" route="{{subroute}}">
                         <splash-screen></splash-screen>
                     </ht-hcp>
-                    <ht-msg name="msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" force-refresh="[[_forceEhBoxRefresh]]" on-trigger-open-my-profile="_triggerOpenMyProfile" on-trigger-goto-admin="_triggerOpenAdminGroupsManagementSubMenu">
+                    <ht-msg name="msg" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]" group="[[msgGroup]]" force-refresh="[[_forceEhBoxRefresh]]" on-trigger-open-my-profile="_triggerOpenMyProfile" on-trigger-goto-admin="_triggerOpenAdminGroupsManagementSubMenu">
                         <splash-screen></splash-screen>
                     </ht-msg>
                     <ht-diary id="htDiary" name="diary" api="[[api]]" i18n="[[i18n]]" language="[[language]]" resources="[[resources]]" user="[[user]]" credentials="[[credentials]]">
@@ -898,6 +898,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                     </ht-admin>
                     <ht-view404 name="view404"></ht-view404>
                 </iron-pages>
+                </div>
             </app-header-layout>
             <footer class="log-info">
                 <div>
@@ -997,6 +998,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
         <paper-dialog id="tutorialDialog">
             <h2 class="modal-title">[[localize('tutorialList','Tutorial list',language)]]</h2>
+            <div class="content">
             <div id="tutorialContainer">
                 <ul>
                     <li><a href="../docs/1_1_connexion.pdf" target="_blank">Connexion</a></li>
@@ -1009,6 +1011,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                     <li><a href="../docs/3_1_dossier_complet.pdf" target="_blank">Dossier complet</a></li>
                     <li><a href="../docs/manuel.pdf" target="_blank">Manuel</a></li>
                 </ul>
+            </div>
             </div>
             <div class="buttons">
                 <paper-button dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
@@ -1028,22 +1031,25 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
         </paper-item>
 
         <paper-dialog id="mikronoErrorDialog">
-            <h2 class="modal-title">Erreur lors de la création de votre compte agenda</h2>
+            <div class="mikronoErrorDialog">
             <div class="errorMikrono">
-                <template is="dom-if" if="[[!mikronoError.addresses]]"><h5>- Adresse manquante</h5></template>
-                <template is="dom-if" if="[[!mikronoError.workAddresses]]"><h5>- Adresse de type travail manquante</h5></template>
-                <template is="dom-if" if="[[!mikronoError.workMobile]]"><h5>- N° de gsm manquant</h5></template>
-                <template is="dom-if" if="[[!mikronoError.workEmail]]"><h5>- Email manquant</h5></template>
-                <template is="dom-if" if="[[!mikronoError.token]]"><h5>- Token manquant</h5></template>
-                <template is="dom-if" if="[[!mikronoError.error]]"><h5>- Erreur lors de la création du compte</h5></template>
+                     <h3 class="mikronoErrortitle">[[localize('mik-err-title', 'Error when creating your diary', language)]]</h3>
+                     <template is="dom-if" if="[[!mikronoError.addresses]]"><h5>- [[localize('mik-err-adr', 'Addresse is invalid', language)]]</h5></template>
+                     <template is="dom-if" if="[[!mikronoError.workAddresses]]"><h5>- [[localize('mik-err-adr-work', 'Work addresse is invalid', language)]]</h5></template>
+                     <template is="dom-if" if="[[!mikronoError.workMobile]]"><h5>- [[localize('mik-err-gsm', 'Gsm number is invalid', language)]]</h5></template>
+                     <template is="dom-if" if="[[!mikronoError.workEmail]]"><h5>- [[localize('mik-err-mail', 'Email is invalid', language)]]</h5></template>
+                     <template is="dom-if" if="[[!mikronoError.token]]"><h5>- [[localize('mik-err-token', 'Token is invalid', language)]]</h5></template>
+                     <template is="dom-if" if="[[!mikronoError.error]]"><h5>- [[localize('mik-err-crea', 'Error when creating your account', language)]]</h5></template>
+                 </div>
             </div>
             <div class="buttons">
-                <paper-button dialog-dismiss="">[[localize('clo','Close',language)]]</paper-button>
+                 <paper-button class="button button--other" dialog-dismiss>[[localize('clo','Close',language)]]</paper-button>
             </div>
         </paper-dialog>
 
         <paper-dialog id="appointmentsMigrationDialog">
             <h2 class="modal-title">Migration de vos rendez-vous</h2>
+            <div class="content">
             <vaadin-grid id="migrItem" class="material" items="[[migrationItems]]">
                 <vaadin-grid-column>
                     <template class="header">
@@ -1054,6 +1060,24 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                     </template>
                 </vaadin-grid-column>
             </vaadin-grid>
+            </div>
+        </paper-dialog>
+
+
+
+
+
+
+
+            <paper-dialog class="modalDialog" id="errorGettingEHealthBoxMessages" no-cancel-on-outside-click no-cancel-on-esc-key>
+                <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+                <div class="content textaligncenter pt20 pb70 pl20 pr20">
+                    <p>[[localize('errorGettingEHealthBoxMessages','An error occurred while getting your messages',language)]]</p>
+                    <p>[[localize('pleaseReloadPageOrApp','Please reload the page / the application',language)]]</p>
+                </div>
+                <div class="buttons">
+                    <paper-button class="button button--other" on-tap="_closeDialogs"><iron-icon icon="icons:close"></iron-icon>[[localize('clo','Close',language)]]</paper-button>
+                </div>
         </paper-dialog>
 
 
@@ -1147,47 +1171,45 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                       monthNames: moment.months(),
                       weekdays: moment.weekdays(),
                       weekdaysShort: moment.weekdaysShort(),
-                      firstDayOfWeek: moment.localeData().firstDayOfWeek(),
+                      firstDayOfWeek: 0,
                       week: 'Semaine',
                       calendar: 'Calendrier',
-                      clear: 'Clear',
+                      clear: 'Effacer',
                       today: 'Aujourd\'hui',
-                      thisMonth: "ce mois-ci",
-                      thisYear: "cette année",
+                      thisMonth: 'mois courant',
+                      thisYear: moment().format("YYYY"),
                       cancel: 'Annuler',
-                      formatDate(d, accuracy) {
-                          const date = moment(d).format('DD/MM/YYYY')
-                          return accuracy==="year" ? date.substr(6) : accuracy==="month" ? date.substr(3) : date
+                      formatDate: (d, acc) => {
+                          const yearStr = String(d.year).replace(/\d+/, y => '0000'.substr(y.length) + y);
+                          const tab = [yearStr];
+                          acc !== 'year' && tab.unshift((d.month + 1));
+                          acc === 'day' && tab.unshift(d.day);
+                          return tab.join('/');
                       },
-                      parseDate(text) {
+                      parseDate: text => {
                           const parts = text.split('/');
-                          const today = new Date();
-                          let day, month = today.getMonth(), year = today.getFullYear(),accuracy="";
+                          let day, month, year;
 
-                          parts.reverse()
-                          if (parts.length >= 1) {
-                              year = parseInt(parts[0]);
-                              accuracy="year";
-                          }
-                          if (parts.length >= 2 && parseInt(parts[1]) > 0) {
-                              month = parseInt(parts[1]) - 1;
-                              accuracy="month";
-                          }else{
-                              month= 0;
-                          }
-                          if (parts.length >= 3 && parseInt(parts[2])>0) {
-                              day = parseInt(parts[2]);
-                              accuracy="day";
-                          }else{
-                              day = 1;
+                          if (parts.length === 3) {
+                              year = parts[2];
+                              month = parts[1];
+                              day = parts[0];
+                          } else if (parts.length === 2) {
+                              year = parts[1];
+                              month = parts[0];
+                              day = '1';
+                          } else if (parts.length === 1) {
+                              year = parts[0];
+                              day = '1';
+                              month = '1';
                           }
 
                           if (day !== undefined) {
-                              return {day, month, year, accuracy};
+                              return {day, month, year};
                           }
                       },
-                      formatTitle(monthName, fullYear) {
-                          return monthName
+                      formatTitle: (monthName, fullYear) => {
+                          return fullYear;
                       }
                   }
                   return res
@@ -1202,6 +1224,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           headers: {
               type: Object,
               value: {"Content-Type": "application/json"}
+          },
+          appBodyLayout: {
+              typs: String,
+              value: "position: absolute; height: calc(100vh - 64px); width: 100vw; top:64px; left:0;"
           },
           credentials: {
               type: Object,
@@ -1252,6 +1278,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           connectionTime: {
               type: Number,
               noReset: true
+          },
+          hideHeader: {
+              type: Boolean,
+              value: false
           },
           ehBoxWebWorkerTotalNewMessages: {
               type: Number,
@@ -1367,13 +1397,17 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
               type : Boolean,
               value : false
           },
+          electronUrl: {
+               type: String
+          },
+          mikronoProxy: {
+              type: String
+          },
           phone:{
-              type: String,
-              value: null
+              type: String
           },
           lang:{
-              type: String,
-              value: null
+              type: String
           }
 
   }
@@ -1427,8 +1461,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   setUrls() {
       const params = this.route.__queryParams //_.fromPairs((this.route.path.split('?')[1] || "").split('&').map(p => p.split('=')))
       this.set('icureUrl', params.icureUrl || `https://backendb.svc.icure.cloud/rest/v1`)//`https://backend${window.location.href.replace(/https?:\/\/.+?(b?)\.icure\.cloud.*/,'$1')}.svc.icure.cloud/rest/v1`)
-      this.set('fhcUrl', params.fhcUrl || (window.location.href.includes('https://tzb') ? 'https://fhctz.icure.cloud' : 'https://fhcprd.icure.cloud'))
-      this.set('electronUrl', params.electronUrl || "http://127.0.0.1:16042");
+      this.set('fhcUrl', params.fhcUrl || (window.location.href.includes('https://tzb') ? 'https://fhctz.icure.cloud' : 'https://fhctz.icure.cloud'))
+      this.set('electronUrl', params.electronUrl || 'http://127.0.0.1:16042');
       this.set('mikronoProxy', params.mikronoProxy || 'http://127.0.0.1:16041');
       this.set('defaultIcureUrl', this.icureUrl)
       this.set('defaultFhcUrl', this.fhcUrl)
@@ -1489,10 +1523,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
       //init socket io
       this.set("socket",null)
-      this.api.isElectronAvailable().then(electron => {
+      this.api && this.api.isElectronAvailable().then(electron => {
           this.set("isElectron",electron)
           if (electron) {
-              this.set("socket",io(_.get(this,"api.electronHost","http://127.0.0.1:16042")))
+             this.set("socket",io(this.electronUrl))
 
               this.socket.on("connect", () => {
                   console.log("connection avec le socket de electron")
@@ -1717,9 +1751,16 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           //setTimeout(() => window.location.reload(), 100) // don't reload at logout
       } else {
           console.log("page is -> " + page)
-
+          const msgGroup = this.route.__queryParams.msgGroup
+          const hideHeader = this.route.__queryParams.hideHeader
           if (!this.icureUrl) { this.setUrls() }
-
+          if (msgGroup && msgGroup.length) {
+              this.set('msgGroup', msgGroup)
+          }
+          if (hideHeader && hideHeader.length) {
+              this.set('hideHeader', hideHeader === 'true')
+              this.appBodyLayout = hideHeader === 'true' ? "position: absolute; height: 100vh; width: 100vw; top:0; left:0;" : "position: absolute; height: calc(100vh - 64px); width: 100vw; top:64px; left:0;"
+          }
           if (!this.authenticated && (!page || !page.startsWith('auth'))) {
               if (sessionStorage.getItem('auth') || (this.route.__queryParams.token && this.route.__queryParams.userId)) {
                   this.loginAndRedirect(page)
@@ -1745,8 +1786,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   }
 
   _triggerMenu() {
-      let menu = this.$.mobileMenu
-      let overlay = this.$.overlayMenu
+      let menu = this.root.getElementById('mobileMenu')
+      let overlay = this.root.getElementById('overlayMenu')
 
       overlay.classList.toggle('open')
       menu.classList.toggle('open')
@@ -2091,7 +2132,6 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       return Promise.resolve(null);
   }
 
-
   uploadMHKeystoreAndCheckToken() {
       if(!_.get(this, "user.healthcarePartyId", false)) return Promise.resolve()
       const ksKey  = "org.taktik.icure.ehealth.keychain.MMH."+ this.user.healthcarePartyId;
@@ -2382,7 +2422,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
 
               if(mikronoUrl && mikronoUser && mikronoPassword && applicationTokens && applicationTokens.MIKRONO){
-                  this.api.isElectronAvailable().then(electron =>{
+                  this.api && this.api.isElectronAvailable().then(electron =>{
                       if(electron === false){
                           window.open("https://"+mikronoUser+":"+mikronoPassword+"@"+mikronoUrl.replace("https://", "")+"/iCureShortcut.jsp?id="+this.user.id, '_blank')
                       }else{
@@ -2417,7 +2457,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                                   const mikronoUser = this.user && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.user") && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.user").typedValue.stringValue || null
                                   const mikronoPassword = this.user && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.password") && this.user.properties.find(p => p.type.identifier === "org.taktik.icure.be.plugins.mikrono.password").typedValue.stringValue || null
                                   if(mikronoUrl && mikronoUser && mikronoPassword && applicationTokens && applicationTokens.MIKRONO){
-                                      this.api.isElectronAvailable().then(electron =>{
+                                      this.api && this.api.isElectronAvailable().then(electron =>{
                                           if(electron === false){
                                                       window.open("https://" + mikronoUser + ":" + mikronoPassword + "@" + mikronoUrl.replace("https://", "") + "/iCureShortcut.jsp?id=" + this.user.id, '_blank')
                                           }else{

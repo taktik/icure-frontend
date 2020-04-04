@@ -66,7 +66,7 @@ class HtPatActionPlanDialog extends TkLocalizerMixin(mixinBehaviors([IronResizab
                     height: calc(110vh - 84px)!important;
                     width: 100%;
                     margin: 0;
-                    top: 64px!important;
+                    !important;
                     left: 0 !important;
                     transform: none!important;
                 }

@@ -727,8 +727,8 @@ class HtMsgDocDetail extends TkLocalizerMixin(PolymerElement) {
                 left: calc(16% + 20px);
                 width: calc(80vw - 12px);
                 height: auto;
-                max-height: calc(100vh - 97px);
-                transform: translateY(calc(-50% - 64px));
+                max-height: calc(100% - 97px);
+                transform: translateY(calc(-50%));
                 justify-content: flex-end;
                 background: #fff;
                 padding: 8px;
@@ -896,7 +896,7 @@ class HtMsgDocDetail extends TkLocalizerMixin(PolymerElement) {
 
                 #import-suggest {
                     left: 50vw;
-                    transform: translateY(calc(-50% - 64px)) translateX(-50%);
+                    transform: translateY(calc(-50%)) translateX(-50%);
                     width: 90vw;
                 }
 

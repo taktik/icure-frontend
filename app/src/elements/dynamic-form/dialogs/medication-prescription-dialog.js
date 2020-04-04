@@ -34,10 +34,9 @@ class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
             #medication-prescription {
                 min-height: 480px;
                 min-width: 600px;
-                max-height: calc(100% - 64px - 48px - 20px);
+                max-height: calc(100% - 48px - 20px);
                 height: calc(98% - 12vh);
                 width: 98%;
-                top: 64px;
             }
 
             #compound-dialog {
@@ -176,9 +175,8 @@ class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
                 #checkintol {
                     position: fixed;
                     max-width: none !important;
-                    top: 64px;
                     left: 0;
-                    height: calc(100vh - 84px) !important;
+                    height: calc(100% - 84px) !important;
                     width: 100vw !important;
                     margin: 0;
                     transform: none;
@@ -206,7 +204,7 @@ class MedicationPrescriptionDialog extends TkLocalizerMixin(PolymerElement) {
                     width: 100vw;
                     box-sizing: border-box;
                     overflow-y: auto;
-                    /*height: calc(100vh - 164px);*/
+                    /*height: calc(100% - 164px);*/
                     justify-content: flex-start;
                 }
 

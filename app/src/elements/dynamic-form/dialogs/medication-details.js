@@ -466,9 +466,8 @@ class MedicationDetails extends TkLocalizerMixin(PolymerElement) {
                     position: fixed;
                     max-width: none !important;
                     max-height: none !important;
-                    top: 64px;
                     left: 0;
-                    height: calc(100vh - 84px) !important;
+                    height: calc(100% - 84px) !important;
                     width: 100vw !important;
                     margin: 0;
                     transform: none;

@@ -280,7 +280,7 @@ class HtPatHubTransactionPreview extends TkLocalizerMixin(mixinBehaviors([IronRe
                 margin: 0 32px 32px;
                 padding: 0 8px 8px;
                 overflow: hidden;
-                width: calc(100% - 64px);
+                width: calc(100%);
             }
 
             .pat-details-card.fullWidth {

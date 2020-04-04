@@ -215,7 +215,7 @@ class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
                         }
                     
                         .pat-details-card {
-                            width: calc(100% - 64px);
+                            width: calc(100%);
                             margin: 0 32px 32px;
                         }
                     
@@ -442,7 +442,7 @@ class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
                     
                         #prose-editor, #prose-editor-linking-letter {
                             width: 90%;
-                            height: calc(90% - 64px);
+                            height: calc(90%);
                             max-width: 1024px;
                         }
                     
@@ -484,9 +484,9 @@ class HtPatDetailCtcDetailPanel extends TkLocalizerMixin(PolymerElement) {
                                 position: fixed;
                                 max-height: none;
                                 max-width: none !important;
-                                top: 64px !important;
+                                 !important;
                                 left: 0 !important;
-                                height: calc(100vh - 84px) !important; /* 84 = app-header and log */
+                                height: calc(100% - 84px) !important; /* 84 = app-header and log */
                                 width: 100% !important;
                             }
                     

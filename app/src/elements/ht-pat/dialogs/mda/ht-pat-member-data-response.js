@@ -27,10 +27,9 @@ class HtPatMemberDataResponse extends TkLocalizerMixin(mixinBehaviors([IronResiz
             #mdaDetailDialog{
                 height: calc(98% - 12vh);
                 width: 98%;
-                max-height: calc(100% - 64px - 48px - 20px); /* 100% - header - margin - footer*/
+                max-height: calc(100% - 48px - 20px); /* 100% - header - margin - footer*/
                 min-height: 400px;
                 min-width: 800px;
-                top: 64px;
             }
 
             .mdaDetailDialog{

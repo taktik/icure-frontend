@@ -817,10 +817,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
         this.set('documentBoxSelectionIndex', null)
         this.set('invoiceSelectionIndex', null)
         this.set('flatRateInvoicingSelectionIndex', null)
-        this.$.inbox.classList.add('iron-selected')
-        this.$.documentBox.classList.remove('iron-selected')
-        this.$.invoicebox.classList.remove('iron-selected')
-        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.add('iron-selected')
+        this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+        this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+        this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.remove('iron-selected')
     }
 
     _inboxSelectionIndexChanged() {
@@ -829,10 +829,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
             this.set('invoiceSelectionIndex', null)
             this.set('documentBoxSelectionIndex', null)
             this.set('flatRateInvoicingSelectionIndex', null)
-            this.$.inbox.classList.remove('iron-selected')
-            this.$.documentBox.classList.remove('iron-selected')
-            this.$.invoicebox.classList.remove('iron-selected')
-            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+            this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+            this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+            this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+            this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.remove('iron-selected')
         }
     }
 
@@ -844,10 +844,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
         this.set('documentBoxSelectionIndex', null)
         this.set('invoiceSelectionIndex', null)
         this.set('flatRateInvoicingSelectionIndex', null)
-        this.$.inbox.classList.remove('iron-selected')
-        this.$.documentBox.classList.add('iron-selected')
-        this.$.invoicebox.classList.remove('iron-selected')
-        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+        this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.add('iron-selected')
+        this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+        this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.remove('iron-selected')
     }
 
     _documentBoxSelectionIndexChanged() {
@@ -856,10 +856,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
             this.set('inboxSelectionIndex', null)
             this.set('invoiceSelectionIndex', null)
             this.set('flatRateInvoicingSelectionIndex', null)
-            this.$.inbox.classList.remove('iron-selected')
-            this.$.documentBox.classList.remove('iron-selected')
-            this.$.invoicebox.classList.remove('iron-selected')
-            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+            this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+            this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+            this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+            this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.remove('iron-selected')
         }
     }
 
@@ -871,10 +871,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
         this.set('documentBoxSelectionIndex', null)
         this.set('invoiceSelectionIndex', null)
         this.set('flatRateInvoicingSelectionIndex', null)
-        this.$.inbox.classList.remove('iron-selected')
-        this.$.documentBox.classList.remove('iron-selected')
-        this.$.invoicebox.classList.add('iron-selected')
-        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+        this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+        this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+        this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.add('iron-selected')
+        this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.remove('iron-selected')
     }
 
     _invoiceSelectionIndexChanged() {
@@ -883,10 +883,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
             this.set('inboxSelectionIndex', null)
             this.set('documentBoxSelectionIndex', null)
             this.set('flatRateInvoicingSelectionIndex', null)
-            this.$.inbox.classList.remove('iron-selected')
-            this.$.documentBox.classList.remove('iron-selected')
-            this.$.invoicebox.classList.remove('iron-selected')
-            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+            this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+            this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+            this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+            this.root.getElementById('flatRateInvoicingListingBox') && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
         }
     }
 
@@ -899,10 +899,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
         this.set('documentBoxSelectionIndex', null)
         this.set('invoiceSelectionIndex', null)
         this.set('flatRateInvoicingSelectionIndex', null)
-        this.$.inbox.classList.remove('iron-selected')
-        this.$.documentBox.classList.remove('iron-selected')
-        this.$.invoicebox.classList.remove('iron-selected')
-        this.$.flatRateInvoicingListingBox2 && this.$.flatRateInvoicingListingBox2.classList.add('iron-selected')
+        this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+        this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+        this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+        this.root.getElementById('flatRateInvoicingListingBox2') && this.root.getElementById('flatRateInvoicingListingBox2').classList.add('iron-selected')
     }
 
     _flatRateInvoivingBoxTapped(e){
@@ -914,10 +914,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
         this.set('documentBoxSelectionIndex', null)
         this.set('invoiceSelectionIndex', null)
         this.set('flatRateInvoicingSelectionIndex', null)
-        this.$.inbox.classList.remove('iron-selected')
-        this.$.documentBox.classList.remove('iron-selected')
-        this.$.invoicebox.classList.remove('iron-selected')
-        this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.add('iron-selected')
+        this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+        this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+        this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+        this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.add('iron-selected')
     }
 
     _flatRateInvoicingSelectionIndexChanged() {
@@ -926,10 +926,10 @@ class HtMsgMenu extends TkLocalizerMixin(PolymerElement) {
             this.set('inboxSelectionIndex', null)
             this.set('documentBoxSelectionIndex', null)
             this.set('invoiceSelectionIndex', null)
-            this.$.inbox.classList.remove('iron-selected')
-            this.$.documentBox.classList.remove('iron-selected')
-            this.$.invoicebox.classList.remove('iron-selected')
-            this.$.flatRateInvoicingListingBox && this.$.flatRateInvoicingListingBox.classList.remove('iron-selected')
+            this.root.getElementById('inbox') && this.root.getElementById('inbox').classList.remove('iron-selected')
+            this.root.getElementById('documentBox') && this.root.getElementById('documentBox').classList.remove('iron-selected')
+            this.root.getElementById('invoicebox') && this.root.getElementById('invoicebox').classList.remove('iron-selected')
+            this.root.getElementById('flatRateInvoicingListingBox') && this.root.getElementById('flatRateInvoicingListingBox').classList.remove('iron-selected')
         }
     }
 }

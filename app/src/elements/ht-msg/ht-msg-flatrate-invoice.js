@@ -44,7 +44,7 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
                 }
 
                 vaadin-grid {
-                    height: calc(100vh - 145px);
+                    height: calc(100% - 145px);
                     box-shadow: var(--app-shadow-elevation-1);
                     border: none;
                     box-sizing: border-box;
@@ -325,11 +325,10 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
                     color: var(--paper-purple-300)
                 }
                 #pendingDetailDialog{
-                    height: calc(100vh - 40px);
+                    height: calc(100% - 40px);
                     width: calc(85% - 40px);
                     z-index: 1100;
                     position: fixed;
-                    top: 64px;
                 }
 
                 #pendingGridDetail{
@@ -364,7 +363,7 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
                 .invoiceContainer{
                     overflow-x: hidden;
                     overflow-y: hidden;
-                    height: calc(100vh - 145px);
+                    height: calc(100% - 145px);
                     box-shadow: var(--app-shadow-elevation-1);
                 }
                 .invoiceSubContainerBig {
@@ -2766,7 +2765,6 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
                             )})
                             .uniqBy( 'nihii' )
                             .value()
-                        ;
                         return {
                             rows:pl.rows,
                             nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,
@@ -2857,7 +2855,6 @@ class HtMsgFlatrateInvoice extends TkLocalizerMixin(PolymerElement) {
                                 i.titularyId = _.trim( _.get( i, "finalInsurability.titularyId", "" ))
                                 return i
                             })
-                        ;
                         return {
                             rows:pl.rows,
                             nextKey: pl.nextKeyPair && pl.nextKeyPair.startKey,

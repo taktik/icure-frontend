@@ -8,11 +8,10 @@ class HtPatFusionDialog extends TkLocalizerMixin(PolymerElement) {
     return html`
         <style include="dialog-style">
             #fusion-dialog{
-                height: calc(100vh - 40px);
+                height: calc(100% - 40px);
                 width: calc(100% - 40px);
                 z-index: 1100;
                 position: fixed;
-                top: 64px;
                 left: 0;
                 bottom: 0;
                 right: 0;

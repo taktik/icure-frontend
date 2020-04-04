@@ -32,7 +32,7 @@ class HtAdminReportsAgeStructure extends TkLocalizerMixin(PolymerElement) {
             }
 
             .age-structure {
-                height: calc(100vh - 84px);
+                height: calc(100% - 84px);
                 width: 100%;
                 padding: 0 20px 24px 20px;
                 box-sizing: border-box;

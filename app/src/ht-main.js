@@ -34,7 +34,7 @@ class HtMain extends TkLocalizerMixin(PolymerElement) {
 			:host {
 				display: block;
 				padding: 12px 24px 24px;
-				height: calc(100vh - 64px - 20px);
+				height: calc(100% - 20px);
 				box-sizing: border-box;
 				--grid-columns: 1fr 1fr;
 				--grid-rows: 1fr 1fr 1fr;

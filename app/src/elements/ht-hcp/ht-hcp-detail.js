@@ -56,7 +56,7 @@ class HtHcpDetail extends TkLocalizerMixin(PolymerElement) {
 
 			.first-panel{
 				width:20%;
-				height:calc(100% - 64px);
+				height:calc(100%);
 				background: var(--app-background-color-dark);
 				position:fixed;
 				top:64px;
@@ -205,7 +205,7 @@ class HtHcpDetail extends TkLocalizerMixin(PolymerElement) {
 
 			.second-third-panel{
 				width:80%;
-				height:calc(100% - 64px);
+				height:calc(100%);
 				background: var(--app-background-color);
 				position:fixed;
 				top:64px;

@@ -30,7 +30,7 @@ import {TkLocalizerMixin} from "./elements/tk-localizer";
 class HtMsg extends TkLocalizerMixin(PolymerElement) {
   static get template() {
     return html`
-<style include="shared-styles">
+        <style include="shared-styles">
             :host {
                 display: block;
                 height: calc(100% - 20px);
@@ -39,12 +39,11 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
 
             .container {
                 width: 100%;
-                height: calc(100vh - 64px - 20px);
+                height: calc(100% - 20px);
                 display:grid;
                 grid-template-columns: 16% 84%;
                 grid-template-rows: 100%;
-                position: fixed;
-                top: 64px;
+                position: absolute;
                 left: 0;
                 bottom: 0;
                 right: 0;
@@ -264,7 +263,7 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
                 language="[[language]]"
                 resources="[[resources]]"
                 user="[[user]]"
-                group="invoicing"
+                group="[[group]]"
                 on-selection-change="handleMenuChange"
             ></ht-msg-menu>
 
@@ -522,12 +521,20 @@ class HtMsg extends TkLocalizerMixin(PolymerElement) {
 
     ready() {
         super.ready()
-        this._triggerGotoInbox()
+        if (!this.group || this.group === 'inbox') {
+            this._triggerGotoInbox()
+        } else if (this.group === 'invoicing') {
+            this._triggerGotoInvoicing()
+        }
         //this.$['doc-list'].
     }
 
     _triggerGotoInbox() {
         this.$['msg-menu'].dispatchEvent(new CustomEvent('selection-change',{detail:{selection:{item:"personalInbox", folder:"inbox"}}}))
+    }
+
+    _triggerGotoInvoicing() {
+        this.$['msg-menu'].dispatchEvent(new CustomEvent('selection-change', { detail: { selection: { item: 'e_invOut', status: 'toBeSend'} } }))
     }
 
     _setIsConnectedToEhbox() {

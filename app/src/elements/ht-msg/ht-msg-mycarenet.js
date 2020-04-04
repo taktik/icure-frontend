@@ -107,10 +107,9 @@ class HtMsgMycarenet extends TkLocalizerMixin(PolymerElement) {
 
                 vaadin-grid{
                     position: absolute;
-                    top: 64px;
                     left: 0;
                     right: 0;
-                    height: calc(100% - 64px - 64px);
+                    height: calc(100%);
                 }
 
                 iron-icon.list {

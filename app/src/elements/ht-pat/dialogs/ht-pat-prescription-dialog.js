@@ -97,9 +97,9 @@ class HtPatPrescriptionDialog extends TkLocalizerMixin(mixinBehaviors([IronResiz
                     position: fixed;
                     max-height: none;
                     max-width: none !important;
-                    top: 64px !important;
+                     !important;
                     left: 0 !important;
-                    height: calc(100vh - 64px - 20px) !important; /* 64 = app-header 20 = footer */
+                    height: calc(100% - 20px) !important; /* 64 = app-header 20 = footer */
                     width: 100% !important;
                 }
             }

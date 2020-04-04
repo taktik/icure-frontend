@@ -279,9 +279,8 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
 
                 .container {
                     width: 100%;
-                    height: calc(100vh - 64px - 20px);
-                    position: fixed;
-                    top: 64px;
+                    height: calc(100% - 20px);
+                position: absolute;
                     left: 0;
                     bottom: 0;
                     right: 0;
@@ -290,7 +289,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                 .first-filter-panel {
                     height: 100%;
                     background: var(--app-background-color-dark);
-                    top: 64px;
                     left: 0;
                     @apply --shadow-elevation-3dp;
                     grid-column: 1 / 1;
@@ -303,7 +301,6 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                 .second-filter-panel {
                     height: 100%;
                     background: var(--app-background-color);
-                    top: 64px;
                     left: 20%;
                     @apply --shadow-elevation-2dp;
                     margin: 0;
@@ -431,7 +428,7 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                     max-height: 62px;
                 }
                 #sharePatientDialog #hcp-list {
-                    height: calc(100% - 24px - 64px);
+                    height: calc(100% - 24px);
                 }
 
                 paper-checkbox{
