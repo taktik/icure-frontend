@@ -469,8 +469,6 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                                         .then(a => {
                                     if (typeof a === "string"){
                                         try { a = JSON.parse( this.cleanStringForJsonParsing(a) ) } catch (ignored) {}
-                                    } else if (typeof a === "object") {
-                                        try { a = JSON.parse( this.cleanStringForJsonParsing(new Uint8Array(a).reduce((data, byte) => data + String.fromCharCode(byte), ''))); } catch (ignored) {}
                                     }
 
                                     const zone200 = a && a.find(enr => enr.zones.find(z => z.zone === "200"))
