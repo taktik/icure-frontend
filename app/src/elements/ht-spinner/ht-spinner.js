@@ -9,6 +9,12 @@ class HTSpinner extends PolymerElement {
             #ht-spinner {
                 width: 100%;
                 height: 100%;
+                max-width: 150px;
+                max-height: 150px;
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
                 display: none;
             }
 
