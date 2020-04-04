@@ -2117,6 +2117,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   }
 
   uploadKeystoreAndCheckToken() {
+      if (this.staticToken) {
+          return this._getToken()
+      }
       if (this.credentials.ehpassword) {
           const ehKeychain = this.$.api.crypto().loadKeychainFromBrowserLocalStorage(this.user.healthcarePartyId)
           if (ehKeychain) {
