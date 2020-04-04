@@ -1516,7 +1516,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
 
       //init socket io
       this.set("socket",null)
-      this.api.electron().checkAvailable().then(electron => {
+      this.api && this.api.electron().checkAvailable().then(electron => {
           this.set("isElectron",electron)
           if (electron) {
              this.set("socket",io(this.host || "http://127.0.0.1:16042"))
@@ -1543,7 +1543,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
               })
 
               this.notifyPath("socket");
-              this.api.electron().checkDrugs()
+              this.api && this.api.electron().checkDrugs()
               this.api.electron().getVersion()
                   .then(res => {
                       if (res.version) {
@@ -1552,7 +1552,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
                       }
                   })
 
-              this.api.electron().getConnexionData()
+              this.api && this.api.electron().getConnexionData()
                   .then(res => {
                       if(res.ok && !(_.get(this,"credentials.userId",false) || _.get(this,"credentials.password",false))){
                           this.set("api.isMH",res.tokenData.isMH)
@@ -1736,7 +1736,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
               if (sessionStorage.getItem('auth') || (this.route.__queryParams.token && this.route.__queryParams.userId)) {
                   this.loginAndRedirect(page)
               } else {
-                  this.api.electron().logout()
+                  this.api && this.api.electron().logout()
                   this.set('routeData.page', 'auth/' + (!page ? 'main' : page.startsWith('logout') ? 'main' : page))
               }
           } else {
@@ -1874,7 +1874,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
               }
 
 
-              this.api.electron().tokenFHC(isMH,!isMH?this.api.tokenId:this.api.tokenIdMH,!isMH ? this.api.token :this.api.tokenMH, isMH ? this.api.keystoreIdMH : null , isMH ? this.api.nihiiMH : null)
+              this.api && this.api.electron().tokenFHC(isMH,!isMH?this.api.tokenId:this.api.tokenIdMH,!isMH ? this.api.token :this.api.tokenMH, isMH ? this.api.keystoreIdMH : null , isMH ? this.api.nihiiMH : null)
                   .then(rep => {
                       if(rep.ok){
                           this.set('routeData.page', "diary")
