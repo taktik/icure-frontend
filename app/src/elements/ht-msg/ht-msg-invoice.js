@@ -463,12 +463,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                             .then(docs => {
                                 console.log(docs)
                                 const jsonDoc = docs.find(d => d.mainUti === "public.json" && _.endsWith(d.name, '_records'))
-                                return jsonDoc && jsonDoc.attachmentId ? this.api.document().getAttachment(jsonDoc.id, jsonDoc.attachmentId, jsonDoc.secretForeignKeys).then(a => {
-
+                                return jsonDoc && jsonDoc.attachmentId ?
+                                    (_.size(jsonDoc.encryptionKeys) || _.size(jsonDoc.delegations) ?
+                                        this.api.crypto().extractKeysFromDelegationsForHcpHierarchy(this.user.healthcarePartyId, jsonDoc.id, _.size(jsonDoc.encryptionKeys) ? jsonDoc.encryptionKeys : jsonDoc.delegations).then(({extractedKeys: enckeys}) => this.api.document().getAttachment(jsonDoc.id, jsonDoc.attachmentId, enckeys.join(','))) : this.api.document().getAttachment(jsonDoc.id, jsonDoc.attachmentId))
+                                        .then(a => {
                                     if (typeof a === "string"){
                                         try { a = JSON.parse( this.cleanStringForJsonParsing(a) ) } catch (ignored) {}
-                                    } else if (typeof a === "object") {
-                                        try { a = JSON.parse( this.cleanStringForJsonParsing(new Uint8Array(a).reduce((data, byte) => data + String.fromCharCode(byte), ''))); } catch (ignored) {}
                                     }
 
                                     const zone200 = a && a.find(enr => enr.zones.find(z => z.zone === "200"))
