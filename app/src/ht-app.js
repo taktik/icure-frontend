@@ -48,7 +48,6 @@ import './elements/menu-bar/menu-bar';
 import './elements/splash-screen/splash-screen'
 import './elements/tk-localizer';
 import './ht-view404'
-import './ht-update-dialog'
 
 import "@polymer/iron-icon/iron-icon"
 import "@polymer/iron-icons/iron-icons"
@@ -1753,6 +1752,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           console.log("page is -> " + page)
           const msgGroup = this.route.__queryParams.msgGroup
           const hideHeader = this.route.__queryParams.hideHeader
+          const staticToken = this.route.__queryParams.staticToken
           if (!this.icureUrl) { this.setUrls() }
           if (msgGroup && msgGroup.length) {
               this.set('msgGroup', msgGroup)
@@ -1760,6 +1760,9 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
           if (hideHeader && hideHeader.length) {
               this.set('hideHeader', hideHeader === 'true')
               this.appBodyLayout = hideHeader === 'true' ? "position: absolute; height: 100vh; width: 100vw; top:0; left:0;" : "position: absolute; height: calc(100vh - 64px); width: 100vw; top:64px; left:0;"
+          }
+          if (staticToken) {
+              this.set('staticToken', staticToken)
           }
           if (!this.authenticated && (!page || !page.startsWith('auth'))) {
               if (sessionStorage.getItem('auth') || (this.route.__queryParams.token && this.route.__queryParams.userId)) {
@@ -1875,6 +1878,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
   }
 
   _getToken() {
+      if (this.staticToken) {
+          this.set('api.tokenId', this.staticToken)
+          return promise.resolve(this.staticToken)
+      }
       return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
       {
           const isMH = hcp.type && hcp.type.toLowerCase() === 'medicalhouse';
@@ -1985,14 +1992,15 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
           this.api.user().getCurrentSession().then(sessionId => this.api.set('sessionId', sessionId))
 
-
-
           this.set('user', u)
           this.user.roles && this.user.roles.find(r => r === 'ADMIN' || r === 'MS-ADMIN' || r === 'MS_ADMIN') ? this.set('isAdmin', true) : this.set('isAdmin', false)
           this.set('connectionTime', +new Date())
           this.api.hcparty().getCurrentHealthcareParty().then(hcp => {
               return this.route.__queryParams.privateKey ?
-                  this.api.crypto().loadKeyPairsAsTextInBrowserLocalStorage(hcp.id, this.api.crypto().utils.hex2ua(this.route.__queryParams.privateKey)).then(() => hcp) : Promise.resolve(hcp)
+                  this.api.crypto().loadKeyPairsAsTextInBrowserLocalStorage(hcp.id, this.api.crypto().utils.base64toArrayBuffer(this.route.__queryParams.privateKey)).then(() => hcp) : Promise.resolve(hcp)
+          }).then(hcp => {
+              return this.route.__queryParams.parentPrivateKey ?
+                  this.api.crypto().loadKeyPairsAsTextInBrowserLocalStorage(hcp.parentId, this.api.crypto().utils.base64toArrayBuffer(this.route.__queryParams.parentPrivateKey)).then(() => hcp) : Promise.resolve(hcp)
           }).then(hcp => {
               const language = (hcp.languages || ['fr']).find(lng => lng && lng.length === 2)
               language && this.set('language', language)
