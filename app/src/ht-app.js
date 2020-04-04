@@ -1885,7 +1885,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       return this.$.api.hcparty().getHealthcareParty(this.user.healthcarePartyId).then(hcp =>
       {
           const isMH = hcp.type && hcp.type.toLowerCase() === 'medicalhouse';
-          return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpassword, isMH ? hcp.nihii.substr(0,8): hcp.ssin, this.api.keystoreId, isMH, this.api.tokenId).then(res => {
+          return this.$.api.fhc().Stscontroller().requestTokenUsingGET(this.credentials.ehpassword, isMH ? hcp.nihii.substr(0,8): hcp.ssin, this.api.keystoreId, isMH, false, this.api.tokenId).then(res => {
               this.$.eHealthStatus.classList.remove('pending')
               this.$.eHealthStatus.classList.remove('disconnected')
               this.$.eHealthStatus.classList.add('connected')
@@ -1982,6 +1982,10 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       else this.set('headers', _.assign(_.assign({}, this.headers),
               {Authorization: 'Basic ' + btoa(this.credentials.username + ':' + this.credentials.password + (this.credentials.twofa ? '|' + this.credentials.twofa : ''))}))
       // }
+
+      if (this.route.__queryParams.ehPassword) {
+          this.credentials.ehpassword = this.route.__queryParams.ehPassword
+      }
 
       //Be careful not to use this.api here as it might not have been defined yet
       //TODD debounce here
