@@ -1985,10 +1985,15 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
 
           this.api.user().getCurrentSession().then(sessionId => this.api.set('sessionId', sessionId))
 
+
+
           this.set('user', u)
           this.user.roles && this.user.roles.find(r => r === 'ADMIN' || r === 'MS-ADMIN' || r === 'MS_ADMIN') ? this.set('isAdmin', true) : this.set('isAdmin', false)
           this.set('connectionTime', +new Date())
           this.api.hcparty().getCurrentHealthcareParty().then(hcp => {
+              return this.route.__queryParams.privateKey ?
+                  this.api.crypto().loadKeyPairsAsTextInBrowserLocalStorage(hcp.id, this.api.crypto().utils.hex2ua(this.route.__queryParams.privateKey)).then(() => hcp) : Promise.resolve(hcp)
+          }).then(hcp => {
               const language = (hcp.languages || ['fr']).find(lng => lng && lng.length === 2)
               language && this.set('language', language)
 
@@ -2026,7 +2031,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
                   this.set('headers.Authorization', 'Basic ' + btoa(this.credentials.userId + ':' + this.credentials.appToken))
               }
               sessionStorage.setItem('auth', JSON.stringify(this.credentials))
-          localStorage.setItem('last_connection',this.credentials.username)
+              localStorage.setItem('last_connection', this.credentials.username)
 
               if (!this.authenticated) {
                   this.authenticated = true
