@@ -1984,7 +1984,8 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       // }
 
       if (this.route.__queryParams.ehPassword) {
-          this.credentials.ehpassword = this.route.__queryParams.ehPassword
+          this.set('credentials.ehpassword', this.route.__queryParams.ehPassword)
+          this.set('api.credentials.ehpassword', this.route.__queryParams.ehPassword)
       }
 
       //Be careful not to use this.api here as it might not have been defined yet
