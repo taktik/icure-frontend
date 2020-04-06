@@ -2523,9 +2523,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                                 on-upload-document="_hubUpload">
                             </ht-pat-detail-ctc-detail-panel>
                     </template>
-                    <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]">
+                    <template is="dom-if" if="[[isAdminSelected(selectedAdminOrCompleteFileIndex)]]" restamp>
                         <ht-pat-admin-card id="pat-admin-card" api="[[api]]" user="[[user]]" patient="{{patient}}" i18n="[[i18n]]" resources="[[resources]]" language="[[language]]" tab-index="[[adminTabIndex]]" cardData="[[cardData]]" on-card-changed="_cardChanged" on-patient-saved="_patientSaved" on-fusion-dialog-called="fusionDialogCalled" active-health-elements="[[activeHealthElements]]" inactive-health-elements="[[inactiveHealthElements]]"></ht-pat-admin-card>
                     </template>
+                </vaadin-split-layout>
             </vaadin-split-layout>
         </div>
         </div>
@@ -3674,18 +3675,35 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             }
 
             _importGenIns() {
-                if (this.curGenInsResp && !this.curGenInsResp.errors.length) {
-                    this.api.queue(this.patient, 'patient').then (([pat, defer]) => {
-                        this.set('patient.firstName', this.curGenInsResp.firstName);
-                        this.set('patient.lastName', this.curGenInsResp.lastName);
-                        this.set('patient.dateOfBirth', this.curGenInsResp.dateOfBirth);
-                        this.set('patient.gender', this.curGenInsResp.sex);
+                if (this.curGenInsResp && !this.curGenInsResp.errors.length && _.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'ct1', null) !== '000' && _.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'regNrWithMut', null)) {
 
-                        this.api.patient().modifyPatientWithUser(this.user, this.patient).catch(e => defer.resolve(this.patient)).then(p => this.api.register(p,'patient', defer)).then(p => {
-                            this.dispatchEvent(new CustomEvent("patient-saved", {bubbles: true, composed: true}))
-                            Polymer.dom(this.root).querySelector('#pat-admin-card').patientChanged();
-                            //this.patient && (this.set('patient.rev', p.rev))
-                        })
+                    ;(_.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'mutuality', null) ? this.api.insurance().listInsurancesByCode(_.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'mutuality', null)) : Promise.resolve({})).then(ass => {
+                        const lastPatientAssu = _.get(this,"patient.insurabilities",[]).find(ins => !_.get(ins,"endDate",false) && _.get(ins,"startDate",false)) || {}
+
+                        if(lastPatientAssu.startDate && this.api.moment(lastPatientAssu.startDate).isSame(moment(),"month")){
+                            this.set("patient.insurabilities",_.get(this,"patient.insurabilities",[]).filter(ins => _.get(ins,"endDate",false)))
+                        }else{
+                            lastPatientAssu.endDate = _.parseInt(moment().subtract(1, 'months').endOf('month').format("YYYYMMDD"))
+                        }
+
+                        this.set('patient.insurabilities', _.concat(_.get(this.patient, 'insurabilities', []), {
+                            parameters: {
+                                paymentapproval: _.get(this, 'curGenInsResp.paymentByIo', null),
+                                preferentialstatus: _.get(this, 'specialSocialCategory', null),
+                                tc1: _.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'ct1', null),
+                                tc2: _.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'ct2', null)
+                            },
+                            identificationNumber: _.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'regNrWithMut', null),
+                            insuranceId: _.get(_.head(ass), 'id', null),
+                            startDate: _.get(_.head(_.get(this, 'curGenInsResp.insurabilities', [])), 'period.periodStart', null),
+                            endDate: null
+                        }))
+                        return this.api.patient().modifyPatientWithUser(this.user,this.patient)
+                    })
+                    .then(pat => this.api.register(pat,"patient"))
+                    .then(pat => this._patientSaved())
+                    .finally(() => {
+                        this.shadowRoot.querySelector("#genInsDialog").close()
                     })
                 }
             }
