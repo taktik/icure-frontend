@@ -1108,7 +1108,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _getMessage(){
-        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true, detail: {refreshAll: true}}))
     }
 
     _openArchiveDialog(){

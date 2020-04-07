@@ -330,8 +330,11 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           },
           routeData:{
               type: Object,
-
               value: () => {}
+          },
+          refreshAll:{
+              type: Boolean,
+              value: false
           }
       };
   }
@@ -367,11 +370,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
 
     getMessage(){
         if(!_.get(this, 'isMessagesLoaded', false))
-            this.fetchMessageToBeSendOrToBeCorrected()
+            this.fetchMessageToBeSendOrToBeCorrected({detail: {refreshAll: true}})
     }
 
-    fetchMessageToBeSendOrToBeCorrected(){
+    fetchMessageToBeSendOrToBeCorrected(e){
         this.set("isLoading",true)
+        this.set("refreshAll", _.get(e, 'detail.refreshAll', true))
         let prom = Promise.resolve()
 
         this.api.setPreventLogging()
@@ -430,7 +434,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
             }).finally(() =>{
                 this.api.setPreventLogging(false)
-                return this.fetchMessages()
+                if( _.get(this, 'refreshAll', true)){
+                    return this.fetchMessages()
+                }else{
+                    this.set("isLoading",false)
+                    return Promise.resolve({})
+                }
             })
                 .catch(e => console.log('Erreur lors de la récupération des factures: ', e))
         })

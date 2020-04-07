@@ -585,7 +585,7 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
     }
 
     getMessage(){
-        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true, detail: {refreshAll: true}}))
     }
 
     _getRefusedAmount(totalAmount, acceptedAmount){
