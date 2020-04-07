@@ -400,6 +400,18 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             </div>
         </paper-dialog>
         
+        <paper-dialog class="modalDialog" id="recreationDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('confirm-recre-from-batch','Are you sure you wish to recreate invoice from batch ?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold"></p>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeRecreationDialog">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_createInvoiceToBeCorrectedFromBatch"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+        
         <paper-dialog class="modalDialog" id="resendingBatchDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
             <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
             <div class="modalDialogContent m-t-50">
@@ -1263,6 +1275,14 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         })
 
         return prom
+    }
+
+    _openRecreationDialog(){
+        this.shadowRoot.querySelector("#recreationDialog").open()
+    }
+
+    _closeRecreationDialog(){
+        this.shadowRoot.querySelector("#recreationDialog").close()
     }
 
 }

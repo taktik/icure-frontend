@@ -250,6 +250,18 @@ class HtMsgInvoicePending extends TkLocalizerMixin(PolymerElement) {
                  padding: 10px;
             }
             
+            .sendingSpinner{
+               height: 100px!important;
+               width: 100px!important;
+               margin: auto;
+           }
+
+           .prossessList{
+               height: calc(100% - 100px);
+               width: auto;
+               padding: 4px;
+           }
+            
         </style>
         
         <div class="panel">
