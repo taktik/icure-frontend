@@ -1496,7 +1496,7 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       this.api.electron().checkAvailable().then(electron => {
           this.set("isElectron",electron)
           if (electron) {
-              this.set("socket",io(this._getDefaultElectronUrl()))
+              this.set("socket",io(_.replace(this.host,"/rest/v1","") || "http://127.0.0.1:16042"))
 
               this.socket.on("connect", () => {
                   console.log("connection avec le socket de electron")
@@ -2656,9 +2656,6 @@ class HtApp extends TkLocalizerMixin(PolymerElement) {
       return this.route.path.includes("/pat")
   }
 
-    _getDefaultElectronUrl() {
-        return _.trim(_.get(this,"electronUrl")) ? _.trim(_.get(this,"electronUrl")) : "http://127.0.0.1:16042"
-    }
 }
 
 customElements.define(HtApp.is, HtApp)

@@ -108,6 +108,7 @@ const runtime = require('offline-plugin/runtime');
 import io from 'socket.io-client';
 import {PolymerElement, html} from '@polymer/polymer';
 import {TkLocalizerMixin} from "./elements/tk-localizer";
+import _ from "lodash";
 
 class HtAppTz extends TkLocalizerMixin(PolymerElement) {
   static get template() {
@@ -1519,7 +1520,7 @@ class HtAppTz extends TkLocalizerMixin(PolymerElement) {
       this.api && this.api.electron().checkAvailable().then(electron => {
           this.set("isElectron",electron)
           if (electron) {
-             this.set("socket",io(this.host || "http://127.0.0.1:16042"))
+             this.set("socket",io(_.replace(this.host,"/rest/v1","") || "http://127.0.0.1:16042"))
 
               this.socket.on("connect", () => {
                   console.log("connection avec le socket de electron")
