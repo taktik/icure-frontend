@@ -448,6 +448,8 @@ class HtMsgInvoiceAccepted extends TkLocalizerMixin(PolymerElement) {
                     this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['insuranceCode'], ['asc']))
                 }
             }, 100)
+        }else{
+            this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['insuranceCode'], ['asc']))
         }
     }
 

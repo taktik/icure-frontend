@@ -36,7 +36,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         
             .panel{
                 background-color: white;
-                height: calc(100% - 20px);
+                height: calc(100% - 16px);
                 width: auto;
             }
             
@@ -63,7 +63,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-content{
-                height: calc(100% - 180px);
+                height: calc(100% - 215px);
                 width: auto;
             }
             
@@ -329,7 +329,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                         <div class="td fg1">[[localize('inv_niss','Niss',language)]]</div>
                         <div class="td fg1">[[localize('nmcl','Nmcl',language)]]</div>
                         <div class="td fg1">[[localize('inv_batch_month','Invoiced month',language)]]</div>
-                        <div class="td fg1">[[localize('inv_date_fact','Invoice date',language)]]</div>
+                        <div class="td fg1">[[localize('inv_date_pres','Prestation date',language)]]</div>
                         <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_invoiced','Invoiced',language)]]</div>
                         <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_acc','Accepted',language)]]</div>
                         <div class="td fg1">[[localize('inv_batch_amount','Amount',language)]]<br/>[[localize('inv_batch_amount_rej','Rejected',language)]]</div>
@@ -339,13 +339,13 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                     </div>
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                     <template is="dom-if" if="[[!isLoading]]">
-                        <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(invoicesFromBatch)]]" as="inv">
+                        <template is="dom-repeat" items="[[_sortInvoiceListByInvoiceRef(filteredInvoicesFormBatch)]]" as="inv">
                             <div class="tr">
                                 <div class="td fg1">[[inv.invoiceReference]]</div>
                                 <div class="td fg2">[[inv.patient]]</div>
                                 <div class="td fg1">[[inv.ssin]]</div>
                                 <div class="td fg1"></div>
-                                <div class="td fg1">[[formatDate(inv.invoiceMonth,'month')]]</div>
+                                <div class="td fg1">[[formatDate(inv.invoiceDate,'month')]]</div>
                                 <div class="td fg1">[[formatDate(inv.invoiceDate,'date')]]</div>
                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor(inv.statut,inv.totalAmount)]]">[[_formatAmount(inv.invoicedAmount)]]€</span></div>
                                 <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-green',inv.acceptedAmount)]]">[[_formatAmount(inv.acceptedAmount)]]€</span></div>
@@ -367,7 +367,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                                     <div class="td fg1"><span class\$="[[_getTxtStatusColor('force-red',inv.refusedAmount)]]">[[_formatAmount(invco.refusedAmount)]]€</span></div>
                                     <div class="td fg3 rejectionInfo">[[invco.rejectionReason]]</div>
                                     <div class="td fg05"></div>                             
-                                    <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(invco.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(invco.status)]]"></iron-icon>[[invco.status]]</span></div>                                      
+                                    <div class="td fg1"><span class\$="invoice-status [[_getIconStatusClass(invco.status))]]"><iron-icon icon="vaadin:circle" class\$="statusIcon [[_getIconStatusClass(invco.status)]]"></iron-icon> [[_getStatusOfInvoiceCode(invco.status, inv.status)]]</span></div>                                      
                                 </div>
                             </template>
                         </template>
@@ -375,11 +375,14 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                 </div>
             </div>
             <div class="panel-button">
-                <template is="dom-if" if="[[batchCanBeArchived]]">
-                   <paper-button class="button button--other" on-tap="_openArchiveDialog" restamp="true">[[localize('btn-arch', 'Archive', language)]]</paper-button>
+                <template is="dom-if" if="[[correctiveInvoiceCanBeCreated]]" restamp="true">
+                    <paper-button class="button button--other" on-tap="_createInvoiceToBeCorrectedFromBatch">[[localize('btn-crea-fro-bat', 'Create invoice from batch', language)]]</paper-button>
                 </template>
-                <template is="dom-if" if="[[batchCanBeResent]]">
-                   <paper-button class="button button--other" on-tap="_openResendDialog" restamp="true">[[localize('btn-trans-for-res', 'Transfer for resending', language)]]</paper-button>
+                <template is="dom-if" if="[[batchCanBeArchived]]" restamp="true">
+                   <paper-button class="button button--other" on-tap="_openArchiveDialog">[[localize('btn-arch', 'Archive', language)]]</paper-button>
+                </template>
+                <template is="dom-if" if="[[batchCanBeResent]]" restamp="true">
+                   <paper-button class="button button--other" on-tap="_openResendDialog">[[localize('btn-trans-for-res', 'Transfer for resending', language)]]</paper-button>
                 </template>
                 <paper-button class="button button--other" on-tap="_closeDetailPanel">[[localize('clo','Close',language)]]</paper-button>              
             </div>
@@ -394,6 +397,18 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
             <div class="buttons">
                 <paper-button class="button" on-tap="_closeArchiveDialog">[[localize('can','Cancel',language)]]</paper-button>
                 <paper-button class="button button--save" on-tap="_archiveBatch"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
+            </div>
+        </paper-dialog>
+        
+        <paper-dialog class="modalDialog" id="recreationDialog" no-cancel-on-outside-click="" no-cancel-on-esc-key="">
+            <h2 class="modal-title"><iron-icon icon="icons:warning"></iron-icon> [[localize('warning','Warning',language)]]</h2>
+            <div class="modalDialogContent m-t-50">
+                <h3 class="textAlignCenter">[[localize('confirm-recre-from-batch','Are you sure you wish to recreate invoice from batch ?',language)]]</h3>
+                <p class="textAlignCenter m-t-50 bold"></p>
+            </div>
+            <div class="buttons">
+                <paper-button class="button" on-tap="_closeRecreationDialog">[[localize('can','Cancel',language)]]</paper-button>
+                <paper-button class="button button--save" on-tap="_createInvoiceToBeCorrectedFromBatch"><iron-icon icon="check-circle"></iron-icon> [[localize('confirm','Confirm',language)]]</paper-button>
             </div>
         </paper-dialog>
         
@@ -441,6 +456,10 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                 type: String,
                 value: null
             },
+            filteredInvoicesFormBatch:{
+                type: Array,
+                value: () => []
+            },
             invoicesFromBatch:{
                 type: Array,
                 value: () => []
@@ -454,6 +473,10 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                 value: false
             },
             batchCanBeResent:{
+                type: Boolean,
+                value: false
+            },
+            correctiveInvoiceCanBeCreated:{
                 type: Boolean,
                 value: false
             }
@@ -511,6 +534,8 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                     paid: false,
                     status: _.get(this.selectedInvoiceForDetail, 'messageInfo.invoiceStatus', null),
                     invoice: inv,
+                    patientDto: pat,
+                    normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.trim(_.get(pat, 'firstName', null)), _.trim(_.get(pat, 'lastName', null)), _.trim(_.get(pat, 'ssin', null)), _.trim(_.get(inv, 'invoiceReference', null)), _.trim(_.get(inv, 'invoiceDate', null))])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" "),
                     invoicingCodes: _.get(inv, 'invoicingCodes', []).map(code => ({
                         invoicingCode: _.get(code, 'code', null),
                         invoiceDate: _.get(code, 'dateCode', null),
@@ -567,6 +592,8 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                     })
                 }).finally(()=>{
                     this._batchCanBeArchived()
+                    this.set('correctiveInvoiceCanBeCreated', _.size(_.compact(_.get(this, 'invoicesFromBatch',[]).map(inv => _.get(inv, 'invoice', [])).map(invDto => _.get(invDto, 'correctiveInvoiceId', null)))) === 0 && ((!!(this.selectedInvoiceForDetail.message.status & (1 << 16))) || (!!(this.selectedInvoiceForDetail.message.status & (1 << 12)))))
+                    this.set('filteredInvoicesFormBatch', _.get(this, 'invoicesFromBatch', []))
                     this.set('batchCanBeResent', _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) ? _.get(this.selectedInvoiceForDetail, 'messageInfo.sendError', null) : false)
                     this.set('isLoading', false)
                     this.api.setPreventLogging(false)
@@ -1081,7 +1108,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
     }
 
     _getMessage(){
-        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+        this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true, detail: {refreshAll: true}}))
     }
 
     _openArchiveDialog(){
@@ -1120,12 +1147,12 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
         }
     }
 
-    _transferInvoicesForResending(e){
-        if(_.get(e, 'selectedInvoiceForDetail.message.id', {}) && _.size(_.get(e, 'selectedInvoiceForDetail.message.invoiceIds', [])) > 0){
+    _transferInvoicesForResending(){
+        if(_.get(this, 'selectedInvoiceForDetail.message.id', {}) && _.size(_.get(this, 'selectedInvoiceForDetail.message.invoiceIds', [])) > 0){
             this.set('isLoading', true);
             let prom = Promise.resolve({})
             this.api.setPreventLogging()
-            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(e, 'selectedInvoiceForDetail.message.invoiceIds', []).map(id => id)}))
+            this.api.invoice().getInvoices(new models.ListOfIdsDto({ids: _.get(this, 'selectedInvoiceForDetail.message.invoiceIds', []).map(id => id)}))
                 .then(invs => {
                     invs.map(inv => {
                         inv.invoicingCodes.map(ic => ic.pending = false)
@@ -1137,7 +1164,7 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
                     })
 
                     return prom.then(() => {
-                        return this.api.message().getMessage(_.get(e, 'selectedInvoiceForDetail.message.id', {})).then(msg => {
+                        return this.api.message().getMessage(_.get(this, 'selectedInvoiceForDetail.message.id', {})).then(msg => {
                             msg.status = (msg.status | (1 << 21))
                             this.api.message().modifyMessage(msg)
                                 .then(msg => this.api.register(msg, 'message'))
@@ -1164,6 +1191,98 @@ class HtMsgInvoiceBatchDetail extends TkLocalizerMixin(PolymerElement) {
 
     _getRefusedAmount(totalAmount, acceptedAmount){
         return this.findAndReplace(((Number(Number(totalAmount) - Number(acceptedAmount)).toFixed(2)).toString()),'.',',')
+    }
+
+    _getStatusOfInvoiceCode(codeStatus, invCode){
+        return invCode !== "En cours" && invCode !== "En cours de traitement" ? codeStatus : invCode
+    }
+
+    _filterValueChanged(){
+        if(this.filter){
+            const keywordsString = _.trim(_.get(this,"filter","")).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")
+            const keywordsArray = _.compact(_.uniq(_.map(keywordsString.split(" "), i=>_.trim(i))))
+
+            setTimeout(() => {
+                if(parseInt(_.get(keywordsString,"length",0)) > 2) {
+                    const invoiceSearchResults =  _.chain(_.get(this, "invoicesFromBatch", []))
+                        .chain(_.get(this, "filter", []))
+                        .filter(i => _.size(keywordsArray) === _.size(_.compact(_.map(keywordsArray, keyword => _.trim(_.get(i, "normalizedSearchTerms", "")).indexOf(keyword) > -1))))
+                        .compact()
+                        .uniq()
+                        .orderBy(['code', 'label.' + this.language, 'id'], ['asc', 'asc', 'asc'])
+                        .value()
+                    this.set('filteredInvoicesFormBatch', _.sortBy(invoiceSearchResults, ['insuranceCode'], ['asc']))
+                }else{
+                    this.set('filteredInvoicesFormBatch', _.sortBy(_.get(this, 'invoicesFromBatch', []), ['insuranceCode'], ['asc']))
+                }
+            }, 100)
+        }else{
+            this.set('filteredInvoicesFormBatch', _.sortBy(_.get(this, 'invoicesFromBatch', []), ['insuranceCode'], ['asc']))
+        }
+    }
+
+    _createInvoiceToBeCorrectedFromBatch(){
+        if(!_.isEmpty(_.get(this, 'selectedInvoiceForDetail', {})) && _.size(_.get(this, 'invoicesFromBatch', [])) > 0 && _.size(_.compact(_.get(this, 'invoicesFromBatch', []).map(inv => _.get(inv, 'invoice.invoicingCodes', []).map(c => _.get(c, 'accepted', null) === false ? _.get(c, 'accepted', null) : null)))) > 0){
+            this.set('isLoading', true)
+            this._createInstanceOfNewInvoiceFromList(_.get(this, 'invoicesFromBatch', []))
+                .then(listOfInvoice => this._createNewInvoiceFromList(listOfInvoice))
+                .then(listOfInvoice => {
+                    this._archiveBatch()
+                })
+        }
+    }
+
+    _createInstanceOfNewInvoiceFromList(invoicesFromBatch){
+        let prom = Promise.resolve()
+        _.compact(invoicesFromBatch).map(inv => {
+            _.size(_.compact(_.get(inv, 'invoice.invoicingCodes', []).map(c => _.get(c, 'accepted', null) === false ? _.get(c, 'accepted', null) : null))) > 0 ?
+            prom = prom.then(listOfInvoice =>
+                this.api.invoice().newInstance(this.user, _.get(inv, 'patientDto', {}), _.omit(_.get(inv, 'invoice', {}), [
+                    "id", "rev", "deletionDate", "created", "modified", "sentDate", "printedDate",
+                    "secretForeignKeys", "cryptedForeignKeys", "delegations", "encryptionKeys",
+                    "invoicingCodes", "error", "receipts", "encryptedSelf"])
+                ).then(ninv => {
+                    inv.invoice.correctiveInvoiceId = _.get(ninv, 'id', null)
+                    ninv.correctedInvoiceId = _.get(inv, 'invoice.id', null)
+                    ninv.invoicingCodes = _.get(inv, 'invoice.invoicingCodes', []).map(invc =>
+                        !_.get(invc, 'accepted', false) ? _.assign(_.omit(invc, ["id", "accepted", "canceled", "pending", "resent", "archived"]), {
+                            id: this.api.crypto().randomUuid(),
+                            accepted: false,
+                            canceled: false,
+                            pending: true,
+                            resent: true,
+                            archived: false
+                        }) : null
+                    )
+
+                    return _.concat(listOfInvoice, {invoice: _.get(inv, 'invoice', {}), correctiveInvoice: ninv})
+
+                })) : Promise.resolve()
+        })
+
+        return prom
+    }
+
+    _createNewInvoiceFromList(listOfInvoice){
+        let prom = Promise.resolve()
+        _.compact(listOfInvoice).map(inv => {
+            prom = prom.then(newInvoiceList => this.api.insurance().getInsurance(_.get(inv, 'correctiveInvoice.recipientId', null))
+                .then(ins => this.api.insurance().getInsurance(_.get(ins, 'parent', null)))
+                .then(parentIns => this.api.invoice().createInvoice(_.get(inv, 'correctiveInvoice', {}), 'invoice:' + this.user.healthcarePartyId + ':' + _.get(inv, 'parentIns.code', '000') + ':'))
+                .then(ninv => {
+                    return _.concat(newInvoiceList, {invoice: _.get(inv, 'invoice', {}), correctiveInvoice: ninv})
+                }))
+        })
+
+        return prom
+    }
+
+    _openRecreationDialog(){
+        this.shadowRoot.querySelector("#recreationDialog").open()
+    }
+
+    _closeRecreationDialog(){
+        this.shadowRoot.querySelector("#recreationDialog").close()
     }
 
 }

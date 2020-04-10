@@ -55,8 +55,11 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
             }
             
             .panel-button{
-                height: 40px;
-                width: auto;             
+                height: 32px;
+                width: auto; 
+                padding: 4px; 
+                display: flex;
+                justify-content: flex-end!important;              
             }
                        
             .invoice-status {
@@ -376,11 +379,13 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                         .uniq()
                         .orderBy(['code', 'label.' + this.language, 'id'], ['asc', 'asc', 'asc'])
                         .value()
-                    this.set('filteredListOfInvoice', _.sortBy(invoiceSearchResults, ['insuranceCode'], ['asc']))
+                    this.set('filteredListOfInvoice', _.sortBy(invoiceSearchResults, ['messageInfo.oa', 'messageInfo.invoiceDate'], ['asc', 'asc']))
                 }else{
-                    this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['insuranceCode'], ['asc']))
+                    this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['messageInfo.oa', 'messageInfo.invoiceDate'], ['asc', 'asc']))
                 }
             }, 100)
+        }else{
+            this.set('filteredListOfInvoice', _.sortBy(_.get(this, 'listOfInvoice', []), ['messageInfo.oa', 'messageInfo.invoiceDate'], ['asc', 'asc']))
         }
     }
 
@@ -403,7 +408,7 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
                       }))
               })))
               .then(() => {
-                  this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true}))
+                  this.dispatchEvent(new CustomEvent('get-message', {bubbles: true, composed: true, detail: {refreshAll: true}}))
               })
               .finally(()=>this.api.setPreventLogging(false))
       }
@@ -411,6 +416,10 @@ class HtMsgInvoiceRejected extends TkLocalizerMixin(PolymerElement) {
 
     _getRefusedAmount(totalAmount, acceptedAmount){
         return this.findAndReplace(((Number(Number(totalAmount) - Number(acceptedAmount)).toFixed(2)).toString()),'.',',')
+    }
+
+    _getNbMsgToArchive(){
+        return _.size(_.get(this, 'messageIdsCanBeAutoArchived', []))
     }
 
 }
