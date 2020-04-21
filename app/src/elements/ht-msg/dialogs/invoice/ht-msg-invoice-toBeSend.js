@@ -191,7 +191,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             }  
             
             .fg4{
-                flex-grow: 4;
+                flex-grow: 4.2;
             }
                        
             .status{
@@ -321,7 +321,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                     </div>
                     <ht-spinner active="[[isLoading]]"></ht-spinner>
                     <template is="dom-if" if="[[!isLoading]]">
-                        <template is="dom-repeat" items="[[filteredListOfInvoice]]" as="group">
+                        <template is="dom-repeat" items="[[filteredListOfInvoice]]" as="group" id="invoiceList">
                             <div class="tr tr-group">
                                 <div class="td fg4">[[_getGroupInformation(group)]]</div>
                                 <div class="td fg1"></div>
@@ -334,6 +334,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
                             </div>
                             <template is="dom-repeat" items="[[group]]" as="inv">
                                 <div class="tr tr-item" id="[[inv.invoiceId]]" data-item$="[[inv]]" on-tap="_displayInfoInvoicePanel">
+                                    <div class="td fg02"><vaadin-checkbox checked="[[inv.sendingFlag]]" id="[[inv.uuid]]" on-checked-changed="_selectedSendingFlagChanged" on-tap="_stopPropagation"></vaadin-checkbox></div>
                                     <div class="td fg02">
                                         <template is="dom-if" if="[[inv.realizedByTrainee]]">
                                             <iron-icon icon="vaadin:academy-cap" class="info-icon"></iron-icon>
@@ -681,7 +682,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             this.push('progressItem', this.localize('inv-step-1', 'inv-step-1', this.language))
 
             let prom = Promise.resolve()
-            _.chain(_.head(_.chunk(this.listOfInvoice.filter(inv => inv.insurabilityCheck === true), 500)))
+            _.chain(_.head(_.chunk(this.listOfInvoice.filter(inv => _.get(inv, 'insurabilityCheck', false) === true && _.get(inv, 'sendingFlag', false) === true), 500)))
                 .groupBy(fact => fact.insuranceParent)
                 .toPairs().value()
                 .forEach(([fedId,invoices]) => {
@@ -715,6 +716,23 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             this.dispatchEvent(new CustomEvent('open-invoice-detail-panel', {bubbles: true, composed: true, detail: {selectedInv: JSON.parse(_.get(e, 'currentTarget.dataset.item', null))}}))
         }
     }
+
+    _selectedSendingFlagChanged(e){
+        e.stopPropagation()
+        if(_.get(e, 'target.id', null)){
+            let inv = _.get(this, 'listOfInvoice', []).find(inv => _.get(inv, 'uuid', null) === _.get(e, 'target.id', ''))
+            inv.sendingFlag = _.get(e, 'target.checked', false)
+        }
+    }
+
+    _stopPropagation(e){
+        e.stopPropagation()
+    }
+
+    _getGroupId(group){
+        return _.get(_.head(group), 'parentInsuranceDto.id', null)
+    }
+
 
 }
 
