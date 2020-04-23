@@ -372,7 +372,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             <div class="panel-button">
                 <template is="dom-if" if="[[!isLoading]]" restamp="true">
                     <paper-button class="button button--other" on-tap="_refreshInvoiceList">[[localize('refresh','Refresh',language)]]</paper-button>
-                    <template is="dom-if" if="[[api.tokenId]]">                    
+                    <template is="dom-if" if="[[api.tokenId]]" restamp="true">
                         <paper-button on-tap="_checkBeforeSend" class="button button--save" disabled="[[cannotSend]]">[[localize('inv_send','Send',language)]]</paper-button>
                     </template>
                     <template is="dom-if" if="[[!api.tokenId]]" restamp="true">                   
@@ -558,9 +558,11 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
     _initialize(){
         if(_.size(_.get(this, 'listOfInvoice', [])) > 0) {
             this.set('filteredListOfInvoice', _.map(_.groupBy(_.get(this, 'listOfInvoice', []), 'parentInsuranceDto.code'), inv => inv))
-            const LastSend = parseInt(localStorage.getItem('lastInvoicesSent')) ? parseInt(localStorage.getItem('lastInvoicesSent')) : -1
-            const maySend = (LastSend < Date.now() + 24*60*60000 || LastSend===-1)
-            this.set('cannotSend',!maySend)
+
+            const lastSend = parseInt(localStorage.getItem('lastInvoicesSent')) ? this.api.moment(parseInt(localStorage.getItem('lastInvoicesSent'))).format('YYYY-MM-DD') : '2000-01-01'
+            const maySend =  this.api.moment(lastSend).isSame(this.api.moment(Date.now()).format('YYYY-MM-DD'))
+            this.set('cannotSend',maySend)
+
         }
 
     }
@@ -672,8 +674,9 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
         this.shadowRoot.querySelector('#checkBeforeSendingDialog') ? this.shadowRoot.querySelector('#checkBeforeSendingDialog').close() : null
         this.set('progressItem', [])
 
-        const LastSend = parseInt(localStorage.getItem('lastInvoicesSent')) ? parseInt(localStorage.getItem('lastInvoicesSent')) : -1
-        const maySend = (LastSend < Date.now() + 24*60*60000 || LastSend===-1)
+        const lastSend = parseInt(localStorage.getItem('lastInvoicesSent')) ? this.api.moment(parseInt(localStorage.getItem('lastInvoicesSent'))).format('YYYY-MM-DD') : '2000-01-01'
+        const maySend =  !this.api.moment(lastSend).isSame(this.api.moment(Date.now()).format('YYYY-MM-DD'))
+
         if (maySend) {
             this.set('cannotSend',true)
             localStorage.setItem('lastInvoicesSent', Date.now())
@@ -682,7 +685,7 @@ class HtMsgInvoiceToBeSend extends TkLocalizerMixin(PolymerElement) {
             this.push('progressItem', this.localize('inv-step-1', 'inv-step-1', this.language))
 
             let prom = Promise.resolve()
-            _.chain(_.head(_.chunk(this.listOfInvoice.filter(inv => _.get(inv, 'insurabilityCheck', false) === true && _.get(inv, 'sendingFlag', false) === true), 500)))
+            _.chain(_.head(_.chunk(this.listOfInvoice.filter(inv => _.get(inv, 'insurabilityCheck', false) === true && _.get(inv, 'sendingFlag', false) === true), 100)))
                 .groupBy(fact => fact.insuranceParent)
                 .toPairs().value()
                 .forEach(([fedId,invoices]) => {
