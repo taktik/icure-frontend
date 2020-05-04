@@ -1079,6 +1079,8 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                             <div class="add-elem-mobile" on-tap="_exportFilteredPatientListToXls">[[localize('export_xls','Export to XLS',language)]]
                             </div>
                             <div class="add-elem-mobile" on-tap="_exportAllPatientListToXls">[[localize('export_all_pat_xls','Export all patients to XLS',language)]]
+                            <div class="add-elem-mobile" on-tap="_exportAllPatientsAsPmf">[[localize('export_all_pat_pmf','Export all patients as PMF',language)]]
+                            <div class="add-elem-mobile" on-tap="_exportAllPatientsAsSmf">[[localize('export_all_pat_smf','Export all patients as SMF',language)]]
                             </div>
                             <div class="add-elem-mobile" on-tap="_openImportPatientFromMfDialog">[[localize('import_mf','Import patient from PMF/SMF',language)]]
                             </div>
@@ -1111,18 +1113,22 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
                                 </paper-button>
                             </template>
                             <template is="dom-if" if="[[showExportContainer]]">
-                                <div class="export-container">
+                                <paper-button class="export-container">
                                     <paper-button class="button button--menu" on-tap="_toggleExportActions">
                                         <span class="no-mobile">[[localize('clo','Close',language)]]</span>
                                         <iron-icon icon="[[_actionIcon(showExportContainer)]]"></iron-icon>
                                     </paper-button>
-                                    <div class="exports-container">
+                                    <paper-button class="exports-container">
                                         <paper-button class="button button--other" on-tap="_exportAllPatientListToXls">[[localize('export_all_pat_xls','Export all patients to XLS',language)]]</paper-button>
                                         <template is="dom-if" if="[[btnSelectionPatient]]">
                                             <paper-button class="button button--other" on-tap="_exportPatientAsPMF">[[localize('export_pat_pmf','Export patients',language)]]</paper-button>
                                             <paper-button class="button button--other" on-tap="_exportPatient">[[localize('export_pat_smf','Export patients',language)]]</paper-button>
                                             <paper-button class="button button--other" on-tap="_exportFilteredPatientListToXls">[[localize('export_xls','Export to XLS',language)]]</paper-button>
                                         </template>
+                                        <template is="dom-if" if="[[!btnSelectionPatient]]">
+                                            <paper-button class="button button--other" on-tap="_exportAllPatientsAsPmf">[[localize('export_all_pat_pmf','Export all patients as PMF',language)]]</paper-button>
+                                            <paper-button class="button button--other" on-tap="_exportAllPatientsAsSmf">[[localize('export_all_pat_smf','Export all patients as SMF',language)]]</paper-button>
+                                        </template>  
                                     </div>
                                 </div>
                             </template>
@@ -2673,6 +2679,74 @@ class HtPatList extends TkLocalizerMixin(PolymerElement) {
           this.set('isImportingPatients', false)
       })
   }
+    _exportAllPatientsAsPmf(e, o) {
+      this._exportAllPatientsAsSmf(e, o,true)
+    }
+    _exportAllPatientsAsSmf(e, o, exportAsPMF = false) {
+        this.set('isExportingPatients', true)
+        let retry = 0
+        this.api.getRowsUsingPagination(
+            (key, docId) => this.api.patient().listPatientsIds(this.user.healthcarePartyId, key || null, docId || null, 1000).then(pl => {
+                retry = 0
+                return {
+                    rows: pl.rows.map(id => ({id})),
+                    nextKey: pl.nextKeyPair && JSON.stringify(pl.nextKeyPair.startKey),
+                    nextDocId: pl.nextKeyPair && pl.nextKeyPair.startKeyDocId,
+                    done: !pl.nextKeyPair
+                }
+            }).catch((e) => {
+                console.log(`retry: ${e.message}`)
+                retry++
+                return retry <= 3 ? Promise.resolve({
+                    rows: [],
+                    nextKey: key,
+                    nextDocId: docId,
+                    done: false
+                }) : Promise.reject(e)
+            })
+        ).then(pats => {
+            this.set('taskProgress', 0.001)
+            let p = Promise.resolve([])
+            pats.forEach((patId, pidx) => {
+                p = p.then(() => this.api.patient().getPatientWithUser(this.user, patId.id))
+                    .then(patientDto => this.api.timeout(20000,
+                        this.api.crypto()
+                        .extractDelegationsSFKs(patientDto, this.user.healthcarePartyId)
+                        .then(secretForeignKeys => {
+                            return this.api.bekmehr().generateSmfExportWithEncryptionSupport(patientDto.id, this.user.healthcarePartyId, "fr", {
+                                exportAsPMF: exportAsPMF,
+                                secretForeignKeys: secretForeignKeys.extractedKeys,
+                                comment: null
+                            }, (progress) => this.set('taskProgress', (pidx + progress) / pats.length), this.api.sessionId).then(output => {
+                                //creation of the xml file
+                                var file = typeof output === "string" ? new Blob([output], {type: "application/xml"}) : output
+
+                                //creation the downloading link
+                                var a = document.createElement("a")
+                                document.body.appendChild(a)
+                                a.style = "display: none"
+
+                                //download the new file
+                                var url = window.URL.createObjectURL(file)
+                                a.href = url
+                                a.download = (patientDto.lastName ||'Noname').replace(" ", "_") + '_' + (patientDto.firstName ||'Noname').replace(" ", "_") + "_" + (moment().format("x")) + ".xml"
+                                a.click()
+                                window.URL.revokeObjectURL(url)
+
+                                document.body.removeChild(a)
+
+                            }).catch(error => console.log(error))
+                        })).catch(e => {
+                        console.error("Error while exporting patient "+patientDto.id, e)
+                    })).catch(e => {
+                    console.error("Error while exporting patient "+patId.id, e)
+                })
+            })
+            p.finally(() => this.set('taskProgress', 0))
+        }).finally(() => {
+            this.set('isExportingPatients', false)
+        })
+    }
 
   _openPatientActionDialog() {
       if (this.shareOption) {

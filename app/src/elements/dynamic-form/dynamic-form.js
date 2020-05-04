@@ -275,7 +275,33 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                 opacity: 1;
             }
 
-            .msoap-container .section .section--form {
+            .msoap-container .section .section--container {
+                flex-grow: 1;
+                justify-content: space-between;
+                display: inline-flex;
+                flex-flow: column nowrap;
+                align-items: stretch;
+            }
+
+            .msoap-container .section  .section--container .section--title {
+                width: 100%;
+                padding: 4px 16px;
+                font-size: var(--font-size-normal);
+                box-sizing: border-box;
+                background: var(--app-background-color);
+                height: auto;
+                color: var(--app-secondary-color-dark);
+            }
+
+            .msoap-container .section  .section--container .section--columns {
+                flex-grow: 1;
+                justify-content: space-between;
+                display: inline-flex;
+                flex-flow: row nowrap;
+                align-items: stretch;
+            }
+            
+            .msoap-container .section .section--column {
                 flex-grow: 1;
                 display: inline-flex;
                 flex-flow: row wrap;
@@ -283,7 +309,8 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                 padding: 8px;
             }
 
-            .msoap-container .section .section--form h4 {
+
+            .msoap-container .section .section--column h4 {
                 @apply --flex-rw-c-sa;
                 font-size: var(--font-size-large);
                 margin: 0 6px;
@@ -296,15 +323,15 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                 text-align: left;
             }
 
-            .msoap-container .section .section--form h4:not(:first-child){
+            .msoap-container .section .section--column h4:not(:first-child){
                 margin: 8px 6px;
             }
 
-            .msoap-container .section .section--form h4 paper-menu-button{
+            .msoap-container .section .section--column h4 paper-menu-button{
                 padding: 0;
             }
 
-            .msoap-container .section .section--form h4 span {
+            .msoap-container .section .section--column h4 span {
                 display: block;
                 flex-grow: 1;
                 text-align: left;
@@ -447,17 +474,20 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                 <form id="general-info" is="iron-form">
                     <div class="msoap-container">
                     <template is="dom-repeat" items="[[template.sections]]" as="section">
-                        <template is="dom-repeat" items="[[section.formColumns]]" as="column">
-                            <div class$="section section--[[column.columns]]">
-                                <div class="section--label">
+                            <div class$="section section--[[section.title]]">
+                               <div class="section--label">
                                     <paper-button class="btn" on-tap="_hideShowSection">
-                                        <span>[[column.columns]]</span>
+                                        <span>[[section.icon]]</span>
                                         <iron-icon icon="close"></iron-icon>
                                     </paper-button>
                                 </div>
-                                <div class="section--form">
+                                <div class="section--container">
+                                <div class="section--title">[[section.title]]</div>
+                                <div class="section--columns">
+                                <template is="dom-repeat" items="[[section.formColumns]]" as="column">
+                                <div class="section--column">
                                 <template id="layoutitems-repeat" is="dom-repeat"
-                                          items="[[_sortedGroupedFormDataList(column.formDataList)]]" as="layoutItem">
+                                          items="[[_sortedGroupedFormDataList(column.formDataList,section,column)]]" as="layoutItem">
                                     <template is="dom-if" if="[[_shouldDisplay(layoutItem, readOnly, compact)]]">
                                         <template is="dom-if" if="[[_isTextField(layoutItem)]]">
                                             <dynamic-text-field id="[[_sanitizeId(layoutItem.name)]]" label="[[layoutItem.label]]"
@@ -636,7 +666,11 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
                                         </template>
                                     </template>
                                 </template>
-                            </template>
+                                </div>
+                                </template>
+                                </div>
+                                </div>
+                            </div>
                         </template>
                     </div>
                 </form>
@@ -1002,19 +1036,17 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
 				return layoutItem;
     }
 
-    _sortedGroupedFormDataList(formDataList) {
-        const widthsStruct = formDataList.reduce((acc, i) => {
-            acc.widths[i.name] = i.editor.left + i.editor.width; acc.maxWidth = Math.max(acc.widths[i.name], acc.maxWidth); return acc
-        }, { widths: {}, maxWidth: 32 })
+    _sortedGroupedFormDataList(formDataList,section,column) {
+        const filteredFormDataList = formDataList.filter(fd => !(this._isLabel(fd) && fd.label === section.title))
 
         //Cluster lines
-        const sortedList = _.sortBy(formDataList, fd => fd.editor.top)
+        const sortedList = _.sortBy(filteredFormDataList, fd => fd.editor.top)
         const clusters = this.shadowRoot.querySelector('#ckmeans-grouping').cluster(sortedList.map(fd => fd.editor.top)).clusters
 
         const formDataClusters = sortedList.reduce((cs, fd) => cs[_.findIndex(clusters, c => c.includes(fd.editor.top))].push(fd) && cs, new Array(clusters.length).fill(null).map(() => [])).map(c => _.sortBy(c, [x => x.editor.left + x.editor.width]))
 
         //Cluster columns
-        const rightClustering = this.shadowRoot.querySelector('#ckmeans-flow-grouping').cluster(_.sortBy(formDataList.map(fd => fd.editor.left + fd.editor.width)))
+        const rightClustering = this.shadowRoot.querySelector('#ckmeans-flow-grouping').cluster(_.sortBy(filteredFormDataList.map(fd => fd.editor.left + fd.editor.width)))
         //Round centroids
         rightClustering.centroids = rightClustering.centroids.map(c => Math.round(c / 24) * 24)
 
@@ -1022,9 +1054,18 @@ class DynamicForm extends TkLocalizerMixin(PolymerElement) {
             c.editor.right = rightClustering.centroids[_.findIndex(rightClustering.clusters, cc => cc.includes(c.editor.left + c.editor.width))]
         });
 
+        const { maxRight, minLeft } = filteredFormDataList.reduce(({ maxRight, minLeft }, i) => ({
+            maxRight: Math.max(i.editor.right, maxRight),
+            minLeft: Math.min(i.editor.left, minLeft)
+        }), { maxRight: 32, minLeft: 1000 })
+
+        console.log(`Section : ${section.title}`)
+        console.log(`Range : ${minLeft} - ${maxRight}`)
+
         formDataClusters.forEach(line => {
-            const width = line.reduce((acc,c) => { c.editor.flow = c.editor.right - acc; return c.editor.right }, 0)
-            line.forEach(c => c.editor.flow = c.editor.flow * 100 / width)
+            const width = line.reduce((acc,c) => { c.editor.flow = c.editor.right - acc; return c.editor.right }, minLeft)
+            line.forEach(c => c.editor.flow = c.editor.flow * 100 / (width - minLeft))
+            console.log(`Flows : ${line.map(c => c.editor.flow).join('.')}`)
         })
 
         return _.flatten(formDataClusters);

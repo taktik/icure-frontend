@@ -191,7 +191,22 @@ class IccApi extends PolymerElement {
       this.dispatchEvent(new CustomEvent('refresh', {detail: {}}))
   }
 
-  accesslog() {
+    timeout(timeout, promise) {
+        return new Promise((resolve, reject) => {
+            const to = setTimeout(() => {
+                reject(new Error("Timeout"))
+            }, timeout)
+            promise.then(r => {
+                clearTimeout(to);
+                resolve(r)
+            }).catch(e => {
+                clearTimeout(to);
+                reject(e)
+            })
+        })
+    }
+
+    accesslog() {
       return this.accesslogicc
   }
 

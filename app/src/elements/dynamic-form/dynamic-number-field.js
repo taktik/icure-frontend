@@ -49,7 +49,8 @@ class DynamicNumberField extends TkLocalizerMixin(PolymerElement) {
 
 			.label-span{
 				display: block;
-				max-width: calc(100% - 20px);
+                padding-bottom: 2px;
+				max-width: 100%;
 				text-overflow: ellipsis;
 				float: left;
 				overflow: hidden;
