@@ -118,6 +118,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesProcessed]]"
+                    list-of-oa="[[listOfOa]]"
                     on-open-detail-panel="_openDetailPanel"
                     on-get-message="fetchMessageToBeSendOrToBeCorrected"
                     is-loading="[[isLoading]]"
@@ -133,6 +134,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesRejected]]"
                     message-ids-can-be-auto-archived="[[messageIdsCanBeAutoArchived]]"
+                    list-of-oa="[[listOfOa]]"
                     on-open-detail-panel="_openDetailPanel"
                     on-get-message="fetchMessageToBeSendOrToBeCorrected"
                     is-loading="[[isLoading]]"
@@ -147,6 +149,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesAccepted]]"
+                    list-of-oa="[[listOfOa]]"
                     on-open-detail-panel="_openDetailPanel"
                     is-loading="[[isLoading]]"
                 ></ht-msg-invoice-accepted>
@@ -160,6 +163,7 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     language="[[language]]" 
                     resources="[[resources]]" 
                     list-of-invoice="[[messagesArchived]]"
+                    list-of-oa="[[listOfOa]]"
                     on-open-detail-panel="_openDetailPanel"
                     is-loading="[[isLoading]]"
                 ></ht-msg-invoice-archived>
@@ -330,8 +334,24 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
           },
           routeData:{
               type: Object,
-
               value: () => {}
+          },
+          refreshAll:{
+              type: Boolean,
+              value: false
+          },
+          listOfOa:{
+              type: Array,
+              value: [
+                  {code: "100", name: {"fr": "Alliance nationale des mutualités chrétiennes", "nl": "Landsbond der christelijke mutualiteiten"}},
+                  {code: "200", name: {"fr": "Union nationale des mutualités neutres", "nl": "Landsbond van de neutrale ziekenfondsen"}},
+                  {code: "300", name: {"fr": "Union Nationale des Mutualités Socialistes", "nl": "Nationaal verbond van socialistiche mutualiteiten"}},
+                  {code: "306", name: {"fr": "Union Nationale des Mutualités Socialistes 306", "nl": "Nationaal verbond van socialistiche mutualiteiten 306"}},
+                  {code: "400", name: {"fr": "Union nationale des mutualités libérales", "nl": "Landsbond van liberale mutualiteiten"}},
+                  {code: "500", name: {"fr": "Union nationale des mutualités libres", "nl": "Landsbond van de onafhankelijke ziekenfondsen"}},
+                  {code: "600", name: {"fr": "Caisse auxiliaire d'assurance maladie-invalidité", "nl": "Hulpkas voor Ziekte-en Invaliditeitsverzekering"}},
+                  {code: "900", name: {"fr": "Caisse des Soins de santé de HR Rail", "nl": "Kas der Geneeskundige Verzorging van HR Rail"}}
+              ]
           }
       };
   }
@@ -367,11 +387,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
 
     getMessage(){
         if(!_.get(this, 'isMessagesLoaded', false))
-            this.fetchMessageToBeSendOrToBeCorrected()
+            this.fetchMessageToBeSendOrToBeCorrected({detail: {refreshAll: true}})
     }
 
-    fetchMessageToBeSendOrToBeCorrected(){
+    fetchMessageToBeSendOrToBeCorrected(e){
         this.set("isLoading",true)
+        this.set("refreshAll", _.get(e, 'detail.refreshAll', true))
         let prom = Promise.resolve()
 
         this.api.setPreventLogging()
@@ -389,6 +410,9 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
             ).then(listOfEfact =>
                 Promise.all([listOfEfact, this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.compact(listOfEfact.map(e => e.invoice.recipientId || null)))}))])
                     .then(([listOfEfact, insuranceList]) => listOfEfact.map(efact => _.assign(efact, {insurance: insuranceList.find(i => i.id === efact.invoice.recipientId) || null})))
+            ).then(listOfEfact =>
+                Promise.all([listOfEfact, this.api.insurance().getInsurances(new models.ListOfIdsDto({ids: _.uniq(_.compact(listOfEfact.map(e => _.get(e, 'insurance.parent', null))))}))])
+                    .then(([listOfEfact, parentInsuranceList]) => listOfEfact.map(efact => _.assign(efact, {parentInsurance: parentInsuranceList.find(ins => ins.id === _.get(efact, 'insurance.parent', null))})))
             ).then(listOfEfact => listOfEfact.map(efact => {
                 let insurabilityComplete = false
 
@@ -396,14 +420,14 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 efact.patient.insurabilities.length > 0 ? insurabilityComplete = true : insurabilityComplete = false
 
                 return ({
-                    patientName: efact.patient.lastName+" "+efact.patient.firstName,
-                    invoiceId: efact.invoice.id,
-                    sentMediumType: efact.invoice.sentMediumType,
-                    insuranceCode: efact.insurance && efact.insurance.code ? efact.insurance.code : null,
-                    insuranceParent: efact.insurance && efact.insurance.parent ? efact.insurance.parent : null,
-                    invoiceReference: efact.invoice.invoiceReference,
-                    patientSsin: efact.patient.ssin,
-                    invoiceDate: efact.invoice.invoiceDate,
+                    patientName: _.get(efact, 'patient.lastName', null)+" "+_.get(efact, 'patient.firstName', null),
+                    invoiceId: _.get(efact, 'invoice.id', null),
+                    sentMediumType: _.get(efact, 'invoice.sentMediumType', null),
+                    insuranceCode: _.get(efact, 'insurance.code', null),
+                    insuranceParent: _.get(efact, 'insurance.parent', null),
+                    invoiceReference: _.get(efact, 'invoice.invoiceReference', null),
+                    patientSsin: _.get(efact, 'patient.ssin', null),
+                    invoiceDate: _.get(efact, 'invoice.invoiceDate', null),
                     reimbursement: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.reimbursement), 0).toFixed(2) : 0.00,
                     patientIntervention: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.patientIntervention), 0).toFixed(2) : 0.00,
                     totalAmount: efact.invoice.invoicingCodes ? efact.invoice.invoicingCodes.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00 ,
@@ -412,12 +436,15 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                     hasChildren : false,
                     uuid : efact.invoice.id,
                     parentUuid : efact.insurance && efact.insurance.code ? efact.insurance.code.charAt(0) : null,
-                    patient: efact.patient,
-                    invoice: efact.invoice,
+                    patient: _.get(efact, 'patient', {}),
+                    invoice: _.get(efact, 'invoice', {}),
+                    insuranceDto: _.get(efact, 'insurance', {}),
+                    parentInsuranceDto: _.get(efact, 'parentInsurance', {}),
                     toBeCorrected: !!efact.invoice.invoicingCodes.find(ic => ic.resent === true),
                     error: efact.invoice.error || "",
                     insurabilityCheck: insurabilityComplete,
                     realizedByTrainee : efact.invoice.internshipNihii && efact.invoice.internshipNihii.length ? true : false,
+                    sendingFlag: insurabilityComplete,
                     normalizedSearchTerms: _.map(_.uniq(_.compact(_.flatten(_.concat([_.get(efact, _.trim('patient.lastName'), ""), _.get(efact, _.trim('patient.firstName'), ""), _.trim(_.get(efact, 'invoice.invoiceReference', "")).toString(), _.trim(_.get(efact, 'insurance.code', "")).toString(), _.trim(_.get(efact, 'patient.ssin', "")).toString(), _.trim(_.get(efact, 'invoice.invoiceDate', '')).toString()])))), i =>  _.trim(i).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "")).join(" ")
                 })
             })).then(invoices => {
@@ -430,7 +457,12 @@ class htMsgInvoice extends TkLocalizerMixin(PolymerElement) {
                 this.set("totalInvoicesToBeSend.totalAmount",this.selectedInvoicesToBeSend ? this.selectedInvoicesToBeSend.reduce((tot, m) => tot + Number(m.totalAmount), 0).toFixed(2) : 0.00)
             }).finally(() =>{
                 this.api.setPreventLogging(false)
-                return this.fetchMessages()
+                if( _.get(this, 'refreshAll', true)){
+                    return this.fetchMessages()
+                }else{
+                    this.set("isLoading",false)
+                    return Promise.resolve({})
+                }
             })
                 .catch(e => console.log('Erreur lors de la récupération des factures: ', e))
         })
